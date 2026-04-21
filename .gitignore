@@ -35,5 +35,10 @@ Thumbs.db
 # Data files (your app persistence)
 data/*.json
 
+# Allow initial seed files
+!data/appointments.json
+!data/chatLogs.json
+!data/settings.json
+
 # Old DB (if you ever go back to sqlite)
 *.db

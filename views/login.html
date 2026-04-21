@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+      color: #111827;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+    }
+
+    p {
+      margin: 0 0 20px;
+      color: #6b7280;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      margin-bottom: 12px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 12px;
+      background: #111827;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .error {
+      color: #b91c1c;
+      margin-top: 12px;
+      min-height: 20px;
+      font-size: 14px;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    @media (max-width: 500px) {
+      h1 {
+        font-size: 22px;
+      }
+
+      input, button {
+        font-size: 15px;
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Admin Login</h1>
+      <p>Enter your password to access the dashboard.</p>
+
+      <input
+        id="password"
+        type="password"
+        placeholder="Enter admin password"
+        autofocus
+      />
+
+      <button onclick="login()">Log In</button>
+
+      <div id="error" class="error"></div>
+    </div>
+
+    <div class="footer">
+      AI Receptionist Pilot
+    </div>
+  </div>
+
+  <script>
+    async function login() {
+      const password = document.getElementById("password").value;
+      const errorDiv = document.getElementById("error");
+
+      errorDiv.textContent = "";
+
+      if (!password) {
+        errorDiv.textContent = "Please enter a password.";
+        return;
+      }
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          window.location.href = "/admin";
+        } else {
+          errorDiv.textContent = data.error || "Invalid password.";
+        }
+      } catch (err) {
+        errorDiv.textContent = "Something went wrong. Try again.";
+      }
+    }
+
+    // Allow Enter key
+    document.getElementById("password").addEventListener("keypress", function (e) {
+      if (e.key === "Enter") {
+        login();
+      }
+    });
+  </script>
+</body>
+</html>

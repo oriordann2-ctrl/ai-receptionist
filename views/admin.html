@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin: 0 0 8px;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin: 0 0 12px;
+    }
+
+    p {
+      margin: 0 0 10px;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+
+    .top-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .stat-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .badge-on {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge-off {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge-mode {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .badge-count {
+      background: #f3e8ff;
+      color: #7e22ce;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      min-height: 44px;
+    }
+
+    .btn-primary {
+      background: #111827;
+      color: white;
+    }
+
+    .btn-green {
+      background: #16a34a;
+      color: white;
+    }
+
+    .btn-red {
+      background: #dc2626;
+      color: white;
+    }
+
+    .btn-blue {
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn-gray {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .item {
+      border-top: 1px solid #e5e7eb;
+      padding: 14px 0;
+    }
+
+    .item:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .item-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .meta {
+      color: #6b7280;
+      font-size: 14px;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    input, select {
+      padding: 10px 12px;
+      font-size: 15px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      min-height: 42px;
+      background: white;
+    }
+
+    input {
+      flex: 1 1 160px;
+    }
+
+    select {
+      flex: 1 1 140px;
+    }
+
+    .log-sender {
+      text-transform: capitalize;
+      font-weight: bold;
+    }
+
+    .empty {
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    @media (max-width: 700px) {
+      .top-grid {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .button-row {
+        flex-direction: column;
+      }
+
+      .button-row button {
+        width: 100%;
+      }
+
+      .form-row {
+        flex-direction: column;
+      }
+
+      input, select, .form-row button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Admin Dashboard</h1>
+    <p class="subtitle">Control the AI receptionist and review bookings and conversations.</p>
+
+    <div class="top-grid">
+      <div class="card">
+        <h2>System Status</h2>
+        <button class="btn-gray" onclick="logout()">Log Out</button>
+        <div class="stat-row">
+          <span id="statusBadge" class="badge">Loading...</span>
+          <span id="modeBadge" class="badge badge-mode">Mode</span>
+          <span id="countBadge" class="badge badge-count">0 appointments</span>
+        </div>
+
+        <div class="button-row">
+          <button class="btn-green" onclick="setStatus(true)">Turn ON</button>
+          <button class="btn-red" onclick="setStatus(false)">Turn OFF</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Business Mode</h2>
+        <p>Choose the experience this admin wants to run.</p>
+
+        <div class="button-row">
+          <button class="btn-blue" onclick="setMode('gp')">GP Mode</button>
+          <button class="btn-blue" onclick="setMode('mortgage')">Mortgage Mode</button>
+          <button class="btn-gray" onclick="loadData()">Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Appointments</h2>
+      <div id="appointments"></div>
+    </div>
+
+    <div class="card">
+      <h2>Chat Logs</h2>
+      <div id="chatLogs"></div>
+    </div>
+  </div>
+
+  <script>
+    let currentStatus = {
+      aiEnabled: true,
+      businessMode: "gp"
+    };
+
+    async function logout() {
+    await fetch("/logout", {
+        method: "POST"
+    });
+
+    window.location.href = "/login";
+    }
+
+    async function loadStatus() {
+      const res = await fetch("/status");
+      const data = await res.json();
+      currentStatus = data;
+
+      const statusBadge = document.getElementById("statusBadge");
+      const modeBadge = document.getElementById("modeBadge");
+
+      statusBadge.textContent = data.aiEnabled ? "AI ON" : "AI OFF";
+      statusBadge.className = data.aiEnabled ? "badge badge-on" : "badge badge-off";
+
+      modeBadge.textContent = `Mode: ${data.businessMode}`;
+    }
+
+    async function setStatus(enabled) {
+      await fetch("/status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ enabled })
+      });
+
+      await loadStatus();
+    }
+
+    async function setMode(mode) {
+      await fetch("/mode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ mode })
+      });
+
+      await loadStatus();
+    }
+
+    async function updateAppointment(id) {
+      const date = document.getElementById(`date-${id}`).value;
+      const time = document.getElementById(`time-${id}`).value;
+      const status = document.getElementById(`status-${id}`).value;
+
+      await fetch(`/appointments/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ date, time, status })
+      });
+
+      await loadData();
+    }
+
+    async function loadData() {
+      await loadStatus();
+
+      const appointmentsRes = await fetch("/appointments");
+      const appointments = await appointmentsRes.json();
+
+      const chatLogsRes = await fetch("/chat-logs");
+      const chatLogs = await chatLogsRes.json();
+
+      const appointmentsDiv = document.getElementById("appointments");
+      const chatLogsDiv = document.getElementById("chatLogs");
+      const countBadge = document.getElementById("countBadge");
+
+      countBadge.textContent = `${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`;
+
+      appointmentsDiv.innerHTML = "";
+      chatLogsDiv.innerHTML = "";
+
+      if (appointments.length === 0) {
+        appointmentsDiv.innerHTML = `<p class="empty">No appointments yet.</p>`;
+      } else {
+        appointments
+          .slice()
+          .reverse()
+          .forEach(appt => {
+            const div = document.createElement("div");
+            div.className = "item";
+            div.innerHTML = `
+              <div class="item-title">${appt.customerName} — ${appt.type}</div>
+              <div class="meta">
+                Date: ${appt.date}<br>
+                Time: ${appt.time}<br>
+                Status: ${appt.status}
+              </div>
+
+              <div class="form-row">
+                <input id="date-${appt.id}" type="text" value="${appt.date}" />
+                <input id="time-${appt.id}" type="text" value="${appt.time}" />
+                <select id="status-${appt.id}">
+                  <option value="confirmed" ${appt.status === "confirmed" ? "selected" : ""}>confirmed</option>
+                  <option value="rescheduled" ${appt.status === "rescheduled" ? "selected" : ""}>rescheduled</option>
+                  <option value="cancelled" ${appt.status === "cancelled" ? "selected" : ""}>cancelled</option>
+                </select>
+                <button class="btn-primary" onclick="updateAppointment(${appt.id})">Save Changes</button>
+              </div>
+            `;
+            appointmentsDiv.appendChild(div);
+          });
+      }
+
+      if (chatLogs.length === 0) {
+        chatLogsDiv.innerHTML = `<p class="empty">No chat logs yet.</p>`;
+      } else {
+        chatLogs
+          .slice()
+          .reverse()
+          .forEach(log => {
+            const div = document.createElement("div");
+            div.className = "item";
+            div.innerHTML = `
+              <div class="item-title"><span class="log-sender">${log.sender}</span>: ${log.message}</div>
+              <div class="meta">
+                User: ${log.userId}<br>
+                ${new Date(log.timestamp).toLocaleString()}
+              </div>
+            `;
+            chatLogsDiv.appendChild(div);
+          });
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

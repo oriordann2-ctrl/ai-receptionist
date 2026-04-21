@@ -1,0 +1,338 @@
+[
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T13:39:12.282Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T13:39:12.283Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-23",
+    "timestamp": "2026-04-21T13:39:19.429Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "I can help you book a GP appointment. Type 'book appointment' to begin.",
+    "timestamp": "2026-04-21T13:39:19.431Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T13:39:33.538Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T13:39:33.540Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-22",
+    "timestamp": "2026-04-21T13:39:39.772Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "I can help you book a GP appointment. Type 'book appointment' to begin.",
+    "timestamp": "2026-04-21T13:39:39.775Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T13:42:01.788Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T13:42:01.789Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-22",
+    "timestamp": "2026-04-21T13:42:07.883Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "I can help you book a GP appointment. Type 'book appointment' to begin.",
+    "timestamp": "2026-04-21T13:42:07.884Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T13:52:13.182Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T13:52:13.184Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-23",
+    "timestamp": "2026-04-21T13:52:21.089Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "I can help you book a GP appointment. Type 'book appointment' to begin.",
+    "timestamp": "2026-04-21T13:52:21.091Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T13:54:55.289Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T13:54:55.290Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-22",
+    "timestamp": "2026-04-21T13:55:01.738Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "I can help you book a GP appointment. Type 'book appointment' to begin.",
+    "timestamp": "2026-04-21T13:55:01.740Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T13:56:34.700Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T13:56:34.702Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-23",
+    "timestamp": "2026-04-21T13:56:46.630Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Available times on 2026-04-23 are: 09:30, 13:00, 15:00. Which time would you like?",
+    "timestamp": "2026-04-21T13:56:46.632Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "15:00",
+    "timestamp": "2026-04-21T13:56:52.565Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Please choose a date first: 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T13:56:52.567Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T14:01:19.189Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T14:01:19.190Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-22",
+    "timestamp": "2026-04-21T14:01:25.461Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "I can help you book a appointment. Type 'book appointment' to begin.",
+    "timestamp": "2026-04-21T14:01:25.463Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T14:04:11.645Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T14:04:11.646Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-22",
+    "timestamp": "2026-04-21T14:04:19.371Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Available times on 2026-04-22 are: 10:00, 11:00, 14:00. Which time would you like?",
+    "timestamp": "2026-04-21T14:04:19.377Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "10:00",
+    "timestamp": "2026-04-21T14:04:26.243Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Great — what is your name?",
+    "timestamp": "2026-04-21T14:04:26.246Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "Noel",
+    "timestamp": "2026-04-21T14:04:29.411Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Thanks Noel. Your appointment is booked for 2026-04-22 at 10:00.",
+    "timestamp": "2026-04-21T14:04:29.412Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T14:06:56.693Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T14:06:56.694Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-23",
+    "timestamp": "2026-04-21T14:07:03.479Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Available times on 2026-04-23 are: 09:30, 13:00, 15:00. Which time would you like?",
+    "timestamp": "2026-04-21T14:07:03.482Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "15:00",
+    "timestamp": "2026-04-21T14:07:13.345Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Great — what is your name?",
+    "timestamp": "2026-04-21T14:07:13.347Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "Fred",
+    "timestamp": "2026-04-21T14:07:17.887Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Thanks Fred. Your appointment is booked for 2026-04-23 at 15:00.",
+    "timestamp": "2026-04-21T14:07:17.889Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "book appointment",
+    "timestamp": "2026-04-21T14:24:39.255Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23.",
+    "timestamp": "2026-04-21T14:24:39.256Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "2026-04-23",
+    "timestamp": "2026-04-21T14:24:46.317Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Available times on 2026-04-23 are: 09:30, 13:00, 15:00. Which time would you like?",
+    "timestamp": "2026-04-21T14:24:46.319Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "13:00",
+    "timestamp": "2026-04-21T14:24:50.815Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Great — what is your name?",
+    "timestamp": "2026-04-21T14:24:50.817Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "Maura",
+    "timestamp": "2026-04-21T14:24:53.203Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "Thanks Maura. Your appointment is booked for 2026-04-23 at 13:00.",
+    "timestamp": "2026-04-21T14:24:53.205Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "customer",
+    "message": "howdy",
+    "timestamp": "2026-04-21T14:40:49.539Z"
+  },
+  {
+    "userId": "demo-user",
+    "sender": "bot",
+    "message": "The AI receptionist is currently turned off. Please contact the business directly.",
+    "timestamp": "2026-04-21T14:40:49.540Z"
+  }
+]

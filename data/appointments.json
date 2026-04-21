@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "userId": "demo-user",
+    "customerName": "Noel",
+    "date": "2026-04-22",
+    "time": "10:00",
+    "type": "GP Visit",
+    "status": "confirmed",
+    "createdAt": "2026-04-21T14:04:29.412Z"
+  },
+  {
+    "id": 2,
+    "userId": "demo-user",
+    "customerName": "Fred",
+    "date": "2026-04-23",
+    "time": "15:00",
+    "type": "GP Visit",
+    "status": "confirmed",
+    "createdAt": "2026-04-21T14:07:17.889Z"
+  },
+  {
+    "id": 3,
+    "userId": "demo-user",
+    "customerName": "Maura",
+    "date": "2026-04-23",
+    "time": "13:00",
+    "type": "GP Visit",
+    "status": "confirmed",
+    "createdAt": "2026-04-21T14:24:53.205Z"
+  }
+]

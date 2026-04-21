@@ -1,7 +1,7 @@
 {
   "name": "AI Receptionist",
   "short_name": "Receptionist",
-  "start_url": "/admin",
+  "start_url": "/login",
   "display": "standalone",
   "background_color": "#f3f4f6",
   "theme_color": "#111827",

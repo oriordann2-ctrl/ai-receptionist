@@ -309,6 +309,46 @@
       font-weight: bold;
     }
 
+    /* Compact appointment layout */
+.compact-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.compact-row input,
+.compact-row select {
+  flex: 1;
+  padding: 8px;
+  font-size: 14px;
+  min-height: 36px;
+}
+
+/* Smaller save button */
+.compact-row button {
+  padding: 8px 10px;
+  font-size: 13px;
+  min-height: 36px;
+}
+
+/* Mobile tweaks */
+@media (max-width: 700px) {
+  .compact-row {
+    flex-wrap: nowrap;
+  }
+
+  .compact-row input {
+    flex: 1;
+  }
+
+  .compact-row select {
+    flex: 1;
+  }
+
+  .compact-row button {
+    flex: 1;
+  }
+
     @media (max-width: 700px) {
       .top-grid {
         grid-template-columns: 1fr;
@@ -603,15 +643,18 @@
                 Status: ${appt.status}
               </div>
 
-              <div class="form-row">
-                <input id="date-${appt.id}" type="text" value="${appt.date}" />
-                <input id="time-${appt.id}" type="text" value="${appt.time}" />
+              <div class="compact-row">
+                <input id="date-${appt.id}" type="text" value="${appt.date}" placeholder="Date" />
+                <input id="time-${appt.id}" type="text" value="${appt.time}" placeholder="Time" />
+              </div>
+
+              <div class="compact-row">
                 <select id="status-${appt.id}">
                   <option value="confirmed" ${appt.status === "confirmed" ? "selected" : ""}>confirmed</option>
                   <option value="rescheduled" ${appt.status === "rescheduled" ? "selected" : ""}>rescheduled</option>
                   <option value="cancelled" ${appt.status === "cancelled" ? "selected" : ""}>cancelled</option>
                 </select>
-                <button class="btn-primary" onclick="updateAppointment(${appt.id})">Save Changes</button>
+                <button class="btn-primary" onclick="updateAppointment(${appt.id})">Save</button>
               </div>
             `;
             appointmentsDiv.appendChild(div);

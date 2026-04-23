@@ -296,6 +296,7 @@ app.post("/upload", upload.single("file"), (req, res) => {
 
     addChatLog({
       userId,
+      conversationId,
       sender: "system",
       message: `Document uploaded: ${req.file.originalname}`,
       timestamp: new Date()
@@ -489,6 +490,7 @@ app.put("/appointments/:id", requireAdmin, (req, res) => {
 
   addChatLog({
     userId: appointment.userId,
+    conversationId: appointment.conversationId,
     sender: "admin",
     message: `Appointment updated to ${appointment.date} at ${appointment.time} with status ${appointment.status}.`,
     timestamp: new Date()
@@ -522,7 +524,7 @@ async function getIntentFromOpenAI(message) {
 
 app.post("/chat", async (req, res) => {
   try {
-    const { userId, message } = req.body;
+    const { userId, conversationId, message } = req.body;
 
     if (!userId || !message) {
       return res.status(400).json({ error: "userId and message are required" });
@@ -539,6 +541,7 @@ app.post("/chat", async (req, res) => {
 
     addChatLog({
       userId,
+      conversationId,
       sender: "customer",
       message: trimmedMessage,
       timestamp: new Date()
@@ -578,6 +581,7 @@ app.post("/chat", async (req, res) => {
 
         addChatLog({
           userId,
+          conversationId,
           sender: "system",
           message: "Urgent triage flag raised.",
           timestamp: new Date()
@@ -645,6 +649,7 @@ app.post("/chat", async (req, res) => {
 
     addChatLog({
       userId,
+      conversationId,
       sender: "bot",
       message: result.reply,
       timestamp: new Date()

@@ -108,7 +108,15 @@
   </div>
 
   <script>
+    
     const userId = "demo-user";
+
+    let conversationId = sessionStorage.getItem("conversationId");
+    if (!conversationId) {
+    conversationId = "conv-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
+    sessionStorage.setItem("conversationId", conversationId);
+    }
+
     const chatBox = document.getElementById("chat-box");
     const messageInput = document.getElementById("message-input");
     const fileInput = document.getElementById("file-input");
@@ -166,6 +174,7 @@
           },
           body: JSON.stringify({
             userId,
+            conversationId,
             message
           })
         });

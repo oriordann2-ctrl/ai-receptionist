@@ -475,6 +475,7 @@ app.post("/chat", async (req, res) => {
       console.log("Raw intent:", rawIntent);
       console.log("Normalized intent:", intent);
       console.log("Business mode:", businessMode);
+      console.log("Message:", trimmedMessage);
     }
 
     if (!aiEnabled) {
@@ -504,35 +505,37 @@ app.post("/chat", async (req, res) => {
         result.reply =
           "I can help you book an appointment. Type 'book appointment' to begin.";
       }
-} else if (businessMode === "mortgage") {
-  if (intent === "upload documents") {
-    result.reply =
-      "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
-  } else if (
-    lowerMessage.includes("status") ||
-    lowerMessage.includes("update")
-  ) {
-    result.reply =
-      "Your mortgage application is currently being reviewed. A broker will contact you if any additional documents are required.";
-  } else if (
-    lowerMessage.includes("documents needed") ||
-    lowerMessage.includes("what documents") ||
-    lowerMessage.includes("what do i need")
-  ) {
-    result.reply =
-      "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements vary by lender.";
-  } else if (intent === "book appointment") {
-    result = handleBookingFlow({
-      userId,
-      message: "book appointment",
-      bookingType: "Mortgage Consultation",
-      confirmationLabel: "consultation"
-    });
-  } else {
-    result.reply =
-      "I can help with mortgage questions, consultations, and document uploads. You can type 'upload documents' or 'book appointment'.";
-  }
-}
+    } else if (businessMode === "mortgage") {
+      if (intent === "upload documents") {
+        result.reply =
+          "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
+      } else if (
+        lowerMessage.includes("status") ||
+        lowerMessage.includes("update")
+      ) {
+        result.reply =
+          "Your mortgage application is currently being reviewed. A broker will contact you if any additional documents are required.";
+      } else if (
+        lowerMessage.includes("documents needed") ||
+        lowerMessage.includes("what documents") ||
+        lowerMessage.includes("what do i need")
+      ) {
+        result.reply =
+          "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements vary by lender.";
+      } else if (intent === "book appointment") {
+        result = handleBookingFlow({
+          userId,
+          message: "book appointment",
+          bookingType: "Mortgage Consultation",
+          confirmationLabel: "consultation"
+        });
+      } else {
+        result.reply =
+          "I can help with mortgage questions, consultations, and document uploads. You can type 'upload documents' or 'book appointment'.";
+      }
+    } else {
+      result.reply = "Invalid business mode configuration.";
+    }
 
     addChatLog({
       userId,

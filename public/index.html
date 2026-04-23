@@ -15,6 +15,7 @@
 
     h1 {
       text-align: center;
+      margin-bottom: 24px;
     }
 
     #chat-box {
@@ -33,6 +34,7 @@
       border-radius: 12px;
       max-width: 75%;
       clear: both;
+      word-wrap: break-word;
     }
 
     .user {
@@ -49,9 +51,10 @@
     .row {
       display: flex;
       gap: 10px;
+      margin-bottom: 12px;
     }
 
-    input {
+    input[type="text"] {
       flex: 1;
       padding: 12px;
       font-size: 16px;
@@ -61,6 +64,26 @@
       padding: 12px 18px;
       font-size: 16px;
       cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background: #111827;
+      color: white;
+    }
+
+    button:hover {
+      opacity: 0.92;
+    }
+
+    #upload-row {
+      display: none;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    #upload-status {
+      font-size: 14px;
+      color: #374151;
     }
 
     .clear {
@@ -70,21 +93,28 @@
 </head>
 <body>
   <h1>AI Receptionist Demo</h1>
+
   <div id="chat-box"></div>
 
   <div class="row">
     <input id="message-input" type="text" placeholder="Type your message..." />
-    <button onclick="sendMessage()">Send</button>
+    <button type="button" onclick="sendMessage()">Send</button>
   </div>
+
+  <div id="upload-row">
     <input id="file-input" type="file" style="display: none;" />
-    <button id="upload-button" style="display: none;" onclick="uploadDocument()">Upload File</button>
-  
+    <button id="upload-button" type="button">Choose Document</button>
+    <span id="upload-status"></span>
+  </div>
+
   <script>
     const userId = "demo-user";
     const chatBox = document.getElementById("chat-box");
     const messageInput = document.getElementById("message-input");
     const fileInput = document.getElementById("file-input");
-    const uploadButton = document.getElementById("upload-button");  
+    const uploadButton = document.getElementById("upload-button");
+    const uploadRow = document.getElementById("upload-row");
+    const uploadStatus = document.getElementById("upload-status");
 
     function addMessage(text, sender) {
       const msg = document.createElement("div");
@@ -99,6 +129,28 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
+    function showUploadControls() {
+      uploadRow.style.display = "flex";
+    }
+
+    function hideUploadControls() {
+      uploadRow.style.display = "none";
+      uploadStatus.textContent = "";
+      fileInput.value = "";
+    }
+
+    uploadButton.addEventListener("click", () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      uploadStatus.textContent = `Selected: ${file.name}`;
+      await uploadDocument();
+    });
+
     async function sendMessage() {
       const message = messageInput.value.trim();
       if (!message) return;
@@ -106,58 +158,78 @@
       addMessage(message, "user");
       messageInput.value = "";
 
-      const response = await fetch("/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          userId,
-          message
-        })
-      });
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            userId,
+            message
+          })
+        });
 
-      const data = await response.json();
-      addMessage(data.reply, "bot");
+        const data = await response.json();
+        const reply = data.reply || "Sorry, I could not process that.";
+        addMessage(reply, "bot");
 
-      if (data.reply.toLowerCase().includes("please upload")) {
-        fileInput.style.display = "block";
-        uploadButton.style.display = "inline-block";
-      } else {
-        fileInput.style.display = "none";
-        uploadButton.style.display = "none";
+        const replyLower = reply.toLowerCase();
+        const intent = (data.intent || "").toLowerCase();
+
+        if (
+          intent === "upload_documents" ||
+          replyLower.includes("upload") ||
+          replyLower.includes("document")
+        ) {
+          showUploadControls();
+        } else {
+          hideUploadControls();
+        }
+      } catch (error) {
+        console.error("sendMessage error:", error);
+        addMessage("Sorry, something went wrong sending your message.", "bot");
       }
-
     }
 
     async function uploadDocument() {
-    const file = fileInput.files[0];
+      const file = fileInput.files[0];
 
-    if (!file) {
-        alert("Please choose a file first.");
+      if (!file) {
+        addMessage("Please choose a file first.", "bot");
         return;
-    }
+      }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("userId", userId);
-    formData.append("documentType", "mortgage_document");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("userId", userId);
+      formData.append("documentType", "mortgage_document");
 
-    const response = await fetch("/upload", {
-        method: "POST",
-        body: formData
-    });
+      try {
+        uploadStatus.textContent = `Uploading ${file.name}...`;
 
-    const data = await response.json();
+        const response = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
 
-    if (data.success) {
-        addMessage(`File uploaded successfully: ${data.file.originalname}`, "bot");
-        fileInput.value = "";
-        fileInput.style.display = "none";
-        uploadButton.style.display = "none";
-    } else {
-        addMessage("File upload failed.", "bot");
-    }
+        const data = await response.json();
+
+        if (response.ok) {
+          addMessage(
+            data.message || `File uploaded successfully: ${file.name}`,
+            "bot"
+          );
+          hideUploadControls();
+        } else {
+          addMessage(data.error || "File upload failed.", "bot");
+          uploadStatus.textContent = "Upload failed";
+        }
+      } catch (error) {
+        console.error("uploadDocument error:", error);
+        addMessage("Upload failed due to a network or server error.", "bot");
+        uploadStatus.textContent = "Upload failed";
+      }
     }
 
     messageInput.addEventListener("keypress", function (e) {
@@ -166,7 +238,10 @@
       }
     });
 
-    addMessage("Hello — I can help with appointments, questions, and document uploads.", "bot");
+    addMessage(
+      "Hello — I can help with appointments, questions, and document uploads.",
+      "bot"
+    );
   </script>
 </body>
 </html>

@@ -469,13 +469,20 @@ app.get("/admin", requireAdminPage, (req, res) => {
 });
 
 app.post("/appointments", requireAdmin, (req, res) => {
-  const { userId, customerName, date, time, type } = req.body;
+  const { userId, conversationId, customerName, date, time, type } = req.body;
 
   if (!userId || !customerName || !date || !time || !type) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const newAppointment = createAppointment(userId, conversationId, customerName, date, time, type);
+  const newAppointment = createAppointment(
+    userId,
+    conversationId || "admin-created",
+    customerName,
+    date,
+    time,
+    type
+  );
 
   res.json({
     success: true,
@@ -606,8 +613,8 @@ app.post("/chat", async (req, res) => {
           userId,
           conversationId,
           message: "book appointment",
-          bookingType: "GP Visit",
-          confirmationLabel: "appointment"
+          bookingType: "Mortgage Consultation",
+          confirmationLabel: "consultation"
         });
       } else {
         result.reply =
@@ -636,8 +643,8 @@ app.post("/chat", async (req, res) => {
           userId,
           conversationId,
           message: "book appointment",
-          bookingType: "GP Visit",
-          confirmationLabel: "appointment"
+          bookingType: "Mortgage Consultation",
+          confirmationLabel: "consultation"
         });
       } else if (
         lowerMessage.includes("status") ||

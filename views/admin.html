@@ -831,40 +831,29 @@
               : `Legacy Chat — ${group.userId}`;
 
             const messagesHtml = group.logs.map(log => {
-
-            const sender = log.sender || "unknown";
-            const isUser = sender === "customer";
-            const isBot = sender === "bot";
-            const isAdmin = sender === "admin" || sender === "system";
-
-            const messageClass = isUser
-              ? "msg-user"
-              : isBot
-              ? "msg-bot"
-              : "msg-admin";
-
-            return `
-              <div class="message-row ${messageClass}">
-                <div class="message-bubble">
-                  <div class="message-sender">${sender}</div>
-                  <div>${messageText}</div>
-                  <div class="meta">${timestamp}</div>
-                </div>
-              </div>
-            `;
-              
+              const sender = log.sender || "unknown";
               const messageText = log.message || "";
               const timestamp = log.timestamp
                 ? new Date(log.timestamp).toLocaleString()
                 : "";
 
+              const isUser = sender === "customer";
+              const isBot = sender === "bot";
+              const isAdmin = sender === "admin" || sender === "system";
+
+              const messageClass = isUser
+                ? "msg-user"
+                : isBot
+                ? "msg-bot"
+                : "msg-admin";
+
               return `
-                <div class="item" style="border-top: 1px solid #e5e7eb; padding: 10px 0;">
-                  <div class="item-title">
-                    <span class="log-sender">${sender}</span>
+                <div class="message-row ${messageClass}">
+                  <div class="message-bubble">
+                    <div class="message-sender">${sender}</div>
+                    <div>${messageText}</div>
+                    <div class="meta">${timestamp}</div>
                   </div>
-                  <div class="meta">${timestamp}</div>
-                  <div>${messageText}</div>
                 </div>
               `;
             }).join("");

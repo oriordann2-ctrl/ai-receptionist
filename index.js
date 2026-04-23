@@ -21,6 +21,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const appointmentsFile = path.join(__dirname, "data", "appointments.json");
 const chatLogsFile = path.join(__dirname, "data", "chatLogs.json");
 const settingsFile = path.join(__dirname, "data", "settings.json");
+const documentsFile = path.join(__dirname, "data", "documents.json");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "changeme123";
 const sessions = new Set();
@@ -49,6 +50,7 @@ function writeJsonFile(filePath, data) {
 }
 
 let appointments = readJsonFile(appointmentsFile, []);
+let documents = readJsonFile(documentsFile, []);
 let chatLogs = readJsonFile(chatLogsFile, []);
 const settings = readJsonFile(settingsFile, {
   aiEnabled: true,
@@ -92,6 +94,10 @@ function isTimeInput(message) {
 
 function saveAppointments() {
   writeJsonFile(appointmentsFile, appointments);
+}
+
+function saveDocuments() {
+  writeJsonFile(documentsFile, documents);
 }
 
 function saveChatLogs() {
@@ -261,7 +267,49 @@ function handleBookingFlow({ userId, message, bookingType, confirmationLabel }) 
   };
 }
 
-app.post('/upload', upload.single('file'), (req, res) => { res.json({ success: true, file: req.file }); });
+app.post("/upload", upload.single("file"), (req, res) => {
+  try {
+    const userId = req.body.userId || "unknown-user";
+    const documentType = req.body.documentType || "unspecified";
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: "No file uploaded" });
+    }
+
+    const documentRecord = {
+      id: documents.length > 0 ? Math.max(...documents.map(d => d.id)) + 1 : 1,
+      userId,
+      documentType,
+      originalName: req.file.originalname,
+      storedName: req.file.filename,
+      filePath: req.file.path,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      uploadedAt: new Date()
+    };
+
+    documents.push(documentRecord);
+    saveDocuments();
+
+    addChatLog({
+      userId,
+      sender: "system",
+      message: `Document uploaded: ${req.file.originalname}`,
+      timestamp: new Date()
+    });
+
+    res.json({
+      success: true,
+      file: documentRecord
+    });
+  } catch (error) {
+    console.error("Upload error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Upload failed"
+    });
+  }
+});
 
 app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "login.html"));

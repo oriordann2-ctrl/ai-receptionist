@@ -319,6 +319,10 @@ app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
+app.get("/documents", (req, res) => {
+  res.json(documents);
+});
+
 app.post("/login", (req, res) => {
   const { password } = req.body;
 

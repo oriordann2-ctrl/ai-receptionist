@@ -556,6 +556,8 @@ app.post("/chat", async (req, res) => {
     };
 
     ensureConversation(userId);
+    const convo = ensureConversation(userId);
+    const bookingInProgress = convo.step && convo.step !== "start";
 
     addChatLog({
       userId,
@@ -605,14 +607,16 @@ app.post("/chat", async (req, res) => {
           timestamp: new Date()
         });
       } else if (
+        bookingInProgress ||
         lowerMessage.includes("book appointment") ||
-        lowerMessage.includes("appointment") ||
+        lowerMessage.includes("book consultation") ||
+        lowerMessage.includes("mortgage consultation") ||
         intent === "book appointment"
       ) {
         result = handleBookingFlow({
           userId,
           conversationId,
-          message: "book appointment",
+          message: bookingInProgress ? trimmedMessage : "book appointment",
           bookingType: "Mortgage Consultation",
           confirmationLabel: "consultation"
         });
@@ -634,6 +638,7 @@ app.post("/chat", async (req, res) => {
         result.reply =
           "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
       } else if (
+        bookingInProgress ||
         lowerMessage.includes("book appointment") ||
         lowerMessage.includes("book consultation") ||
         lowerMessage.includes("mortgage consultation") ||
@@ -642,7 +647,7 @@ app.post("/chat", async (req, res) => {
         result = handleBookingFlow({
           userId,
           conversationId,
-          message: "book appointment",
+          message: bookingInProgress ? trimmedMessage : "book appointment",
           bookingType: "Mortgage Consultation",
           confirmationLabel: "consultation"
         });

@@ -10,7 +10,6 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY2 });
 
 const multer = require("multer");
 const upload = multer({ dest: 'uploads/' });
-const path = require("path");
 
 dotenv.config();
 

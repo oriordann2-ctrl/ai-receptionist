@@ -4,6 +4,9 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const cookieParser = require("cookie-parser");
+const { OpenAI } = require("openai");
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY2 });
 
 dotenv.config();
 
@@ -373,6 +376,14 @@ app.put("/appointments/:id", requireAdmin, (req, res) => {
   });
 });
 
+async function getIntentFromOpenAI(message) {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4-turbo",
+    messages: [{ role: "user", content: `What is the intent of this message? Respond with one of: "book appointment", "upload documents", or "general inquiry". Message: "${message}"` }],
+  });
+  return completion.choices[0].message.content.toLowerCase();
+}
+
 app.post("/chat", (req, res) => {
   const { userId, message } = req.body;
 
@@ -382,6 +393,13 @@ app.post("/chat", (req, res) => {
 
   const trimmedMessage = message.trim();
   const lowerMessage = trimmedMessage.toLowerCase();
+
+  const intent = await getIntentFromOpenAI(trimmedMessage);
+
+  if (intent === "upload documents") {
+    result.reply = "Please upload the required documents (ID, payslips, etc.) via the provided upload link.";
+    // You could guide them to an upload endpoint or provide a secure link.
+  }
 
   ensureConversation(userId);
 

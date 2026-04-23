@@ -639,6 +639,38 @@
       document.body.style.overflow = "";
     }
 
+    function toggleChatGroup(id) {
+    const body = document.getElementById(`chat-group-body-${id}`);
+    const toggle = document.getElementById(`chat-group-toggle-${id}`);
+
+    if (body.classList.contains("open")) {
+      body.classList.remove("open");
+      toggle.textContent = "Expand";
+    } else {
+      body.classList.add("open");
+      toggle.textContent = "Collapse";
+    }
+  }
+
+  function groupLogsByUser(chatLogs) {
+    const groups = {};
+
+    chatLogs.forEach(log => {
+      const key = log.userId || "unknown-user";
+
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+
+      groups[key].push(log);
+    });
+
+    return Object.entries(groups).map(([userId, logs]) => ({
+      userId,
+      logs: logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    }));
+  }
+
     document.getElementById("closePreviewBtn").addEventListener("click", closePreview);
 
     document.getElementById("openNewTabBtn").addEventListener("click", () => {
@@ -748,37 +780,58 @@ async function loadData() {
     });
   }
 
-  if (chatLogs.length === 0) {
+  const groupedChats = groupLogsByUser(chatLogs);
+
+  if (groupedChats.length === 0) {
     chatLogsDiv.innerHTML = `<p class="empty">No chat logs yet.</p>`;
   } else {
-    chatLogs
+    groupedChats
       .slice()
       .reverse()
-      .forEach((log, index) => {
+      .forEach((group, index) => {
+        const firstMessage = group.logs[0]?.message || "";
+        const preview =
+          firstMessage.length > 80
+            ? firstMessage.substring(0, 80) + "..."
+            : firstMessage;
+
+        const latestTimestamp = group.logs[group.logs.length - 1]?.timestamp;
+
+        const messagesHtml = group.logs.map(log => {
+          const sender = log.sender || "unknown";
+          const messageText = log.message || "";
+          const timestamp = log.timestamp
+            ? new Date(log.timestamp).toLocaleString()
+            : "";
+
+          return `
+            <div class="item" style="border-top: 1px solid #e5e7eb; padding: 10px 0;">
+              <div class="item-title">
+                <span class="log-sender">${sender}</span>
+              </div>
+              <div class="meta">${timestamp}</div>
+              <div>${messageText}</div>
+            </div>
+          `;
+        }).join("");
+
         const div = document.createElement("div");
         div.className = "chat-item";
-
-        const messageText = log.message || "";
-        const preview =
-          messageText.length > 60
-            ? messageText.substring(0, 60) + "..."
-            : messageText;
-
         div.innerHTML = `
-          <div class="chat-header" onclick="toggleChat(${index})">
+          <div class="chat-header" onclick="toggleChatGroup(${index})">
             <div class="chat-title">
-              <span class="log-sender">${log.sender}</span>
+              Chat: ${group.userId}
               <div class="chat-preview">${preview}</div>
+              <div class="meta">
+                ${group.logs.length} message${group.logs.length === 1 ? "" : "s"}<br>
+                ${latestTimestamp ? new Date(latestTimestamp).toLocaleString() : ""}
+              </div>
             </div>
-            <div class="chat-toggle" id="chat-toggle-${index}">Expand</div>
+            <div class="chat-toggle" id="chat-group-toggle-${index}">Expand</div>
           </div>
 
-          <div class="chat-body" id="chat-body-${index}">
-            <div class="meta">
-              User: ${log.userId}<br>
-              ${new Date(log.timestamp).toLocaleString()}
-            </div>
-            <div>${messageText}</div>
+          <div class="chat-body" id="chat-group-body-${index}">
+            ${messagesHtml}
           </div>
         `;
 

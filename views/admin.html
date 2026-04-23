@@ -788,11 +788,38 @@
           const escapedName = String(doc.originalName).replace(/'/g, "\\'");
           const escapedMime = String(doc.mimeType || "").replace(/'/g, "\\'");
 
+          const linkedAppointment = appointments.find(
+            a => a.conversationId && a.conversationId === doc.conversationId
+          );
+
+          const linkedChat = chatLogs.find(
+            l => l.conversationId && l.conversationId === doc.conversationId
+          );
+
+          const firstCustomerMessage = chatLogs.find(
+            l =>
+              l.conversationId === doc.conversationId &&
+              l.sender === "customer" &&
+              l.message &&
+              l.message.trim().length > 0
+          );
+
+          let conversationLabel =
+            linkedAppointment?.customerName ||
+            firstCustomerMessage?.message ||
+            (doc.conversationId ? `Conversation ${doc.conversationId.slice(-6)}` : "Unlinked");
+
+          if (conversationLabel.length > 30) {
+            conversationLabel = conversationLabel.substring(0, 30) + "...";
+          }
+
           const div = document.createElement("div");
           div.className = "item";
           div.innerHTML = `
             <div class="item-title">${doc.originalName}</div>
             <div class="meta">
+              Chat: ${conversationLabel}<br>
+              Conversation ID: ${doc.conversationId || "None"}<br>
               User: ${doc.userId}<br>
               Type: ${doc.documentType}<br>
               MIME type: ${doc.mimeType}<br>

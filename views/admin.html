@@ -376,6 +376,53 @@
       font-weight: normal;
     }
 
+    .message-row {
+  display: flex;
+  margin: 6px 0;
+}
+
+.message-bubble {
+  max-width: 75%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+/* User (right side, blue) */
+.msg-user {
+  justify-content: flex-end;
+}
+
+.msg-user .message-bubble {
+  background: #dbeafe;
+  text-align: right;
+}
+
+/* Bot (left side, grey) */
+.msg-bot {
+  justify-content: flex-start;
+}
+
+.msg-bot .message-bubble {
+  background: #e5e7eb;
+}
+
+/* Admin/system (purple-ish) */
+.msg-admin {
+  justify-content: flex-start;
+}
+
+.msg-admin .message-bubble {
+  background: #f3e8ff;
+}
+
+.message-sender {
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 4px;
+  text-transform: capitalize;
+}
+
     @media (max-width: 700px) {
       .top-grid {
         grid-template-columns: 1fr;
@@ -784,7 +831,28 @@
               : `Legacy Chat — ${group.userId}`;
 
             const messagesHtml = group.logs.map(log => {
-              const sender = log.sender || "unknown";
+
+            const sender = log.sender || "unknown";
+            const isUser = sender === "customer";
+            const isBot = sender === "bot";
+            const isAdmin = sender === "admin" || sender === "system";
+
+            const messageClass = isUser
+              ? "msg-user"
+              : isBot
+              ? "msg-bot"
+              : "msg-admin";
+
+            return `
+              <div class="message-row ${messageClass}">
+                <div class="message-bubble">
+                  <div class="message-sender">${sender}</div>
+                  <div>${messageText}</div>
+                  <div class="meta">${timestamp}</div>
+                </div>
+              </div>
+            `;
+              
               const messageText = log.message || "";
               const timestamp = log.timestamp
                 ? new Date(log.timestamp).toLocaleString()

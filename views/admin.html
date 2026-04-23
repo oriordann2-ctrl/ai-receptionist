@@ -826,11 +826,17 @@
 
             const latestTimestamp = group.logs[group.logs.length - 1]?.timestamp;
 
-            const title = group.conversationId
-              ? `Chat ${index + 1} — ${group.userId}`
-              : `Legacy Chat — ${group.userId}`;
+              const linkedAppointment = appointments.find(
+                a => a.conversationId && a.conversationId === group.conversationId
+              );
 
-            const messagesHtml = group.logs.map(log => {
+              const displayName =
+                linkedAppointment?.customerName ||
+                (group.conversationId ? `Conversation ${group.conversationId.slice(-6)}` : "Legacy Conversation");
+
+              const title = displayName;
+
+              const messagesHtml = group.logs.map(log => {
               const sender = log.sender || "unknown";
               const messageText = log.message || "";
               const timestamp = log.timestamp

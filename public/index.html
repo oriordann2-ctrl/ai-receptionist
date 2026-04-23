@@ -76,11 +76,15 @@
     <input id="message-input" type="text" placeholder="Type your message..." />
     <button onclick="sendMessage()">Send</button>
   </div>
-
+    <input id="file-input" type="file" style="display: none;" />
+    <button id="upload-button" style="display: none;" onclick="uploadDocument()">Upload File</button>
+  
   <script>
     const userId = "demo-user";
     const chatBox = document.getElementById("chat-box");
     const messageInput = document.getElementById("message-input");
+    const fileInput = document.getElementById("file-input");
+    const uploadButton = document.getElementById("upload-button");  
 
     function addMessage(text, sender) {
       const msg = document.createElement("div");
@@ -115,6 +119,43 @@
 
       const data = await response.json();
       addMessage(data.reply, "bot");
+
+      if (data.reply.toLowerCase().includes("please upload")) {
+        fileInput.style.display = "block";
+        uploadButton.style.display = "inline-block";
+      } else {
+        fileInput.style.display = "none";
+        uploadButton.style.display = "none";
+      }
+
+    }
+
+    async function uploadDocument() {
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert("Please choose a file first.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/upload", {
+        method: "POST",
+        body: formData
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+        addMessage(`File uploaded successfully: ${data.file.originalname}`, "bot");
+        fileInput.value = "";
+        fileInput.style.display = "none";
+        uploadButton.style.display = "none";
+    } else {
+        addMessage("File upload failed.", "bot");
+    }
     }
 
     messageInput.addEventListener("keypress", function (e) {

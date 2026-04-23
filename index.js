@@ -389,7 +389,7 @@ async function getIntentFromOpenAI(message) {
   return completion.choices[0].message.content.toLowerCase();
 }
 
-app.post("/chat", (req, res) => {
+app.post("/chat", async (req, res) => {
   const { userId, message } = req.body;
 
   if (!userId || !message) {

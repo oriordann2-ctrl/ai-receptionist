@@ -390,61 +390,116 @@ async function getIntentFromOpenAI(message) {
 }
 
 app.post("/chat", async (req, res) => {
-  const { userId, message } = req.body;
+  try {
+    const { userId, message } = req.body;
 
-  if (!userId || !message) {
-    return res.status(400).json({ error: "userId and message are required" });
+    if (!userId || !message) {
+      return res.status(400).json({ error: "userId and message are required" });
+    }
+
+    const trimmedMessage = message.trim();
+    const lowerMessage = trimmedMessage.toLowerCase();
+
+    let result = {
+      reply: "How can I help you today?"
+    };
+
+    ensureConversation(userId);
+
+    addChatLog({
+      userId,
+      sender: "customer",
+      message: trimmedMessage,
+      timestamp: new Date()
+    });
+
+    let rawIntent = "";
+    let intent = "";
+
+    if (aiEnabled) {
+      rawIntent = await getIntentFromOpenAI(trimmedMessage);
+      intent = rawIntent
+        .toLowerCase()
+        .trim()
+        .replace(/^"|"$/g, "")
+        .replace(/\.$/, "");
+
+      console.log("Raw intent:", rawIntent);
+      console.log("Normalized intent:", intent);
+      console.log("Business mode:", businessMode);
+    }
+
+    if (!aiEnabled) {
+      result.reply =
+        "The AI receptionist is currently turned off. Please contact the business directly.";
+    } else if (businessMode === "gp") {
+      if (isUrgentMessage(trimmedMessage)) {
+        resetConversation(userId);
+
+        result.reply =
+          "Your message may describe an urgent medical issue. Please contact emergency services immediately or call the practice directly now.";
+
+        addChatLog({
+          userId,
+          sender: "system",
+          message: "Urgent triage flag raised.",
+          timestamp: new Date()
+        });
+      } else if (intent === "book appointment") {
+        result = handleBookingFlow({
+          userId,
+          message: "book appointment",
+          bookingType: "GP Visit",
+          confirmationLabel: "appointment"
+        });
+      } else {
+        result.reply =
+          "I can help you book an appointment. Type 'book appointment' to begin.";
+      }
+    } else if (businessMode === "mortgage") {
+      if (intent === "upload documents") {
+        result.reply =
+          "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
+      } else if (
+        lowerMessage.includes("status") ||
+        lowerMessage.includes("update")
+      ) {
+        result.reply =
+          "Your mortgage application is currently being reviewed. A broker will contact you if any additional documents are required.";
+      } else if (
+        lowerMessage.includes("documents") ||
+        lowerMessage.includes("docs") ||
+        lowerMessage.includes("what do i need")
+      ) {
+        result.reply =
+          "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements vary by lender.";
+      } else if (intent === "book appointment") {
+        result = handleBookingFlow({
+          userId,
+          message: "book appointment",
+          bookingType: "Mortgage Consultation",
+          confirmationLabel: "consultation"
+        });
+      } else {
+        result.reply =
+          "I can help with mortgage questions, consultations, and document uploads. You can type 'upload documents' or 'book appointment'.";
+      }
+    }
+
+    addChatLog({
+      userId,
+      sender: "bot",
+      message: result.reply,
+      timestamp: new Date()
+    });
+
+    return res.json({ reply: result.reply });
+  } catch (error) {
+    console.error("Chat error:", error);
+    return res.status(500).json({
+      reply: "Sorry, something went wrong. Please try again."
+    });
   }
-
-  const trimmedMessage = message.trim();
-  const lowerMessage = trimmedMessage.toLowerCase();
-
-  ensureConversation(userId);
-
-  addChatLog({
-    userId,
-    sender: "customer",
-    message: trimmedMessage,
-    timestamp: new Date()
-  });
-
-  let result = {
-    reply: "How can I help you today?"
-  };
-
-  if (!aiEnabled) {
-    result.reply = "The AI receptionist is currently turned off. Please contact the business directly.";
-    return res.json(result);
-  }
-
-  const intent = await getIntentFromOpenAI(trimmedMessage);
-  console.log("Intent:", intent);
-
-  // Safer intent matching
-  if (
-    intent === "upload_documents" ||
-    intent === "upload documents" ||
-    intent === "document_upload"
-  ) {
-    result.reply =
-      "Please upload the required documents such as ID, payslips, and bank statements using the secure upload link.";
-    return res.json(result); // important: stop here
-  }
-
-  if (businessMode === "gp") {
-    result.reply = "GP mode response here...";
-  } else if (businessMode === "mortgage") {
-    result.reply = "Mortgage mode response here...";
-  }
-
-  addChatLog({
-    userId,
-    sender: "assistant",
-    message: result.reply,
-    timestamp: new Date()
-  });
-
-  return res.json(result);
 });
 
 const PORT = process.env.PORT || 3000;

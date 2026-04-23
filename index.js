@@ -272,6 +272,7 @@ function handleBookingFlow({ userId, conversationId, message, bookingType, confi
 app.post("/upload", upload.single("file"), (req, res) => {
   try {
     const userId = req.body.userId || "unknown-user";
+    const conversationId = req.body.conversationId || "unknown-conversation";
     const documentType = req.body.documentType || "unspecified";
 
     if (!req.file) {
@@ -281,9 +282,17 @@ app.post("/upload", upload.single("file"), (req, res) => {
       });
     }
 
+    if (req.file.size === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Uploaded file is empty"
+      });
+    }
+
     const documentRecord = {
       id: documents.length > 0 ? Math.max(...documents.map(d => d.id)) + 1 : 1,
       userId,
+      conversationId,
       documentType,
       originalName: req.file.originalname,
       storedName: req.file.filename,

@@ -311,6 +311,7 @@
 
     /* Compact appointment layout */
 .compact-row {
+.compact-row {
   display: flex;
   gap: 6px;
   margin-top: 8px;
@@ -324,30 +325,11 @@
   min-height: 36px;
 }
 
-/* Smaller save button */
 .compact-row button {
   padding: 8px 10px;
   font-size: 13px;
   min-height: 36px;
 }
-
-/* Mobile tweaks */
-@media (max-width: 700px) {
-  .compact-row {
-    flex-wrap: nowrap;
-  }
-
-  .compact-row input {
-    flex: 1;
-  }
-
-  .compact-row select {
-    flex: 1;
-  }
-
-  .compact-row button {
-    flex: 1;
-  }
 
 .chat-item {
   border-top: 1px solid #e5e7eb;
@@ -362,7 +344,7 @@
 .chat-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   cursor: pointer;
 }
@@ -393,53 +375,64 @@
   color: #6b7280;
   font-size: 14px;
   margin-top: 4px;
+  font-weight: normal;
 }
 
-    @media (max-width: 700px) {
-      .top-grid {
-        grid-template-columns: 1fr;
-      }
+@media (max-width: 700px) {
+  .compact-row {
+    flex-wrap: nowrap;
+  }
 
-      h1 {
-        font-size: 24px;
-      }
+  .compact-row input,
+  .compact-row select,
+  .compact-row button {
+    flex: 1;
+  }
 
-      .button-row {
-        flex-direction: column;
-      }
+  .top-grid {
+    grid-template-columns: 1fr;
+  }
 
-      .button-row button {
-        width: 100%;
-      }
+  h1 {
+    font-size: 24px;
+  }
 
-      .form-row {
-        flex-direction: column;
-      }
+  .button-row {
+    flex-direction: column;
+  }
 
-      input,
-      select,
-      .form-row button {
-        width: 100%;
-      }
+  .button-row button {
+    width: 100%;
+  }
 
-      .container {
-        padding: 12px;
-      }
+  .form-row {
+    flex-direction: column;
+  }
 
-      .preview-header {
-        padding: 10px;
-      }
+  input,
+  select,
+  .form-row button {
+    width: 100%;
+  }
 
-      .preview-title {
-        font-size: 13px;
-        max-width: 40vw;
-      }
+  .container {
+    padding: 12px;
+  }
 
-      .preview-action-btn {
-        padding: 10px;
-        font-size: 13px;
-      }
-    }
+  .preview-header {
+    padding: 10px;
+  }
+
+  .preview-title {
+    font-size: 13px;
+    max-width: 40vw;
+  }
+
+  .preview-action-btn {
+    padding: 10px;
+    font-size: 13px;
+  }
+}
   </style>
 </head>
 <body>
@@ -652,24 +645,30 @@
     }
   }
 
-  function groupLogsByUser(chatLogs) {
-    const groups = {};
+function groupLogsByConversation(chatLogs) {
+  const groups = {};
 
-    chatLogs.forEach(log => {
-      const key = log.userId || "unknown-user";
+  chatLogs.forEach(log => {
+    const key = log.conversationId
+      ? `conv-${log.conversationId}`
+      : `legacy-${log.userId || "unknown-user"}`;
 
-      if (!groups[key]) {
-        groups[key] = [];
-      }
+    if (!groups[key]) {
+      groups[key] = {
+        conversationId: log.conversationId || null,
+        userId: log.userId || "unknown-user",
+        logs: []
+      };
+    }
 
-      groups[key].push(log);
-    });
+    groups[key].logs.push(log);
+  });
 
-    return Object.entries(groups).map(([userId, logs]) => ({
-      userId,
-      logs: logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-    }));
-  }
+  return Object.values(groups).map(group => ({
+    ...group,
+    logs: group.logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+  }));
+}
 
     document.getElementById("closePreviewBtn").addEventListener("click", closePreview);
 
@@ -780,7 +779,7 @@ async function loadData() {
     });
   }
 
-  const groupedChats = groupLogsByUser(chatLogs);
+  const groupedChats = groupLogsByConversation(chatLogs);
 
   if (groupedChats.length === 0) {
     chatLogsDiv.innerHTML = `<p class="empty">No chat logs yet.</p>`;
@@ -796,6 +795,10 @@ async function loadData() {
             : firstMessage;
 
         const latestTimestamp = group.logs[group.logs.length - 1]?.timestamp;
+
+        const title = group.conversationId
+          ? `Chat ${index + 1} — ${group.userId}`
+          : `Legacy Chat — ${group.userId}`;
 
         const messagesHtml = group.logs.map(log => {
           const sender = log.sender || "unknown";
@@ -820,7 +823,7 @@ async function loadData() {
         div.innerHTML = `
           <div class="chat-header" onclick="toggleChatGroup(${index})">
             <div class="chat-title">
-              Chat: ${group.userId}
+              ${title}
               <div class="chat-preview">${preview}</div>
               <div class="meta">
                 ${group.logs.length} message${group.logs.length === 1 ? "" : "s"}<br>

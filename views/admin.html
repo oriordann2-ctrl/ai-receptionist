@@ -349,6 +349,52 @@
     flex: 1;
   }
 
+.chat-item {
+  border-top: 1px solid #e5e7eb;
+  padding: 14px 0;
+}
+
+.chat-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.chat-title {
+  font-size: 16px;
+  font-weight: bold;
+  flex: 1;
+}
+
+.chat-toggle {
+  font-size: 13px;
+  color: #2563eb;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.chat-body {
+  display: none;
+  margin-top: 8px;
+}
+
+.chat-body.open {
+  display: block;
+}
+
+.chat-preview {
+  color: #6b7280;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
     @media (max-width: 700px) {
       .top-grid {
         grid-template-columns: 1fr;
@@ -497,6 +543,19 @@
       modeBadge.textContent = `Mode: ${data.businessMode}`;
     }
 
+    function toggleChat(id) {
+      const body = document.getElementById(`chat-body-${id}`);
+      const toggle = document.getElementById(`chat-toggle-${id}`);
+
+      if (body.classList.contains("open")) {
+        body.classList.remove("open");
+        toggle.textContent = "Expand";
+      } else {
+        body.classList.add("open");
+        toggle.textContent = "Collapse";
+      }
+    }
+
     async function setStatus(enabled) {
       await fetch("/status", {
         method: "POST",
@@ -600,115 +659,133 @@
       }
     });
 
-    async function loadData() {
-      await loadStatus();
+async function loadData() {
+  await loadStatus();
 
-      const [appointmentsRes, chatLogsRes, documentsRes] = await Promise.all([
-        fetch("/appointments"),
-        fetch("/chat-logs"),
-        fetch("/admin/documents")
-      ]);
+  const [appointmentsRes, chatLogsRes, documentsRes] = await Promise.all([
+    fetch("/appointments"),
+    fetch("/chat-logs"),
+    fetch("/admin/documents")
+  ]);
 
-      const appointments = await appointmentsRes.json();
-      const chatLogs = await chatLogsRes.json();
-      const documents = await documentsRes.json();
+  const appointments = await appointmentsRes.json();
+  const chatLogs = await chatLogsRes.json();
+  const documents = await documentsRes.json();
 
-      const appointmentsDiv = document.getElementById("appointments");
-      const chatLogsDiv = document.getElementById("chatLogs");
-      const documentsDiv = document.getElementById("documents");
-      const countBadge = document.getElementById("countBadge");
-      const docsBadge = document.getElementById("docsBadge");
+  const appointmentsDiv = document.getElementById("appointments");
+  const chatLogsDiv = document.getElementById("chatLogs");
+  const documentsDiv = document.getElementById("documents");
+  const countBadge = document.getElementById("countBadge");
+  const docsBadge = document.getElementById("docsBadge");
 
-      countBadge.textContent = `${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`;
-      docsBadge.textContent = `${documents.length} document${documents.length === 1 ? "" : "s"}`;
+  countBadge.textContent = `${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`;
+  docsBadge.textContent = `${documents.length} document${documents.length === 1 ? "" : "s"}`;
 
-      appointmentsDiv.innerHTML = "";
-      chatLogsDiv.innerHTML = "";
-      documentsDiv.innerHTML = "";
+  appointmentsDiv.innerHTML = "";
+  chatLogsDiv.innerHTML = "";
+  documentsDiv.innerHTML = "";
 
-      if (appointments.length === 0) {
-        appointmentsDiv.innerHTML = `<p class="empty">No appointments yet.</p>`;
-      } else {
-        appointments
-          .slice()
-          .reverse()
-          .forEach(appt => {
-            const div = document.createElement("div");
-            div.className = "item";
-            div.innerHTML = `
-              <div class="item-title">${appt.customerName} — ${appt.type}</div>
-              <div class="meta">
-                Date: ${appt.date}<br>
-                Time: ${appt.time}<br>
-                Status: ${appt.status}
-              </div>
+  if (appointments.length === 0) {
+    appointmentsDiv.innerHTML = `<p class="empty">No appointments yet.</p>`;
+  } else {
+    appointments
+      .slice()
+      .reverse()
+      .forEach(appt => {
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+          <div class="item-title">${appt.customerName} — ${appt.type}</div>
+          <div class="meta">
+            Date: ${appt.date}<br>
+            Time: ${appt.time}<br>
+            Status: ${appt.status}
+          </div>
 
-              <div class="compact-row">
-                <input id="date-${appt.id}" type="text" value="${appt.date}" placeholder="Date" />
-                <input id="time-${appt.id}" type="text" value="${appt.time}" placeholder="Time" />
-              </div>
+          <div class="compact-row">
+            <input id="date-${appt.id}" type="text" value="${appt.date}" placeholder="Date" />
+            <input id="time-${appt.id}" type="text" value="${appt.time}" placeholder="Time" />
+          </div>
 
-              <div class="compact-row">
-                <select id="status-${appt.id}">
-                  <option value="confirmed" ${appt.status === "confirmed" ? "selected" : ""}>confirmed</option>
-                  <option value="rescheduled" ${appt.status === "rescheduled" ? "selected" : ""}>rescheduled</option>
-                  <option value="cancelled" ${appt.status === "cancelled" ? "selected" : ""}>cancelled</option>
-                </select>
-                <button class="btn-primary" onclick="updateAppointment(${appt.id})">Save</button>
-              </div>
-            `;
-            appointmentsDiv.appendChild(div);
-          });
-      }
+          <div class="compact-row">
+            <select id="status-${appt.id}">
+              <option value="confirmed" ${appt.status === "confirmed" ? "selected" : ""}>confirmed</option>
+              <option value="rescheduled" ${appt.status === "rescheduled" ? "selected" : ""}>rescheduled</option>
+              <option value="cancelled" ${appt.status === "cancelled" ? "selected" : ""}>cancelled</option>
+            </select>
+            <button class="btn-primary" onclick="updateAppointment(${appt.id})">Save</button>
+          </div>
+        `;
+        appointmentsDiv.appendChild(div);
+      });
+  }
 
-      if (!Array.isArray(documents) || documents.length === 0) {
-        documentsDiv.innerHTML = `<p class="empty">No uploaded documents yet.</p>`;
-      } else {
-        documents.forEach(doc => {
-          const escapedName = String(doc.originalName).replace(/'/g, "\\'");
-          const escapedMime = String(doc.mimeType || "").replace(/'/g, "\\'");
+  if (!Array.isArray(documents) || documents.length === 0) {
+    documentsDiv.innerHTML = `<p class="empty">No uploaded documents yet.</p>`;
+  } else {
+    documents.forEach(doc => {
+      const escapedName = String(doc.originalName).replace(/'/g, "\\'");
+      const escapedMime = String(doc.mimeType || "").replace(/'/g, "\\'");
 
-          const div = document.createElement("div");
-          div.className = "item";
-          div.innerHTML = `
-            <div class="item-title">${doc.originalName}</div>
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `
+        <div class="item-title">${doc.originalName}</div>
+        <div class="meta">
+          User: ${doc.userId}<br>
+          Type: ${doc.documentType}<br>
+          MIME type: ${doc.mimeType}<br>
+          Size: ${doc.size} bytes<br>
+          Uploaded: ${new Date(doc.uploadedAt).toLocaleString()}
+        </div>
+        <div class="doc-actions">
+          <button class="doc-button" type="button" onclick="openPreview(${doc.id}, '${escapedName}', '${escapedMime}')">Preview</button>
+          <a class="doc-link" href="/admin/documents/${doc.id}/view" target="_blank">Open</a>
+          <a class="doc-link" href="/admin/documents/${doc.id}/download" target="_blank">Download</a>
+        </div>
+      `;
+      documentsDiv.appendChild(div);
+    });
+  }
+
+  if (chatLogs.length === 0) {
+    chatLogsDiv.innerHTML = `<p class="empty">No chat logs yet.</p>`;
+  } else {
+    chatLogs
+      .slice()
+      .reverse()
+      .forEach((log, index) => {
+        const div = document.createElement("div");
+        div.className = "chat-item";
+
+        const messageText = log.message || "";
+        const preview =
+          messageText.length > 60
+            ? messageText.substring(0, 60) + "..."
+            : messageText;
+
+        div.innerHTML = `
+          <div class="chat-header" onclick="toggleChat(${index})">
+            <div class="chat-title">
+              <span class="log-sender">${log.sender}</span>
+              <div class="chat-preview">${preview}</div>
+            </div>
+            <div class="chat-toggle" id="chat-toggle-${index}">Expand</div>
+          </div>
+
+          <div class="chat-body" id="chat-body-${index}">
             <div class="meta">
-              User: ${doc.userId}<br>
-              Type: ${doc.documentType}<br>
-              MIME type: ${doc.mimeType}<br>
-              Size: ${doc.size} bytes<br>
-              Uploaded: ${new Date(doc.uploadedAt).toLocaleString()}
+              User: ${log.userId}<br>
+              ${new Date(log.timestamp).toLocaleString()}
             </div>
-            <div class="doc-actions">
-              <button class="doc-button" type="button" onclick="openPreview(${doc.id}, '${escapedName}', '${escapedMime}')">Preview</button>
-              <a class="doc-link" href="/admin/documents/${doc.id}/view" target="_blank">Open</a>
-              <a class="doc-link" href="/admin/documents/${doc.id}/download" target="_blank">Download</a>
-            </div>
-          `;
-          documentsDiv.appendChild(div);
-        });
-      }
+            <div>${messageText}</div>
+          </div>
+        `;
 
-      if (chatLogs.length === 0) {
-        chatLogsDiv.innerHTML = `<p class="empty">No chat logs yet.</p>`;
-      } else {
-        chatLogs
-          .slice()
-          .reverse()
-          .forEach(log => {
-            const div = document.createElement("div");
-            div.className = "item";
-            div.innerHTML = `
-              <div class="item-title"><span class="log-sender">${log.sender}</span>: ${log.message}</div>
-              <div class="meta">
-                User: ${log.userId}<br>
-                ${new Date(log.timestamp).toLocaleString()}
-              </div>
-            `;
-            chatLogsDiv.appendChild(div);
-          });
-      }
-    }
+        chatLogsDiv.appendChild(div);
+      });
+  }
+}
 
     loadData();
   </script>

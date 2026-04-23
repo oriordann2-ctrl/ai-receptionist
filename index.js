@@ -435,6 +435,23 @@ app.put("/appointments/:id", requireAdmin, (req, res) => {
 
 async function getIntentFromOpenAI(message) {
   const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          'You are an intent classifier. Return exactly one label only: "book appointment", "upload documents", or "general inquiry". No explanation.'
+      },
+      {
+        role: "user",
+        content: message
+      }
+    ],
+    temperature: 0
+  });
+
+  return completion.choices[0].message.content || "";
+}  const completion = await openai.chat.completions.create({
     model: "gpt-4-turbo",
     messages: [{ role: "user", content: `What is the intent of this message? Respond with one of: "book appointment", "upload documents", or "general inquiry". Message: "${message}"` }],
   });
@@ -469,12 +486,17 @@ app.post("/chat", async (req, res) => {
     let intent = "";
 
     if (aiEnabled) {
-      rawIntent = await getIntentFromOpenAI(trimmedMessage);
-      intent = rawIntent
-        .toLowerCase()
-        .trim()
-        .replace(/^"|"$/g, "")
-        .replace(/\.$/, "");
+      try {
+        rawIntent = await getIntentFromOpenAI(trimmedMessage);
+        intent = (rawIntent || "")
+          .toLowerCase()
+          .trim()
+          .replace(/^"|"$/g, "")
+          .replace(/\.$/, "");
+      } catch (err) {
+        console.error("Intent detection failed:", err.message);
+        intent = "";
+      }
 
       console.log("Raw intent:", rawIntent);
       console.log("Normalized intent:", intent);
@@ -498,7 +520,11 @@ app.post("/chat", async (req, res) => {
           message: "Urgent triage flag raised.",
           timestamp: new Date()
         });
-      } else if (intent === "book appointment") {
+      } else if (
+        lowerMessage.includes("book appointment") ||
+        lowerMessage.includes("appointment") ||
+        intent === "book appointment"
+      ) {
         result = handleBookingFlow({
           userId,
           message: "book appointment",
@@ -510,9 +536,30 @@ app.post("/chat", async (req, res) => {
           "I can help you book an appointment. Type 'book appointment' to begin.";
       }
     } else if (businessMode === "mortgage") {
-      if (intent === "upload documents") {
+      // HARD RULES FIRST - do not depend on AI for these
+      if (
+        lowerMessage.includes("upload documents") ||
+        lowerMessage.includes("upload document") ||
+        lowerMessage.includes("upload docs") ||
+        lowerMessage.includes("send documents") ||
+        lowerMessage.includes("send document") ||
+        lowerMessage.includes("upload file") ||
+        intent === "upload documents"
+      ) {
         result.reply =
           "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
+      } else if (
+        lowerMessage.includes("book appointment") ||
+        lowerMessage.includes("book consultation") ||
+        lowerMessage.includes("mortgage consultation") ||
+        intent === "book appointment"
+      ) {
+        result = handleBookingFlow({
+          userId,
+          message: "book appointment",
+          bookingType: "Mortgage Consultation",
+          confirmationLabel: "consultation"
+        });
       } else if (
         lowerMessage.includes("status") ||
         lowerMessage.includes("update")
@@ -526,13 +573,6 @@ app.post("/chat", async (req, res) => {
       ) {
         result.reply =
           "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements vary by lender.";
-      } else if (intent === "book appointment") {
-        result = handleBookingFlow({
-          userId,
-          message: "book appointment",
-          bookingType: "Mortgage Consultation",
-          confirmationLabel: "consultation"
-        });
       } else {
         result.reply =
           "I can help with mortgage questions, consultations, and document uploads. You can type 'upload documents' or 'book appointment'.";

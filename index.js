@@ -349,6 +349,30 @@ app.get("/admin/documents/:id/download", (req, res) => {
   }
 });
 
+app.get("/admin/documents/:id/view", (req, res) => {
+  try {
+    const docId = Number(req.params.id);
+    const doc = documents.find(d => d.id === docId);
+
+    if (!doc) {
+      return res.status(404).send("Document not found");
+    }
+
+    const absolutePath = path.resolve(doc.filePath);
+
+    res.setHeader("Content-Type", doc.mimeType);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${doc.originalName}"`
+    );
+
+    return res.sendFile(absolutePath);
+  } catch (error) {
+    console.error("View error:", error);
+    return res.status(500).send("Failed to view document");
+  }
+});
+
 app.post("/login", (req, res) => {
   const { password } = req.body;
 

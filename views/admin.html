@@ -199,9 +199,13 @@
 
     .doc-actions {
       margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
-    .doc-link {
+    .doc-link,
+    .doc-button {
       display: inline-block;
       text-decoration: none;
       background: #111827;
@@ -210,10 +214,99 @@
       border-radius: 10px;
       font-size: 14px;
       font-weight: bold;
+      border: none;
+      cursor: pointer;
     }
 
-    .doc-link:hover {
+    .doc-link:hover,
+    .doc-button:hover {
       opacity: 0.92;
+    }
+
+    .preview-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(17, 24, 39, 0.92);
+    }
+
+    .preview-modal.open {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px;
+      background: #111827;
+      color: white;
+    }
+
+    .preview-title {
+      font-size: 14px;
+      font-weight: bold;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .preview-action-btn {
+      background: white;
+      color: #111827;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      min-height: 40px;
+    }
+
+    .preview-body {
+      flex: 1;
+      background: #e5e7eb;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .preview-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: white;
+    }
+
+    .preview-fallback {
+      display: none;
+      padding: 20px;
+      color: #111827;
+      background: white;
+      height: 100%;
+      overflow: auto;
+    }
+
+    .preview-fallback p {
+      margin-bottom: 14px;
+    }
+
+    .preview-fallback a {
+      display: inline-block;
+      background: #111827;
+      color: white;
+      text-decoration: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-weight: bold;
     }
 
     @media (max-width: 700px) {
@@ -241,6 +334,24 @@
       select,
       .form-row button {
         width: 100%;
+      }
+
+      .container {
+        padding: 12px;
+      }
+
+      .preview-header {
+        padding: 10px;
+      }
+
+      .preview-title {
+        font-size: 13px;
+        max-width: 40vw;
+      }
+
+      .preview-action-btn {
+        padding: 10px;
+        font-size: 13px;
       }
     }
   </style>
@@ -296,11 +407,33 @@
     </div>
   </div>
 
+  <div id="previewModal" class="preview-modal">
+    <div class="preview-header">
+      <div id="previewTitle" class="preview-title">Document Preview</div>
+      <div class="preview-actions">
+        <button class="preview-action-btn" id="openNewTabBtn" type="button">Open</button>
+        <button class="preview-action-btn" id="downloadBtn" type="button">Download</button>
+        <button class="preview-action-btn" id="closePreviewBtn" type="button">Close</button>
+      </div>
+    </div>
+    <div class="preview-body">
+      <iframe id="previewFrame" class="preview-frame"></iframe>
+      <div id="previewFallback" class="preview-fallback">
+        <p>This file type may not preview well on this phone browser.</p>
+        <p>Use Open to view it in a new tab, or Download to save it.</p>
+        <a id="fallbackOpenLink" href="#" target="_blank">Open Document</a>
+      </div>
+    </div>
+  </div>
+
   <script>
     let currentStatus = {
       aiEnabled: true,
       businessMode: "gp"
     };
+
+    let currentPreviewViewUrl = "";
+    let currentPreviewDownloadUrl = "";
 
     async function logout() {
       await fetch("/logout", {
@@ -364,6 +497,69 @@
       await loadData();
     }
 
+    function openPreview(docId, docName, mimeType) {
+      const previewModal = document.getElementById("previewModal");
+      const previewTitle = document.getElementById("previewTitle");
+      const previewFrame = document.getElementById("previewFrame");
+      const previewFallback = document.getElementById("previewFallback");
+      const fallbackOpenLink = document.getElementById("fallbackOpenLink");
+
+      currentPreviewViewUrl = `/admin/documents/${docId}/view`;
+      currentPreviewDownloadUrl = `/admin/documents/${docId}/download`;
+
+      previewTitle.textContent = docName;
+      previewFrame.style.display = "block";
+      previewFallback.style.display = "none";
+      previewFrame.src = currentPreviewViewUrl;
+      fallbackOpenLink.href = currentPreviewViewUrl;
+
+      const lowerMime = (mimeType || "").toLowerCase();
+      const previewable =
+        lowerMime.includes("pdf") ||
+        lowerMime.includes("image/") ||
+        lowerMime.includes("text/");
+
+      if (!previewable) {
+        previewFrame.style.display = "none";
+        previewFallback.style.display = "block";
+      }
+
+      previewModal.classList.add("open");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closePreview() {
+      const previewModal = document.getElementById("previewModal");
+      const previewFrame = document.getElementById("previewFrame");
+      const previewFallback = document.getElementById("previewFallback");
+
+      previewModal.classList.remove("open");
+      previewFrame.src = "";
+      previewFrame.style.display = "block";
+      previewFallback.style.display = "none";
+      document.body.style.overflow = "";
+    }
+
+    document.getElementById("closePreviewBtn").addEventListener("click", closePreview);
+
+    document.getElementById("openNewTabBtn").addEventListener("click", () => {
+      if (currentPreviewViewUrl) {
+        window.open(currentPreviewViewUrl, "_blank");
+      }
+    });
+
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      if (currentPreviewDownloadUrl) {
+        window.open(currentPreviewDownloadUrl, "_blank");
+      }
+    });
+
+    document.getElementById("previewModal").addEventListener("click", (e) => {
+      if (e.target.id === "previewModal") {
+        closePreview();
+      }
+    });
+
     async function loadData() {
       await loadStatus();
 
@@ -426,6 +622,9 @@
         documentsDiv.innerHTML = `<p class="empty">No uploaded documents yet.</p>`;
       } else {
         documents.forEach(doc => {
+          const escapedName = String(doc.originalName).replace(/'/g, "\\'");
+          const escapedMime = String(doc.mimeType || "").replace(/'/g, "\\'");
+
           const div = document.createElement("div");
           div.className = "item";
           div.innerHTML = `
@@ -438,6 +637,8 @@
               Uploaded: ${new Date(doc.uploadedAt).toLocaleString()}
             </div>
             <div class="doc-actions">
+              <button class="doc-button" type="button" onclick="openPreview(${doc.id}, '${escapedName}', '${escapedMime}')">Preview</button>
+              <a class="doc-link" href="/admin/documents/${doc.id}/view" target="_blank">Open</a>
               <a class="doc-link" href="/admin/documents/${doc.id}/download" target="_blank">Download</a>
             </div>
           `;

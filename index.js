@@ -10,6 +10,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY2 });
 
 const multer = require("multer");
 const upload = multer({ dest: 'uploads/' });
+const path = require("path");
 
 dotenv.config();
 
@@ -319,8 +320,34 @@ app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
-app.get("/documents", (req, res) => {
-  res.json(documents);
+app.get("/admin/documents", (req, res) => {
+  try {
+    const sortedDocuments = [...documents].sort(
+      (a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)
+    );
+
+    res.json(sortedDocuments);
+  } catch (error) {
+    console.error("Error fetching documents:", error);
+    res.status(500).json({ error: "Failed to fetch documents" });
+  }
+});
+
+app.get("/admin/documents/:id/download", (req, res) => {
+  try {
+    const docId = Number(req.params.id);
+    const doc = documents.find(d => d.id === docId);
+
+    if (!doc) {
+      return res.status(404).send("Document not found");
+    }
+
+    const absolutePath = path.resolve(doc.filePath);
+    return res.download(absolutePath, doc.originalName);
+  } catch (error) {
+    console.error("Download error:", error);
+    return res.status(500).send("Failed to download document");
+  }
 });
 
 app.post("/login", (req, res) => {
@@ -353,6 +380,19 @@ app.post("/logout", (req, res) => {
 
 app.get("/appointments", requireAdmin, (req, res) => {
   res.json(appointments);
+});
+
+app.get("/admin/documents", (req, res) => {
+  try {
+    const sortedDocuments = [...documents].sort(
+      (a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)
+    );
+
+    res.json(sortedDocuments);
+  } catch (error) {
+    console.error("Error fetching documents:", error);
+    res.status(500).json({ error: "Failed to fetch documents" });
+  }
 });
 
 app.get("/chat-logs", requireAdmin, (req, res) => {

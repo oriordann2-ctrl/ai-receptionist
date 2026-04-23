@@ -92,6 +92,11 @@
       color: #7e22ce;
     }
 
+    .badge-docs {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
     .button-row {
       display: flex;
       flex-wrap: wrap;
@@ -164,7 +169,8 @@
       margin-top: 8px;
     }
 
-    input, select {
+    input,
+    select {
       padding: 10px 12px;
       font-size: 15px;
       border: 1px solid #d1d5db;
@@ -191,6 +197,25 @@
       font-style: italic;
     }
 
+    .doc-actions {
+      margin-top: 10px;
+    }
+
+    .doc-link {
+      display: inline-block;
+      text-decoration: none;
+      background: #111827;
+      color: white;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .doc-link:hover {
+      opacity: 0.92;
+    }
+
     @media (max-width: 700px) {
       .top-grid {
         grid-template-columns: 1fr;
@@ -212,7 +237,9 @@
         flex-direction: column;
       }
 
-      input, select, .form-row button {
+      input,
+      select,
+      .form-row button {
         width: 100%;
       }
     }
@@ -221,16 +248,18 @@
 <body>
   <div class="container">
     <h1>Admin Dashboard</h1>
-    <p class="subtitle">Control the AI receptionist and review bookings and conversations.</p>
+    <p class="subtitle">Control the AI receptionist and review bookings, conversations, and uploaded documents.</p>
 
     <div class="top-grid">
       <div class="card">
         <h2>System Status</h2>
         <button class="btn-gray" onclick="logout()">Log Out</button>
+
         <div class="stat-row">
           <span id="statusBadge" class="badge">Loading...</span>
           <span id="modeBadge" class="badge badge-mode">Mode</span>
           <span id="countBadge" class="badge badge-count">0 appointments</span>
+          <span id="docsBadge" class="badge badge-docs">0 documents</span>
         </div>
 
         <div class="button-row">
@@ -257,6 +286,11 @@
     </div>
 
     <div class="card">
+      <h2>Uploaded Documents</h2>
+      <div id="documents"></div>
+    </div>
+
+    <div class="card">
       <h2>Chat Logs</h2>
       <div id="chatLogs"></div>
     </div>
@@ -269,11 +303,11 @@
     };
 
     async function logout() {
-    await fetch("/logout", {
+      await fetch("/logout", {
         method: "POST"
-    });
+      });
 
-    window.location.href = "/login";
+      window.location.href = "/login";
     }
 
     async function loadStatus() {
@@ -333,20 +367,28 @@
     async function loadData() {
       await loadStatus();
 
-      const appointmentsRes = await fetch("/appointments");
-      const appointments = await appointmentsRes.json();
+      const [appointmentsRes, chatLogsRes, documentsRes] = await Promise.all([
+        fetch("/appointments"),
+        fetch("/chat-logs"),
+        fetch("/admin/documents")
+      ]);
 
-      const chatLogsRes = await fetch("/chat-logs");
+      const appointments = await appointmentsRes.json();
       const chatLogs = await chatLogsRes.json();
+      const documents = await documentsRes.json();
 
       const appointmentsDiv = document.getElementById("appointments");
       const chatLogsDiv = document.getElementById("chatLogs");
+      const documentsDiv = document.getElementById("documents");
       const countBadge = document.getElementById("countBadge");
+      const docsBadge = document.getElementById("docsBadge");
 
       countBadge.textContent = `${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`;
+      docsBadge.textContent = `${documents.length} document${documents.length === 1 ? "" : "s"}`;
 
       appointmentsDiv.innerHTML = "";
       chatLogsDiv.innerHTML = "";
+      documentsDiv.innerHTML = "";
 
       if (appointments.length === 0) {
         appointmentsDiv.innerHTML = `<p class="empty">No appointments yet.</p>`;
@@ -378,6 +420,29 @@
             `;
             appointmentsDiv.appendChild(div);
           });
+      }
+
+      if (!Array.isArray(documents) || documents.length === 0) {
+        documentsDiv.innerHTML = `<p class="empty">No uploaded documents yet.</p>`;
+      } else {
+        documents.forEach(doc => {
+          const div = document.createElement("div");
+          div.className = "item";
+          div.innerHTML = `
+            <div class="item-title">${doc.originalName}</div>
+            <div class="meta">
+              User: ${doc.userId}<br>
+              Type: ${doc.documentType}<br>
+              MIME type: ${doc.mimeType}<br>
+              Size: ${doc.size} bytes<br>
+              Uploaded: ${new Date(doc.uploadedAt).toLocaleString()}
+            </div>
+            <div class="doc-actions">
+              <a class="doc-link" href="/admin/documents/${doc.id}/download" target="_blank">Download</a>
+            </div>
+          `;
+          documentsDiv.appendChild(div);
+        });
       }
 
       if (chatLogs.length === 0) {

@@ -400,6 +400,7 @@ app.post("/chat", async (req, res) => {
   const lowerMessage = trimmedMessage.toLowerCase();
 
   const intent = await getIntentFromOpenAI(trimmedMessage);
+  console.log(intent);
 
   if (intent === "upload documents") {
     result.reply = "Please upload the required documents (ID, payslips, etc.) via the provided upload link.";

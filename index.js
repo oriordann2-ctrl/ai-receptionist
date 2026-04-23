@@ -399,13 +399,12 @@ app.post("/chat", async (req, res) => {
   const trimmedMessage = message.trim();
   const lowerMessage = trimmedMessage.toLowerCase();
 
-  const intent = await getIntentFromOpenAI(trimmedMessage);
-  console.log(intent);
+  let result = {
+    reply: "How can I help you today?"
+  };
 
-  if (intent === "upload documents") {
-    result.reply = "Please upload the required documents (ID, payslips, etc.) via the provided upload link.";
-    // You could guide them to an upload endpoint or provide a secure link.
-  }
+  const intent = await getIntentFromOpenAI(trimmedMessage);
+  console.log("Intent:", intent);
 
   ensureConversation(userId);
 
@@ -416,12 +415,10 @@ app.post("/chat", async (req, res) => {
     timestamp: new Date()
   });
 
-  let result = {
-    reply: "How can I help you today?"
-  };
-
   if (!aiEnabled) {
     result.reply = "The AI receptionist is currently turned off. Please contact the business directly.";
+  } else if (intent === "upload documents") {
+    result.reply = "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
   } else if (businessMode === "gp") {
     if (isUrgentMessage(trimmedMessage)) {
       resetConversation(userId);
@@ -443,7 +440,7 @@ app.post("/chat", async (req, res) => {
       });
     }
   } else if (businessMode === "mortgage") {
-    if (lowerMessage.includes("status") || lowerMessage.includes("update") || lowerMessage.includes("application")) {
+    if (lowerMessage.includes("status") || lowerMessage.includes("update")) {
       result.reply = "Your mortgage application is currently being reviewed. A broker will contact you if any additional documents are required.";
     } else if (
       lowerMessage.includes("documents") ||

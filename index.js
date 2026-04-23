@@ -399,13 +399,6 @@ app.post("/chat", async (req, res) => {
   const trimmedMessage = message.trim();
   const lowerMessage = trimmedMessage.toLowerCase();
 
-  let result = {
-    reply: "How can I help you today?"
-  };
-
-  const intent = await getIntentFromOpenAI(trimmedMessage);
-  console.log("Intent:", intent);
-
   ensureConversation(userId);
 
   addChatLog({
@@ -415,57 +408,43 @@ app.post("/chat", async (req, res) => {
     timestamp: new Date()
   });
 
+  let result = {
+    reply: "How can I help you today?"
+  };
+
   if (!aiEnabled) {
     result.reply = "The AI receptionist is currently turned off. Please contact the business directly.";
-  } else if (intent === "upload documents") {
-    result.reply = "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
-  } else if (businessMode === "gp") {
-    if (isUrgentMessage(trimmedMessage)) {
-      resetConversation(userId);
+    return res.json(result);
+  }
 
-      result.reply = "Your message may describe an urgent medical issue. Please contact emergency services immediately or call the practice directly now.";
+  const intent = await getIntentFromOpenAI(trimmedMessage);
+  console.log("Intent:", intent);
 
-      addChatLog({
-        userId,
-        sender: "system",
-        message: "Urgent triage flag raised.",
-        timestamp: new Date()
-      });
-    } else {
-      result = handleBookingFlow({
-        userId,
-        message: trimmedMessage,
-        bookingType: "GP Visit",
-        confirmationLabel: "appointment"
-      });
-    }
+  // Safer intent matching
+  if (
+    intent === "upload_documents" ||
+    intent === "upload documents" ||
+    intent === "document_upload"
+  ) {
+    result.reply =
+      "Please upload the required documents such as ID, payslips, and bank statements using the secure upload link.";
+    return res.json(result); // important: stop here
+  }
+
+  if (businessMode === "gp") {
+    result.reply = "GP mode response here...";
   } else if (businessMode === "mortgage") {
-    if (lowerMessage.includes("status") || lowerMessage.includes("update")) {
-      result.reply = "Your mortgage application is currently being reviewed. A broker will contact you if any additional documents are required.";
-    } else if (
-      lowerMessage.includes("documents") ||
-      lowerMessage.includes("docs") ||
-      lowerMessage.includes("what do i need")
-    ) {
-      result.reply = "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements vary by lender.";
-    } else {
-      result = handleBookingFlow({
-        userId,
-        message: trimmedMessage,
-        bookingType: "Mortgage Consultation",
-        confirmationLabel: "consultation"
-      });
-    }
+    result.reply = "Mortgage mode response here...";
   }
 
   addChatLog({
     userId,
-    sender: "bot",
+    sender: "assistant",
     message: result.reply,
     timestamp: new Date()
   });
 
-  res.json({ reply: result.reply });
+  return res.json(result);
 });
 
 const PORT = process.env.PORT || 3000;

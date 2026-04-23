@@ -8,6 +8,9 @@ const { OpenAI } = require("openai");
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY2 });
 
+const multer = require("multer");
+const upload = multer({ dest: 'uploads/' });
+
 dotenv.config();
 
 const app = express();
@@ -257,6 +260,8 @@ function handleBookingFlow({ userId, message, bookingType, confirmationLabel }) 
     reply: `I can help you book a ${confirmationLabel}. Type 'book appointment' to begin.`
   };
 }
+
+app.post('/upload', upload.single('file'), (req, res) => { res.json({ success: true, file: req.file }); });
 
 app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "login.html"));

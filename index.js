@@ -515,8 +515,8 @@ app.post("/chat", async (req, res) => {
     result.reply =
       "Your mortgage application is currently being reviewed. A broker will contact you if any additional documents are required.";
   } else if (
-    lowerMessage.includes("documents") ||
-    lowerMessage.includes("docs") ||
+    lowerMessage.includes("documents needed") ||
+    lowerMessage.includes("what documents") ||
     lowerMessage.includes("what do i need")
   ) {
     result.reply =

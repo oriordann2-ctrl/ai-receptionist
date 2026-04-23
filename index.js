@@ -116,10 +116,11 @@ function addChatLog(entry) {
   saveChatLogs();
 }
 
-function createAppointment(userId, customerName, date, time, type) {
+function createAppointment(userId, conversationId, customerName, date, time, type) {
   const newAppointment = {
     id: appointments.length > 0 ? Math.max(...appointments.map(a => a.id)) + 1 : 1,
     userId,
+    conversationId, // 👈 IMPORTANT
     customerName,
     date,
     time,
@@ -170,7 +171,7 @@ function requireAdminPage(req, res, next) {
   next();
 }
 
-function handleBookingFlow({ userId, message, bookingType, confirmationLabel }) {
+function handleBookingFlow({ userId, conversationId, message, bookingType, confirmationLabel }) {
   const convo = ensureConversation(userId);
   const trimmedMessage = message.trim();
   const lowerMessage = trimmedMessage.toLowerCase();
@@ -249,6 +250,7 @@ function handleBookingFlow({ userId, message, bookingType, confirmationLabel }) 
 
     const newAppointment = createAppointment(
       userId,
+      conversationId,
       trimmedMessage,
       convo.date,
       convo.time,
@@ -464,7 +466,7 @@ app.post("/appointments", requireAdmin, (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const newAppointment = createAppointment(userId, customerName, date, time, type);
+  const newAppointment = createAppointment(userId, conversationId, customerName, date, time, type);
 
   res.json({
     success: true,
@@ -593,6 +595,7 @@ app.post("/chat", async (req, res) => {
       ) {
         result = handleBookingFlow({
           userId,
+          conversationId,
           message: "book appointment",
           bookingType: "GP Visit",
           confirmationLabel: "appointment"
@@ -622,9 +625,10 @@ app.post("/chat", async (req, res) => {
       ) {
         result = handleBookingFlow({
           userId,
+          conversationId,
           message: "book appointment",
-          bookingType: "Mortgage Consultation",
-          confirmationLabel: "consultation"
+          bookingType: "GP Visit",
+          confirmationLabel: "appointment"
         });
       } else if (
         lowerMessage.includes("status") ||

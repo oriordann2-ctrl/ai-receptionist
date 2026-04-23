@@ -451,11 +451,6 @@ async function getIntentFromOpenAI(message) {
   });
 
   return completion.choices[0].message.content || "";
-}  const completion = await openai.chat.completions.create({
-    model: "gpt-4-turbo",
-    messages: [{ role: "user", content: `What is the intent of this message? Respond with one of: "book appointment", "upload documents", or "general inquiry". Message: "${message}"` }],
-  });
-  return completion.choices[0].message.content.toLowerCase();
 }
 
 app.post("/chat", async (req, res) => {

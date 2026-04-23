@@ -273,7 +273,10 @@ app.post("/upload", upload.single("file"), (req, res) => {
     const documentType = req.body.documentType || "unspecified";
 
     if (!req.file) {
-      return res.status(400).json({ success: false, error: "No file uploaded" });
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded"
+      });
     }
 
     const documentRecord = {
@@ -298,13 +301,14 @@ app.post("/upload", upload.single("file"), (req, res) => {
       timestamp: new Date()
     });
 
-    res.json({
+    return res.json({
       success: true,
+      message: `Uploaded ${req.file.originalname} successfully`,
       file: documentRecord
     });
   } catch (error) {
     console.error("Upload error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: "Upload failed"
     });

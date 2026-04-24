@@ -79,6 +79,30 @@ const urgentKeywords = [
 
 let conversations = {};
 
+const mortgageLeadsFile = path.join(__dirname, "data", "mortgageLeads.json");
+
+function loadMortgageLeads() {
+  try {
+    if (!fs.existsSync(mortgageLeadsFile)) {
+      fs.writeFileSync(mortgageLeadsFile, JSON.stringify([], null, 2));
+    }
+
+    const data = fs.readFileSync(mortgageLeadsFile, "utf8");
+    return JSON.parse(data || "[]");
+  } catch (error) {
+    console.error("Error loading mortgage leads:", error);
+    return [];
+  }
+}
+
+function saveMortgageLeads(leads) {
+  try {
+    fs.writeFileSync(mortgageLeadsFile, JSON.stringify(leads, null, 2));
+  } catch (error) {
+    console.error("Error saving mortgage leads:", error);
+  }
+}
+
 function isUrgentMessage(message) {
   const lower = message.toLowerCase();
   return urgentKeywords.some(keyword => lower.includes(keyword));
@@ -268,6 +292,33 @@ function handleBookingFlow({ userId, conversationId, message, bookingType, confi
     reply: `I can help you book a ${confirmationLabel}. Type 'book appointment' to begin.`
   };
 }
+
+app.post("/mortgage-leads", (req, res) => {
+  const leads = loadMortgageLeads();
+
+  const newLead = {
+    id: "ML-" + Date.now(),
+    createdAt: new Date().toISOString(),
+    status: "New lead",
+    name: req.body.name || "",
+    phone: req.body.phone || "",
+    email: req.body.email || "",
+    buyerType: req.body.buyerType || "",
+    propertyPrice: req.body.propertyPrice || "",
+    deposit: req.body.deposit || "",
+    income: req.body.income || "",
+    employmentType: req.body.employmentType || "",
+    notes: req.body.notes || ""
+  };
+
+  leads.push(newLead);
+  saveMortgageLeads(leads);
+
+  res.json({
+    success: true,
+    lead: newLead
+  });
+});
 
 app.post("/upload", upload.single("file"), (req, res) => {
   try {

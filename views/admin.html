@@ -662,6 +662,14 @@
       return "🔵 Cold";
     }
 
+    function getCategoryPriority(lead) {
+      const category = getLeadCategory(lead);
+
+      if (category.includes("Hot")) return 3;
+      if (category.includes("Warm")) return 2;
+      return 1;
+    }
+
     function toggleChatGroup(id) {
       const body = document.getElementById(`chat-group-body-${id}`);
       const toggle = document.getElementById(`chat-group-toggle-${id}`);
@@ -750,7 +758,10 @@
       if (!Array.isArray(mortgageLeads) || mortgageLeads.length === 0) {
         mortgageLeadsDiv.innerHTML = `<p class="empty">No mortgage leads yet.</p>`;
       } else {
-      mortgageLeads.forEach(lead => {
+      mortgageLeads
+          .slice() // don’t mutate original
+          .sort((a, b) => getCategoryPriority(b) - getCategoryPriority(a))
+          .forEach(lead => {
         const initials = (lead.name || "Lead")
           .split(" ")
           .map(w => w[0])

@@ -628,6 +628,40 @@
       document.body.style.overflow = "";
     }
 
+    function scoreLead(lead) {
+      const income = parseMoney(lead.income);
+      const deposit = parseMoney(lead.deposit);
+      const price = parseMoney(lead.propertyPrice);
+
+      let score = 0;
+
+      // Affordability (BIG weight)
+      const maxBorrow = income * 4;
+      const totalPower = maxBorrow + deposit;
+
+      if (totalPower >= price) score += 4;
+      else if (totalPower >= price * 0.9) score += 2;
+      else score -= 2;
+
+      // Deposit strength
+      if (deposit >= 100000) score += 2;
+      else if (deposit >= 50000) score += 1;
+
+      // Income strength
+      if (income >= 80000) score += 2;
+      else if (income >= 50000) score += 1;
+
+      return score;
+    }
+
+    function getLeadCategory(lead) {
+      const score = scoreLead(lead);
+
+      if (score >= 6) return "🔥 Hot";
+      if (score >= 3) return "🟡 Warm";
+      return "🔵 Cold";
+    }
+
     function toggleChatGroup(id) {
       const body = document.getElementById(`chat-group-body-${id}`);
       const toggle = document.getElementById(`chat-group-toggle-${id}`);
@@ -733,7 +767,9 @@
             <div>
               <div class="lead-title">
                 ${lead.id}
-                <span class="status-pill">${lead.status || "New lead"}</span>
+                <span class="status-pill">
+                  ${getLeadCategory(lead)}
+                </span>
               </div>
               <div class="lead-meta">
                 Created: ${lead.createdAt ? new Date(lead.createdAt).toLocaleString() : "-"} |

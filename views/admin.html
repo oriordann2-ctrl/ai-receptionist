@@ -357,7 +357,188 @@
       .container {
         padding: 12px;
       }
-    }
+    .lead-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.lead-header {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #ede9fe;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 20px;
+}
+
+.lead-title {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.status-pill {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 13px;
+}
+
+.lead-meta {
+  color: #64748b;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.contact-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px;
+  background: #f9fafb;
+}
+
+.contact-box span {
+  display: block;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.contact-box strong {
+  font-size: 17px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.small-action {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #e0f2fe;
+  color: #075985;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.lead-main-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 18px;
+}
+
+.lead-details,
+.lead-side {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.lead-details h3,
+.lead-side h3 {
+  margin: 0 0 14px;
+  font-size: 17px;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: #f9fafb;
+}
+
+.detail-row span {
+  color: #475569;
+}
+
+.detail-row strong {
+  font-weight: 600;
+}
+
+.status-select {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.lead-side hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 18px 0;
+}
+
+.action {
+  display: block;
+  text-align: center;
+  padding: 12px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.green-action {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.blue-action {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.purple-action {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+@media (max-width: 800px) {
+  .contact-grid,
+  .lead-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lead-title {
+    font-size: 17px;
+  }
+
+  .lead-header {
+    align-items: flex-start;
+  }
+}
   </style>
 </head>
 
@@ -645,55 +826,93 @@
       if (!Array.isArray(mortgageLeads) || mortgageLeads.length === 0) {
         mortgageLeadsDiv.innerHTML = `<p class="empty">No mortgage leads yet.</p>`;
       } else {
-        mortgageLeads.forEach(lead => {
-          const div = document.createElement("div");
-          div.className = "item";
+      mortgageLeads.forEach(lead => {
+        const initials = (lead.name || "Lead")
+          .split(" ")
+          .map(w => w[0])
+          .join("")
+          .substring(0, 2)
+          .toUpperCase();
 
-          div.innerHTML = `
-            <div class="item-title">${lead.id} — ${lead.status || "New lead"}</div>
-            <div class="meta">
-              Created: ${lead.createdAt ? new Date(lead.createdAt).toLocaleString() : "-"}<br>
-              Conversation ID: ${lead.conversationId || "-"}<br>
-              User: ${lead.userId || "-"}
+        const div = document.createElement("div");
+        div.className = "lead-card";
+
+        div.innerHTML = `
+          <div class="lead-header">
+            <div class="avatar">${initials}</div>
+            <div>
+              <div class="lead-title">
+                ${lead.id}
+                <span class="status-pill">${lead.status || "New lead"}</span>
+              </div>
+              <div class="lead-meta">
+                Created: ${lead.createdAt ? new Date(lead.createdAt).toLocaleString() : "-"} |
+                Conversation: ${lead.conversationId || "-"} |
+                User: ${lead.userId || "-"}
+              </div>
+            </div>
+          </div>
+
+          <div class="contact-grid">
+            <div class="contact-box">
+              <span>Full Name</span>
+              <strong>${lead.name || "-"}</strong>
             </div>
 
-            <div class="lead-grid">
-              <div class="lead-field"><strong>Name</strong>${lead.name || "-"}</div>
-              <div class="lead-field">
-                <strong>Phone</strong>
-                ${lead.phone || "-"}
-                ${lead.phone ? ` <a href="tel:${lead.phone}" class="doc-link">📞</a>` : ""}
-              </div>
-                <strong>Email</strong>
-                ${lead.email || "-"}
-                ${lead.email ? `<br><a href="mailto:${lead.email}" class="doc-link">Email</a>` : ""}
-              </div>
-              <div class="lead-field"><strong>Buyer Type</strong>${lead.buyerType || "-"}</div>
-              <div class="lead-field"><strong>Property Price</strong>${lead.propertyPrice || "-"}</div>
-              <div class="lead-field"><strong>Deposit</strong>${lead.deposit || "-"}</div>
-              <div class="lead-field"><strong>Income</strong>${lead.income || "-"}</div>
-              <div class="lead-field"><strong>Employment</strong>${lead.employmentType || "-"}</div>
-              <div class="lead-field"><strong>Notes</strong>${lead.notes || "-"}</div>
-              <div class="compact-row">
-              <select id="status-${lead.id}">
-                <option>New lead</option>
-                <option>Contacted</option>
-                <option>Awaiting documents</option>
-                <option>Submitted to lender</option>
-                <option>Approved</option>
-                <option>Closed</option>
+            <div class="contact-box">
+              <span>Phone</span>
+              <strong>${lead.phone || "-"}</strong>
+              ${lead.phone ? `<a href="tel:${lead.phone}" class="small-action">Call</a>` : ""}
+            </div>
+
+            <div class="contact-box">
+              <span>Email</span>
+              <strong>${lead.email || "-"}</strong>
+              ${lead.email ? `<a href="mailto:${lead.email}" class="small-action">Email</a>` : ""}
+            </div>
+          </div>
+
+          <div class="lead-main-grid">
+            <div class="lead-details">
+              <h3>Lead Details</h3>
+
+              <div class="detail-row"><span>Buyer Type</span><strong>${lead.buyerType || "-"}</strong></div>
+              <div class="detail-row"><span>Property Price</span><strong>${lead.propertyPrice || "-"}</strong></div>
+              <div class="detail-row"><span>Deposit</span><strong>${lead.deposit || "-"}</strong></div>
+              <div class="detail-row"><span>Income</span><strong>${lead.income || "-"}</strong></div>
+              <div class="detail-row"><span>Employment</span><strong>${lead.employmentType || "-"}</strong></div>
+              <div class="detail-row"><span>Notes</span><strong>${lead.notes || "-"}</strong></div>
+            </div>
+
+            <div class="lead-side">
+              <h3>Lead Status</h3>
+
+              <select id="status-${lead.id}" class="status-select">
+                <option ${lead.status === "New lead" ? "selected" : ""}>New lead</option>
+                <option ${lead.status === "Contacted" ? "selected" : ""}>Contacted</option>
+                <option ${lead.status === "Awaiting documents" ? "selected" : ""}>Awaiting documents</option>
+                <option ${lead.status === "Submitted to lender" ? "selected" : ""}>Submitted to lender</option>
+                <option ${lead.status === "Approved" ? "selected" : ""}>Approved</option>
+                <option ${lead.status === "Closed" ? "selected" : ""}>Closed</option>
               </select>
-              <button onclick="updateLeadStatus('${lead.id}')">Update</button>
-              <div class="doc-actions">
-                <a href="tel:${lead.phone}" class="doc-link">Call</a>
-                <a href="mailto:${lead.email}" class="doc-link">Email</a>
-              </div>
-            </div>
-            </div>
-          `;
 
-          mortgageLeadsDiv.appendChild(div);
-        });
+              <button class="btn-primary full-width" onclick="updateLeadStatus('${lead.id}')">
+                Update Status
+              </button>
+
+              <hr>
+
+              <h3>Quick Actions</h3>
+
+              ${lead.phone ? `<a href="tel:${lead.phone}" class="action green-action">Call Lead</a>` : ""}
+              ${lead.email ? `<a href="mailto:${lead.email}" class="action blue-action">Send Email</a>` : ""}
+              ${lead.phone ? `<a href="https://wa.me/${lead.phone}" target="_blank" class="action purple-action">WhatsApp</a>` : ""}
+            </div>
+          </div>
+        `;
+
+        mortgageLeadsDiv.appendChild(div);
+      });
       }
 
       if (appointments.length === 0) {

@@ -677,6 +677,10 @@
                 <option>Closed</option>
               </select>
               <button onclick="updateLeadStatus('${lead.id}')">Update</button>
+              <div class="doc-actions">
+                <a href="tel:${lead.phone}" class="doc-link">Call</a>
+                <a href="mailto:${lead.email}" class="doc-link">Email</a>
+              </div>
             </div>
             </div>
           `;

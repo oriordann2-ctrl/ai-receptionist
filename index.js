@@ -333,6 +333,16 @@ function handleBookingFlow({ userId, conversationId, message, bookingType, confi
   };
 }
 
+app.get("/admin/mortgage-leads", requireAdmin, (req, res) => {
+  const leads = loadMortgageLeads();
+
+  const sortedLeads = [...leads].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+
+  res.json(sortedLeads);
+});
+
 app.post("/mortgage-leads", (req, res) => {
   const leads = loadMortgageLeads();
 

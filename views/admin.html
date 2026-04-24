@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Dashboard</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       font-family: Arial, sans-serif;
@@ -22,19 +20,9 @@
       padding: 16px;
     }
 
-    h1 {
-      font-size: 28px;
-      margin: 0 0 8px;
-    }
-
-    h2 {
-      font-size: 20px;
-      margin: 0 0 12px;
-    }
-
-    p {
-      margin: 0 0 10px;
-    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 20px; margin: 0 0 12px; }
+    p { margin: 0 0 10px; }
 
     .subtitle {
       color: #6b7280;
@@ -72,30 +60,12 @@
       font-weight: bold;
     }
 
-    .badge-on {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .badge-off {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .badge-mode {
-      background: #dbeafe;
-      color: #1d4ed8;
-    }
-
-    .badge-count {
-      background: #f3e8ff;
-      color: #7e22ce;
-    }
-
-    .badge-docs {
-      background: #fef3c7;
-      color: #92400e;
-    }
+    .badge-on { background: #dcfce7; color: #166534; }
+    .badge-off { background: #fee2e2; color: #991b1b; }
+    .badge-mode { background: #dbeafe; color: #1d4ed8; }
+    .badge-count { background: #f3e8ff; color: #7e22ce; }
+    .badge-docs { background: #fef3c7; color: #92400e; }
+    .badge-leads { background: #ccfbf1; color: #0f766e; }
 
     .button-row {
       display: flex;
@@ -114,30 +84,11 @@
       min-height: 44px;
     }
 
-    .btn-primary {
-      background: #111827;
-      color: white;
-    }
-
-    .btn-green {
-      background: #16a34a;
-      color: white;
-    }
-
-    .btn-red {
-      background: #dc2626;
-      color: white;
-    }
-
-    .btn-blue {
-      background: #2563eb;
-      color: white;
-    }
-
-    .btn-gray {
-      background: #e5e7eb;
-      color: #111827;
-    }
+    .btn-primary { background: #111827; color: white; }
+    .btn-green { background: #16a34a; color: white; }
+    .btn-red { background: #dc2626; color: white; }
+    .btn-blue { background: #2563eb; color: white; }
+    .btn-gray { background: #e5e7eb; color: #111827; }
 
     .item {
       border-top: 1px solid #e5e7eb;
@@ -162,15 +113,7 @@
       line-height: 1.4;
     }
 
-    .form-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    input,
-    select {
+    input, select {
       padding: 10px 12px;
       font-size: 15px;
       border: 1px solid #d1d5db;
@@ -179,22 +122,29 @@
       background: white;
     }
 
-    input {
-      flex: 1 1 160px;
-    }
-
-    select {
-      flex: 1 1 140px;
-    }
-
-    .log-sender {
-      text-transform: capitalize;
-      font-weight: bold;
-    }
-
     .empty {
       color: #6b7280;
       font-style: italic;
+    }
+
+    .compact-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .compact-row input,
+    .compact-row select {
+      flex: 1;
+      padding: 8px;
+      font-size: 14px;
+      min-height: 36px;
+    }
+
+    .compact-row button {
+      padding: 8px 10px;
+      font-size: 13px;
+      min-height: 36px;
     }
 
     .doc-actions {
@@ -218,9 +168,27 @@
       cursor: pointer;
     }
 
-    .doc-link:hover,
-    .doc-button:hover {
-      opacity: 0.92;
+    .lead-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .lead-field {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    .lead-field strong {
+      display: block;
+      color: #374151;
+      margin-bottom: 3px;
+      font-size: 12px;
+      text-transform: uppercase;
     }
 
     .preview-modal {
@@ -295,40 +263,6 @@
       overflow: auto;
     }
 
-    .preview-fallback p {
-      margin-bottom: 14px;
-    }
-
-    .preview-fallback a {
-      display: inline-block;
-      background: #111827;
-      color: white;
-      text-decoration: none;
-      padding: 10px 14px;
-      border-radius: 10px;
-      font-weight: bold;
-    }
-
-    .compact-row {
-      display: flex;
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .compact-row input,
-    .compact-row select {
-      flex: 1;
-      padding: 8px;
-      font-size: 14px;
-      min-height: 36px;
-    }
-
-    .compact-row button {
-      padding: 8px 10px;
-      font-size: 13px;
-      min-height: 36px;
-    }
-
     .chat-item {
       border-top: 1px solid #e5e7eb;
       padding: 14px 0;
@@ -365,9 +299,7 @@
       margin-top: 8px;
     }
 
-    .chat-body.open {
-      display: block;
-    }
+    .chat-body.open { display: block; }
 
     .chat-preview {
       color: #6b7280;
@@ -377,60 +309,38 @@
     }
 
     .message-row {
-  display: flex;
-  margin: 6px 0;
-}
+      display: flex;
+      margin: 6px 0;
+    }
 
-.message-bubble {
-  max-width: 75%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  font-size: 14px;
-}
+    .message-bubble {
+      max-width: 75%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+    }
 
-/* User (right side, blue) */
-.msg-user {
-  justify-content: flex-end;
-}
+    .msg-user { justify-content: flex-end; }
+    .msg-user .message-bubble { background: #dbeafe; text-align: right; }
+    .msg-bot { justify-content: flex-start; }
+    .msg-bot .message-bubble { background: #e5e7eb; }
+    .msg-admin { justify-content: flex-start; }
+    .msg-admin .message-bubble { background: #f3e8ff; }
 
-.msg-user .message-bubble {
-  background: #dbeafe;
-  text-align: right;
-}
-
-/* Bot (left side, grey) */
-.msg-bot {
-  justify-content: flex-start;
-}
-
-.msg-bot .message-bubble {
-  background: #e5e7eb;
-}
-
-/* Admin/system (purple-ish) */
-.msg-admin {
-  justify-content: flex-start;
-}
-
-.msg-admin .message-bubble {
-  background: #f3e8ff;
-}
-
-.message-sender {
-  font-weight: bold;
-  font-size: 12px;
-  margin-bottom: 4px;
-  text-transform: capitalize;
-}
+    .message-sender {
+      font-weight: bold;
+      font-size: 12px;
+      margin-bottom: 4px;
+      text-transform: capitalize;
+    }
 
     @media (max-width: 700px) {
-      .top-grid {
+      .top-grid,
+      .lead-grid {
         grid-template-columns: 1fr;
       }
 
-      h1 {
-        font-size: 24px;
-      }
+      h1 { font-size: 24px; }
 
       .button-row {
         flex-direction: column;
@@ -440,50 +350,21 @@
         width: 100%;
       }
 
-      .form-row {
-        flex-direction: column;
-      }
-
-      input,
-      select,
-      .form-row button {
-        width: 100%;
-      }
-
       .compact-row {
         flex-wrap: nowrap;
-      }
-
-      .compact-row input,
-      .compact-row select,
-      .compact-row button {
-        flex: 1;
       }
 
       .container {
         padding: 12px;
       }
-
-      .preview-header {
-        padding: 10px;
-      }
-
-      .preview-title {
-        font-size: 13px;
-        max-width: 40vw;
-      }
-
-      .preview-action-btn {
-        padding: 10px;
-        font-size: 13px;
-      }
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h1>Admin Dashboard</h1>
-    <p class="subtitle">Control the AI receptionist and review bookings, conversations, and uploaded documents.</p>
+    <p class="subtitle">Control the AI assistant and review mortgage leads, bookings, conversations, and uploaded documents.</p>
 
     <div class="top-grid">
       <div class="card">
@@ -493,6 +374,7 @@
         <div class="stat-row">
           <span id="statusBadge" class="badge">Loading...</span>
           <span id="modeBadge" class="badge badge-mode">Mode</span>
+          <span id="leadsBadge" class="badge badge-leads">0 leads</span>
           <span id="countBadge" class="badge badge-count">0 appointments</span>
           <span id="docsBadge" class="badge badge-docs">0 documents</span>
         </div>
@@ -513,6 +395,11 @@
           <button class="btn-gray" onclick="loadData()">Refresh</button>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Mortgage Leads</h2>
+      <div id="mortgageLeads"></div>
     </div>
 
     <div class="card">
@@ -540,6 +427,7 @@
         <button class="preview-action-btn" id="closePreviewBtn" type="button">Close</button>
       </div>
     </div>
+
     <div class="preview-body">
       <iframe id="previewFrame" class="preview-frame"></iframe>
       <div id="previewFallback" class="preview-fallback">
@@ -560,9 +448,7 @@
     let currentPreviewDownloadUrl = "";
 
     async function logout() {
-      await fetch("/logout", {
-        method: "POST"
-      });
+      await fetch("/logout", { method: "POST" });
       window.location.href = "/login";
     }
 
@@ -582,9 +468,7 @@
     async function setStatus(enabled) {
       await fetch("/status", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled })
       });
 
@@ -594,13 +478,12 @@
     async function setMode(mode) {
       await fetch("/mode", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode })
       });
 
       await loadStatus();
+      await loadData();
     }
 
     async function updateAppointment(id) {
@@ -610,9 +493,7 @@
 
       await fetch(`/appointments/${id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date, time, status })
       });
 
@@ -703,48 +584,78 @@
     document.getElementById("closePreviewBtn").addEventListener("click", closePreview);
 
     document.getElementById("openNewTabBtn").addEventListener("click", () => {
-      if (currentPreviewViewUrl) {
-        window.open(currentPreviewViewUrl, "_blank");
-      }
+      if (currentPreviewViewUrl) window.open(currentPreviewViewUrl, "_blank");
     });
 
     document.getElementById("downloadBtn").addEventListener("click", () => {
-      if (currentPreviewDownloadUrl) {
-        window.open(currentPreviewDownloadUrl, "_blank");
-      }
+      if (currentPreviewDownloadUrl) window.open(currentPreviewDownloadUrl, "_blank");
     });
 
     document.getElementById("previewModal").addEventListener("click", (e) => {
-      if (e.target.id === "previewModal") {
-        closePreview();
-      }
+      if (e.target.id === "previewModal") closePreview();
     });
 
     async function loadData() {
       await loadStatus();
 
-      const [appointmentsRes, chatLogsRes, documentsRes] = await Promise.all([
+      const [appointmentsRes, chatLogsRes, documentsRes, leadsRes] = await Promise.all([
         fetch("/appointments"),
         fetch("/chat-logs"),
-        fetch("/admin/documents")
+        fetch("/admin/documents"),
+        fetch("/admin/mortgage-leads")
       ]);
 
       const appointments = await appointmentsRes.json();
       const chatLogs = await chatLogsRes.json();
       const documents = await documentsRes.json();
+      const mortgageLeads = await leadsRes.json();
 
       const appointmentsDiv = document.getElementById("appointments");
       const chatLogsDiv = document.getElementById("chatLogs");
       const documentsDiv = document.getElementById("documents");
+      const mortgageLeadsDiv = document.getElementById("mortgageLeads");
+
       const countBadge = document.getElementById("countBadge");
       const docsBadge = document.getElementById("docsBadge");
+      const leadsBadge = document.getElementById("leadsBadge");
 
       countBadge.textContent = `${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`;
       docsBadge.textContent = `${documents.length} document${documents.length === 1 ? "" : "s"}`;
+      leadsBadge.textContent = `${mortgageLeads.length} lead${mortgageLeads.length === 1 ? "" : "s"}`;
 
       appointmentsDiv.innerHTML = "";
       chatLogsDiv.innerHTML = "";
       documentsDiv.innerHTML = "";
+      mortgageLeadsDiv.innerHTML = "";
+
+      if (!Array.isArray(mortgageLeads) || mortgageLeads.length === 0) {
+        mortgageLeadsDiv.innerHTML = `<p class="empty">No mortgage leads yet.</p>`;
+      } else {
+        mortgageLeads.forEach(lead => {
+          const div = document.createElement("div");
+          div.className = "item";
+
+          div.innerHTML = `
+            <div class="item-title">${lead.id} — ${lead.status || "New lead"}</div>
+            <div class="meta">
+              Created: ${lead.createdAt ? new Date(lead.createdAt).toLocaleString() : "-"}<br>
+              Conversation ID: ${lead.conversationId || "-"}<br>
+              User: ${lead.userId || "-"}
+            </div>
+
+            <div class="lead-grid">
+              <div class="lead-field"><strong>Buyer Type</strong>${lead.buyerType || "-"}</div>
+              <div class="lead-field"><strong>Property Price</strong>${lead.propertyPrice || "-"}</div>
+              <div class="lead-field"><strong>Deposit</strong>${lead.deposit || "-"}</div>
+              <div class="lead-field"><strong>Income</strong>${lead.income || "-"}</div>
+              <div class="lead-field"><strong>Employment</strong>${lead.employmentType || "-"}</div>
+              <div class="lead-field"><strong>Notes</strong>${lead.notes || "-"}</div>
+            </div>
+          `;
+
+          mortgageLeadsDiv.appendChild(div);
+        });
+      }
 
       if (appointments.length === 0) {
         appointmentsDiv.innerHTML = `<p class="empty">No appointments yet.</p>`;
@@ -788,14 +699,6 @@
           const escapedName = String(doc.originalName).replace(/'/g, "\\'");
           const escapedMime = String(doc.mimeType || "").replace(/'/g, "\\'");
 
-          const linkedAppointment = appointments.find(
-            a => a.conversationId && a.conversationId === doc.conversationId
-          );
-
-          const linkedChat = chatLogs.find(
-            l => l.conversationId && l.conversationId === doc.conversationId
-          );
-
           const firstCustomerMessage = chatLogs.find(
             l =>
               l.conversationId === doc.conversationId &&
@@ -805,7 +708,6 @@
           );
 
           let conversationLabel =
-            linkedAppointment?.customerName ||
             firstCustomerMessage?.message ||
             (doc.conversationId ? `Conversation ${doc.conversationId.slice(-6)}` : "Unlinked");
 
@@ -853,17 +755,20 @@
 
             const latestTimestamp = group.logs[group.logs.length - 1]?.timestamp;
 
-              const linkedAppointment = appointments.find(
-                a => a.conversationId && a.conversationId === group.conversationId
-              );
+            const linkedLead = mortgageLeads.find(
+              l => l.conversationId && l.conversationId === group.conversationId
+            );
 
-              const displayName =
-                linkedAppointment?.customerName ||
-                (group.conversationId ? `Conversation ${group.conversationId.slice(-6)}` : "Legacy Conversation");
+            const linkedAppointment = appointments.find(
+              a => a.conversationId && a.conversationId === group.conversationId
+            );
 
-              const title = displayName;
+            const title =
+              linkedLead?.id ||
+              linkedAppointment?.customerName ||
+              (group.conversationId ? `Conversation ${group.conversationId.slice(-6)}` : "Legacy Conversation");
 
-              const messagesHtml = group.logs.map(log => {
+            const messagesHtml = group.logs.map(log => {
               const sender = log.sender || "unknown";
               const messageText = log.message || "";
               const timestamp = log.timestamp
@@ -872,13 +777,7 @@
 
               const isUser = sender === "customer";
               const isBot = sender === "bot";
-              const isAdmin = sender === "admin" || sender === "system";
-
-              const messageClass = isUser
-                ? "msg-user"
-                : isBot
-                ? "msg-bot"
-                : "msg-admin";
+              const messageClass = isUser ? "msg-user" : isBot ? "msg-bot" : "msg-admin";
 
               return `
                 <div class="message-row ${messageClass}">

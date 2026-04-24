@@ -799,13 +799,13 @@
             <div class="contact-box">
               <span>Phone</span>
               <strong>${lead.phone || "-"}</strong>
-              ${lead.phone ? `<a href="tel:${lead.phone}" class="small-action">Call</a>` : ""}
+              <span>${lead.phone}</span>            
             </div>
 
             <div class="contact-box">
               <span>Email</span>
               <strong>${lead.email || "-"}</strong>
-              ${lead.email ? `<a href="mailto:${lead.email}" class="small-action">Email</a>` : ""}
+              <span>${lead.email}</span>
             </div>
           </div>
           ${(() => {

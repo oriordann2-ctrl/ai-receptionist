@@ -195,6 +195,32 @@ function requireAdminPage(req, res, next) {
   next();
 }
 
+function createMortgageLeadFromChat({ userId, conversationId }) {
+  const leads = loadMortgageLeads();
+
+  const newLead = {
+    id: "ML-" + Date.now(),
+    createdAt: new Date().toISOString(),
+    status: "New lead",
+    userId,
+    conversationId,
+    name: "",
+    phone: "",
+    email: "",
+    buyerType: "",
+    propertyPrice: "",
+    deposit: "",
+    income: "",
+    employmentType: "",
+    notes: "Started from chat"
+  };
+
+  leads.push(newLead);
+  saveMortgageLeads(leads);
+
+  return newLead;
+}
+
 function handleBookingFlow({ userId, conversationId, message, bookingType, confirmationLabel }) {
   const convo = ensureConversation(userId);
   const trimmedMessage = message.trim();
@@ -661,15 +687,14 @@ app.post("/chat", async (req, res) => {
         bookingInProgress ||
         lowerMessage.includes("book appointment") ||
         lowerMessage.includes("book consultation") ||
-        lowerMessage.includes("mortgage consultation") ||
         intent === "book appointment"
       ) {
         result = handleBookingFlow({
           userId,
           conversationId,
           message: bookingInProgress ? trimmedMessage : "book appointment",
-          bookingType: "Mortgage Consultation",
-          confirmationLabel: "consultation"
+          bookingType: "GP Appointment",
+          confirmationLabel: "appointment"
         });
       } else {
         result.reply =
@@ -688,6 +713,27 @@ app.post("/chat", async (req, res) => {
       ) {
         result.reply =
           "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
+      } else if (
+        lowerMessage.includes("apply for a mortgage") ||
+        lowerMessage.includes("new mortgage") ||
+        lowerMessage.includes("mortgage application") ||
+        lowerMessage.includes("buy a house") ||
+        lowerMessage.includes("buying a house") ||
+        lowerMessage.includes("buy my first home") ||
+        lowerMessage.includes("first home") ||
+        lowerMessage.includes("first-time buyer") ||
+        lowerMessage.includes("first time buyer") ||
+        lowerMessage.includes("looking for a mortgage")
+      ) {
+        const lead = createMortgageLeadFromChat({
+          userId,
+          conversationId
+        });
+
+        result.reply =
+          `Great — I can help start your mortgage enquiry.\n\n` +
+          `I’ve created a new mortgage lead reference: ${lead.id}\n\n` +
+          `Are you a first-time buyer, moving home, switching mortgage, or buying an investment property?`;
       } else if (
         bookingInProgress ||
         lowerMessage.includes("book appointment") ||
@@ -717,7 +763,7 @@ app.post("/chat", async (req, res) => {
           "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements vary by lender.";
       } else {
         result.reply =
-          "I can help with mortgage questions, consultations, and document uploads. You can type 'upload documents' or 'book appointment'.";
+          "I can help with new mortgage applications, mortgage status updates, consultations, and document uploads. You can say 'I want to apply for a mortgage' to begin.";
       }
     } else {
       result.reply = "Invalid business mode configuration.";

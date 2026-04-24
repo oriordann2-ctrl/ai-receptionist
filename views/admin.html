@@ -659,10 +659,11 @@
 
             <div class="lead-grid">
               <div class="lead-field"><strong>Name</strong>${lead.name || "-"}</div>
-              <div class="lead-field"><strong>Phone</strong>${lead.phone || "-"}
-                ${lead.phone ? `<br><a href="tel:${lead.phone}" class="doc-link">Call</a>` : ""}
-              </div>
               <div class="lead-field">
+                <strong>Phone</strong>
+                ${lead.phone || "-"}
+                ${lead.phone ? ` <a href="tel:${lead.phone}" class="doc-link">📞</a>` : ""}
+              </div>
                 <strong>Email</strong>
                 ${lead.email || "-"}
                 ${lead.email ? `<br><a href="mailto:${lead.email}" class="doc-link">Email</a>` : ""}

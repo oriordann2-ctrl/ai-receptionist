@@ -500,6 +500,20 @@
       await loadData();
     }
 
+    async function updateLeadStatus(id) {
+      const status = document.getElementById(`status-${id}`).value;
+
+      await fetch(`/admin/mortgage-leads/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ status })
+      });
+
+      loadData();
+    }
+
     function openPreview(docId, docName, mimeType) {
       const previewModal = document.getElementById("previewModal");
       const previewTitle = document.getElementById("previewTitle");
@@ -653,6 +667,17 @@
               <div class="lead-field"><strong>Income</strong>${lead.income || "-"}</div>
               <div class="lead-field"><strong>Employment</strong>${lead.employmentType || "-"}</div>
               <div class="lead-field"><strong>Notes</strong>${lead.notes || "-"}</div>
+              <div class="compact-row">
+              <select id="status-${lead.id}">
+                <option>New lead</option>
+                <option>Contacted</option>
+                <option>Awaiting documents</option>
+                <option>Submitted to lender</option>
+                <option>Approved</option>
+                <option>Closed</option>
+              </select>
+              <button onclick="updateLeadStatus('${lead.id}')">Update</button>
+            </div>
             </div>
           `;
 

@@ -591,6 +591,24 @@ app.post("/appointments", requireAdmin, (req, res) => {
   });
 });
 
+app.put("/admin/mortgage-leads/:id", requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  const leads = loadMortgageLeads();
+  const lead = leads.find(l => l.id === id);
+
+  if (!lead) {
+    return res.status(404).json({ error: "Lead not found" });
+  }
+
+  lead.status = status;
+
+  saveMortgageLeads(leads);
+
+  res.json({ success: true, lead });
+});
+
 app.put("/appointments/:id", requireAdmin, (req, res) => {
   const appointmentId = parseInt(req.params.id, 10);
   const { date, time, status } = req.body;

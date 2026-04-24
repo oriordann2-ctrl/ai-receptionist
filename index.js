@@ -164,7 +164,10 @@ function resetConversation(userId) {
     step: "start",
     date: null,
     time: null,
-    bookingType: null
+    bookingType: null,
+
+    mortgageStep: "start",
+    mortgageLeadId: null
   };
 }
 
@@ -219,6 +222,17 @@ function createMortgageLeadFromChat({ userId, conversationId }) {
   saveMortgageLeads(leads);
 
   return newLead;
+}
+
+function updateMortgageLead(leadId, updates) {
+  const leads = loadMortgageLeads();
+
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+
+  Object.assign(lead, updates);
+
+  saveMortgageLeads(leads);
 }
 
 function handleBookingFlow({ userId, conversationId, message, bookingType, confirmationLabel }) {
@@ -632,9 +646,10 @@ app.post("/chat", async (req, res) => {
       reply: "How can I help you today?"
     };
 
-    ensureConversation(userId);
     const convo = ensureConversation(userId);
     const bookingInProgress = convo.step && convo.step !== "start";
+    const mortgageInProgress =
+      convo.mortgageStep && convo.mortgageStep !== "start";
 
     addChatLog({
       userId,
@@ -669,6 +684,7 @@ app.post("/chat", async (req, res) => {
     if (!aiEnabled) {
       result.reply =
         "The AI receptionist is currently turned off. Please contact the business directly.";
+
     } else if (businessMode === "gp") {
       if (isUrgentMessage(trimmedMessage)) {
         resetConversation(userId);
@@ -683,6 +699,7 @@ app.post("/chat", async (req, res) => {
           message: "Urgent triage flag raised.",
           timestamp: new Date()
         });
+
       } else if (
         bookingInProgress ||
         lowerMessage.includes("book appointment") ||
@@ -700,9 +717,55 @@ app.post("/chat", async (req, res) => {
         result.reply =
           "I can help you book an appointment. Type 'book appointment' to begin.";
       }
+
     } else if (businessMode === "mortgage") {
-      // HARD RULES FIRST - do not depend on AI for these
-      if (
+
+      if (mortgageInProgress) {
+        if (convo.mortgageStep === "buyerType") {
+          updateMortgageLead(convo.mortgageLeadId, {
+            buyerType: trimmedMessage
+          });
+
+          convo.mortgageStep = "propertyPrice";
+          result.reply = "What property price range are you considering?";
+
+        } else if (convo.mortgageStep === "propertyPrice") {
+          updateMortgageLead(convo.mortgageLeadId, {
+            propertyPrice: trimmedMessage
+          });
+
+          convo.mortgageStep = "deposit";
+          result.reply = "How much deposit have you saved?";
+
+        } else if (convo.mortgageStep === "deposit") {
+          updateMortgageLead(convo.mortgageLeadId, {
+            deposit: trimmedMessage
+          });
+
+          convo.mortgageStep = "income";
+          result.reply = "What is your approximate annual income?";
+
+        } else if (convo.mortgageStep === "income") {
+          updateMortgageLead(convo.mortgageLeadId, {
+            income: trimmedMessage
+          });
+
+          convo.mortgageStep = "employmentType";
+          result.reply = "Are you employed, self-employed, or both?";
+
+        } else if (convo.mortgageStep === "employmentType") {
+          updateMortgageLead(convo.mortgageLeadId, {
+            employmentType: trimmedMessage,
+            status: "New lead - details captured"
+          });
+
+          resetConversation(userId);
+
+          result.reply =
+            "Thanks — I’ve captured your mortgage enquiry. A broker will review your details and contact you shortly.";
+        }
+
+      } else if (
         lowerMessage.includes("upload documents") ||
         lowerMessage.includes("upload document") ||
         lowerMessage.includes("upload docs") ||
@@ -712,7 +775,8 @@ app.post("/chat", async (req, res) => {
         intent === "upload documents"
       ) {
         result.reply =
-          "Please upload the required documents (ID, payslips, bank statements, proof of address, etc.) using the upload option.";
+          "Please upload the required documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
+
       } else if (
         lowerMessage.includes("apply for a mortgage") ||
         lowerMessage.includes("new mortgage") ||
@@ -730,10 +794,14 @@ app.post("/chat", async (req, res) => {
           conversationId
         });
 
+        convo.mortgageStep = "buyerType";
+        convo.mortgageLeadId = lead.id;
+
         result.reply =
           `Great — I can help start your mortgage enquiry.\n\n` +
           `I’ve created a new mortgage lead reference: ${lead.id}\n\n` +
           `Are you a first-time buyer, moving home, switching mortgage, or buying an investment property?`;
+
       } else if (
         bookingInProgress ||
         lowerMessage.includes("book appointment") ||
@@ -748,12 +816,14 @@ app.post("/chat", async (req, res) => {
           bookingType: "Mortgage Consultation",
           confirmationLabel: "consultation"
         });
+
       } else if (
         lowerMessage.includes("status") ||
         lowerMessage.includes("update")
       ) {
         result.reply =
-          "Your mortgage application is currently being reviewed. A broker will contact you if any additional documents are required.";
+          "Please provide your mortgage lead reference number, for example ML-123456789.";
+
       } else if (
         lowerMessage.includes("documents needed") ||
         lowerMessage.includes("what documents") ||
@@ -761,10 +831,12 @@ app.post("/chat", async (req, res) => {
       ) {
         result.reply =
           "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements vary by lender.";
+
       } else {
         result.reply =
           "I can help with new mortgage applications, mortgage status updates, consultations, and document uploads. You can say 'I want to apply for a mortgage' to begin.";
       }
+
     } else {
       result.reply = "Invalid business mode configuration.";
     }
@@ -778,6 +850,7 @@ app.post("/chat", async (req, res) => {
     });
 
     return res.json({ reply: result.reply });
+
   } catch (error) {
     console.error("Chat error:", error);
     return res.status(500).json({

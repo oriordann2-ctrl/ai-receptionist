@@ -451,14 +451,6 @@
           <button class="btn-red" onclick="setStatus(false)">Turn OFF</button>
         </div>
       </div>
-
-      <div class="card">
-        <h2>Dashboard</h2>
-
-        <div class="button-row">
-          <button class="btn-gray" onclick="loadData()">Refresh</button>
-        </div>
-      </div>
     </div>
 
     <div class="card">
@@ -945,6 +937,9 @@
     }
 
     loadData();
+
+// Auto-refresh every 30 seconds
+setInterval(loadData, 30000);
   </script>
 </body>
 </html>

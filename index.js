@@ -765,14 +765,38 @@ app.post("/chat", async (req, res) => {
 
         } else if (convo.mortgageStep === "employmentType") {
           updateMortgageLead(convo.mortgageLeadId, {
-            employmentType: trimmedMessage,
-            status: "New lead - details captured"
+            employmentType: trimmedMessage
+          });
+
+          convo.mortgageStep = "name";
+          result.reply = "Thanks. What is your full name?";
+
+        } else if (convo.mortgageStep === "name") {
+          updateMortgageLead(convo.mortgageLeadId, {
+            name: trimmedMessage
+          });
+
+          convo.mortgageStep = "phone";
+          result.reply = "What phone number should the broker contact you on?";
+
+        } else if (convo.mortgageStep === "phone") {
+          updateMortgageLead(convo.mortgageLeadId, {
+            phone: trimmedMessage
+          });
+
+          convo.mortgageStep = "email";
+          result.reply = "And what email address should the broker use?";
+
+        } else if (convo.mortgageStep === "email") {
+          updateMortgageLead(convo.mortgageLeadId, {
+            email: trimmedMessage,
+            status: "New lead - contact details captured"
           });
 
           resetConversation(userId);
 
           result.reply =
-            "Thanks — I’ve captured your mortgage enquiry. A broker will review your details and contact you shortly.";
+            "Thanks — I’ve captured your mortgage enquiry and contact details. A broker will review everything and contact you shortly.";
         }
 
       } else if (

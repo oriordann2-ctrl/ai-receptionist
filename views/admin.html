@@ -734,11 +734,39 @@
               ${lead.email ? `<a href="mailto:${lead.email}" class="small-action">Email</a>` : ""}
             </div>
           </div>
+          <div class="detail-row">
+            <span>Estimated Borrowing</span>
+            <strong>
+              ${
+                lead.income
+                  ? "€" + (parseInt(lead.income) * 4).toLocaleString()
+                  : "-"
+              }
+            </strong>
+          </div>
 
+          <div class="detail-row">
+            <span>Estimated Purchase Power</span>
+            <strong>
+              ${
+                lead.income && lead.deposit
+                  ? "€" + ((parseInt(lead.income) * 4) + parseInt(lead.deposit)).toLocaleString()
+                  : "-"
+              }
+            </strong>
+          </div>
           <div class="lead-main-grid">
             <div class="lead-details">
               <h3>Lead Details</h3>
-
+              <div class="detail-row">
+                <span>Summary</span>
+                <strong>
+                  ${lead.buyerType || "Buyer"} looking at ${lead.propertyPrice || "unknown price"} property,
+                  with ${lead.deposit || "unknown deposit"} deposit,
+                  earning ${lead.income || "unknown income"},
+                  ${lead.employmentType || "employment unknown"}.
+                </strong>
+              </div>
               <div class="detail-row"><span>Buyer Type</span><strong>${lead.buyerType || "-"}</strong></div>
               <div class="detail-row"><span>Property Price</span><strong>${lead.propertyPrice || "-"}</strong></div>
               <div class="detail-row"><span>Deposit</span><strong>${lead.deposit || "-"}</strong></div>

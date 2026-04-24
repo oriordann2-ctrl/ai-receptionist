@@ -541,6 +541,22 @@
       return parseInt(value) || 0;
     }
 
+    function assessAffordability(lead) {
+      const income = parseMoney(lead.income);
+      const deposit = parseMoney(lead.deposit);
+      const price = parseMoney(lead.propertyPrice);
+
+      if (!income || !price) return "⚪ Unknown";
+
+      const maxBorrow = income * 4;
+      const totalPower = maxBorrow + deposit;
+
+      if (totalPower >= price) return "✅ Affordable";
+      if (totalPower >= price * 0.9) return "⚠️ Stretch";
+
+      return "❌ Not realistic";
+    }
+
     async function updateAppointment(id) {
       const date = document.getElementById(`date-${id}`).value;
       const time = document.getElementById(`time-${id}`).value;
@@ -761,6 +777,11 @@
               <div class="detail-row">
                 <span>Estimated Purchase Power</span>
                 <strong>${income && deposit ? "€" + purchasePower.toLocaleString() : "-"}</strong>
+              </div>
+
+              <div class="detail-row">
+                <span>Affordability</span>
+                <strong>${assessAffordability(lead)}</strong>
               </div>
             `;
           })()}

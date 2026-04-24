@@ -530,6 +530,17 @@
       await loadStatus();
     }
 
+    function parseMoney(value) {
+      if (!value) return 0;
+
+      value = value.toLowerCase().replace(/,/g, "").trim();
+
+      if (value.includes("k")) return parseInt(value) * 1000;
+      if (value.includes("m")) return parseFloat(value) * 1000000;
+
+      return parseInt(value) || 0;
+    }
+
     async function updateAppointment(id) {
       const date = document.getElementById(`date-${id}`).value;
       const time = document.getElementById(`time-${id}`).value;
@@ -734,27 +745,25 @@
               ${lead.email ? `<a href="mailto:${lead.email}" class="small-action">Email</a>` : ""}
             </div>
           </div>
-          <div class="detail-row">
-            <span>Estimated Borrowing</span>
-            <strong>
-              ${
-                lead.income
-                  ? "€" + (parseInt(lead.income) * 4).toLocaleString()
-                  : "-"
-              }
-            </strong>
-          </div>
+          ${(() => {
+            const income = parseMoney(lead.income);
+            const deposit = parseMoney(lead.deposit);
 
-          <div class="detail-row">
-            <span>Estimated Purchase Power</span>
-            <strong>
-              ${
-                lead.income && lead.deposit
-                  ? "€" + ((parseInt(lead.income) * 4) + parseInt(lead.deposit)).toLocaleString()
-                  : "-"
-              }
-            </strong>
-          </div>
+            const borrowing = income * 4;
+            const purchasePower = borrowing + deposit;
+
+            return `
+              <div class="detail-row">
+                <span>Estimated Borrowing</span>
+                <strong>${income ? "€" + borrowing.toLocaleString() : "-"}</strong>
+              </div>
+
+              <div class="detail-row">
+                <span>Estimated Purchase Power</span>
+                <strong>${income && deposit ? "€" + purchasePower.toLocaleString() : "-"}</strong>
+              </div>
+            `;
+          })()}
           <div class="lead-main-grid">
             <div class="lead-details">
               <h3>Lead Details</h3>

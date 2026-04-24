@@ -441,7 +441,6 @@
 
         <div class="stat-row">
           <span id="statusBadge" class="badge">Loading...</span>
-          <span id="modeBadge" class="badge badge-mode">Mode</span>
           <span id="leadsBadge" class="badge badge-leads">0 leads</span>
           <span id="countBadge" class="badge badge-count">0 appointments</span>
           <span id="docsBadge" class="badge badge-docs">0 documents</span>
@@ -454,12 +453,9 @@
       </div>
 
       <div class="card">
-        <h2>Business Mode</h2>
-        <p>Choose the experience this admin wants to run.</p>
+        <h2>Dashboard</h2>
 
         <div class="button-row">
-          <button class="btn-blue" onclick="setMode('gp')">GP Mode</button>
-          <button class="btn-blue" onclick="setMode('mortgage')">Mortgage Mode</button>
           <button class="btn-gray" onclick="loadData()">Refresh</button>
         </div>
       </div>
@@ -526,11 +522,10 @@
       currentStatus = data;
 
       const statusBadge = document.getElementById("statusBadge");
-      const modeBadge = document.getElementById("modeBadge");
 
       statusBadge.textContent = data.aiEnabled ? "AI ON" : "AI OFF";
       statusBadge.className = data.aiEnabled ? "badge badge-on" : "badge badge-off";
-      modeBadge.textContent = `Mode: ${data.businessMode}`;
+
     }
 
     async function setStatus(enabled) {
@@ -541,17 +536,6 @@
       });
 
       await loadStatus();
-    }
-
-    async function setMode(mode) {
-      await fetch("/mode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode })
-      });
-
-      await loadStatus();
-      await loadData();
     }
 
     async function updateAppointment(id) {

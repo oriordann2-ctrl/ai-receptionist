@@ -54,11 +54,11 @@ let documents = readJsonFile(documentsFile, []);
 let chatLogs = readJsonFile(chatLogsFile, []);
 const settings = readJsonFile(settingsFile, {
   aiEnabled: true,
-  businessMode: "gp"
+  businessMode: "mortgage"
 });
 
 let aiEnabled = settings.aiEnabled;
-let businessMode = settings.businessMode;
+let businessMode = "mortgage";
 
 const availableSlots = {
   "2026-04-22": ["10:00", "11:00", "14:00"],

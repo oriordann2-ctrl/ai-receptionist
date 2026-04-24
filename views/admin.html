@@ -90,10 +90,27 @@
   .btn-blue { background: #2563eb; color: white; }
   .btn-gray { background: #e5e7eb; color: #111827; }
 
+  .item {
+    border-top: 1px solid #e5e7eb;
+    padding: 14px 0;
+  }
+
+  .item:first-child {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .item-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+
   .meta {
     color: #6b7280;
     font-size: 14px;
     margin-bottom: 8px;
+    line-height: 1.4;
   }
 
   input, select {
@@ -101,10 +118,76 @@
     font-size: 15px;
     border: 1px solid #d1d5db;
     border-radius: 10px;
+    min-height: 42px;
     background: white;
   }
 
-  /* ===== LEAD CARD ===== */
+  .empty {
+    color: #6b7280;
+    font-style: italic;
+  }
+
+  .compact-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .compact-row input,
+  .compact-row select {
+    flex: 1;
+    padding: 8px;
+    font-size: 14px;
+    min-height: 36px;
+  }
+
+  .compact-row button {
+    padding: 8px 10px;
+    font-size: 13px;
+    min-height: 36px;
+  }
+
+  .doc-actions {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .doc-link,
+  .doc-button {
+    display: inline-block;
+    text-decoration: none;
+    background: #111827;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* ===== CHAT ===== */
+
+  .message-row {
+    display: flex;
+    margin: 6px 0;
+  }
+
+  .message-bubble {
+    max-width: 75%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
+
+  .msg-user { justify-content: flex-end; }
+  .msg-user .message-bubble { background: #dbeafe; }
+  .msg-bot { justify-content: flex-start; }
+  .msg-bot .message-bubble { background: #e5e7eb; }
+
+  /* ===== MORTGAGE LEADS (NEW) ===== */
 
   .lead-card {
     background: #ffffff;
@@ -138,23 +221,16 @@
   .lead-title {
     font-size: 22px;
     font-weight: 800;
-    margin-bottom: 6px;
   }
 
   .status-pill {
-    display: inline-block;
     margin-left: 10px;
     padding: 6px 12px;
     border-radius: 999px;
     background: #dcfce7;
     color: #166534;
     font-size: 13px;
-    font-weight: 700;
-  }
-
-  .lead-meta {
-    color: #64748b;
-    font-size: 14px;
+    font-weight: bold;
   }
 
   .contact-grid {
@@ -172,29 +248,16 @@
   }
 
   .contact-box span {
-    display: block;
-    color: #4f46e5;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: bold;
     text-transform: uppercase;
-    margin-bottom: 8px;
+    color: #4f46e5;
   }
 
   .contact-box strong {
     display: block;
     font-size: 18px;
-    margin-bottom: 10px;
-  }
-
-  .small-action {
-    display: inline-block;
-    padding: 8px 14px;
-    border-radius: 10px;
-    background: #dbeafe;
-    color: #1d4ed8;
-    text-decoration: none;
-    font-weight: bold;
-    font-size: 14px;
+    margin-top: 6px;
   }
 
   .lead-main-grid {
@@ -208,58 +271,28 @@
     border: 1px solid #e5e7eb;
     border-radius: 18px;
     padding: 18px;
-    background: #ffffff;
   }
 
   .detail-row {
-    display: grid;
-    grid-template-columns: 180px 1fr;
-    gap: 12px;
-    padding: 14px;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    background: #f9fafb;
-    margin-bottom: 10px;
-  }
-
-  .detail-row span {
-    color: #475569;
-    font-weight: 600;
-  }
-
-  .status-select {
-    width: 100%;
-    margin-bottom: 12px;
-  }
-
-  .full-width {
-    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 12px;
+    border-bottom: 1px solid #e5e7eb;
   }
 
   .action {
     display: block;
-    text-align: center;
     padding: 12px;
-    border-radius: 12px;
+    margin-top: 10px;
+    text-align: center;
+    border-radius: 10px;
     text-decoration: none;
     font-weight: bold;
-    margin-bottom: 10px;
   }
 
-  .green-action {
-    background: #dcfce7;
-    color: #166534;
-  }
-
-  .blue-action {
-    background: #dbeafe;
-    color: #1d4ed8;
-  }
-
-  .purple-action {
-    background: #ede9fe;
-    color: #6d28d9;
-  }
+  .green-action { background: #dcfce7; color: #166534; }
+  .blue-action { background: #dbeafe; color: #1d4ed8; }
+  .purple-action { background: #ede9fe; color: #6d28d9; }
 
   /* ===== MOBILE ===== */
 
@@ -269,15 +302,130 @@
     .lead-main-grid {
       grid-template-columns: 1fr;
     }
-
-    .lead-title {
-      font-size: 18px;
-    }
-
-    .detail-row {
-      grid-template-columns: 1fr;
-    }
   }
+
+  /* ===== CHAT GROUPS ===== */
+
+.chat-item {
+  border-top: 1px solid #e5e7eb;
+  padding: 14px 0;
+}
+
+.chat-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.chat-title {
+  font-size: 16px;
+  font-weight: bold;
+  flex: 1;
+}
+
+.chat-toggle {
+  font-size: 13px;
+  color: #2563eb;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.chat-body {
+  display: none;
+  margin-top: 8px;
+}
+
+.chat-body.open {
+  display: block;
+}
+
+.chat-preview {
+  color: #6b7280;
+  font-size: 14px;
+  margin-top: 4px;
+  font-weight: normal;
+}
+
+/* ===== DOCUMENT PREVIEW MODAL ===== */
+
+.preview-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(17, 24, 39, 0.92);
+}
+
+.preview-modal.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  background: #111827;
+  color: white;
+}
+
+.preview-title {
+  font-size: 14px;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.preview-action-btn {
+  background: white;
+  color: #111827;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.preview-body {
+  flex: 1;
+  background: #e5e7eb;
+  overflow: hidden;
+  position: relative;
+}
+
+.preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+}
+
+.preview-fallback {
+  display: none;
+  padding: 20px;
+  color: #111827;
+  background: white;
+  height: 100%;
+  overflow: auto;
+}
 </style>
 </head>
 

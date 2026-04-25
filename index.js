@@ -948,10 +948,9 @@ Use plain numbers where possible.
 
         updateMortgageLead(convo.mortgageLeadId, leadUpdates);
 
-        const leads = typeof getMortgageLeads === "function"
-        ? getMortgageLeads()
-        : mortgageLeads;
-        const currentLead = leads.find((l) => l.id === convo.mortgageLeadId);
+        const currentLead = readMortgageLeads().find(
+          (l) => l.id === convo.mortgageLeadId
+        );
 
         const nextStep = getNextMissingMortgageStep(currentLead);
 
@@ -1013,10 +1012,9 @@ Use plain numbers where possible.
 
         updateMortgageLead(lead.id, leadUpdates);
 
-        const leads = typeof getMortgageLeads === "function"
-        ? getMortgageLeads()
-        : mortgageLeads;
-        const currentLead = leads.find((l) => l.id === lead.id);
+        const currentLead = readMortgageLeads().find(
+          (l) => l.id === lead.id
+        );
 
         const nextStep = getNextMissingMortgageStep(currentLead);
 

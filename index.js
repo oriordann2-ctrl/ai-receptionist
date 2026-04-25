@@ -948,7 +948,7 @@ Use plain numbers where possible.
 
         updateMortgageLead(convo.mortgageLeadId, leadUpdates);
 
-        const leads = readMortgageLeads();
+        const leads = loadMortgageLeads();
         const currentLead = leads.find(
           (l) => l.id === convo.mortgageLeadId
         );
@@ -1019,7 +1019,7 @@ Use plain numbers where possible.
 
         updateMortgageLead(lead.id, leadUpdates);
 
-        const leads = readMortgageLeads();
+        const leads = loadMortgageLeads();
         const currentLead = leads.find((l) => l.id === lead.id);
 
         if (!currentLead) {

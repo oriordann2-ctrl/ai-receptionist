@@ -702,82 +702,197 @@ app.post("/chat", async (req, res) => {
         console.error("Intent detection failed:", err.message);
         intent = "";
       }
+
+      console.log("Raw intent:", rawIntent);
+      console.log("Normalized intent:", intent);
+      console.log("Business mode:", businessMode);
+      console.log("Message:", trimmedMessage);
+    }
+
+    async function extractMortgageFields(message) {
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `
+You extract mortgage enquiry details from customer messages.
+
+Return ONLY valid JSON.
+Do not include explanation.
+
+Fields:
+{
+  "buyerType": "",
+  "propertyPrice": "",
+  "deposit": "",
+  "income": "",
+  "employmentType": "",
+  "name": "",
+  "phone": "",
+  "email": ""
+}
+
+Only fill a field if the user clearly provided it.
+Use plain numbers where possible.
+`
+            },
+            {
+              role: "user",
+              content: message
+            }
+          ],
+          temperature: 0
+        });
+
+        const text = completion.choices[0].message.content || "{}";
+        return JSON.parse(text);
+      } catch (err) {
+        console.error("Mortgage extraction failed:", err.message);
+        return {};
+      }
+    }
+
+    function getNextMissingMortgageStep(lead) {
+      if (!lead.buyerType) return "buyerType";
+      if (!lead.propertyPrice) return "propertyPrice";
+      if (!lead.deposit) return "deposit";
+      if (!lead.income) return "income";
+      if (!lead.employmentType) return "employmentType";
+      if (!lead.name) return "name";
+      if (!lead.phone) return "phone";
+      if (!lead.email) return "email";
+      return "complete";
+    }
+
+    function getMortgageReplyForStep(step) {
+      if (step === "buyerType") {
+        return "No problem at all — I can help with that 👍 Are you a first-time buyer, moving home, switching mortgage, or buying an investment property?";
+      }
+
+      if (step === "propertyPrice") {
+        return "Nice one 👍 Are you looking at a particular property price, or just a rough range for now?";
+      }
+
+      if (step === "deposit") {
+        return "Perfect. And roughly how much have you saved towards a deposit? Even a ballpark is fine.";
+      }
+
+      if (step === "income") {
+        return "Got it 👍 Just so I can get a sense of affordability, what are you earning per year roughly?";
+      }
+
+      if (step === "employmentType") {
+        return "That’s helpful. Are you employed, self-employed, or a bit of both?";
+      }
+
+      if (step === "name") {
+        return "Perfect. What name should I put on the enquiry?";
+      }
+
+      if (step === "phone") {
+        return "And what’s the best phone number for the broker to reach you on?";
+      }
+
+      if (step === "email") {
+        return "Great — and what email address should they use?";
+      }
+
+      return "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.";
     }
 
     if (!aiEnabled) {
       result.reply =
         "The AI receptionist is currently turned off. Please contact the business directly.";
 
+    } else if (businessMode === "gp") {
+      if (isUrgentMessage(trimmedMessage)) {
+        resetConversation(userId);
+
+        result.reply =
+          "Your message may describe an urgent medical issue. Please contact emergency services immediately or call the practice directly now.";
+
+        addChatLog({
+          userId,
+          conversationId,
+          sender: "system",
+          message: "Urgent triage flag raised.",
+          timestamp: new Date()
+        });
+
+      } else if (
+        bookingInProgress ||
+        lowerMessage.includes("book appointment") ||
+        lowerMessage.includes("book consultation") ||
+        intent === "book appointment"
+      ) {
+        result = handleBookingFlow({
+          userId,
+          conversationId,
+          message: bookingInProgress ? trimmedMessage : "book appointment",
+          bookingType: "GP Appointment",
+          confirmationLabel: "appointment"
+        });
+      } else {
+        result.reply =
+          "I can help you book an appointment. Type 'book appointment' to begin.";
+      }
+
     } else if (businessMode === "mortgage") {
 
       if (mortgageInProgress) {
+        const extracted = await extractMortgageFields(trimmedMessage);
+
+        const leadUpdates = {};
 
         if (convo.mortgageStep === "buyerType") {
+          leadUpdates.buyerType = extracted.buyerType || trimmedMessage;
+        }
+
+        if (convo.mortgageStep === "propertyPrice") {
+          leadUpdates.propertyPrice = extracted.propertyPrice || trimmedMessage;
+        }
+
+        if (convo.mortgageStep === "deposit") {
+          leadUpdates.deposit = extracted.deposit || trimmedMessage;
+        }
+
+        if (convo.mortgageStep === "income") {
+          leadUpdates.income = extracted.income || trimmedMessage;
+        }
+
+        if (convo.mortgageStep === "employmentType") {
+          leadUpdates.employmentType = extracted.employmentType || trimmedMessage;
+        }
+
+        if (convo.mortgageStep === "name") {
+          leadUpdates.name = extracted.name || trimmedMessage;
+        }
+
+        if (convo.mortgageStep === "phone") {
+          leadUpdates.phone = extracted.phone || trimmedMessage;
+        }
+
+        if (convo.mortgageStep === "email") {
+          leadUpdates.email = extracted.email || trimmedMessage;
+        }
+
+        Object.keys(extracted || {}).forEach((key) => {
+          if (extracted[key]) {
+            leadUpdates[key] = extracted[key];
+          }
+        });
+
+        updateMortgageLead(convo.mortgageLeadId, leadUpdates);
+
+        const leads = getMortgageLeads ? getMortgageLeads() : mortgageLeads;
+        const currentLead = leads.find((l) => l.id === convo.mortgageLeadId);
+
+        const nextStep = getNextMissingMortgageStep(currentLead);
+
+        if (nextStep === "complete") {
           updateMortgageLead(convo.mortgageLeadId, {
-            buyerType: trimmedMessage
-          });
-
-          convo.mortgageStep = "propertyPrice";
-          result.reply =
-            "Nice one 👍 Are you looking at a particular property price, or just a rough range for now?";
-
-        } else if (convo.mortgageStep === "propertyPrice") {
-          updateMortgageLead(convo.mortgageLeadId, {
-            propertyPrice: trimmedMessage
-          });
-
-          convo.mortgageStep = "deposit";
-          result.reply =
-            "Perfect. And roughly how much have you saved towards a deposit? Even a ballpark is fine.";
-
-        } else if (convo.mortgageStep === "deposit") {
-          updateMortgageLead(convo.mortgageLeadId, {
-            deposit: trimmedMessage
-          });
-
-          convo.mortgageStep = "income";
-          result.reply =
-            "Got it 👍 Just so I can get a sense of affordability, what are you earning per year roughly?";
-
-        } else if (convo.mortgageStep === "income") {
-          updateMortgageLead(convo.mortgageLeadId, {
-            income: trimmedMessage
-          });
-
-          convo.mortgageStep = "employmentType";
-          result.reply =
-            "That’s helpful. Are you employed, self-employed, or a bit of both?";
-
-        } else if (convo.mortgageStep === "employmentType") {
-          updateMortgageLead(convo.mortgageLeadId, {
-            employmentType: trimmedMessage
-          });
-
-          convo.mortgageStep = "name";
-          result.reply =
-            "Perfect. What name should I put on the enquiry?";
-
-        } else if (convo.mortgageStep === "name") {
-          updateMortgageLead(convo.mortgageLeadId, {
-            name: trimmedMessage
-          });
-
-          convo.mortgageStep = "phone";
-          result.reply =
-            "And what’s the best phone number for the broker to reach you on?";
-
-        } else if (convo.mortgageStep === "phone") {
-          updateMortgageLead(convo.mortgageLeadId, {
-            phone: trimmedMessage
-          });
-
-          convo.mortgageStep = "email";
-          result.reply =
-            "Great — and what email address should they use?";
-
-        } else if (convo.mortgageStep === "email") {
-          updateMortgageLead(convo.mortgageLeadId, {
-            email: trimmedMessage,
             status: "New lead - contact details captured"
           });
 
@@ -785,7 +900,22 @@ app.post("/chat", async (req, res) => {
 
           result.reply =
             "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.";
+        } else {
+          convo.mortgageStep = nextStep;
+          result.reply = getMortgageReplyForStep(nextStep);
         }
+
+      } else if (
+        lowerMessage.includes("upload documents") ||
+        lowerMessage.includes("upload document") ||
+        lowerMessage.includes("upload docs") ||
+        lowerMessage.includes("send documents") ||
+        lowerMessage.includes("send document") ||
+        lowerMessage.includes("upload file") ||
+        intent === "upload documents"
+      ) {
+        result.reply =
+          "No problem — you can upload documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
 
       } else if (
         lowerMessage.includes("apply for a mortgage") ||
@@ -797,9 +927,9 @@ app.post("/chat", async (req, res) => {
         lowerMessage.includes("first home") ||
         lowerMessage.includes("first-time buyer") ||
         lowerMessage.includes("first time buyer") ||
-        lowerMessage.includes("looking for a mortgage")
+        lowerMessage.includes("looking for a mortgage") ||
+        intent === "mortgage application"
       ) {
-
         const lead = createMortgageLeadFromChat({
           userId,
           conversationId
@@ -808,13 +938,69 @@ app.post("/chat", async (req, res) => {
         convo.mortgageStep = "buyerType";
         convo.mortgageLeadId = lead.id;
 
+        const extracted = await extractMortgageFields(trimmedMessage);
+
+        const leadUpdates = {};
+        Object.keys(extracted || {}).forEach((key) => {
+          if (extracted[key]) {
+            leadUpdates[key] = extracted[key];
+          }
+        });
+
+        updateMortgageLead(lead.id, leadUpdates);
+
+        const leads = getMortgageLeads ? getMortgageLeads() : mortgageLeads;
+        const currentLead = leads.find((l) => l.id === lead.id);
+
+        const nextStep = getNextMissingMortgageStep(currentLead);
+
+        if (nextStep === "complete") {
+          updateMortgageLead(lead.id, {
+            status: "New lead - contact details captured"
+          });
+
+          resetConversation(userId);
+
+          result.reply =
+            "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.";
+        } else {
+          convo.mortgageStep = nextStep;
+          result.reply = getMortgageReplyForStep(nextStep);
+        }
+
+      } else if (
+        bookingInProgress ||
+        lowerMessage.includes("book appointment") ||
+        lowerMessage.includes("book consultation") ||
+        lowerMessage.includes("mortgage consultation") ||
+        intent === "book appointment"
+      ) {
+        result = handleBookingFlow({
+          userId,
+          conversationId,
+          message: bookingInProgress ? trimmedMessage : "book appointment",
+          bookingType: "Mortgage Consultation",
+          confirmationLabel: "consultation"
+        });
+
+      } else if (
+        lowerMessage.includes("status") ||
+        lowerMessage.includes("update")
+      ) {
         result.reply =
-          "No problem at all — I can help with that 👍\n\n" +
-          "Are you a first-time buyer, moving home, switching mortgage, or buying an investment property?";
+          "No problem — please provide your mortgage lead reference number, for example ML-123456789.";
+
+      } else if (
+        lowerMessage.includes("documents needed") ||
+        lowerMessage.includes("what documents") ||
+        lowerMessage.includes("what do i need")
+      ) {
+        result.reply =
+          "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements can vary by lender.";
 
       } else {
         result.reply =
-          "I can help you get started with a mortgage or answer any questions. Just say something like 'I’m thinking of buying a house' 👍";
+          "I can help you get started with a mortgage, book a consultation, or upload documents. You can say something like: 'I’m thinking of buying a house' 👍";
       }
 
     } else {

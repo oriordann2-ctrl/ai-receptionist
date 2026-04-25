@@ -645,8 +645,27 @@ async function getIntentFromOpenAI(message) {
     messages: [
       {
         role: "system",
-        content:
-          'You are an intent classifier. Return exactly one label only: "book appointment", "upload documents", or "general inquiry". No explanation.'
+        content: `
+You classify customer messages for an AI receptionist.
+
+Return exactly one label only:
+
+mortgage application
+book appointment
+upload documents
+mortgage status
+documents question
+general inquiry
+
+Examples:
+"I'm thinking of buying a house" = mortgage application
+"I want to buy my first home" = mortgage application
+"Can I get a mortgage?" = mortgage application
+"I need to upload payslips" = upload documents
+"What documents do I need?" = documents question
+"I want to book a call" = book appointment
+"Any update on my application?" = mortgage status
+`
       },
       {
         role: "user",
@@ -657,6 +676,49 @@ async function getIntentFromOpenAI(message) {
   });
 
   return completion.choices[0].message.content || "";
+}
+
+async function extractMortgageFields(message) {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
+Extract mortgage enquiry details from the customer's message.
+
+Return ONLY valid JSON.
+
+{
+  "buyerType": "",
+  "propertyPrice": "",
+  "deposit": "",
+  "income": "",
+  "employmentType": "",
+  "name": "",
+  "phone": "",
+  "email": ""
+}
+
+Only fill a field when clearly provided.
+Use plain numbers where possible.
+`
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      temperature: 0
+    });
+
+    const text = completion.choices[0].message.content || "{}";
+    return JSON.parse(text);
+  } catch (err) {
+    console.error("Mortgage extraction failed:", err.message);
+    return {};
+  }
 }
 
 app.post("/chat", async (req, res) => {
@@ -886,7 +948,9 @@ Use plain numbers where possible.
 
         updateMortgageLead(convo.mortgageLeadId, leadUpdates);
 
-        const leads = getMortgageLeads ? getMortgageLeads() : mortgageLeads;
+        const leads = typeof getMortgageLeads === "function"
+        ? getMortgageLeads()
+        : mortgageLeads;
         const currentLead = leads.find((l) => l.id === convo.mortgageLeadId);
 
         const nextStep = getNextMissingMortgageStep(currentLead);
@@ -949,7 +1013,9 @@ Use plain numbers where possible.
 
         updateMortgageLead(lead.id, leadUpdates);
 
-        const leads = getMortgageLeads ? getMortgageLeads() : mortgageLeads;
+        const leads = typeof getMortgageLeads === "function"
+        ? getMortgageLeads()
+        : mortgageLeads;
         const currentLead = leads.find((l) => l.id === lead.id);
 
         const nextStep = getNextMissingMortgageStep(currentLead);

@@ -948,9 +948,16 @@ Use plain numbers where possible.
 
         updateMortgageLead(convo.mortgageLeadId, leadUpdates);
 
-        const currentLead = readMortgageLeads().find(
+        const leads = readMortgageLeads();
+        const currentLead = leads.find(
           (l) => l.id === convo.mortgageLeadId
         );
+
+        if (!currentLead) {
+          console.error("Lead not found:", convo.mortgageLeadId);
+          result.reply = "Sorry — something went wrong. Please try again.";
+          return res.json({ reply: result.reply });
+        }
 
         const nextStep = getNextMissingMortgageStep(currentLead);
 
@@ -1012,9 +1019,14 @@ Use plain numbers where possible.
 
         updateMortgageLead(lead.id, leadUpdates);
 
-        const currentLead = readMortgageLeads().find(
-          (l) => l.id === lead.id
-        );
+        const leads = readMortgageLeads();
+        const currentLead = leads.find((l) => l.id === lead.id);
+
+        if (!currentLead) {
+          console.error("Lead not found:", lead.id);
+          result.reply = "Sorry — something went wrong creating your enquiry. Please try again.";
+          return res.json({ reply: result.reply });
+        }
 
         const nextStep = getNextMissingMortgageStep(currentLead);
 

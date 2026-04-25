@@ -639,6 +639,42 @@ app.put("/appointments/:id", requireAdmin, (req, res) => {
   });
 });
 
+async function generateMaeveReply(message) {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
+You are Maeve, a friendly Irish mortgage assistant.
+
+Reply naturally to the customer.
+Keep it short: 1-3 sentences.
+Be warm, helpful, and conversational.
+
+If the customer is making small talk, respond naturally and gently guide back to mortgages.
+
+Do not invent mortgage figures.
+Do not give financial advice.
+Do not ask more than one question at a time.
+`
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      temperature: 0.7
+    });
+
+    return completion.choices[0].message.content || "";
+  } catch (err) {
+    console.error("Maeve reply failed:", err.message);
+    return "";
+  }
+}
+
 async function getIntentFromOpenAI(message) {
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -1075,8 +1111,10 @@ Use plain numbers where possible.
           "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements can vary by lender.";
 
       } else {
+        const maeveReply = await generateMaeveReply(trimmedMessage);
         result.reply =
-          "I can help you get started with a mortgage, book a consultation, or upload documents. You can say something like: 'I’m thinking of buying a house' 👍";
+        maeveReply ||
+        "No problem at all — I can help with mortgages, consultations, or documents. What are you looking to do?";
       }
 
     } else {

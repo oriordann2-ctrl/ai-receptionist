@@ -266,10 +266,18 @@
       }
     });
 
-addMessage(
-  "Hi there 👋 I’m Maeve.\n\nI can help you get started with a mortgage or answer any questions.\n\nWhat are you thinking of doing?",
-  "bot"
-);
+if (!localStorage.getItem("maeve_intro_played")) {
+  addMessage(
+    "Hi there 👋 I’m Maeve.\n\nI can help you get started with a mortgage or answer any questions.\n\nWhat are you thinking of doing?",
+    "bot"
+  );
+
+  playMaeveVoice(
+    "Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. What are you thinking of doing?"
+  );
+
+  localStorage.setItem("maeve_intro_played", "true");
+}
   </script>
 </body>
 </html>

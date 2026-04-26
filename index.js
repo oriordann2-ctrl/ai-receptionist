@@ -757,6 +757,52 @@ Use plain numbers where possible.
   }
 }
 
+async function generateMaeveVoice(text) {
+  try {
+    const response = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts",
+      voice: "alloy", // you can try others later
+      input: `
+You are Maeve, a friendly Irish mortgage assistant from Cork.
+
+Speak naturally with a subtle Cork accent.
+Warm, calm, professional. Do NOT exaggerate.
+
+${text}
+`
+    });
+
+    return Buffer.from(await response.arrayBuffer());
+
+  } catch (err) {
+    console.error("Voice generation failed:", err.message);
+    return null;
+  }
+}
+
+app.post("/voice", async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    const audioBuffer = await generateMaeveVoice(text);
+
+    if (!audioBuffer) {
+      return res.status(500).send("Voice error");
+    }
+
+    res.set({
+      "Content-Type": "audio/mpeg",
+      "Content-Length": audioBuffer.length
+    });
+
+    res.send(audioBuffer);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error generating voice");
+  }
+});
+
 app.post("/chat", async (req, res) => {
   try {
     const { userId, conversationId, message } = req.body;

@@ -186,7 +186,7 @@
         const data = await response.json();
         const reply = data.reply || "Sorry, I could not process that.";
         addMessage(reply, "bot");
-
+        playMaeveVoice(reply);
         const replyLower = reply.toLowerCase();
         const intent = (data.intent || "").toLowerCase();
 
@@ -203,6 +203,20 @@
         console.error("sendMessage error:", error);
         addMessage("Sorry, something went wrong sending your message.", "bot");
       }
+    }
+
+    async function playMaeveVoice(text) {
+      const response = await fetch("/voice", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ text })
+      });
+
+      const blob = await response.blob();
+      const audio = new Audio(URL.createObjectURL(blob));
+      audio.play();
     }
 
     async function uploadDocument() {

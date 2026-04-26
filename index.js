@@ -786,28 +786,46 @@ app.post("/voice", async (req, res) => {
   try {
     const { text } = req.body;
 
-    const audioStream = await elevenlabs.textToSpeech.convert(
-      MAEVE_VOICE_ID,
+    console.log("ElevenLabs key loaded:", process.env.ELEVENLABS_API_KEY ? "YES" : "NO");
+    console.log("Maeve voice ID:", MAEVE_VOICE_ID);
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${MAEVE_VOICE_ID}/stream`,
       {
-        text,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: {
-          stability: 0.45,
-          similarity_boost: 0.85,
-          style: 0.35,
-          use_speaker_boost: true
-        }
+        method: "POST",
+        headers: {
+          "xi-api-key": process.env.ELEVENLABS_API_KEY,
+          "Content-Type": "application/json",
+          "Accept": "audio/mpeg"
+        },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: {
+            stability: 0.45,
+            similarity_boost: 0.85,
+            style: 0.35,
+            use_speaker_boost: true
+          }
+        })
       }
     );
 
-    res.set({
-      "Content-Type": "audio/mpeg"
-    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("ElevenLabs HTTP error:", response.status, errorText);
+      return res.status(500).send("Voice error");
+    }
 
-    audioStream.pipe(res);
+    res.setHeader("Content-Type", "audio/mpeg");
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    res.send(buffer);
 
   } catch (err) {
-    console.error("ElevenLabs error:", err.message);
+    console.error("ElevenLabs voice error:", err.message);
     res.status(500).send("Voice error");
   }
 });

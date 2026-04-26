@@ -32,7 +32,7 @@ const elevenlabs = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY
 });
 
-const MAEVE_VOICE_ID = "e9SbiYL47FRd9onxuXHr";
+const MAEVE_VOICE_ID = "sgk995upfe3tYLvoGcBN";
 
 function readJsonFile(filePath, fallbackValue) {
   try {

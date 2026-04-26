@@ -761,19 +761,13 @@ async function generateMaeveVoice(text) {
   try {
     const response = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: "alloy", // you can try others later
-      input: `
-You are Maeve, a friendly Irish mortgage assistant from Cork.
-
-Speak naturally with a subtle Cork accent.
-Warm, calm, professional. Do NOT exaggerate.
-
-${text}
-`
+      voice: "coral",
+      input: text,
+      instructions:
+        "Speak as Maeve, a friendly Irish mortgage assistant from Cork. Use a subtle Cork Irish accent. Warm, calm, professional. Do not exaggerate."
     });
 
     return Buffer.from(await response.arrayBuffer());
-
   } catch (err) {
     console.error("Voice generation failed:", err.message);
     return null;

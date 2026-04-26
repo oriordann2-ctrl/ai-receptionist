@@ -26,6 +26,14 @@ const documentsFile = path.join(__dirname, "data", "documents.json");
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "changeme123";
 const sessions = new Set();
 
+const { ElevenLabsClient } = require("elevenlabs");
+
+const elevenlabs = new ElevenLabsClient({
+  apiKey: process.env.ELEVENLABS_API_KEY
+});
+
+const MAEVE_VOICE_ID = "e9SbiYL47FRd9onxuXHr";
+
 function readJsonFile(filePath, fallbackValue) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -778,22 +786,29 @@ app.post("/voice", async (req, res) => {
   try {
     const { text } = req.body;
 
-    const audioBuffer = await generateMaeveVoice(text);
-
-    if (!audioBuffer) {
-      return res.status(500).send("Voice error");
-    }
+    const audioStream = await elevenlabs.textToSpeech.convert(
+      MAEVE_VOICE_ID,
+      {
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: {
+          stability: 0.45,
+          similarity_boost: 0.85,
+          style: 0.35,
+          use_speaker_boost: true
+        }
+      }
+    );
 
     res.set({
-      "Content-Type": "audio/mpeg",
-      "Content-Length": audioBuffer.length
+      "Content-Type": "audio/mpeg"
     });
 
-    res.send(audioBuffer);
+    audioStream.pipe(res);
 
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Error generating voice");
+    console.error("ElevenLabs error:", err.message);
+    res.status(500).send("Voice error");
   }
 });
 

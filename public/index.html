@@ -151,6 +151,21 @@
       fileInput.value = "";
     }
 
+    let maeveIntroPlayed = false;
+
+    function startMaeveIntroOnce() {
+      if (maeveIntroPlayed) return;
+
+      maeveIntroPlayed = true;
+
+      playMaeveVoice(
+        "Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. What are you thinking of doing?"
+      );
+
+      document.removeEventListener("click", startMaeveIntroOnce);
+      document.removeEventListener("keydown", startMaeveIntroOnce);
+    }
+
     uploadButton.addEventListener("click", () => {
       fileInput.click();
     });
@@ -274,6 +289,10 @@ addMessage(introText, "bot");
 playMaeveVoice(
   "Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. What are you thinking of doing?"
 );
+
+document.addEventListener("click", startMaeveIntroOnce);
+document.addEventListener("keydown", startMaeveIntroOnce);
+
   </script>
 </body>
 </html>

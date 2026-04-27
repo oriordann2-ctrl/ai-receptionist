@@ -1304,7 +1304,11 @@ Use plain numbers where possible.
           result.reply =
             "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
             "Thanks for using Maeve 👋";
+        } else {
+          convo.mortgageStep = nextStep;
+          result.reply = getMortgageReplyForStep(nextStep);
         }
+
 
       } else if (
         lowerMessage.includes("upload documents") ||

@@ -1275,8 +1275,18 @@ Use plain numbers where possible.
             (l) => l.id === convo.mortgageLeadId
           );
 
-          if (completedLead) {
+          if (
+            completedLead &&
+            (
+              completedLead.leadTemperature === "Hot" ||
+              completedLead.temperature === "Hot"
+            )
+          ) {
             await emailBrokerAboutLead(completedLead);
+
+            updateMortgageLead(completedLead.id, {
+              emailSent: true
+            });
           }
           convo.completed = true;
 
@@ -1352,10 +1362,19 @@ Use plain numbers where possible.
             (l) => l.id === lead.mortgageLeadId
           );
 
-          if (completedLead) {
+          if (
+            completedLead &&
+            (
+              completedLead.leadTemperature === "Hot" ||
+              completedLead.temperature === "Hot"
+            )
+          ) {
             await emailBrokerAboutLead(completedLead);
-          }
 
+            updateMortgageLead(completedLead.id, {
+              emailSent: true
+            });
+          }
           convo.completed = true;
 
           result.reply =

@@ -106,11 +106,7 @@
 
 <script>
 
-let userId = localStorage.getItem("userId");
-if (!userId) {
-  userId = "user-" + Math.random().toString(36).slice(2, 10);
-  localStorage.setItem("userId", userId);
-}
+let userId = "user-" + Math.random().toString(36).slice(2, 10);
 
 let conversationId = sessionStorage.getItem("conversationId");
 if (!conversationId) {

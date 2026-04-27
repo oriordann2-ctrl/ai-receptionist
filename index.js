@@ -401,6 +401,8 @@ app.post("/upload", upload.single("file"), (req, res) => {
     const userId = req.body.userId || "unknown-user";
     const conversationId = req.body.conversationId || "unknown-conversation";
     const documentType = req.body.documentType || "unspecified";
+    const leadId = req.body.leadId || req.body.conversationId || "unknown";
+    const uploadLink = `${req.protocol}://${req.get("host")}/upload?leadId=${convo.mortgageLeadId}`;
 
     if (!req.file) {
       return res.status(400).json({
@@ -845,6 +847,37 @@ app.post("/voice", async (req, res) => {
     console.error("ElevenLabs voice error:", err.message);
     res.status(500).send("Voice error");
   }
+});
+
+app.get("/upload", (req, res) => {
+  const leadId = req.query.leadId || "";
+
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Upload Payslip</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <style>
+        body { font-family: Arial; max-width: 520px; margin: 40px auto; padding: 20px; }
+        button { padding: 12px 18px; font-size: 16px; border: 0; border-radius: 8px; background: #111827; color: white; }
+        input { margin: 16px 0; }
+      </style>
+    </head>
+    <body>
+      <h2>Upload your payslip</h2>
+      <p>Please choose your payslip file below.</p>
+
+      <form action="/upload" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="leadId" value="${leadId}" />
+        <input type="hidden" name="documentType" value="payslip" />
+        <input type="file" name="file" required />
+        <br />
+        <button type="submit">Upload Payslip</button>
+      </form>
+    </body>
+    </html>
+  `);
 });
 
 app.post("/chat", async (req, res) => {

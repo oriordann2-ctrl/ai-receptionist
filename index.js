@@ -1161,10 +1161,46 @@ Use plain numbers where possible.
             const uploadLink = `${req.protocol}://${req.get("host")}/upload?leadId=${convo.mortgageLeadId}`;
 
             updateMortgageLead(convo.mortgageLeadId, {
-          payslipUploadLinkSent: true
-        });
+            payslipUploadLinkSent: true
+          });
 
-        convo.completed = true;
+          const completedLead = loadMortgageLeads().find(
+            (l) => l.id === convo.mortgageLeadId
+          );
+
+          function parseMoney(value) {
+            if (!value) return 0;
+            const text = value.toString().toLowerCase().replace(/,/g, "").trim();
+            const number = parseFloat(text.replace(/[^\d.]/g, ""));
+            if (text.includes("k")) return number * 1000;
+            return number || 0;
+          }
+
+          const income = parseMoney(completedLead?.income);
+          const deposit = parseMoney(completedLead?.deposit);
+          const isHot = income >= 80000 && deposit >= 30000;
+
+          console.log("Lead check:", { income, deposit, isHot });
+
+          updateMortgageLead(convo.mortgageLeadId, {
+            status: "New lead - contact details captured",
+            leadTemperature: isHot ? "Hot" : "Cold"
+          });
+
+          if (isHot && !completedLead?.emailSent) {
+            await emailBrokerAboutLead({
+              ...completedLead,
+              leadTemperature: "Hot"
+            });
+
+            updateMortgageLead(convo.mortgageLeadId, {
+              emailSent: true
+            });
+
+            console.log("HOT lead email sent");
+          }
+
+          convo.completed = true;
 
         result.reply =
           "Perfect 👍 I’ll send that link now.\n\n" +
@@ -1388,54 +1424,54 @@ Use plain numbers where possible.
 
         const nextStep = getNextMissingMortgageStep(currentLead);
 
-      if (nextStep === "complete") {
-        const completedLead = loadMortgageLeads().find(
-          (l) => l.id === convo.mortgageLeadId
-        );
+    if (nextStep === "complete") {
+      const completedLead = loadMortgageLeads().find(
+        (l) => l.id === convo.mortgageLeadId
+      );
 
-        function parseMoney(value) {
-          if (!value) return 0;
+      function parseMoney(value) {
+        if (!value) return 0;
 
-          const text = value.toString().toLowerCase().replace(/,/g, "").trim();
-          const number = parseFloat(text.replace(/[^\d.]/g, ""));
+        const text = value.toString().toLowerCase().replace(/,/g, "").trim();
+        const number = parseFloat(text.replace(/[^\d.]/g, ""));
 
-          if (text.includes("k")) return number * 1000;
+        if (text.includes("k")) return number * 1000;
 
-          return number || 0;
-        }
+        return number || 0;
+      }
 
-        const income = parseMoney(completedLead?.income);
-        const deposit = parseMoney(completedLead?.deposit);
+      const income = parseMoney(completedLead?.income);
+      const deposit = parseMoney(completedLead?.deposit);
 
-        const isHot = income >= 80000 && deposit >= 30000;
+      const isHot = income >= 80000 && deposit >= 30000;
 
-        console.log("Lead check:", { income, deposit, isHot });
+      console.log("Lead check:", { income, deposit, isHot });
 
-        updateMortgageLead(convo.mortgageLeadId, {
-          status: "New lead - contact details captured",
-          leadTemperature: isHot ? "Hot" : "Cold"
+      updateMortgageLead(convo.mortgageLeadId, {
+        status: "New lead - contact details captured",
+        leadTemperature: isHot ? "Hot" : "Cold"
+      });
+
+      if (isHot && !completedLead?.emailSent) {
+        await emailBrokerAboutLead({
+          ...completedLead,
+          leadTemperature: "Hot"
         });
 
-        if (isHot && !completedLead?.emailSent) {
-          await emailBrokerAboutLead({
-            ...completedLead,
-            leadTemperature: "Hot"
-          });
-
-          updateMortgageLead(convo.mortgageLeadId, {
-            emailSent: true
-          });
-        }
-
-        convo.completed = true;
-
-        result.reply =
-          "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
-          "Thanks for using Maeve 👋";
-      } else {
-        convo.mortgageStep = nextStep;
-        result.reply = getMortgageReplyForStep(nextStep);
+        updateMortgageLead(convo.mortgageLeadId, {
+          emailSent: true
+        });
       }
+
+      convo.completed = true;
+
+      result.reply =
+        "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
+        "Thanks for using Maeve 👋";
+    } else {
+      convo.mortgageStep = nextStep;
+      result.reply = getMortgageReplyForStep(nextStep);
+    }
       } else if (
         bookingInProgress ||
         lowerMessage.includes("book appointment") ||

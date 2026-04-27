@@ -34,6 +34,18 @@ const elevenlabs = new ElevenLabsClient({
 
 const MAEVE_VOICE_ID = "sgk995upfe3tYLvoGcBN";
 
+const nodemailer = require("nodemailer");
+
+const brokerEmail = process.env.BROKER_EMAIL;
+
+const mailTransporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
 let maeveIntroJustPlayed = false;
 
 function startMaeveIntroOnce() {
@@ -882,6 +894,46 @@ app.get("/upload", (req, res) => {
   `);
 });
 
+async function emailBrokerAboutLead(lead) {
+  if (!brokerEmail) {
+    console.log("BROKER_EMAIL not set. Skipping broker email.");
+    return;
+  }
+
+  const subject = `🔥 New ${lead.leadTemperature || "Hot"} Mortgage Lead - ${lead.name || "New Customer"}`;
+
+  const body = `
+Hi,
+
+Maeve has captured a new mortgage lead.
+
+Lead Reference: ${lead.id || "-"}
+Name: ${lead.name || "-"}
+Phone: ${lead.phone || "-"}
+Email: ${lead.email || "-"}
+Buyer Type: ${lead.buyerType || "-"}
+Property Price: ${lead.propertyPrice || "-"}
+Deposit: ${lead.deposit || "-"}
+Income: ${lead.income || "-"}
+Employment: ${lead.employmentType || "-"}
+Lead Temperature: ${lead.leadTemperature || lead.temperature || lead.status || "-"}
+
+Please review this lead in the Sprimal admin dashboard.
+
+Regards,
+Maeve
+`;
+
+  await mailTransporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: brokerEmail,
+    subject,
+    text: body
+  });
+
+  console.log("Broker email sent for lead:", lead.id);
+}
+
 app.post("/chat", async (req, res) => {
   try {
     const { userId, conversationId, message } = req.body;
@@ -1219,6 +1271,13 @@ Use plain numbers where possible.
           updateMortgageLead(convo.mortgageLeadId, {
             status: "New lead - contact details captured"
           });
+          const completedLead = loadMortgageLeads().find(
+            (l) => l.id === convo.mortgageLeadId
+          );
+
+          if (completedLead) {
+            await emailBrokerAboutLead(completedLead);
+          }
           convo.completed = true;
 
           result.reply =
@@ -1288,6 +1347,14 @@ Use plain numbers where possible.
           updateMortgageLead(lead.id, {
             status: "New lead - contact details captured"
           });
+
+          const completedLead = loadMortgageLeads().find(
+            (l) => l.id === lead.mortgageLeadId
+          );
+
+          if (completedLead) {
+            await emailBrokerAboutLead(completedLead);
+          }
 
           convo.completed = true;
 

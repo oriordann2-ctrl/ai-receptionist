@@ -899,6 +899,12 @@ app.post("/chat", async (req, res) => {
 
     const convo = ensureConversation(userId);
 
+    if (convo.completed) {
+      return res.json({
+        reply: "This chat has ended. Please refresh the page to start again."
+      });
+    }
+
     // 🔒 GDPR Consent check
     if (!convo.consentGiven) {
 
@@ -1213,11 +1219,11 @@ Use plain numbers where possible.
           updateMortgageLead(convo.mortgageLeadId, {
             status: "New lead - contact details captured"
           });
-
-          resetConversation(userId);
+          convo.completed = true;
 
           result.reply =
-            "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.";
+            "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
+            "Thanks for using Maeve 👋";
         } else {
           convo.mortgageStep = nextStep;
           result.reply = getMortgageReplyForStep(nextStep);
@@ -1283,10 +1289,11 @@ Use plain numbers where possible.
             status: "New lead - contact details captured"
           });
 
-          resetConversation(userId);
+          convo.completed = true;
 
           result.reply =
-            "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.";
+            "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
+            "Thanks for using Maeve 👋";
         } else {
           convo.mortgageStep = nextStep;
           result.reply = getMortgageReplyForStep(nextStep);

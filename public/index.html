@@ -70,10 +70,6 @@
       color: white;
     }
 
-    button:hover {
-      opacity: 0.92;
-    }
-
     #upload-row {
       display: none;
       gap: 10px;
@@ -92,194 +88,138 @@
   </style>
 </head>
 <body>
-  <h1>AI Receptionist Demo</h1>
 
-  <div id="chat-box"></div>
+<h1>AI Receptionist Demo</h1>
 
-  <div class="row">
-    <input id="message-input" type="text" placeholder="Type your message..." />
-    <button type="button" onclick="sendMessage()">Send</button>
-  </div>
+<div id="chat-box"></div>
 
-  <div id="upload-row">
-    <input id="file-input" type="file" style="display: none;" />
-    <button id="upload-button" type="button">Choose Document</button>
-    <span id="upload-status"></span>
-  </div>
+<div class="row">
+  <input id="message-input" type="text" placeholder="Type your message..." />
+  <button onclick="sendMessage()">Send</button>
+</div>
 
-  <script>
-    
-    let userId = localStorage.getItem("userId");
-    if (!userId) {
-    userId = "user-" + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem("userId", userId);
-    }
+<div id="upload-row">
+  <input id="file-input" type="file" style="display:none;" />
+  <button id="upload-button">Choose Document</button>
+  <span id="upload-status"></span>
+</div>
 
-    let conversationId = sessionStorage.getItem("conversationId");
-    if (!conversationId) {
-    conversationId = "conv-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
-    sessionStorage.setItem("conversationId", conversationId);
-    }
+<script>
 
-    const chatBox = document.getElementById("chat-box");
-    const messageInput = document.getElementById("message-input");
-    const fileInput = document.getElementById("file-input");
-    const uploadButton = document.getElementById("upload-button");
-    const uploadRow = document.getElementById("upload-row");
-    const uploadStatus = document.getElementById("upload-status");
+let userId = localStorage.getItem("userId");
+if (!userId) {
+  userId = "user-" + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem("userId", userId);
+}
 
-    function addMessage(text, sender) {
-      const msg = document.createElement("div");
-      msg.className = `message ${sender}`;
-      msg.innerText = text;
-      chatBox.appendChild(msg);
+let conversationId = sessionStorage.getItem("conversationId");
+if (!conversationId) {
+  conversationId = "conv-" + Date.now();
+  sessionStorage.setItem("conversationId", conversationId);
+}
 
-      const clearDiv = document.createElement("div");
-      clearDiv.className = "clear";
-      chatBox.appendChild(clearDiv);
+const chatBox = document.getElementById("chat-box");
+const messageInput = document.getElementById("message-input");
+const fileInput = document.getElementById("file-input");
+const uploadButton = document.getElementById("upload-button");
+const uploadRow = document.getElementById("upload-row");
+const uploadStatus = document.getElementById("upload-status");
 
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
+function addMessage(text, sender) {
+  const msg = document.createElement("div");
+  msg.className = `message ${sender}`;
+  msg.innerText = text;
+  chatBox.appendChild(msg);
 
-    function showUploadControls() {
-      uploadRow.style.display = "flex";
-    }
+  const clearDiv = document.createElement("div");
+  clearDiv.className = "clear";
+  chatBox.appendChild(clearDiv);
 
-    function hideUploadControls() {
-      uploadRow.style.display = "none";
-      uploadStatus.textContent = "";
-      fileInput.value = "";
-    }
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-    let maeveIntroPlayed = false;
+function showUploadControls() {
+  uploadRow.style.display = "flex";
+}
 
-    function startMaeveIntroOnce() {
-      if (maeveIntroPlayed) return;
+function hideUploadControls() {
+  uploadRow.style.display = "none";
+  uploadStatus.textContent = "";
+}
 
-      maeveIntroPlayed = true;
+uploadButton.onclick = () => fileInput.click();
 
-      playMaeveVoice(
-        "Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. What are you thinking of doing?"
-      );
+fileInput.onchange = async () => {
+  const file = fileInput.files[0];
+  if (!file) return;
 
-      document.removeEventListener("click", startMaeveIntroOnce);
-      document.removeEventListener("keydown", startMaeveIntroOnce);
-    }
+  uploadStatus.textContent = `Uploading ${file.name}...`;
 
-    uploadButton.addEventListener("click", () => {
-      fileInput.click();
-    });
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("userId", userId);
+  formData.append("conversationId", conversationId);
 
-    fileInput.addEventListener("change", async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
+  const res = await fetch("/upload", {
+    method: "POST",
+    body: formData
+  });
 
-      uploadStatus.textContent = `Selected: ${file.name}`;
-      await uploadDocument();
-    });
+  const data = await res.json();
 
-    async function sendMessage() {
-      const message = messageInput.value.trim();
-      if (!message) return;
+  addMessage(data.message || "Uploaded successfully", "bot");
+  hideUploadControls();
+};
 
-      addMessage(message, "user");
-      messageInput.value = "";
+async function sendMessage() {
+  const message = messageInput.value.trim();
+  if (!message) return;
 
-      try {
-        const response = await fetch("/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            userId,
-            conversationId,
-            message
-          })
-        });
+  addMessage(message, "user");
+  messageInput.value = "";
 
-        const data = await response.json();
-        const reply = data.reply || "Sorry, I could not process that.";
-        addMessage(reply, "bot");
-        playMaeveVoice(reply);
-        const replyLower = reply.toLowerCase();
-        const intent = (data.intent || "").toLowerCase();
+  const response = await fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId,
+      conversationId,
+      message
+    })
+  });
 
-        if (
-          intent === "upload_documents" ||
-          replyLower.includes("upload") ||
-          replyLower.includes("document")
-        ) {
-          showUploadControls();
-        } else {
-          hideUploadControls();
-        }
-      } catch (error) {
-        console.error("sendMessage error:", error);
-        addMessage("Sorry, something went wrong sending your message.", "bot");
-      }
-    }
+  const data = await response.json();
+  const reply = data.reply || "Error";
 
-    async function playMaeveVoice(text) {
-      const response = await fetch("/voice", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ text })
-      });
+  addMessage(reply, "bot");
 
-      const blob = await response.blob();
-      const audio = new Audio(URL.createObjectURL(blob));
-      audio.play();
-    }
+  // 🔥 Voice plays ONLY for replies (not intro)
+  playMaeveVoice(reply);
 
-    async function uploadDocument() {
-      const file = fileInput.files[0];
+  const replyLower = reply.toLowerCase();
 
-      if (!file) {
-        addMessage("Please choose a file first.", "bot");
-        return;
-      }
+  if (replyLower.includes("upload")) {
+    showUploadControls();
+  } else {
+    hideUploadControls();
+  }
+}
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("userId", userId);
-      formData.append("conversationId", conversationId);
-      formData.append("documentType", "mortgage_document");
+async function playMaeveVoice(text) {
+  const response = await fetch("/voice?t=" + Date.now(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ text })
+  });
 
-      try {
-        uploadStatus.textContent = `Uploading ${file.name}...`;
+  const blob = await response.blob();
+  const audio = new Audio(URL.createObjectURL(blob));
+  audio.play();
+}
 
-        const response = await fetch("/upload", {
-          method: "POST",
-          body: formData
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          addMessage(
-            data.message || `File uploaded successfully: ${file.name}`,
-            "bot"
-          );
-          hideUploadControls();
-        } else {
-          addMessage(data.error || "File upload failed.", "bot");
-          uploadStatus.textContent = "Upload failed";
-        }
-      } catch (error) {
-        console.error("uploadDocument error:", error);
-        addMessage("Upload failed due to a network or server error.", "bot");
-        uploadStatus.textContent = "Upload failed";
-      }
-    }
-
-    messageInput.addEventListener("keypress", function (e) {
-      if (e.key === "Enter") {
-        sendMessage();
-      }
-    });
+// ✅ SINGLE GDPR INTRO (TEXT + VOICE)
 
 const introText =
   "Hi there 👋 I’m Maeve.\n\nI can help you get started with a mortgage or answer any questions.\n\nBefore we begin — I’ll ask a few questions and may collect personal information to help with your enquiry. This information will only be used for that purpose.\n\nIs that okay?";
@@ -290,9 +230,13 @@ playMaeveVoice(
   "Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. Before we begin, I’ll ask a few questions and may collect personal information to help with your enquiry. This information will only be used for that purpose. Is that okay?"
 );
 
-document.addEventListener("click", startMaeveIntroOnce);
-document.addEventListener("keydown", startMaeveIntroOnce);
+messageInput.addEventListener("keypress", function (e) {
+  if (e.key === "Enter") {
+    sendMessage();
+  }
+});
 
-  </script>
+</script>
+
 </body>
 </html>

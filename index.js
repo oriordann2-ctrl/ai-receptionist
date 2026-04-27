@@ -1270,6 +1270,33 @@ Use plain numbers where possible.
         const nextStep = getNextMissingMortgageStep(currentLead);
 
         if (nextStep === "complete") {
+
+          const completedLead = loadMortgageLeads().find(
+            (l) => l.id === convo.mortgageLeadId
+          );
+
+          const income = parseInt(completedLead?.income || 0);
+          const deposit = parseInt(completedLead?.deposit || 0);
+
+          const isHot = income >= 80000 && deposit >= 30000;
+
+          console.log("Lead check:", { income, deposit, isHot });
+
+          if (isHot && !completedLead?.emailSent) {
+            await emailBrokerAboutLead({
+              ...completedLead,
+              leadTemperature: "Hot"
+            });
+
+            updateMortgageLead(completedLead.id, {
+              emailSent: true
+            });
+
+            console.log("🔥 EMAIL SENT");
+          } else {
+            console.log("❌ NOT HOT — no email");
+          }
+
           convo.completed = true;
 
           result.reply =

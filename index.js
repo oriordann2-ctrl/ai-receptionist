@@ -1202,12 +1202,17 @@ Use plain numbers where possible.
 
           convo.completed = true;
 
-        result.reply =
-          "Perfect 👍 I’ll send that link now.\n\n" +
-          "Here is the secure upload link:\n\n" +
-          uploadLink +
-          "\n\nThat’s everything I need. A broker will take a look and be in touch shortly.\n\n" +
-          "Thanks for using Maeve 👋";
+          result.reply =
+            "Perfect 👍 I’ll send that link now.\n\n" +
+
+            "Here’s your secure upload link:\n\n" +
+            uploadLink +
+
+            "\n\nOnce that’s uploaded, you’re all set.\n\n" +
+
+            "A broker will review your details and be in touch shortly.\n\n" +
+
+            "Thanks for using Maeve 👋";
 
       } else {
         result.reply =

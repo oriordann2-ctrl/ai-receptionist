@@ -1388,16 +1388,54 @@ Use plain numbers where possible.
 
         const nextStep = getNextMissingMortgageStep(currentLead);
 
-        if (nextStep === "complete") {
-          convo.completed = true;
+      if (nextStep === "complete") {
+        const completedLead = loadMortgageLeads().find(
+          (l) => l.id === convo.mortgageLeadId
+        );
 
-          result.reply =
-            "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
-            "Thanks for using Maeve 👋";
-        } else {
-          convo.mortgageStep = nextStep;
-          result.reply = getMortgageReplyForStep(nextStep);
+        function parseMoney(value) {
+          if (!value) return 0;
+
+          const text = value.toString().toLowerCase().replace(/,/g, "").trim();
+          const number = parseFloat(text.replace(/[^\d.]/g, ""));
+
+          if (text.includes("k")) return number * 1000;
+
+          return number || 0;
         }
+
+        const income = parseMoney(completedLead?.income);
+        const deposit = parseMoney(completedLead?.deposit);
+
+        const isHot = income >= 80000 && deposit >= 30000;
+
+        console.log("Lead check:", { income, deposit, isHot });
+
+        updateMortgageLead(convo.mortgageLeadId, {
+          status: "New lead - contact details captured",
+          leadTemperature: isHot ? "Hot" : "Cold"
+        });
+
+        if (isHot && !completedLead?.emailSent) {
+          await emailBrokerAboutLead({
+            ...completedLead,
+            leadTemperature: "Hot"
+          });
+
+          updateMortgageLead(convo.mortgageLeadId, {
+            emailSent: true
+          });
+        }
+
+        convo.completed = true;
+
+        result.reply =
+          "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
+          "Thanks for using Maeve 👋";
+      } else {
+        convo.mortgageStep = nextStep;
+        result.reply = getMortgageReplyForStep(nextStep);
+      }
       } else if (
         bookingInProgress ||
         lowerMessage.includes("book appointment") ||

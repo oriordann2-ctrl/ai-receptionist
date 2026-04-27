@@ -1270,35 +1270,6 @@ Use plain numbers where possible.
         const nextStep = getNextMissingMortgageStep(currentLead);
 
         if (nextStep === "complete") {
-          updateMortgageLead(convo.mortgageLeadId, {
-            status: "New lead - contact details captured"
-          });
-
-          const completedLead = loadMortgageLeads().find(
-            (l) => l.id === convo.mortgageLeadId
-          );
-
-          const leadHeat = (
-            completedLead?.leadTemperature ||
-            completedLead?.temperature ||
-            completedLead?.leadStatus ||
-            ""
-          ).toString().toLowerCase();
-
-          console.log("Lead heat detected:", leadHeat);
-
-          if (
-            completedLead &&
-            leadHeat.includes("hot") &&
-            !completedLead.emailSent
-          ) {
-            await emailBrokerAboutLead(completedLead);
-
-            updateMortgageLead(completedLead.id, {
-              emailSent: true
-            });
-          }
-
           convo.completed = true;
 
           result.reply =
@@ -1308,7 +1279,6 @@ Use plain numbers where possible.
           convo.mortgageStep = nextStep;
           result.reply = getMortgageReplyForStep(nextStep);
         }
-
 
       } else if (
         lowerMessage.includes("upload documents") ||

@@ -816,7 +816,7 @@ async function generateMaeveVoice(text) {
 
 app.post("/voice-call", async (req, res) => {
 
-  const text = "Hi there, you’re speaking with Maeve. I can help you get started with a mortgage or answer any questions.";
+  const text = "Hi there, you’re speaking with Maeve. I can help you get started with a mortgage or answer any questions. What would you like to do?";
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${MAEVE_VOICE_ID}`,
@@ -827,11 +827,7 @@ app.post("/voice-call", async (req, res) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        text,
-        voice_settings: {
-          stability: 0.75,
-          similarity_boost: 1.0
-        }
+        text
       })
     }
   );
@@ -847,6 +843,29 @@ app.post("/voice-call", async (req, res) => {
   const twiml = `
     <Response>
       <Play>${publicUrl}</Play>
+
+      <Gather input="speech" action="/voice-process" method="POST">
+        <Say>Go ahead, I’m listening.</Say>
+      </Gather>
+
+      <Say>Sorry, I didn’t catch that.</Say>
+    </Response>
+  `;
+
+  res.type("text/xml");
+  res.send(twiml);
+});
+
+app.post("/voice-process", (req, res) => {
+
+  const userSpeech = req.body.SpeechResult || "";
+
+  console.log("User said:", userSpeech);
+
+  const twiml = `
+    <Response>
+      <Say>You said: ${userSpeech}</Say>
+      <Say>We’ll continue this shortly.</Say>
     </Response>
   `;
 

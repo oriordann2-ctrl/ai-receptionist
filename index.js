@@ -402,7 +402,6 @@ app.post("/upload", upload.single("file"), (req, res) => {
     const conversationId = req.body.conversationId || "unknown-conversation";
     const documentType = req.body.documentType || "unspecified";
     const leadId = req.body.leadId || req.body.conversationId || "unknown";
-    const uploadLink = `${req.protocol}://${req.get("host")}/upload?leadId=${convo.mortgageLeadId}`;
 
     if (!req.file) {
       return res.status(400).json({
@@ -422,6 +421,7 @@ app.post("/upload", upload.single("file"), (req, res) => {
       id: documents.length > 0 ? Math.max(...documents.map(d => d.id)) + 1 : 1,
       userId,
       conversationId,
+      leadId,
       documentType,
       originalName: req.file.originalname,
       storedName: req.file.filename,
@@ -451,7 +451,7 @@ app.post("/upload", upload.single("file"), (req, res) => {
     console.error("Upload error:", error);
     return res.status(500).json({
       success: false,
-      error: "Upload failed"
+      error: error.message
     });
   }
 });

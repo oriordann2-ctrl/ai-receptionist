@@ -1271,16 +1271,24 @@ Use plain numbers where possible.
           updateMortgageLead(convo.mortgageLeadId, {
             status: "New lead - contact details captured"
           });
+
           const completedLead = loadMortgageLeads().find(
             (l) => l.id === convo.mortgageLeadId
           );
 
+          const leadHeat = (
+            completedLead?.leadTemperature ||
+            completedLead?.temperature ||
+            completedLead?.leadStatus ||
+            ""
+          ).toString().toLowerCase();
+
+          console.log("Lead heat detected:", leadHeat);
+
           if (
             completedLead &&
-            (
-              completedLead.leadTemperature === "Hot" ||
-              completedLead.temperature === "Hot"
-            )
+            leadHeat.includes("hot") &&
+            !completedLead.emailSent
           ) {
             await emailBrokerAboutLead(completedLead);
 
@@ -1288,14 +1296,12 @@ Use plain numbers where possible.
               emailSent: true
             });
           }
+
           convo.completed = true;
 
           result.reply =
             "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
             "Thanks for using Maeve 👋";
-        } else {
-          convo.mortgageStep = nextStep;
-          result.reply = getMortgageReplyForStep(nextStep);
         }
 
       } else if (
@@ -1354,27 +1360,31 @@ Use plain numbers where possible.
         const nextStep = getNextMissingMortgageStep(currentLead);
 
         if (nextStep === "complete") {
-          updateMortgageLead(lead.id, {
-            status: "New lead - contact details captured"
-          });
-
           const completedLead = loadMortgageLeads().find(
-            (l) => l.id === lead.mortgageLeadId
+            (l) => l.id === lead.id
           );
 
-          if (
-            completedLead &&
-            (
-              completedLead.leadTemperature === "Hot" ||
-              completedLead.temperature === "Hot"
-            )
-          ) {
-            await emailBrokerAboutLead(completedLead);
+          const income = parseInt(completedLead?.income || 0);
+          const deposit = parseInt(completedLead?.deposit || 0);
 
-            updateMortgageLead(completedLead.id, {
+          const isHot = income >= 80000 && deposit >= 30000;
+
+          updateMortgageLead(lead.id, {
+            status: "New lead - contact details captured",
+            leadTemperature: isHot ? "Hot" : "Cold"
+          });
+
+          if (isHot && !completedLead?.emailSent) {
+            await emailBrokerAboutLead({
+              ...completedLead,
+              leadTemperature: "Hot"
+            });
+
+            updateMortgageLead(lead.id, {
               emailSent: true
             });
           }
+
           convo.completed = true;
 
           result.reply =
@@ -1384,7 +1394,6 @@ Use plain numbers where possible.
           convo.mortgageStep = nextStep;
           result.reply = getMortgageReplyForStep(nextStep);
         }
-
       } else if (
         bookingInProgress ||
         lowerMessage.includes("book appointment") ||

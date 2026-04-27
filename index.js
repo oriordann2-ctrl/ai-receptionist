@@ -1065,8 +1065,8 @@ Use plain numbers where possible.
       if (!lead.employmentType) return "employmentType";
       if (!lead.name) return "name";
       if (!lead.phone) return "phone";
-      if (!lead.payslipUploadLinkSent) return "uploadPayslip";
       if (!lead.email) return "email";
+      if (!lead.payslipUploadLinkSent) return "uploadPayslip";
       return "complete";
     }
 
@@ -1226,6 +1226,26 @@ Use plain numbers where possible.
 
           updateMortgageLead(convo.mortgageLeadId, leadUpdates);
 
+          convo.mortgageStep = "email";
+
+          result.reply = "Great 👍 And what email address should the broker use?";
+
+          addChatLog({
+            userId,
+            conversationId,
+            sender: "bot",
+            message: result.reply,
+            timestamp: new Date()
+          });
+
+          return res.json({ reply: result.reply });
+        }
+
+        if (convo.mortgageStep === "email") {
+          leadUpdates.email = extracted.email || trimmedMessage;
+
+          updateMortgageLead(convo.mortgageLeadId, leadUpdates);
+
           convo.mortgageStep = "uploadPayslip";
 
           result.reply =
@@ -1242,10 +1262,6 @@ Use plain numbers where possible.
           });
 
           return res.json({ reply: result.reply });
-        }
-
-        if (convo.mortgageStep === "email") {
-          leadUpdates.email = extracted.email || trimmedMessage;
         }
 
         Object.keys(extracted || {}).forEach((key) => {

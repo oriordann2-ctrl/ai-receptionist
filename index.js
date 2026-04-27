@@ -1323,18 +1323,13 @@ Use plain numbers where possible.
           "No problem — you can upload documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
 
       } else if (
-        lowerMessage === "mortgage" ||   // 👈 ADD THIS LINE
         lowerMessage.includes("mortgage") ||
-        lowerMessage.includes("apply for a mortgage") ||
-        lowerMessage.includes("new mortgage") ||
-        lowerMessage.includes("mortgage application") ||
         lowerMessage.includes("buy a house") ||
         lowerMessage.includes("buying a house") ||
         lowerMessage.includes("buy my first home") ||
         lowerMessage.includes("first home") ||
         lowerMessage.includes("first-time buyer") ||
         lowerMessage.includes("first time buyer") ||
-        lowerMessage.includes("looking for a mortgage") ||
         intent === "mortgage application"
       ) {
         const lead = createMortgageLeadFromChat({
@@ -1368,41 +1363,16 @@ Use plain numbers where possible.
         const nextStep = getNextMissingMortgageStep(currentLead);
 
         const completedLead = loadMortgageLeads().find(
-  (l) => l.id === convo.mortgageLeadId // OR lead.id in the other block
-);
+        if (nextStep === "complete") {
+          convo.completed = true;
 
-function parseMoney(value) {
-  if (!value) return 0;
-  const text = value.toString().toLowerCase().replace(/,/g, "").trim();
-  const number = parseFloat(text.replace(/[^\d.]/g, ""));
-  if (text.includes("k")) return number * 1000;
-  return number || 0;
-}
-
-const income = parseMoney(completedLead?.income);
-const deposit = parseMoney(completedLead?.deposit);
-
-const isHot = income >= 80000 && deposit >= 30000;
-
-updateMortgageLead(completedLead.id, {
-  status: "New lead - contact details captured",
-  leadTemperature: isHot ? "Hot" : "Cold"
-});
-
-if (isHot && !completedLead?.emailSent) {
-  await emailBrokerAboutLead({
-    ...completedLead,
-    leadTemperature: "Hot"
-  });
-
-  updateMortgageLead(completedLead.id, {
-    emailSent: true
-  });
-
-  console.log("🔥 HOT lead email sent");
-} else {
-  console.log("❌ Email skipped", { income, deposit, isHot });
-}
+          result.reply =
+            "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
+            "Thanks for using Maeve 👋";
+        } else {
+          convo.mortgageStep = nextStep;
+          result.reply = getMortgageReplyForStep(nextStep);
+        }
       } else if (
         bookingInProgress ||
         lowerMessage.includes("book appointment") ||

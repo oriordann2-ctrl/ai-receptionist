@@ -845,6 +845,28 @@ app.post("/chat", async (req, res) => {
     };
 
     const convo = ensureConversation(userId);
+
+    // 🔒 GDPR Consent check
+    if (!convo.consentGiven) {
+
+      if (
+        lowerMessage.includes("yes") ||
+        lowerMessage.includes("ok") ||
+        lowerMessage.includes("yeah")
+      ) {
+        convo.consentGiven = true;
+
+        result.reply =
+          "Perfect 👍 Are you a first-time buyer, moving home, or looking at an investment property?";
+
+      } else {
+        result.reply =
+          "No problem at all — I won’t collect any personal information. Let me know if you change your mind.";
+      }
+
+      return res.json({ reply: result.reply });
+    }
+
     const bookingInProgress = convo.step && convo.step !== "start";
     const mortgageInProgress =
       convo.mortgageStep && convo.mortgageStep !== "start";

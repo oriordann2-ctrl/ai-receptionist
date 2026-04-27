@@ -1275,8 +1275,19 @@ Use plain numbers where possible.
             (l) => l.id === convo.mortgageLeadId
           );
 
-          const income = parseInt(completedLead?.income || 0);
-          const deposit = parseInt(completedLead?.deposit || 0);
+          function parseMoney(value) {
+          if (!value) return 0;
+
+          const text = value.toString().toLowerCase().replace(/,/g, "").trim();
+          const number = parseFloat(text.replace(/[^\d.]/g, ""));
+
+          if (text.includes("k")) return number * 1000;
+
+          return number || 0;
+        }
+
+        const income = parseMoney(completedLead?.income);
+        const deposit = parseMoney(completedLead?.deposit);
 
           const isHot = income >= 80000 && deposit >= 30000;
 

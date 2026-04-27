@@ -877,6 +877,33 @@ app.post("/whatsapp", async (req, res) => {
   const message = req.body.Body || "";
   const from = req.body.From || "whatsapp-user";
 
+  // 👇 ADD THIS BLOCK RIGHT HERE
+  const convo = ensureConversation(from);
+
+  if (!convo.consentGiven && !convo.gdprPromptShown) {
+
+    convo.gdprPromptShown = true;
+
+    const twiml = `
+      <Response>
+        <Message>
+Hi there 👋 I’m Maeve.
+
+I can help you get started with a mortgage or answer any questions.
+
+Before we begin — I’ll ask a few questions and may collect personal information to help with your enquiry.
+
+This information will only be used for that purpose.
+
+Is that okay? Just reply YES to continue 👍
+        </Message>
+      </Response>
+    `;
+
+    res.type("text/xml");
+    return res.send(twiml);
+  }
+
   console.log("WhatsApp message:", message);
 
   // reuse your chat logic

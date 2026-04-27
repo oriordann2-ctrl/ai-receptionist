@@ -1161,31 +1161,33 @@ Use plain numbers where possible.
             const uploadLink = `${req.protocol}://${req.get("host")}/upload?leadId=${convo.mortgageLeadId}`;
 
             updateMortgageLead(convo.mortgageLeadId, {
-              payslipUploadLinkSent: true
-            });
+          payslipUploadLinkSent: true
+        });
 
-            convo.mortgageStep = "email";
+        convo.completed = true;
 
-            result.reply =
-              "Perfect 👍 I’ll send that link now.\n\n" +
-              "Here is the secure upload link for now:\n\n" +
-              uploadLink +
-              "\n\nWhat email address should the broker use?";
-          } else {
-            result.reply =
-              "No problem — I can send the link whenever you're ready 👍";
-          }
+        result.reply =
+          "Perfect 👍 I’ll send that link now.\n\n" +
+          "Here is the secure upload link:\n\n" +
+          uploadLink +
+          "\n\nThat’s everything I need. A broker will take a look and be in touch shortly.\n\n" +
+          "Thanks for using Maeve 👋";
 
-          addChatLog({
-            userId,
-            conversationId,
-            sender: "bot",
-            message: result.reply,
-            timestamp: new Date()
-          });
+      } else {
+        result.reply =
+          "No problem — I can send the link whenever you're ready 👍";
+      }
 
-          return res.json({ reply: result.reply });
-        }
+      addChatLog({
+        userId,
+        conversationId,
+        sender: "bot",
+        message: result.reply,
+        timestamp: new Date()
+      });
+
+      return res.json({ reply: result.reply });
+    }
 
         if (convo.mortgageStep === "buyerType") {
           let buyerType = extracted.buyerType || trimmedMessage;

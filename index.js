@@ -814,6 +814,46 @@ async function generateMaeveVoice(text) {
   }
 }
 
+app.post("/voice-call", async (req, res) => {
+
+  const text = "Hi there, you’re speaking with Maeve. I can help you get started with a mortgage or answer any questions.";
+
+  const response = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${MAEVE_VOICE_ID}`,
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": process.env.ELEVENLABS_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        text,
+        voice_settings: {
+          stability: 0.75,
+          similarity_boost: 1.0
+        }
+      })
+    }
+  );
+
+  const audioBuffer = Buffer.from(await response.arrayBuffer());
+  const fileName = `voice-${Date.now()}.mp3`;
+  const filePath = path.join(__dirname, "public", fileName);
+
+  fs.writeFileSync(filePath, audioBuffer);
+
+  const publicUrl = `${req.protocol}://${req.get("host")}/${fileName}`;
+
+  const twiml = `
+    <Response>
+      <Play>${publicUrl}</Play>
+    </Response>
+  `;
+
+  res.type("text/xml");
+  res.send(twiml);
+});
+
 app.post("/voice", async (req, res) => {
   try {
     const { text } = req.body;

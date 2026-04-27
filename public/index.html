@@ -192,8 +192,10 @@ async function sendMessage() {
 
   addMessage(reply, "bot");
 
-  // 🔥 Voice plays ONLY for replies (not intro)
+// speak each bot reply once
+if (!data.voicePlayed) {
   playMaeveVoice(reply);
+}
 
   const replyLower = reply.toLowerCase();
 

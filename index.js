@@ -34,6 +34,24 @@ const elevenlabs = new ElevenLabsClient({
 
 const MAEVE_VOICE_ID = "sgk995upfe3tYLvoGcBN";
 
+let maeveIntroJustPlayed = false;
+
+function startMaeveIntroOnce() {
+  if (maeveIntroPlayed) return;
+
+  maeveIntroPlayed = true;
+  maeveIntroJustPlayed = true;
+
+  if (maeveIntroJustPlayed) {
+    maeveIntroJustPlayed = false;
+  } else {
+    playMaeveVoice("Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. What are you thinking of doing?");
+  }
+
+  document.removeEventListener("click", startMaeveIntroOnce);
+  document.removeEventListener("keydown", startMaeveIntroOnce);
+}
+
 function readJsonFile(filePath, fallbackValue) {
   try {
     if (!fs.existsSync(filePath)) {

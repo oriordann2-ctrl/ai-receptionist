@@ -15,6 +15,7 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -857,15 +858,50 @@ app.post("/voice-call", async (req, res) => {
 });
 
 app.post("/voice-process", (req, res) => {
-
-  const userSpeech = req.body.SpeechResult || "";
+  const userSpeech = req.body?.SpeechResult || "";
 
   console.log("User said:", userSpeech);
 
   const twiml = `
     <Response>
-      <Say>You said: ${userSpeech}</Say>
+      <Say>You said: ${userSpeech || "nothing"}</Say>
       <Say>We’ll continue this shortly.</Say>
+    </Response>
+  `;
+
+  res.type("text/xml");
+  res.send(twiml);
+});
+
+app.post("/whatsapp", async (req, res) => {
+  const message = req.body.Body || "";
+  const from = req.body.From || "whatsapp-user";
+
+  console.log("WhatsApp message:", message);
+
+  // reuse your chat logic
+  const chatResponse = await fetch(
+    "https://ai-receptionist-wmr7.onrender.com/chat",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId: from,
+        conversationId: from,
+        message
+      })
+    }
+  );
+
+  const data = await chatResponse.json();
+
+  const reply = data.reply || "Sorry, something went wrong.";
+
+  const twiml = `
+    <Response>
+      <Message>${reply}</Message>
     </Response>
   `;
 

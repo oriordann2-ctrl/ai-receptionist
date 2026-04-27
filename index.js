@@ -1038,6 +1038,39 @@ Use plain numbers where possible.
 
         const leadUpdates = {};
 
+        if (convo.mortgageStep === "uploadPayslip") {
+          if (
+            lowerMessage.includes("yes") ||
+            lowerMessage.includes("ok") ||
+            lowerMessage.includes("send") ||
+            lowerMessage.includes("text") ||
+            lowerMessage.includes("whatsapp")
+          ) {
+            const uploadLink = `${req.protocol}://${req.get("host")}/upload?leadId=${convo.mortgageLeadId}`;
+
+            convo.mortgageStep = "email";
+
+            result.reply =
+              "Perfect 👍 I’ll send that link now.\n\n" +
+              "Here is the secure upload link for now:\n\n" +
+              uploadLink +
+              "\n\nWhat email address should the broker use?";
+          } else {
+            result.reply =
+              "No problem — I can send the link whenever you're ready 👍";
+          }
+
+          addChatLog({
+            userId,
+            conversationId,
+            sender: "bot",
+            message: result.reply,
+            timestamp: new Date()
+          });
+
+          return res.json({ reply: result.reply });
+        }
+
         if (convo.mortgageStep === "buyerType") {
           leadUpdates.buyerType = extracted.buyerType || trimmedMessage;
         }
@@ -1064,6 +1097,13 @@ Use plain numbers where possible.
 
         if (convo.mortgageStep === "phone") {
           leadUpdates.phone = extracted.phone || trimmedMessage;
+
+          convo.mortgageStep = "uploadPayslip";
+
+          result.reply =
+            "Perfect 👍\n\n" +
+            "The next step would normally be to review a recent payslip.\n\n" +
+            "Would it be okay if I sent you a secure upload link by text or WhatsApp?";
         }
 
         if (convo.mortgageStep === "email") {

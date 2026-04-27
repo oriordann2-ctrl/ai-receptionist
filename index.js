@@ -1362,7 +1362,6 @@ Use plain numbers where possible.
 
         const nextStep = getNextMissingMortgageStep(currentLead);
 
-        const completedLead = loadMortgageLeads().find(
         if (nextStep === "complete") {
           convo.completed = true;
 

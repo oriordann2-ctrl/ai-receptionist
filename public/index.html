@@ -128,7 +128,10 @@ const uploadStatus = document.getElementById("upload-status");
 function addMessage(text, sender) {
   const msg = document.createElement("div");
   msg.className = `message ${sender}`;
-  msg.innerText = text;
+
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  msg.innerHTML = text.replace(urlRegex, '<a href="$1" target="_blank">$1</a>');
+
   chatBox.appendChild(msg);
 
   const clearDiv = document.createElement("div");

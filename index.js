@@ -869,6 +869,8 @@ app.get("/upload", (req, res) => {
       <p>Please choose your payslip file below.</p>
 
       <form action="/upload" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="userId" value="${leadId}" />
+        <input type="hidden" name="conversationId" value="${leadId}" />
         <input type="hidden" name="leadId" value="${leadId}" />
         <input type="hidden" name="documentType" value="payslip" />
         <input type="file" name="file" required />

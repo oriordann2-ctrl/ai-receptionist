@@ -1188,7 +1188,17 @@ Use plain numbers where possible.
         }
 
         if (convo.mortgageStep === "buyerType") {
-          leadUpdates.buyerType = extracted.buyerType || trimmedMessage;
+          let buyerType = extracted.buyerType || trimmedMessage;
+
+          if (
+            lowerMessage.includes("first time") ||
+            lowerMessage.includes("first-time") ||
+            lowerMessage.includes("first")
+          ) {
+            buyerType = "First-time buyer";
+          }
+
+          leadUpdates.buyerType = buyerType;
         }
 
         if (convo.mortgageStep === "propertyPrice") {
@@ -1309,6 +1319,8 @@ Use plain numbers where possible.
           "No problem — you can upload documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
 
       } else if (
+        lowerMessage === "mortgage" ||   // 👈 ADD THIS LINE
+        lowerMessage.includes("mortgage") ||
         lowerMessage.includes("apply for a mortgage") ||
         lowerMessage.includes("new mortgage") ||
         lowerMessage.includes("mortgage application") ||

@@ -980,6 +980,7 @@ Use plain numbers where possible.
       if (!lead.employmentType) return "employmentType";
       if (!lead.name) return "name";
       if (!lead.phone) return "phone";
+      if (!lead.payslipUploadLinkSent) return "uploadPayslip";
       if (!lead.email) return "email";
       return "complete";
     }
@@ -1074,6 +1075,10 @@ Use plain numbers where possible.
           ) {
             const uploadLink = `${req.protocol}://${req.get("host")}/upload?leadId=${convo.mortgageLeadId}`;
 
+            updateMortgageLead(convo.mortgageLeadId, {
+              payslipUploadLinkSent: true
+            });
+
             convo.mortgageStep = "email";
 
             result.reply =
@@ -1124,12 +1129,24 @@ Use plain numbers where possible.
         if (convo.mortgageStep === "phone") {
           leadUpdates.phone = extracted.phone || trimmedMessage;
 
+          updateMortgageLead(convo.mortgageLeadId, leadUpdates);
+
           convo.mortgageStep = "uploadPayslip";
 
           result.reply =
             "Perfect 👍\n\n" +
             "The next step would normally be to review a recent payslip.\n\n" +
             "Would it be okay if I sent you a secure upload link by text or WhatsApp?";
+
+          addChatLog({
+            userId,
+            conversationId,
+            sender: "bot",
+            message: result.reply,
+            timestamp: new Date()
+          });
+
+          return res.json({ reply: result.reply });
         }
 
         if (convo.mortgageStep === "email") {

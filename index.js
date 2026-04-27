@@ -900,14 +900,14 @@ async function emailBrokerAboutLead(lead) {
     return;
   }
 
-  const subject = `🔥 New ${lead.leadTemperature || "Hot"} Mortgage Lead - ${lead.name || "New Customer"}`;
+  const subject = `🔥 HOT LEAD: €${lead.income} income / €${lead.deposit} deposit`;
 
   const body = `
 Hi,
 
 Maeve has captured a new mortgage lead.
 
-Lead Reference: ${lead.id || "-"}
+Lead Reference: http://ai-receptionist-wmr7.onrender.com/admin?leadId=${lead.id}
 Name: ${lead.name || "-"}
 Phone: ${lead.phone || "-"}
 Email: ${lead.email || "-"}

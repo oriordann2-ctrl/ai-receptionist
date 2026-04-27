@@ -967,16 +967,8 @@ app.post("/chat", async (req, res) => {
       ) {
         convo.consentGiven = true;
 
-        const lead = createMortgageLeadFromChat({
-          userId,
-          conversationId
-        });
-
-        convo.mortgageStep = "buyerType";
-        convo.mortgageLeadId = lead.id;
-
         result.reply =
-          "Perfect 👍 Are you a first-time buyer, moving home, switching mortgage, or looking at an investment property?";
+          "Perfect 👍 Thanks for confirming.\n\nWhat can I help you with today?";
 
       } else {
         result.reply =

@@ -851,26 +851,76 @@ function voiceUserId(req) {
   return "voice-" + (req.body.CallSid || req.body.From || "unknown");
 }
 
-app.post("/voice-call", (req, res) => {
-  const userId = voiceUserId(req);
-  resetConversation(userId);
+async function createElevenLabsAudioUrl(text, req) {
+  const response = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${MAEVE_VOICE_ID}`,
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": process.env.ELEVENLABS_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        text,
+        voice_settings: {
+          stability: 0.75,
+          similarity_boost: 1.0,
+          style: 0,
+          use_speaker_boost: true
+        }
+      })
+    }
+  );
 
-  const twiml = `
-    <Response>
-      <Gather input="speech dtmf" numDigits="1" action="/voice-gdpr" method="POST" speechTimeout="auto">
-        <Say voice="alice">
-          Hi, you're speaking with Maeve from Sprimal.
-          Before we continue, I need your consent to process your personal data to help with your mortgage enquiry.
-          Say yes or press 1 to continue. Say no or press 2 to stop.
-        </Say>
-      </Gather>
-      <Say voice="alice">Sorry, I didn't catch that. Goodbye.</Say>
-      <Hangup/>
-    </Response>
-  `;
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
 
-  res.type("text/xml");
-  res.send(twiml);
+  const audioBuffer = Buffer.from(await response.arrayBuffer());
+  const fileName = `voice-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`;
+  const filePath = path.join(__dirname, "public", fileName);
+
+  fs.writeFileSync(filePath, audioBuffer);
+
+  return `${req.protocol}://${req.get("host")}/${fileName}`;
+}
+
+function voiceUserId(req) {
+  return "voice-" + (req.body.CallSid || req.body.From || "unknown");
+}
+
+app.post("/voice-call", async (req, res) => {
+  try {
+    const userId = voiceUserId(req);
+    resetConversation(userId);
+
+    const audioUrl = await createElevenLabsAudioUrl(
+      "Hi, you're speaking with Maeve from Sprimal. Before we continue, I need your consent to process your personal data to help with your mortgage enquiry. Say yes or press 1 to continue. Say no or press 2 to stop.",
+      req
+    );
+
+    const twiml = `
+      <Response>
+        <Gather input="speech dtmf" numDigits="1" action="/voice-process" method="POST" speechTimeout="auto">
+          <Play>${audioUrl}</Play>
+        </Gather>
+        <Hangup/>
+      </Response>
+    `;
+
+    res.type("text/xml");
+    res.send(twiml);
+  } catch (error) {
+    console.error("Voice call error:", error);
+
+    res.type("text/xml");
+    res.send(`
+      <Response>
+        <Say>Sorry, something went wrong.</Say>
+        <Hangup/>
+      </Response>
+    `);
+  }
 });
 
 app.post("/voice-gdpr", (req, res) => {
@@ -918,24 +968,74 @@ app.post("/voice-gdpr", (req, res) => {
 
 app.post("/voice-process", async (req, res) => {
   try {
-    const userSpeech = req.body.SpeechResult || "";
     const userId = voiceUserId(req);
     const conversationId = userId;
 
-    console.log("Voice user said:", userSpeech);
+    const speech = req.body.SpeechResult || "";
+    const digits = req.body.Digits || "";
+    const input = `${speech} ${digits}`.toLowerCase().trim();
 
-    if (!userSpeech.trim()) {
-      const twiml = `
+    console.log("Voice input:", input);
+
+    const convo = ensureConversation(userId);
+
+    if (!convo.consentGiven) {
+      if (
+        input.includes("yes") ||
+        input.includes("yeah") ||
+        input.includes("ok") ||
+        input.includes("sure") ||
+        input.includes("1")
+      ) {
+        convo.consentGiven = true;
+
+        const audioUrl = await createElevenLabsAudioUrl(
+          "Thanks. How can I help today? You can say apply for a mortgage, book an appointment, or upload documents.",
+          req
+        );
+
+        const twiml = `
+          <Response>
+            <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
+              <Play>${audioUrl}</Play>
+            </Gather>
+            <Hangup/>
+          </Response>
+        `;
+
+        res.type("text/xml");
+        return res.send(twiml);
+      }
+
+      const audioUrl = await createElevenLabsAudioUrl(
+        "No problem. I won't collect any personal information. Goodbye.",
+        req
+      );
+
+      res.type("text/xml");
+      return res.send(`
+        <Response>
+          <Play>${audioUrl}</Play>
+          <Hangup/>
+        </Response>
+      `);
+    }
+
+    if (!speech.trim()) {
+      const audioUrl = await createElevenLabsAudioUrl(
+        "Sorry, I didn't catch that. Could you say that again?",
+        req
+      );
+
+      res.type("text/xml");
+      return res.send(`
         <Response>
           <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
-            <Say voice="alice">Sorry, I didn't catch that. Could you say that again?</Say>
+            <Play>${audioUrl}</Play>
           </Gather>
           <Hangup/>
         </Response>
-      `;
-
-      res.type("text/xml");
-      return res.send(twiml);
+      `);
     }
 
     const chatResponse = await fetch(`${req.protocol}://${req.get("host")}/chat`, {
@@ -946,53 +1046,47 @@ app.post("/voice-process", async (req, res) => {
       body: JSON.stringify({
         userId,
         conversationId,
-        message: userSpeech
+        message: speech
       })
     });
 
     const data = await chatResponse.json();
     const reply = data.reply || "Sorry, something went wrong.";
 
-    const convo = ensureConversation(userId);
-    const safeReply = escapeXml(reply);
+    const audioUrl = await createElevenLabsAudioUrl(reply, req);
 
-    if (convo.completed) {
-      const twiml = `
+    const updatedConvo = ensureConversation(userId);
+
+    if (updatedConvo.completed) {
+      res.type("text/xml");
+      return res.send(`
         <Response>
-          <Say voice="alice">${safeReply}</Say>
+          <Play>${audioUrl}</Play>
           <Hangup/>
         </Response>
-      `;
-
-      res.type("text/xml");
-      return res.send(twiml);
+      `);
     }
 
-    const twiml = `
+    res.type("text/xml");
+    res.send(`
       <Response>
         <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
-          <Say voice="alice">${safeReply}</Say>
+          <Play>${audioUrl}</Play>
         </Gather>
-        <Say voice="alice">I didn't hear anything, so I'll end the call for now. Goodbye.</Say>
         <Hangup/>
       </Response>
-    `;
-
-    res.type("text/xml");
-    res.send(twiml);
+    `);
 
   } catch (error) {
     console.error("Voice process error:", error);
 
-    const twiml = `
+    res.type("text/xml");
+    res.send(`
       <Response>
-        <Say voice="alice">Sorry, something went wrong. Please try again later.</Say>
+        <Say>Sorry, something went wrong.</Say>
         <Hangup/>
       </Response>
-    `;
-
-    res.type("text/xml");
-    res.send(twiml);
+    `);
   }
 });
 

@@ -288,7 +288,7 @@ function updateMortgageLead(leadId, updates) {
   saveMortgageLeads(leads);
 }
 
-function handleBookingFlow({ userId, conversationId, message, bookingType, confirmationLabel }) {
+async function handleBookingFlow({ userId, conversationId, message, bookingType, confirmationLabel }) {
   const convo = ensureConversation(userId);
   const trimmedMessage = message.trim();
   const lowerMessage = trimmedMessage.toLowerCase();
@@ -1278,7 +1278,7 @@ Use plain numbers where possible.
         lowerMessage.includes("book consultation") ||
         intent === "book appointment"
       ) {
-        result = handleBookingFlow({
+        result = await handleBookingFlow({
           userId,
           conversationId,
           message: bookingInProgress ? trimmedMessage : "book appointment",
@@ -1631,7 +1631,7 @@ Use plain numbers where possible.
         lowerMessage.includes("mortgage consultation") ||
         intent === "book appointment"
       ) {
-        result = handleBookingFlow({
+        result = await handleBookingFlow({
           userId,
           conversationId,
           message: bookingInProgress ? trimmedMessage : "book appointment",

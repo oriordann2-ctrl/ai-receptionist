@@ -1115,7 +1115,7 @@ app.post("/chat", async (req, res) => {
         convo.consentGiven = true;
 
         result.reply =
-          "Pefect. I can help with applying for a mortgage, booking an appointment, or answering any questions. What would you like to do?";
+          "Perfect. I can help with applying for a mortgage, booking an appointment, or answering any questions. What would you like to do?";
 
       } else {
         result.reply =

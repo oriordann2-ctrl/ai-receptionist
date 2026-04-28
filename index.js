@@ -179,7 +179,7 @@ function addChatLog(entry) {
   saveChatLogs();
 }
 
-function createAppointment(userId, conversationId, customerName, date, time, type) {
+async function createAppointment(userId, conversationId, customerName, date, time, type) {
   const newAppointment = {
     id: appointments.length > 0 ? Math.max(...appointments.map(a => a.id)) + 1 : 1,
     userId,
@@ -365,7 +365,7 @@ function handleBookingFlow({ userId, conversationId, message, bookingType, confi
       };
     }
 
-    const newAppointment = createAppointment(
+    const newAppointment = await createAppointment(
       userId,
       conversationId,
       trimmedMessage,
@@ -640,7 +640,7 @@ app.post("/appointments", requireAdmin, (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const newAppointment = createAppointment(
+  const newAppointment = await createAppointment(
     userId,
     conversationId || "admin-created",
     customerName,

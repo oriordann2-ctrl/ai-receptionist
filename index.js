@@ -4,14 +4,13 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const cookieParser = require("cookie-parser");
-const { OpenAI } = require("openai");
+dotenv.config();
 
+const { OpenAI } = require("openai");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY2 });
 
 const multer = require("multer");
-const upload = multer({ dest: 'uploads/' });
-
-dotenv.config();
+const upload = multer({ dest: "uploads/" });
 
 const app = express();
 app.use(express.json());
@@ -838,41 +837,35 @@ async function generateMaeveVoice(text) {
   }
 }
 
-app.post("/voice-call", async (req, res) => {
 
-  const text = "Hi there, you’re speaking with Maeve. I can help you get started with a mortgage or answer any questions. What would you like to do?";
+function escapeXml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
 
-  const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${MAEVE_VOICE_ID}`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": process.env.ELEVENLABS_API_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        text
-      })
-    }
-  );
+function voiceUserId(req) {
+  return "voice-" + (req.body.CallSid || req.body.From || "unknown");
+}
 
-  const audioBuffer = Buffer.from(await response.arrayBuffer());
-  const fileName = `voice-${Date.now()}.mp3`;
-  const filePath = path.join(__dirname, "public", fileName);
-
-  fs.writeFileSync(filePath, audioBuffer);
-
-  const publicUrl = `${req.protocol}://${req.get("host")}/${fileName}`;
+app.post("/voice-call", (req, res) => {
+  const userId = voiceUserId(req);
+  resetConversation(userId);
 
   const twiml = `
     <Response>
-      <Play>${publicUrl}</Play>
-
-      <Gather input="speech" action="/voice-process" method="POST">
-        <Say>Go ahead, I’m listening.</Say>
+      <Gather input="speech dtmf" numDigits="1" action="/voice-gdpr" method="POST" speechTimeout="auto">
+        <Say voice="alice">
+          Hi, you're speaking with Maeve from Sprimal.
+          Before we continue, I need your consent to process your personal data to help with your mortgage enquiry.
+          Say yes or press 1 to continue. Say no or press 2 to stop.
+        </Say>
       </Gather>
-
-      <Say>Sorry, I didn’t catch that.</Say>
+      <Say voice="alice">Sorry, I didn't catch that. Goodbye.</Say>
+      <Hangup/>
     </Response>
   `;
 
@@ -880,20 +873,127 @@ app.post("/voice-call", async (req, res) => {
   res.send(twiml);
 });
 
-app.post("/voice-process", (req, res) => {
-  const userSpeech = req.body?.SpeechResult || "";
+app.post("/voice-gdpr", (req, res) => {
+  const userId = voiceUserId(req);
+  const convo = ensureConversation(userId);
 
-  console.log("User said:", userSpeech);
+  const input = `${req.body.SpeechResult || ""} ${req.body.Digits || ""}`.toLowerCase();
+
+  if (
+    input.includes("yes") ||
+    input.includes("yeah") ||
+    input.includes("ok") ||
+    input.includes("sure") ||
+    input.includes("1")
+  ) {
+    convo.consentGiven = true;
+
+    const twiml = `
+      <Response>
+        <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
+          <Say voice="alice">
+            Thanks. How can I help today?
+            You can say apply for a mortgage, book an appointment, or upload documents.
+          </Say>
+        </Gather>
+        <Say voice="alice">Sorry, I didn't catch that. Goodbye.</Say>
+        <Hangup/>
+      </Response>
+    `;
+
+    res.type("text/xml");
+    return res.send(twiml);
+  }
 
   const twiml = `
     <Response>
-      <Say>You said: ${userSpeech || "nothing"}</Say>
-      <Say>We’ll continue this shortly.</Say>
+      <Say voice="alice">No problem. I won't collect any personal information. Goodbye.</Say>
+      <Hangup/>
     </Response>
   `;
 
   res.type("text/xml");
   res.send(twiml);
+});
+
+app.post("/voice-process", async (req, res) => {
+  try {
+    const userSpeech = req.body.SpeechResult || "";
+    const userId = voiceUserId(req);
+    const conversationId = userId;
+
+    console.log("Voice user said:", userSpeech);
+
+    if (!userSpeech.trim()) {
+      const twiml = `
+        <Response>
+          <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
+            <Say voice="alice">Sorry, I didn't catch that. Could you say that again?</Say>
+          </Gather>
+          <Hangup/>
+        </Response>
+      `;
+
+      res.type("text/xml");
+      return res.send(twiml);
+    }
+
+    const chatResponse = await fetch(`${req.protocol}://${req.get("host")}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId,
+        conversationId,
+        message: userSpeech
+      })
+    });
+
+    const data = await chatResponse.json();
+    const reply = data.reply || "Sorry, something went wrong.";
+
+    const convo = ensureConversation(userId);
+    const safeReply = escapeXml(reply);
+
+    if (convo.completed) {
+      const twiml = `
+        <Response>
+          <Say voice="alice">${safeReply}</Say>
+          <Hangup/>
+        </Response>
+      `;
+
+      res.type("text/xml");
+      return res.send(twiml);
+    }
+
+    const twiml = `
+      <Response>
+        <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
+          <Say voice="alice">${safeReply}</Say>
+        </Gather>
+        <Say voice="alice">I didn't hear anything, so I'll end the call for now. Goodbye.</Say>
+        <Hangup/>
+      </Response>
+    `;
+
+    res.type("text/xml");
+    res.send(twiml);
+
+  } catch (error) {
+    console.error("Voice process error:", error);
+
+    const twiml = `
+      <Response>
+        <Say voice="alice">Sorry, something went wrong. Please try again later.</Say>
+        <Hangup/>
+      </Response>
+    `;
+
+    res.type("text/xml");
+    res.send(twiml);
+  }
 });
 
 app.post("/whatsapp", async (req, res) => {

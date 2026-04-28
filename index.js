@@ -861,7 +861,7 @@ async function createElevenLabsAudioUrl(text, req) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        text,
+        text: cleanVoiceText(text).slice(0, 700),
         voice_settings: {
           stability: 0.75,
           similarity_boost: 1.0,
@@ -1053,7 +1053,8 @@ app.post("/voice-process", async (req, res) => {
     const data = await chatResponse.json();
     const reply = data.reply || "Sorry, something went wrong.";
 
-    const audioUrl = await createElevenLabsAudioUrl(reply, req);
+    const cleanReply = cleanVoiceText(reply);
+    const audioUrl = await createElevenLabsAudioUrl(cleanReply, req);
 
     const updatedConvo = ensureConversation(userId);
 
@@ -1089,6 +1090,15 @@ app.post("/voice-process", async (req, res) => {
     `);
   }
 });
+
+function cleanVoiceText(text) {
+  return String(text || "")
+    .replace(/€/g, " euro ")
+    .replace(/&/g, " and ")
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 app.post("/whatsapp", async (req, res) => {
   const message = req.body.Body || "";

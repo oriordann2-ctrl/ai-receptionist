@@ -192,8 +192,22 @@ function createAppointment(userId, conversationId, customerName, date, time, typ
     createdAt: new Date()
   };
 
-  appointments.push(newAppointment);
-  saveAppointments();
+    appointments.push(newAppointment);
+    saveAppointments();
+
+    await mailTransporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: brokerEmail,
+    subject: "📅 New Appointment Booked",
+    text: `
+  New appointment booked:
+
+  Name: ${customerName}
+  Date: ${date}
+  Time: ${time}
+  Type: ${type}
+  `
+  });
 
   return newAppointment;
 }
@@ -1085,12 +1099,14 @@ app.post("/chat", async (req, res) => {
       if (
         lowerMessage.includes("yes") ||
         lowerMessage.includes("ok") ||
-        lowerMessage.includes("yeah")
+        lowerMessage.includes("yeah") ||
+        lowerMessage.includes("sure") ||
+        lowerMessage.includes("yep")
       ) {
         convo.consentGiven = true;
 
         result.reply =
-          "Perfect 👍 Thanks for confirming.\n\nWhat can I help you with today?";
+          "Pefect. I can help with applying for a mortgage, booking an appointment, or answering any questions. What would you like to do?";
 
       } else {
         result.reply =

@@ -633,7 +633,7 @@ app.get("/admin", requireAdminPage, (req, res) => {
   res.sendFile(path.join(__dirname, "views", "admin.html"));
 });
 
-app.post("/appointments", requireAdmin, (req, res) => {
+app.post("/appointments", requireAdmin, async (req, res) => {
   const { userId, conversationId, customerName, date, time, type } = req.body;
 
   if (!userId || !customerName || !date || !time || !type) {

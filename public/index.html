@@ -206,7 +206,14 @@ async function sendMessage() {
   }
 }
 
+let currentAudio = null;
+
 async function playMaeveVoice(text) {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+  }
+
   const response = await fetch("/voice?t=" + Date.now(), {
     method: "POST",
     headers: {
@@ -216,8 +223,8 @@ async function playMaeveVoice(text) {
   });
 
   const blob = await response.blob();
-  const audio = new Audio(URL.createObjectURL(blob));
-  audio.play();
+  currentAudio = new Audio(URL.createObjectURL(blob));
+  currentAudio.play();
 }
 
 // ✅ SINGLE GDPR INTRO (TEXT + VOICE)

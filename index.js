@@ -469,11 +469,20 @@ app.post("/upload", upload.single("file"), (req, res) => {
       timestamp: new Date()
     });
 
-    return res.json({
-      success: true,
-      message: `Uploaded ${req.file.originalname} successfully`,
-      file: documentRecord
-    });
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Upload Successful</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body style="font-family: Arial; text-align: center; padding: 40px;">
+        <h2>✅ Upload successful</h2>
+        <p>Your document has been received.</p>
+        <p>A broker will review it shortly.</p>
+      </body>
+      </html>
+    `);
   } catch (error) {
     console.error("Upload error:", error);
     return res.status(500).json({

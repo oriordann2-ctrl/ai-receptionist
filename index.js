@@ -121,23 +121,29 @@ const mortgageLeadsFile = path.join(__dirname, "data", "mortgageLeads.json");
 
 function loadMortgageLeads() {
   try {
+    console.log("[loadMortgageLeads] file path:", mortgageLeadsFile);
     if (!fs.existsSync(mortgageLeadsFile)) {
+      console.log("[loadMortgageLeads] file not found — creating empty file");
       fs.writeFileSync(mortgageLeadsFile, JSON.stringify([], null, 2));
     }
 
     const data = fs.readFileSync(mortgageLeadsFile, "utf8");
-    return JSON.parse(data || "[]");
+    const leads = JSON.parse(data || "[]");
+    console.log("[loadMortgageLeads] loaded", leads.length, "leads");
+    return leads;
   } catch (error) {
-    console.error("Error loading mortgage leads:", error);
+    console.error("[loadMortgageLeads] error:", error);
     return [];
   }
 }
 
 function saveMortgageLeads(leads) {
   try {
+    console.log("[saveMortgageLeads] writing", leads.length, "leads to:", mortgageLeadsFile);
     fs.writeFileSync(mortgageLeadsFile, JSON.stringify(leads, null, 2));
+    console.log("[saveMortgageLeads] write complete");
   } catch (error) {
-    console.error("Error saving mortgage leads:", error);
+    console.error("[saveMortgageLeads] error:", error);
   }
 }
 
@@ -396,8 +402,11 @@ app.get("/admin/mortgage-leads", requireAdmin, (req, res) => {
 });
 
 app.get("/api/mortgage-leads", requireAdmin, (req, res) => {
+  console.log("[/api/mortgage-leads] file path:", mortgageLeadsFile);
   const scorePriority = { hot: 3, warm: 2, cold: 1 };
-  const leads = loadMortgageLeads()
+  const all = loadMortgageLeads();
+  console.log("[/api/mortgage-leads] total leads in file:", all.length);
+  const leads = all
     .filter(l => l.subject !== undefined)
     .sort((a, b) => {
       const pa = scorePriority[(a.lead_score || "").toLowerCase()] || 0;
@@ -405,6 +414,7 @@ app.get("/api/mortgage-leads", requireAdmin, (req, res) => {
       if (pb !== pa) return pb - pa;
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
+  console.log("[/api/mortgage-leads] returning", leads.length, "zapier leads");
   res.json(leads);
 });
 
@@ -436,15 +446,18 @@ app.post("/mortgage-leads", (req, res) => {
 });
 
 app.post("/zapier/email-lead", (req, res) => {
+  console.log("[/zapier/email-lead] payload:", JSON.stringify(req.body));
   const { email, income, deposit, timeline, lead_score, subject } = req.body;
 
   const leads = loadMortgageLeads();
+  console.log("[/zapier/email-lead] leads before save:", leads.length);
 
   const isDuplicate = leads.some(
     (l) => l.email === email && l.subject === subject
   );
 
   if (isDuplicate) {
+    console.log("[/zapier/email-lead] duplicate detected — skipping");
     return res.json({ success: true, duplicate: true });
   }
 
@@ -462,6 +475,7 @@ app.post("/zapier/email-lead", (req, res) => {
 
   leads.push(newLead);
   saveMortgageLeads(leads);
+  console.log("[/zapier/email-lead] leads after save:", leads.length);
 
   res.json({ success: true });
 });

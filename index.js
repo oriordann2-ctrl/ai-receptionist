@@ -422,6 +422,37 @@ app.post("/mortgage-leads", (req, res) => {
   });
 });
 
+app.post("/zapier/email-lead", (req, res) => {
+  const { email, income, deposit, timeline, lead_score, subject } = req.body;
+
+  const leads = loadMortgageLeads();
+
+  const isDuplicate = leads.some(
+    (l) => l.email === email && l.subject === subject
+  );
+
+  if (isDuplicate) {
+    return res.json({ success: true, duplicate: true });
+  }
+
+  const newLead = {
+    id: "ML-" + Date.now(),
+    createdAt: new Date().toISOString(),
+    status: "New lead",
+    email: email || "",
+    income: income || "",
+    deposit: deposit || "",
+    timeline: timeline || "",
+    lead_score: lead_score || "",
+    subject: subject || ""
+  };
+
+  leads.push(newLead);
+  saveMortgageLeads(leads);
+
+  res.json({ success: true });
+});
+
 app.post("/upload", upload.single("file"), (req, res) => {
   try {
     const userId = req.body.userId || "unknown-user";

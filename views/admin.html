@@ -66,6 +66,9 @@
   .badge-count { background: #f3e8ff; color: #7e22ce; }
   .badge-docs { background: #fef3c7; color: #92400e; }
   .badge-leads { background: #ccfbf1; color: #0f766e; }
+  .score-hot  { background: #fee2e2; color: #991b1b; }
+  .score-warm { background: #fef3c7; color: #92400e; }
+  .score-cold { background: #dbeafe; color: #1e40af; }
 
   .button-row {
     display: flex;
@@ -459,6 +462,11 @@
     </div>
 
     <div class="card">
+      <h2>Email Leads</h2>
+      <div id="emailLeads"></div>
+    </div>
+
+    <div class="card">
       <h2>Appointments</h2>
       <div id="appointments"></div>
     </div>
@@ -725,22 +733,25 @@
     async function loadData() {
       await loadStatus();
 
-      const [appointmentsRes, chatLogsRes, documentsRes, leadsRes] = await Promise.all([
+      const [appointmentsRes, chatLogsRes, documentsRes, leadsRes, emailLeadsRes] = await Promise.all([
         fetch("/appointments"),
         fetch("/chat-logs"),
         fetch("/admin/documents"),
-        fetch("/admin/mortgage-leads")
+        fetch("/admin/mortgage-leads"),
+        fetch("/api/mortgage-leads")
       ]);
 
       const appointments = await appointmentsRes.json();
       const chatLogs = await chatLogsRes.json();
       const documents = await documentsRes.json();
       const mortgageLeads = await leadsRes.json();
+      const emailLeads = await emailLeadsRes.json();
 
       const appointmentsDiv = document.getElementById("appointments");
       const chatLogsDiv = document.getElementById("chatLogs");
       const documentsDiv = document.getElementById("documents");
       const mortgageLeadsDiv = document.getElementById("mortgageLeads");
+      const emailLeadsDiv = document.getElementById("emailLeads");
 
       const countBadge = document.getElementById("countBadge");
       const docsBadge = document.getElementById("docsBadge");
@@ -754,6 +765,7 @@
       chatLogsDiv.innerHTML = "";
       documentsDiv.innerHTML = "";
       mortgageLeadsDiv.innerHTML = "";
+      emailLeadsDiv.innerHTML = "";
 
       if (!Array.isArray(mortgageLeads) || mortgageLeads.length === 0) {
         mortgageLeadsDiv.innerHTML = `<p class="empty">No mortgage leads yet.</p>`;
@@ -870,6 +882,33 @@
 
         mortgageLeadsDiv.appendChild(div);
       });
+      }
+
+      if (!Array.isArray(emailLeads) || emailLeads.length === 0) {
+        emailLeadsDiv.innerHTML = `<p class="empty">No email leads yet.</p>`;
+      } else {
+        emailLeads.forEach(lead => {
+          const score = (lead.lead_score || "").toLowerCase();
+          const scoreClass = score === "hot" ? "score-hot" : score === "warm" ? "score-warm" : "score-cold";
+          const scoreLabel = score.charAt(0).toUpperCase() + score.slice(1) || "Unknown";
+
+          const div = document.createElement("div");
+          div.className = "item";
+          div.innerHTML = `
+            <div class="item-title">
+              ${lead.email || "-"}
+              <span class="badge ${scoreClass}" style="margin-left:8px">${scoreLabel}</span>
+            </div>
+            <div class="meta">
+              <strong>Subject:</strong> ${lead.subject || "-"}<br>
+              <strong>Income:</strong> ${lead.income || "-"} &nbsp;
+              <strong>Deposit:</strong> ${lead.deposit || "-"} &nbsp;
+              <strong>Timeline:</strong> ${lead.timeline || "-"}<br>
+              <strong>Received:</strong> ${lead.createdAt ? new Date(lead.createdAt).toLocaleString() : "-"}
+            </div>
+          `;
+          emailLeadsDiv.appendChild(div);
+        });
       }
 
       if (appointments.length === 0) {

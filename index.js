@@ -395,6 +395,19 @@ app.get("/admin/mortgage-leads", requireAdmin, (req, res) => {
   res.json(sortedLeads);
 });
 
+app.get("/api/mortgage-leads", requireAdmin, (req, res) => {
+  const scorePriority = { hot: 3, warm: 2, cold: 1 };
+  const leads = loadMortgageLeads()
+    .filter(l => l.subject !== undefined)
+    .sort((a, b) => {
+      const pa = scorePriority[(a.lead_score || "").toLowerCase()] || 0;
+      const pb = scorePriority[(b.lead_score || "").toLowerCase()] || 0;
+      if (pb !== pa) return pb - pa;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  res.json(leads);
+});
+
 app.post("/mortgage-leads", (req, res) => {
   const leads = loadMortgageLeads();
 

@@ -530,20 +530,8 @@ app.post("/upload", upload.single("file"), (req, res) => {
       timestamp: new Date()
     });
 
-    return res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Upload Successful</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
-      <body style="font-family: Arial; text-align: center; padding: 40px;">
-        <h2>✅ Upload successful</h2>
-        <p>Your document has been received.</p>
-        <p>A broker will review it shortly.</p>
-      </body>
-      </html>
-    `);
+    console.log("[/upload] saved document:", req.file.originalname, "userId:", userId);
+    return res.json({ success: true, message: "Document uploaded successfully." });
   } catch (error) {
     console.error("Upload error:", error);
     return res.status(500).json({
@@ -1570,15 +1558,14 @@ Use plain numbers where possible.
           if (
             lowerMessage.includes("yes") ||
             lowerMessage.includes("ok") ||
+            lowerMessage.includes("sure") ||
             lowerMessage.includes("send") ||
             lowerMessage.includes("text") ||
             lowerMessage.includes("whatsapp")
           ) {
-            const uploadLink = `${req.protocol}://${req.get("host")}/upload?leadId=${convo.mortgageLeadId}`;
-
             updateMortgageLead(convo.mortgageLeadId, {
-            payslipUploadLinkSent: true
-          });
+              payslipUploadLinkSent: true
+            });
 
           const completedLead = loadMortgageLeads().find(
             (l) => l.id === convo.mortgageLeadId
@@ -1596,7 +1583,7 @@ Use plain numbers where possible.
           const deposit = parseMoney(completedLead?.deposit);
           const isHot = income >= 80000 && deposit >= 30000;
 
-          console.log("Lead check:", { income, deposit, isHot });
+          console.log("[uploadPayslip] lead check:", { income, deposit, isHot });
 
           updateMortgageLead(convo.mortgageLeadId, {
             status: "New lead - contact details captured",
@@ -1613,22 +1600,14 @@ Use plain numbers where possible.
               emailSent: true
             });
 
-            console.log("HOT lead email sent");
+            console.log("[uploadPayslip] hot lead email attempted");
           }
 
           convo.completed = true;
 
           result.reply =
-            "Perfect 👍 I’ll send that link now.\n\n" +
-
-            "Here’s your secure upload link:\n\n" +
-            uploadLink +
-
-            "\n\nOnce that’s uploaded, you’re all set.\n\n" +
-
-            "A broker will review your details and be in touch shortly.\n\n" +
-
-            "Thanks for using Maeve 👋";
+            "Great — please use the Choose Document button below to upload your payslip securely.\n\n" +
+            "A broker will review your details and be in touch shortly 👍";
 
       } else {
         result.reply =

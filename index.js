@@ -200,11 +200,12 @@ async function createAppointment(userId, conversationId, customerName, date, tim
     appointments.push(newAppointment);
     saveAppointments();
 
-    await mailTransporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: brokerEmail,
-    subject: "📅 New Appointment Booked",
-    text: `
+    try {
+      await mailTransporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: brokerEmail,
+        subject: "📅 New Appointment Booked",
+        text: `
   New appointment booked:
 
   Name: ${customerName}
@@ -212,7 +213,10 @@ async function createAppointment(userId, conversationId, customerName, date, tim
   Time: ${time}
   Type: ${type}
   `
-  });
+      });
+    } catch (err) {
+      console.error("[createAppointment] email failed:", err.message);
+    }
 
   return newAppointment;
 }
@@ -1331,14 +1335,17 @@ Regards,
 Maeve
 `;
 
-  await mailTransporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: brokerEmail,
-    subject,
-    text: body
-  });
-
-  console.log("Broker email sent for lead:", lead.id);
+  try {
+    await mailTransporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: brokerEmail,
+      subject,
+      text: body
+    });
+    console.log("[emailBrokerAboutLead] email sent for lead:", lead.id);
+  } catch (err) {
+    console.error("[emailBrokerAboutLead] email failed:", err.message);
+  }
 }
 
 app.post("/chat", async (req, res) => {

@@ -1074,5 +1074,36 @@
 // Auto-refresh every 30 seconds
 setInterval(loadData, 30000);
   </script>
+
+  <hr>
+
+<h3>Ask Knowledge Base</h3>
+
+<textarea id="kb-question" placeholder="Ask a question..." style="width:100%; height:80px;"></textarea>
+<br><br>
+
+<button onclick="askKB()">Ask</button>
+
+<pre id="kb-answer" style="background:#f3f4f6; padding:10px; border-radius:6px;"></pre>
+
+<script>
+async function askKB() {
+  const question = document.getElementById("kb-question").value;
+
+  const res = await fetch("/api/knowledge-answer", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ question })
+  });
+
+  const data = await res.json();
+
+  document.getElementById("kb-answer").innerText =
+    data.answer || data.error || "No response";
+}
+</script>
+
 </body>
 </html>

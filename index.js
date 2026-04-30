@@ -65,6 +65,21 @@ function startMaeveIntroOnce() {
   document.removeEventListener("keydown", startMaeveIntroOnce);
 }
 
+const knowledgeBasePath = path.join(__dirname, "data", "knowledgeBase.json");
+
+function loadKnowledgeBase() {
+  try {
+    if (!fs.existsSync(knowledgeBasePath)) {
+      fs.writeFileSync(knowledgeBasePath, JSON.stringify([], null, 2));
+    }
+
+    return JSON.parse(fs.readFileSync(knowledgeBasePath, "utf8"));
+  } catch (err) {
+    console.error("Error loading knowledge base:", err);
+    return [];
+  }
+}
+
 function readJsonFile(filePath, fallbackValue) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -1956,10 +1971,27 @@ app.post("/api/knowledge-answer", async (req, res) => {
       messages: [
         {
           role: "system",
-          content:
-            "You are a helpful assistant. Answer the question using only the knowledge base provided. " +
-            "If the answer is not in the knowledge base, say you don't have that information.\n\n" +
-            "Knowledge base:\n" + context
+          content: `
+            You are an internal mortgage broker assistant.
+
+            You help staff answer client queries using ONLY the knowledge base provided.
+
+            STRICT RULES:
+            - Only answer using the knowledge base
+            - If the answer is not clearly in the knowledge base, say:
+              "I don't have that in the knowledge base yet."
+            - Do NOT guess or invent information
+            - Do NOT provide financial advice or approval decisions
+            - Do NOT make promises on timelines
+
+            STYLE:
+            - Clear, professional, and helpful
+            - Written for internal staff use
+            - Can be used to help draft replies to clients
+
+            KNOWLEDGE BASE:
+            ${context}
+            `
         },
         {
           role: "user",

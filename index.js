@@ -27,11 +27,11 @@ const knowledgeBaseFile = path.join(__dirname, "data", "knowledgeBase.json");
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "changeme123";
 const sessions = new Set();
 
-const { ElevenLabsClient } = require("elevenlabs");
+//const { ElevenLabsClient } = require("elevenlabs");
 
-const elevenlabs = new ElevenLabsClient({
-  apiKey: process.env.ELEVENLABS_API_KEY
-});
+//const elevenlabs = new ElevenLabsClient({
+//  apiKey: process.env.ELEVENLABS_API_KEY
+//});
 
 const MAEVE_VOICE_ID = "sgk995upfe3tYLvoGcBN";
 

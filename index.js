@@ -22,6 +22,7 @@ const appointmentsFile = path.join(__dirname, "data", "appointments.json");
 const chatLogsFile = path.join(__dirname, "data", "chatLogs.json");
 const settingsFile = path.join(__dirname, "data", "settings.json");
 const documentsFile = path.join(__dirname, "data", "documents.json");
+const knowledgeBaseFile = path.join(__dirname, "data", "knowledgeBase.json");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "changeme123";
 const sessions = new Set();
@@ -1928,6 +1929,52 @@ Use plain numbers where possible.
     return res.status(500).json({
       reply: "Sorry, something went wrong. Please try again."
     });
+  }
+});
+
+app.get("/api/knowledge-base", requireAdmin, (req, res) => {
+  const kb = readJsonFile(knowledgeBaseFile, []);
+  res.json(kb);
+});
+
+app.post("/api/knowledge-answer", async (req, res) => {
+  const { question } = req.body;
+
+  if (!question) {
+    return res.status(400).json({ error: "question is required" });
+  }
+
+  const kb = readJsonFile(knowledgeBaseFile, []);
+
+  const context = kb
+    .map(entry => `${entry.topic}:\n${entry.content}`)
+    .join("\n\n");
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a helpful assistant. Answer the question using only the knowledge base provided. " +
+            "If the answer is not in the knowledge base, say you don't have that information.\n\n" +
+            "Knowledge base:\n" + context
+        },
+        {
+          role: "user",
+          content: question
+        }
+      ],
+      temperature: 0
+    });
+
+    const answer = completion.choices[0].message.content || "No answer returned.";
+    console.log("[/api/knowledge-answer] question:", question, "| answer length:", answer.length);
+    res.json({ answer });
+  } catch (err) {
+    console.error("[/api/knowledge-answer] OpenAI error:", err.message);
+    res.status(500).json({ error: "Failed to generate answer." });
   }
 });
 

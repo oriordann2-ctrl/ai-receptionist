@@ -40,6 +40,7 @@ data/*.json
 !data/chatLogs.json
 !data/settings.json
 !data/mortgageLeads.json
+!data/knowledgeBase.json
 
 # Old DB (if you ever go back to sqlite)
 *.db

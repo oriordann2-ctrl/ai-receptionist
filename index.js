@@ -2169,11 +2169,26 @@ app.post("/api/knowledge-answer", async (req, res) => {
     return res.status(400).json({ error: "question is required" });
   }
 
-  const kb = readJsonFile(knowledgeBaseFile, []);
+    const kb = readJsonFile(knowledgeBaseFile, []);
+    const relevantDocs = findRelevantKnowledgeChunks(question);
 
-  const context = kb
-    .map(entry => `${entry.topic}:\n${entry.content}`)
-    .join("\n\n");
+    const manualContext = kb
+      .map(entry => `${entry.topic}:\n${entry.content}`)
+      .join("\n\n");
+
+    const documentContext = relevantDocs
+      .map(doc => `Source: ${doc.filename}\n${doc.text}`)
+      .join("\n\n");
+
+    const context = `
+    MANUAL KNOWLEDGE BASE:
+    ${manualContext}
+
+    UPLOADED KNOWLEDGE DOCUMENTS:
+    ${documentContext}
+    `;
+
+    console.log("[/api/knowledge-answer] relevant docs:", relevantDocs);
 
   try {
     const completion = await openai.chat.completions.create({

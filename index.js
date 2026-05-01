@@ -40,7 +40,14 @@ const nodemailer = require("nodemailer");
 const brokerEmail = process.env.BROKER_EMAIL;
 
 const pdfParseModule = require("pdf-parse");
-const pdfParse = pdfParseModule.default || pdfParseModule;
+const pdfParsePackage = require("pdf-parse");
+
+const pdfParse =
+  typeof pdfParsePackage === "function"
+    ? pdfParsePackage
+    : pdfParsePackage.default ||
+      pdfParsePackage.pdfParse ||
+      pdfParsePackage.PDFParse;
 
 const mailTransporter = nodemailer.createTransport({
   service: "gmail",
@@ -63,6 +70,8 @@ function loadKnowledgeDocs() {
     return [];
   }
 }
+
+console.log("pdfParse type:", typeof pdfParse);
 
 function saveKnowledgeDocs(docs) {
   fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");
@@ -97,7 +106,7 @@ app.post(
       if (req.file.mimetype === "application/pdf") {
         const buffer = fs.readFileSync(req.file.path);
         const parsed = await pdfParse(buffer);
-        extractedText = parsed.text;
+        extractedText = parsed.text || "";
       } else if (req.file.mimetype === "text/plain") {
         extractedText = fs.readFileSync(req.file.path, "utf8");
       } else {

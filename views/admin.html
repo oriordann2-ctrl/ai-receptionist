@@ -588,6 +588,10 @@
           color:#111827;
         "
       ></div>
+      <div style="margin-top:10px; display:flex; gap:10px;">
+        <button onclick="copyReply()">Copy</button>
+        <button onclick="generateReply()">Regenerate</button>
+      </div>
     </div>
   </div>
 
@@ -1209,6 +1213,14 @@ async function generateReply() {
   const data = await res.json();
 
   replyBox.innerText = data.reply || data.error || "No response";
+}
+</script>
+
+<script>
+function copyReply() {
+  const text = document.getElementById("email-reply").innerText;
+  navigator.clipboard.writeText(text);
+  alert("Copied to clipboard");
 }
 </script>
 

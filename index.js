@@ -421,6 +421,61 @@ app.get("/admin/mortgage-leads", requireAdmin, (req, res) => {
   res.json(sortedLeads);
 });
 
+app.post("/api/email-reply", requireAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const kb = readJsonFile(knowledgeBaseFile, []);
+
+    const context = kb
+      .map(entry => `TOPIC: ${entry.topic}\nCONTENT: ${entry.content}`)
+      .join("\n\n");
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
+You are a mortgage broker assistant.
+
+Your job is to draft a reply to a client email.
+
+Use ONLY the knowledge base provided.
+
+RULES:
+- Be professional, friendly, and reassuring
+- Keep it concise
+- Do NOT promise timelines
+- Do NOT give financial advice
+- If unsure, say you will follow up
+
+KNOWLEDGE BASE:
+${context}
+`
+        },
+        {
+          role: "user",
+          content: `Client email:\n${email}`
+        }
+      ],
+      temperature: 0.3
+    });
+
+    res.json({
+      reply: completion.choices[0].message.content
+    });
+
+  } catch (err) {
+    console.error("Email reply error:", err);
+    res.status(500).json({ error: "Failed to generate reply" });
+  }
+});
+
 app.get("/api/mortgage-leads", requireAdmin, (req, res) => {
   console.log("[/api/mortgage-leads] file path:", mortgageLeadsFile);
   const scorePriority = { hot: 3, warm: 2, cold: 1 };

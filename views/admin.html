@@ -540,6 +540,26 @@
     </div>
   </div>
 
+  <div class="card">
+  <h2>Email Reply Assistant</h2>
+  <p class="muted">Paste a client email and generate a reply.</p>
+
+  <textarea
+    id="email-input"
+    placeholder="Paste client email here..."
+    style="width:100%; min-height:120px; padding:14px; border-radius:12px; border:1px solid #d1d5db;"
+  ></textarea>
+
+  <button onclick="generateReply()" style="margin-top:12px;">
+    Generate Reply
+  </button>
+
+  <div
+    id="email-reply"
+    style="display:none; margin-top:16px; background:#f9fafb; padding:16px; border-radius:12px; white-space:pre-wrap;"
+  ></div>
+</div>
+
   <div id="previewModal" class="preview-modal">
     <div class="preview-header">
       <div id="previewTitle" class="preview-title">Document Preview</div>
@@ -622,7 +642,7 @@
 
       return "❌ Not realistic";
     }
-
+    
     async function updateAppointment(id) {
       const date = document.getElementById(`date-${id}`).value;
       const time = document.getElementById(`time-${id}`).value;
@@ -1132,6 +1152,34 @@
 // Auto-refresh every 30 seconds
 setInterval(loadData, 30000);
   </script>
+
+<script>
+async function generateReply() {
+  const email = document.getElementById("email-input").value.trim();
+  const replyBox = document.getElementById("email-reply");
+
+  if (!email) {
+    replyBox.style.display = "block";
+    replyBox.innerText = "Please paste an email.";
+    return;
+  }
+
+  replyBox.style.display = "block";
+  replyBox.innerText = "Thinking...";
+
+  const res = await fetch("/api/email-reply", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ email })
+  });
+
+  const data = await res.json();
+
+  replyBox.innerText = data.reply || data.error || "No response";
+}
+</script>
 
 <script>
 async function askKB() {

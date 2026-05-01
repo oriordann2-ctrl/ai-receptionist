@@ -542,6 +542,12 @@
       <h2>Email Reply Assistant</h2>
       <p class="muted">Paste a client email and generate a draft reply.</p>
 
+      <div style="margin-bottom:10px;">
+        <button onclick="fillExample(1)">Status Update</button>
+        <button onclick="fillExample(2)">Documents</button>
+        <button onclick="fillExample(3)">Timeline</button>
+      </div>
+
       <textarea
         id="email-input"
         placeholder="Example: Hi, just checking if there is any update on my mortgage application?"
@@ -1221,6 +1227,24 @@ function copyReply() {
   const text = document.getElementById("email-reply").innerText;
   navigator.clipboard.writeText(text);
   alert("Copied to clipboard");
+}
+</script>
+
+<script>
+function fillExample(type) {
+  const input = document.getElementById("email-input");
+
+  if (type === 1) {
+    input.value = "Hi, just checking if there is any update on my mortgage application? I haven’t heard anything in a while.";
+  }
+
+  if (type === 2) {
+    input.value = "Hi, can you let me know if you need any more documents from me?";
+  }
+
+  if (type === 3) {
+    input.value = "Hi, how long does the mortgage approval usually take?";
+  }
 }
 </script>
 

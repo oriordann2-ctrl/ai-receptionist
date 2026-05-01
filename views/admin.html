@@ -769,6 +769,33 @@
       document.body.style.overflow = "hidden";
     }
 
+    async function uploadKnowledgeDocument() {
+      const fileInput = document.getElementById("knowledgeDocument");
+      const status = document.getElementById("knowledgeUploadStatus");
+
+      if (!fileInput.files.length) {
+        status.innerText = "Please choose a document first.";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("document", fileInput.files[0]);
+
+      const response = await fetch("/api/knowledge-documents/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        status.innerText = "✅ Document uploaded. Sprimal can now use this knowledge.";
+        fileInput.value = "";
+      } else {
+        status.innerText = result.error || "Upload failed.";
+      }
+    }
+
     function closePreview() {
       const previewModal = document.getElementById("previewModal");
       const previewFrame = document.getElementById("previewFrame");

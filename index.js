@@ -39,7 +39,8 @@ const nodemailer = require("nodemailer");
 
 const brokerEmail = process.env.BROKER_EMAIL;
 
-const pdfParse = require("pdf-parse");
+const pdfParseModule = require("pdf-parse");
+const pdfParse = pdfParseModule.default || pdfParseModule;
 
 const mailTransporter = nodemailer.createTransport({
   service: "gmail",

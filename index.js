@@ -67,6 +67,20 @@ function saveKnowledgeDocs(docs) {
   fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");
 }
 
+app.get("/api/knowledge-documents", requireAdmin, (req, res) => {
+  const docs = loadKnowledgeDocs();
+
+  res.json(
+    docs.map(doc => ({
+      id: doc.id,
+      filename: doc.filename,
+      mimetype: doc.mimetype,
+      textPreview: (doc.text || "").slice(0, 500),
+      uploadedAt: doc.uploadedAt
+    }))
+  );
+});
+
 app.post(
   "/api/knowledge-documents/upload",
   requireAdmin,

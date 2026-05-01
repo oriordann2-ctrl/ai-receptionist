@@ -1310,6 +1310,33 @@ function cleanVoiceText(text) {
     .trim();
 }
 
+function findRelevantKnowledgeChunks(message) {
+  const docs = loadKnowledgeDocs();
+
+  const words = message
+    .toLowerCase()
+    .split(/\W+/)
+    .filter(word => word.length > 3);
+
+  const matches = [];
+
+  docs.forEach(doc => {
+    const text = (doc.text || "").toLowerCase();
+
+    const score = words.filter(word => text.includes(word)).length;
+
+    if (score > 0) {
+      matches.push({
+        filename: doc.filename,
+        text: doc.text.slice(0, 2000),
+        score
+      });
+    }
+  });
+
+  return matches.sort((a, b) => b.score - a.score).slice(0, 2);
+}
+
 app.post("/whatsapp", async (req, res) => {
   const message = req.body.Body || "";
   const from = req.body.From || "whatsapp-user";
@@ -2062,12 +2089,51 @@ Use plain numbers where possible.
         result.reply =
           "Typical mortgage documents include ID, proof of address, bank statements, payslips, employment details, and savings evidence. Exact requirements can vary by lender.";
 
-      } else {
-        const maeveReply = await generateMaeveReply(trimmedMessage);
-        result.reply =
-        maeveReply ||
-        "No problem at all — I can help with mortgages, consultations, or documents. What are you looking to do?";
-      }
+} else {
+
+  // 🔥 NEW: Check knowledge base documents FIRST
+  const relevantDocs = findRelevantKnowledgeChunks(trimmedMessage);
+
+  console.log("Relevant knowledge docs:", relevantDocs);
+
+  if (relevantDocs.length > 0) {
+
+    const context = relevantDocs
+      .map(doc => `Source: ${doc.filename}\n${doc.text}`)
+      .join("\n\n");
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a mortgage assistant. Answer ONLY using the provided knowledge base context. If the answer is not clearly in the context, say you do not know."
+          },
+          {
+            role: "user",
+            content: `Knowledge base:\n${context}\n\nQuestion:\n${trimmedMessage}`
+          }
+        ],
+        temperature: 0.2
+      });
+
+      result.reply = completion.choices[0].message.content;
+
+    } catch (err) {
+      console.error("Knowledge base OpenAI error:", err.message);
+      result.reply = "Sorry — I couldn’t access the knowledge base.";
+    }
+
+  } else {
+    // fallback to normal Maeve reply
+    const maeveReply = await generateMaeveReply(trimmedMessage);
+    result.reply =
+      maeveReply ||
+      "No problem at all — I can help with mortgages, consultations, or documents. What are you looking to do?";
+  }
+}
 
     } else {
       result.reply = "Invalid business mode configuration.";

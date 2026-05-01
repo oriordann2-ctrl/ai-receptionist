@@ -39,8 +39,25 @@ const nodemailer = require("nodemailer");
 
 const brokerEmail = process.env.BROKER_EMAIL;
 
-const pdfParseModule = require("pdf-parse");
-const pdfParsePackage = require("pdf-parse");
+async function extractPdfText(filePath) {
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
+  const data = new Uint8Array(fs.readFileSync(filePath));
+
+  const loadingTask = pdfjsLib.getDocument({ data });
+  const pdf = await loadingTask.promise;
+
+  let text = "";
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+
+    text += content.items.map(item => item.str).join(" ") + "\n";
+  }
+
+  return text.trim();
+}
 
 const pdfParse =
   typeof pdfParsePackage === "function"
@@ -104,9 +121,7 @@ app.post(
       let extractedText = "";
 
       if (req.file.mimetype === "application/pdf") {
-        const buffer = fs.readFileSync(req.file.path);
-        const parsed = await pdfParse(buffer);
-        extractedText = parsed.text || "";
+        extractedText = await extractPdfText(req.file.path);
       } else if (req.file.mimetype === "text/plain") {
         extractedText = fs.readFileSync(req.file.path, "utf8");
       } else {

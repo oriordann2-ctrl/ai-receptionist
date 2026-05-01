@@ -1354,25 +1354,43 @@ function findRelevantKnowledgeChunks(message) {
   const words = message
     .toLowerCase()
     .split(/\W+/)
-    .filter(word => word.length > 3);
+    .filter(word => word.length > 2);
 
   const matches = [];
 
   docs.forEach(doc => {
-    const text = (doc.text || "").toLowerCase();
+    const fullText = doc.text || "";
+    const chunkSize = 3000;
+    const overlap = 500;
 
-    const score = words.filter(word => text.includes(word)).length;
+    for (let i = 0; i < fullText.length; i += chunkSize - overlap) {
+      const chunk = fullText.slice(i, i + chunkSize);
+      const lowerChunk = chunk.toLowerCase();
 
-    if (score > 0) {
-      matches.push({
-        filename: doc.filename,
-        text: getBestKnowledgeSnippet(doc.text, message),
-        score
+      let score = 0;
+
+      words.forEach(word => {
+        if (lowerChunk.includes(word)) score += 1;
       });
+
+      // Extra weighting for important mortgage terms
+      if (lowerChunk.includes("avant")) score += 5;
+      if (lowerChunk.includes("ftb")) score += 5;
+      if (lowerChunk.includes("first time")) score += 5;
+      if (lowerChunk.includes("first-time")) score += 5;
+      if (lowerChunk.includes("documents")) score += 3;
+
+      if (score > 0) {
+        matches.push({
+          filename: doc.filename,
+          text: chunk,
+          score
+        });
+      }
     }
   });
 
-  return matches.sort((a, b) => b.score - a.score).slice(0, 2);
+  return matches.sort((a, b) => b.score - a.score).slice(0, 3);
 }
 
 app.post("/whatsapp", async (req, res) => {

@@ -59,13 +59,6 @@ async function extractPdfText(filePath) {
   return text.trim();
 }
 
-const pdfParse =
-  typeof pdfParsePackage === "function"
-    ? pdfParsePackage
-    : pdfParsePackage.default ||
-      pdfParsePackage.pdfParse ||
-      pdfParsePackage.PDFParse;
-
 const mailTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -87,8 +80,6 @@ function loadKnowledgeDocs() {
     return [];
   }
 }
-
-console.log("pdfParse type:", typeof pdfParse);
 
 function saveKnowledgeDocs(docs) {
   fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");

@@ -1326,6 +1326,28 @@ function cleanVoiceText(text) {
     .trim();
 }
 
+function getBestKnowledgeSnippet(text, message) {
+  const fullText = text || "";
+  const lowerText = fullText.toLowerCase();
+
+  const words = message
+    .toLowerCase()
+    .split(/\W+/)
+    .filter(word => word.length > 3);
+
+  let bestIndex = 0;
+
+  for (const word of words) {
+    const index = lowerText.indexOf(word);
+    if (index !== -1) {
+      bestIndex = Math.max(0, index - 1000);
+      break;
+    }
+  }
+
+  return fullText.slice(bestIndex, bestIndex + 4000);
+}
+
 function findRelevantKnowledgeChunks(message) {
   const docs = loadKnowledgeDocs();
 
@@ -1344,7 +1366,7 @@ function findRelevantKnowledgeChunks(message) {
     if (score > 0) {
       matches.push({
         filename: doc.filename,
-        text: doc.text.slice(0, 2000),
+        text: getBestKnowledgeSnippet(doc.text, message),
         score
       });
     }

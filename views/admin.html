@@ -538,6 +538,32 @@
         ></div>
       </div>
     </div>
+
+<section class="card">
+  <h2>Knowledge Base Documents</h2>
+
+  <div class="form-group">
+    <label for="knowledgeDocument">Upload Document</label>
+    <input
+      type="file"
+      id="knowledgeDocument"
+      accept=".pdf,.txt"
+      class="form-input"
+    />
+    <small class="form-hint">
+      Upload broker guides, HTB/FHS notes, or common query documents.
+    </small>
+  </div>
+
+  <div class="form-actions">
+    <button class="primary-btn" onclick="uploadKnowledgeDocument()">
+      Upload to Knowledge Base
+    </button>
+  </div>
+
+  <div id="knowledgeUploadStatus" class="form-status"></div>
+</section>
+
     <div class="card">
       <h2>Email Reply Assistant</h2>
       <p class="muted">Paste a client email and generate a draft reply.</p>

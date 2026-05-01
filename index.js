@@ -39,6 +39,8 @@ const nodemailer = require("nodemailer");
 
 const brokerEmail = process.env.BROKER_EMAIL;
 
+const pdfParse = require("pdf-parse");
+
 const mailTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -48,6 +50,75 @@ const mailTransporter = nodemailer.createTransport({
 });
 
 let maeveIntroJustPlayed = false;
+
+const KNOWLEDGE_DOCS_FILE = path.join(__dirname, "data", "knowledgeBaseDocuments.json");
+
+function loadKnowledgeDocs() {
+  try {
+    if (!fs.existsSync(KNOWLEDGE_DOCS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(KNOWLEDGE_DOCS_FILE, "utf8"));
+  } catch (err) {
+    console.error("Error loading knowledge docs:", err);
+    return [];
+  }
+}
+
+function saveKnowledgeDocs(docs) {
+  fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");
+}
+
+app.post(
+  "/api/knowledge-documents/upload",
+  requireAdmin,
+  upload.single("document"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No document uploaded" });
+      }
+
+      let extractedText = "";
+
+      if (req.file.mimetype === "application/pdf") {
+        const buffer = fs.readFileSync(req.file.path);
+        const parsed = await pdfParse(buffer);
+        extractedText = parsed.text;
+      } else if (req.file.mimetype === "text/plain") {
+        extractedText = fs.readFileSync(req.file.path, "utf8");
+      } else {
+        return res.status(400).json({
+          error: "Only PDF and TXT files are supported for now"
+        });
+      }
+
+      const docs = loadKnowledgeDocs();
+
+      const newDoc = {
+        id: Date.now().toString(),
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        text: extractedText,
+        uploadedAt: new Date().toISOString()
+      };
+
+      docs.unshift(newDoc);
+      saveKnowledgeDocs(docs);
+
+      res.json({
+        success: true,
+        message: "Document added to knowledge base",
+        document: {
+          id: newDoc.id,
+          filename: newDoc.filename,
+          uploadedAt: newDoc.uploadedAt
+        }
+      });
+    } catch (err) {
+      console.error("Knowledge document upload error:", err);
+      res.status(500).json({ error: "Failed to process document" });
+    }
+  }
+);
 
 function startMaeveIntroOnce() {
   if (maeveIntroPlayed) return;

@@ -538,27 +538,58 @@
         ></div>
       </div>
     </div>
+    <div class="card">
+      <h2>Email Reply Assistant</h2>
+      <p class="muted">Paste a client email and generate a draft reply.</p>
+
+      <textarea
+        id="email-input"
+        placeholder="Example: Hi, just checking if there is any update on my mortgage application?"
+        style="
+          width:100%;
+          min-height:120px;
+          box-sizing:border-box;
+          padding:14px;
+          border-radius:12px;
+          border:1px solid #d1d5db;
+          font-size:15px;
+          font-family:Arial, sans-serif;
+          resize:vertical;
+        "
+      ></textarea>
+
+      <button
+        onclick="generateReply()"
+        style="
+          margin-top:12px;
+          padding:10px 16px;
+          border-radius:10px;
+          border:none;
+          background:#111827;
+          color:white;
+          font-weight:700;
+          cursor:pointer;
+        "
+      >
+        Generate Reply
+      </button>
+
+      <div
+        id="email-reply"
+        style="
+          display:none;
+          margin-top:16px;
+          background:#f9fafb;
+          border:1px solid #e5e7eb;
+          padding:16px;
+          border-radius:12px;
+          white-space:pre-wrap;
+          line-height:1.5;
+          color:#111827;
+        "
+      ></div>
+    </div>
   </div>
-
-  <div class="card">
-  <h2>Email Reply Assistant</h2>
-  <p class="muted">Paste a client email and generate a reply.</p>
-
-  <textarea
-    id="email-input"
-    placeholder="Paste client email here..."
-    style="width:100%; min-height:120px; padding:14px; border-radius:12px; border:1px solid #d1d5db;"
-  ></textarea>
-
-  <button onclick="generateReply()" style="margin-top:12px;">
-    Generate Reply
-  </button>
-
-  <div
-    id="email-reply"
-    style="display:none; margin-top:16px; background:#f9fafb; padding:16px; border-radius:12px; white-space:pre-wrap;"
-  ></div>
-</div>
 
   <div id="previewModal" class="preview-modal">
     <div class="preview-header">

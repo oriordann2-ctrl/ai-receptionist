@@ -25,7 +25,7 @@ const documentsFile = path.join(__dirname, "data", "documents.json");
 const knowledgeBaseFile = path.join(__dirname, "data", "knowledgeBase.json");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "changeme123";
-const sessions = new Set();
+const sessions = new Map();
 
 //const { ElevenLabsClient } = require("elevenlabs");
 
@@ -101,7 +101,7 @@ app.get("/api/knowledge-documents", requireAdmin, (req, res) => {
 
 app.post(
   "/api/knowledge-documents/upload",
-  requireAdmin,
+  requireSenior,
   upload.single("document"),
   async (req, res) => {
     try {
@@ -299,6 +299,34 @@ function saveSettings() {
 function addChatLog(entry) {
   chatLogs.push(entry);
   saveChatLogs();
+}
+
+function getSession(req) {
+  const sessionId = req.cookies.admin_session;
+  if (!sessionId) return null;
+  return sessions.get(sessionId);
+}
+
+function requireLogin(req, res, next) {
+  const session = getSession(req);
+
+  if (!session) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  req.user = session;
+  next();
+}
+
+function requireSenior(req, res, next) {
+  const session = getSession(req);
+
+  if (!session || session.role !== "senior") {
+    return res.status(403).json({ error: "Senior only" });
+  }
+
+  req.user = session;
+  next();
 }
 
 async function createAppointment(userId, conversationId, customerName, date, time, type) {
@@ -775,23 +803,32 @@ app.get("/admin/documents/:id/view", (req, res) => {
   }
 });
 
-app.post("/login", (req, res) => {
-  const { password } = req.body;
+  app.post("/login", (req, res) => {
+    const { password } = req.body;
 
-  if (password !== ADMIN_PASSWORD) {
-    return res.status(401).json({ success: false, error: "Invalid password" });
-  }
+    let role = null;
 
-  const sessionId = crypto.randomUUID();
-  sessions.add(sessionId);
+    if (password === process.env.SENIOR_PASSWORD) {
+      role = "senior";
+    } else if (password === process.env.JUNIOR_PASSWORD) {
+      role = "junior";
+    }
 
-  res.cookie("admin_session", sessionId, {
-    httpOnly: true,
-    sameSite: "lax"
+    if (!role) {
+      return res.status(401).json({ success: false, error: "Invalid password" });
+    }
+
+    const sessionId = crypto.randomUUID();
+
+    sessions.set(sessionId, { role });
+
+    res.cookie("admin_session", sessionId, {
+      httpOnly: true,
+      sameSite: "lax"
+    });
+
+    res.json({ success: true, role });
   });
-
-  res.json({ success: true });
-});
 
 app.post("/logout", (req, res) => {
   const sessionId = req.cookies.admin_session;
@@ -2218,7 +2255,7 @@ app.get("/api/knowledge-base", requireAdmin, (req, res) => {
   res.json(kb);
 });
 
-app.post("/api/knowledge-answer", async (req, res) => {
+app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   const { question } = req.body;
 
   const approvedAnswers = readJsonFile(

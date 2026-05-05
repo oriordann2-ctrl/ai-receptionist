@@ -482,41 +482,44 @@
     </div>
 
     <div class="section-card senior-only">
-      <h3>Approved Answers</h3>
+  <h2>Approved Answers</h2>
+  <p class="section-description">
+    Save broker-approved answers that Sprimal should use first in future.
+  </p>
 
-      <div class="form-group">
-        <label>Question</label>
-        <input
-          id="approvedQuestion"
-          type="text"
-          placeholder="e.g. What is a sales advice notice?"
-        />
-      </div>
+  <div class="form-group">
+    <label for="approvedQuestion">Question</label>
+    <input
+      id="approvedQuestion"
+      type="text"
+      placeholder="e.g. What is a sales advice notice?"
+    />
+  </div>
 
-      <div class="form-group">
-        <label>Approved Answer</label>
-        <textarea
-          id="approvedAnswer"
-          rows="5"
-          placeholder="Enter Cormac-approved answer..."
-        ></textarea>
-      </div>
+  <div class="form-group">
+    <label for="approvedAnswer">Approved Answer</label>
+    <textarea
+      id="approvedAnswer"
+      rows="5"
+      placeholder="Enter Cormac-approved answer..."
+    ></textarea>
+  </div>
 
-      <div class="form-group">
-        <label>Category (optional)</label>
-        <input
-          id="approvedCategory"
-          type="text"
-          placeholder="e.g. Mortgage Process"
-        />
-      </div>
+  <div class="form-group">
+    <label for="approvedCategory">Category</label>
+    <input
+      id="approvedCategory"
+      type="text"
+      placeholder="e.g. Mortgage Process"
+    />
+  </div>
 
-      <button onclick="saveApprovedAnswer()" class="primary-btn">
-        Save Approved Answer
-      </button>
+  <button class="primary-btn" onclick="saveApprovedAnswer()">
+    Save Approved Answer
+  </button>
 
-      <p id="approvedAnswerStatus" class="status-text"></p>
-    </div>
+  <p id="approvedAnswerStatus" class="status-text"></p>
+</div>
 
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">

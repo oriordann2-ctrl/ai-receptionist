@@ -844,6 +844,12 @@ app.get("/appointments", requireAdmin, (req, res) => {
   res.json(appointments);
 });
 
+app.get("/api/me", requireLogin, (req, res) => {
+  res.json({
+    role: req.user.role
+  });
+});
+
 app.get("/admin/documents", (req, res) => {
   try {
     const sortedDocuments = [...documents].sort(
@@ -2253,6 +2259,75 @@ Use plain numbers where possible.
 app.get("/api/knowledge-base", requireAdmin, (req, res) => {
   const kb = readJsonFile(knowledgeBaseFile, []);
   res.json(kb);
+});
+
+const knowledgeAnswersFile = path.join(__dirname, "data", "knowledgeAnswers.json");
+const answerCorrectionsFile = path.join(__dirname, "data", "answerCorrections.json");
+const auditLogFile = path.join(__dirname, "data", "auditLog.json");
+
+app.post("/api/knowledge-answer/save", requireSenior, (req, res) => {
+  const { question, answer, category, previousAnswer } = req.body;
+
+  if (!question || !answer) {
+    return res.status(400).json({ error: "Question and answer are required" });
+  }
+
+  const answers = readJsonFile(knowledgeAnswersFile, []);
+  const corrections = readJsonFile(answerCorrectionsFile, []);
+  const auditLog = readJsonFile(auditLogFile, []);
+
+  const existingIndex = answers.findIndex(entry =>
+    (entry.question || "").toLowerCase().trim() === question.toLowerCase().trim()
+  );
+
+  const savedAnswer = {
+    id: existingIndex >= 0 ? answers[existingIndex].id : "ans_" + Date.now(),
+    question: question.trim(),
+    answer: answer.trim(),
+    category: category || "General",
+    source: "senior-approved",
+    approvedBy: req.user.role,
+    updatedAt: new Date().toISOString(),
+    status: "active"
+  };
+
+  if (existingIndex >= 0) {
+    corrections.unshift({
+      id: "cor_" + Date.now(),
+      question,
+      oldAnswer: answers[existingIndex].answer,
+      newAnswer: answer,
+      correctedBy: req.user.role,
+      createdAt: new Date().toISOString()
+    });
+
+    answers[existingIndex] = {
+      ...answers[existingIndex],
+      ...savedAnswer
+    };
+  } else {
+    answers.unshift({
+      ...savedAnswer,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  auditLog.unshift({
+    id: "log_" + Date.now(),
+    userRole: req.user.role,
+    action: existingIndex >= 0 ? "updated_approved_answer" : "created_approved_answer",
+    target: question,
+    createdAt: new Date().toISOString()
+  });
+
+  writeJsonFile(knowledgeAnswersFile, answers);
+  writeJsonFile(answerCorrectionsFile, corrections);
+  writeJsonFile(auditLogFile, auditLog);
+
+  res.json({
+    success: true,
+    answer: savedAnswer
+  });
 });
 
 app.post("/api/knowledge-answer", requireLogin, async (req, res) => {

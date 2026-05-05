@@ -481,6 +481,43 @@
       <div id="chatLogs"></div>
     </div>
 
+    <div class="section-card senior-only">
+      <h3>Approved Answers</h3>
+
+      <div class="form-group">
+        <label>Question</label>
+        <input
+          id="approvedQuestion"
+          type="text"
+          placeholder="e.g. What is a sales advice notice?"
+        />
+      </div>
+
+      <div class="form-group">
+        <label>Approved Answer</label>
+        <textarea
+          id="approvedAnswer"
+          rows="5"
+          placeholder="Enter Cormac-approved answer..."
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Category (optional)</label>
+        <input
+          id="approvedCategory"
+          type="text"
+          placeholder="e.g. Mortgage Process"
+        />
+      </div>
+
+      <button onclick="saveApprovedAnswer()" class="primary-btn">
+        Save Approved Answer
+      </button>
+
+      <p id="approvedAnswerStatus" class="status-text"></p>
+    </div>
+
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
         <div>
@@ -681,6 +718,41 @@
       });
 
       await loadStatus();
+    }
+
+    async function saveApprovedAnswer() {
+      const question = document.getElementById("approvedQuestion").value.trim();
+      const answer = document.getElementById("approvedAnswer").value.trim();
+      const category = document.getElementById("approvedCategory").value.trim();
+      const status = document.getElementById("approvedAnswerStatus");
+
+      if (!question || !answer) {
+        status.innerText = "Please enter both a question and an approved answer.";
+        return;
+      }
+
+      const response = await fetch("/api/knowledge-answer/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          question,
+          answer,
+          category
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        status.innerText = "✅ Approved answer saved. Sprimal will use this first next time.";
+        document.getElementById("approvedQuestion").value = "";
+        document.getElementById("approvedAnswer").value = "";
+        document.getElementById("approvedCategory").value = "";
+      } else {
+        status.innerText = result.error || "Failed to save approved answer.";
+      }
     }
 
     function parseMoney(value) {

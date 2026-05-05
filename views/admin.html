@@ -1450,14 +1450,14 @@ async function askKB() {
 
     answerBox.innerText = lastKBAnswer;
 
-  if (
-    actionBox &&
-    lastKBAnswer &&
-    !lastKBAnswer.toLowerCase().includes("don't have") &&
-    !lastKBAnswer.toLowerCase().includes("no response")
-  ) {
-    actionBox.style.display = "flex";
-  }
+    if (
+      actionBox &&
+      lastKBAnswer &&
+      !lastKBAnswer.toLowerCase().includes("don't have") &&
+      !lastKBAnswer.toLowerCase().includes("no response")
+    ) {
+      actionBox.style.display = "flex";
+    }
   } catch (err) {
     console.error("Knowledge base error:", err);
     answerBox.innerText = "Something went wrong asking the knowledge base.";

@@ -2228,9 +2228,13 @@ app.post("/api/knowledge-answer", async (req, res) => {
 
   const lowerQuestion = question.toLowerCase();
 
-  const match = approvedAnswers.find(entry =>
-    lowerQuestion.includes(entry.question.toLowerCase())
+const match = approvedAnswers.find(entry => {
+  const storedQuestion = (entry.question || "").toLowerCase().trim();
+  return (
+    lowerQuestion.includes(storedQuestion) ||
+    storedQuestion.includes(lowerQuestion)
   );
+});
 
   if (match) {
     return res.json({

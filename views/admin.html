@@ -429,6 +429,32 @@
   height: 100%;
   overflow: auto;
 }
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  font-weight: bold;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  font-size: 15px;
+}
+
+textarea.form-input {
+  resize: vertical;
+  min-height: 100px;
+}
+
 </style>
 </head>
 
@@ -483,42 +509,47 @@
 
   <div class="card senior-only">
   <h2>Approved Answers</h2>
-  <p class="section-description">
+  <p class="subtitle">
     Save broker-approved answers that Sprimal should use first in future.
   </p>
 
   <div class="form-group">
-    <label for="approvedQuestion">Question</label>
+    <label>Question</label>
     <input
       id="approvedQuestion"
       type="text"
       placeholder="e.g. What is a sales advice notice?"
+      class="form-input"
     />
   </div>
 
   <div class="form-group">
-    <label for="approvedAnswer">Approved Answer</label>
+    <label>Approved Answer</label>
     <textarea
       id="approvedAnswer"
       rows="5"
       placeholder="Enter Cormac-approved answer..."
+      class="form-input"
     ></textarea>
   </div>
 
   <div class="form-group">
-    <label for="approvedCategory">Category</label>
+    <label>Category</label>
     <input
       id="approvedCategory"
       type="text"
       placeholder="e.g. Mortgage Process"
+      class="form-input"
     />
   </div>
 
-  <button class="btn-primary" onclick="saveApprovedAnswer()">
-    Save Approved Answer
-  </button>
+  <div class="button-row">
+    <button class="btn-primary" onclick="saveApprovedAnswer()">
+      Save Approved Answer
+    </button>
+  </div>
 
-  <p id="approvedAnswerStatus" class="status-text"></p>
+  <p id="approvedAnswerStatus" class="meta"></p>
 </div>
 
     <div class="card">

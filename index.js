@@ -2226,10 +2226,10 @@ app.post("/api/knowledge-answer", async (req, res) => {
     []
   );
 
+  const lowerQuestion = question.toLowerCase();
+
   console.log("[approved answers loaded]:", approvedAnswers.length);
   console.log("[question asked]:", lowerQuestion);
-
-  const lowerQuestion = question.toLowerCase();
 
   const match = approvedAnswers.find(entry => {
   const storedQuestion = (entry.question || "").toLowerCase().trim();

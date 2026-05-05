@@ -1421,6 +1421,9 @@ function fillExample(type) {
 async function askKB() {
   const question = document.getElementById("kb-question").value.trim();
   const answerBox = document.getElementById("kb-answer");
+  const actionBox = document.getElementById("kb-answer-actions");
+
+  if (actionBox) actionBox.style.display = "none";
 
   if (!question) {
     answerBox.style.display = "block";
@@ -1431,27 +1434,33 @@ async function askKB() {
   answerBox.style.display = "block";
   answerBox.innerText = "Thinking...";
 
-  const actions = document.getElementById("kb-answer-actions");
-  if (actions) actions.style.display = "none";
+  try {
+    const res = await fetch("/api/knowledge-answer", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ question })
+    });
 
-  const res = await fetch("/api/knowledge-answer", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ question })
-  });
+    const data = await res.json();
 
-  const data = await res.json();
+    lastKBQuestion = question;
+    lastKBAnswer = data.answer || data.error || "No response";
 
-  lastKBQuestion = question;
-  lastKBAnswer = data.answer || data.error || "No response";
+    answerBox.innerText = lastKBAnswer;
 
-  answerBox.innerText = lastKBAnswer;
-
-  const actions = document.getElementById("kb-answer-actions");
-  if (actions && lastKBAnswer && !lastKBAnswer.includes("I don't have that")) {
-    actions.style.display = "flex";
+  if (
+    actionBox &&
+    lastKBAnswer &&
+    !lastKBAnswer.toLowerCase().includes("don't have") &&
+    !lastKBAnswer.toLowerCase().includes("no response")
+  ) {
+    actionBox.style.display = "flex";
+  }
+  } catch (err) {
+    console.error("Knowledge base error:", err);
+    answerBox.innerText = "Something went wrong asking the knowledge base.";
   }
 }
 

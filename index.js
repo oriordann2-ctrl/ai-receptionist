@@ -2221,6 +2221,25 @@ app.get("/api/knowledge-base", requireAdmin, (req, res) => {
 app.post("/api/knowledge-answer", async (req, res) => {
   const { question } = req.body;
 
+  const approvedAnswers = readJsonFile(
+    path.join(__dirname, "data", "knowledgeAnswers.json"),
+    []
+  );
+
+  const lowerQuestion = question.toLowerCase();
+
+  const match = approvedAnswers.find(entry =>
+    lowerQuestion.includes(entry.question.toLowerCase())
+  );
+
+  if (match) {
+    return res.json({
+      answer: match.answer,
+      source: "approved",
+      confidence: "high"
+    });
+  }
+
   if (!question) {
     return res.status(400).json({ error: "question is required" });
   }

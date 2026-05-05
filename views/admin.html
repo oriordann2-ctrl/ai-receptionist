@@ -607,6 +607,12 @@ textarea.form-input {
             color:#111827;
           "
         ></div>
+
+        <div id="kb-answer-actions" class="button-row senior-only" style="display:none;">
+          <button class="btn-primary" onclick="saveCurrentKBAnswer()">
+            Save This Answer
+          </button>
+        </div>
       </div>
     </div>
 
@@ -719,6 +725,10 @@ textarea.form-input {
   </div>
 
   <script>
+
+    let lastKBQuestion = "";
+    let lastKBAnswer = "";
+
     let currentStatus = {
       aiEnabled: true,
       businessMode: "gp"
@@ -1421,6 +1431,9 @@ async function askKB() {
   answerBox.style.display = "block";
   answerBox.innerText = "Thinking...";
 
+  const actions = document.getElementById("kb-answer-actions");
+  if (actions) actions.style.display = "none";
+
   const res = await fetch("/api/knowledge-answer", {
     method: "POST",
     headers: {
@@ -1431,7 +1444,42 @@ async function askKB() {
 
   const data = await res.json();
 
-  answerBox.innerText = data.answer || data.error || "No response";
+  lastKBQuestion = question;
+  lastKBAnswer = data.answer || data.error || "No response";
+
+  answerBox.innerText = lastKBAnswer;
+
+  const actions = document.getElementById("kb-answer-actions");
+  if (actions && lastKBAnswer && !lastKBAnswer.includes("I don't have that")) {
+    actions.style.display = "flex";
+  }
+}
+
+async function saveCurrentKBAnswer() {
+  if (!lastKBQuestion || !lastKBAnswer) {
+    alert("No answer to save yet.");
+    return;
+  }
+
+  const response = await fetch("/api/knowledge-answer/save", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      question: lastKBQuestion,
+      answer: lastKBAnswer,
+      category: "Knowledge Base"
+    })
+  });
+
+  const result = await response.json();
+
+  if (result.success) {
+    alert("✅ Answer saved as approved knowledge.");
+  } else {
+    alert(result.error || "Failed to save answer.");
+  }
 }
 </script>
 

@@ -33,7 +33,7 @@ Thumbs.db
 .vscode/
 
 # Data files (your app persistence)
-data/*.json
+# data/*.json
 
 # Allow initial seed files
 !data/appointments.json

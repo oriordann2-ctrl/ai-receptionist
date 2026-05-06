@@ -571,7 +571,7 @@ textarea.form-input {
   <div id="flaggedAnswers"></div>
 </div>
 
-    <div class="card junior-only">
+    <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
         <div>
           <h2>Knowledge Base Assistant ⭐</h2>
@@ -668,7 +668,7 @@ textarea.form-input {
   <div id="knowledgeUploadStatus" class="form-status"></div>
 </section>
 
-    <div class="card junior-only">
+    <div class="card">
       <h2>Email Reply Assistant</h2>
       <p class="muted">Paste a client email and generate a draft reply.</p>
 
@@ -799,11 +799,7 @@ textarea.form-input {
             role === "senior" ? "Senior Broker View" : "Junior Staff View";
         }
 
-        document.querySelectorAll(".junior-only").forEach(el => {
-          el.style.display = role === "junior" ? "block" : "none";
-        });
-
-        document.querySelectorAll(".senior-only").forEach(el => {
+       document.querySelectorAll(".senior-only").forEach(el => {
           el.style.display = role === "senior" ? "block" : "none";
         });
 

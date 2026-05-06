@@ -1098,11 +1098,11 @@ textarea.form-input {
                 <strong>Flagged by:</strong> ${item.flaggedBy || "-"}<br>
                 <strong>Flagged:</strong> ${item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}
               </div>
-              <button class="btn-primary" onclick="approveFlagged(
-                '${item.id}',
-                '${String(item.question).replace(/'/g, "\\'")}',
-                `${String(item.answer).replace(/`/g, "\\`")}`
-              )">
+              <button class="btn-primary" onclick='approveFlagged(
+                ${JSON.stringify(item.id)},
+                ${JSON.stringify(item.question || "")},
+                ${JSON.stringify(item.answer || "")}
+              )'>
                 Approve as Correct Answer
               </button>
             `;

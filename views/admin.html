@@ -1146,22 +1146,31 @@ textarea.form-input {
           flagged.forEach(item => {
             const div = document.createElement("div");
             div.className = "item";
-            div.innerHTML = `
-              <div class="item-title">${item.question}</div>
-              <div class="meta">
-                <strong>Answer:</strong> ${item.answer}<br>
-                <strong>Feedback:</strong> ${item.feedback || "None"}<br>
-                <strong>Flagged by:</strong> ${item.flaggedBy || "-"}<br>
-                <strong>Flagged:</strong> ${item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}
-              </div>
-              <button class="btn-primary" onclick='approveFlagged(
-                ${JSON.stringify(item.id)},
-                ${JSON.stringify(item.question || "")},
-                ${JSON.stringify(item.answer || "")}
-              )'>
-                Approve as Correct Answer
-              </button>
-            `;
+
+            const title = document.createElement("div");
+            title.className = "item-title";
+            title.innerText = item.question || "";
+
+            const meta = document.createElement("div");
+            meta.className = "meta";
+            meta.innerText =
+              "Answer: " + (item.answer || "") + "\n" +
+              "Feedback: " + (item.feedback || "None") + "\n" +
+              "Flagged by: " + (item.flaggedBy || "-") + "\n" +
+              "Flagged: " + (item.createdAt ? new Date(item.createdAt).toLocaleString() : "-");
+
+            const button = document.createElement("button");
+            button.className = "btn-primary";
+            button.innerText = "Approve as Correct Answer";
+
+            button.addEventListener("click", () => {
+              approveFlagged(item.id, item.question || "", item.answer || "");
+            });
+
+            div.appendChild(title);
+            div.appendChild(meta);
+            div.appendChild(button);
+
             flaggedDiv.appendChild(div);
           });
         }
@@ -1659,8 +1668,8 @@ async function flagCurrentKBAnswer() {
 }
 
 async function approveFlagged(id, question, answer) {
-  document.getElementById("approvedQuestion").value = question;
-  document.getElementById("approvedAnswer").value = answer;
+  document.getElementById("approvedQuestion").value = question || "";
+  document.getElementById("approvedAnswer").value = answer || "";
   document.getElementById("approvedCategory").value = "Knowledge Base Review";
 
   document.getElementById("approvedQuestion").scrollIntoView({
@@ -1668,11 +1677,12 @@ async function approveFlagged(id, question, answer) {
     block: "center"
   });
 
-  await fetch(`/api/knowledge-answer/flagged/${id}`, {
-    method: "DELETE"
+  await fetch(`/api/knowledge-answer/flagged/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include"
   });
 
-  loadData();
+  await loadData();
 }
 </script>
 

@@ -2476,7 +2476,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
     if (relevantDocs.length > 0 && !answerLower.includes("i don't have that in the knowledge base yet")) {
       source = "Knowledge Document";
       confidence = "Medium";
-      sourceDetail = relevantDocs.map(doc => doc.filename).join(", ");
+      sourceDetail = [...new Set(relevantDocs.map(doc => doc.filename))].join(", ");
     }
 
     if (

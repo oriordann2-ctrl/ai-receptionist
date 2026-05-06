@@ -455,32 +455,42 @@ textarea.form-input {
   min-height: 100px;
 }
 
+.system-card {
+  margin-bottom: 16px;
+}
+
+.junior-only,
+.senior-only {
+  display: none;
+}
+
 </style>
 </head>
 
 <body>
   <div class="container">
     <h1>Admin Dashboard</h1>
-    <p class="subtitle">Control the AI assistant and review mortgage leads, bookings, conversations, and uploaded documents.</p>
+    <p class="subtitle">Ask questions to the Knowledgebase.</p>
 
-    <div class="top-grid">
-      <div class="card">
-        <h2>System Status</h2>
-        <button class="btn-gray" onclick="logout()">Log Out</button>
+<div class="top-grid">
+  <div class="card system-card">
 
-        <div class="stat-row">
-          <span id="statusBadge" class="badge">Loading...</span>
-<!--           <span id="leadsBadge" class="badge badge-leads">0 leads</span>
-          <span id="countBadge" class="badge badge-count">0 appointments</span>
-          <span id="docsBadge" class="badge badge-docs">0 documents</span> -->
-        </div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="margin:0;">System Status</h2>
 
-        <div class="button-row">
-          <button class="btn-green" onclick="setStatus(true)">Turn ON</button>
-          <button class="btn-red" onclick="setStatus(false)">Turn OFF</button>
-        </div>
-      </div>
+      <button class="btn-gray" onclick="logout()">
+        Log Out
+      </button>
     </div>
+
+    <div class="stat-row">
+      <span id="roleBadge" class="badge badge-mode">
+        Loading user...
+      </span>
+    </div>
+
+  </div>
+</div>
 
 <!--   <div class="card">
       <h2>Mortgage Leads</h2>
@@ -561,11 +571,15 @@ textarea.form-input {
   <div id="flaggedAnswers"></div>
 </div>
 
-    <div class="card">
+    <div class="card junior-only">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
         <div>
-          <h2>Knowledge Base Assistant</h2>
-          <p class="muted">Ask internal mortgage process or document questions.</p>
+          <h2>Knowledge Base Assistant ⭐</h2>
+
+          <p class="muted">
+            Ask Sprimal about mortgage processes, lender rules,
+            required documents, timelines, and client queries.
+          </p>
         </div>
       </div>
 
@@ -629,7 +643,7 @@ textarea.form-input {
       </div>
     </div>
 
-<section class="card">
+<section class="card senior-only">
   <h2>Knowledge Base Documents</h2>
 
   <div class="form-group">
@@ -654,7 +668,7 @@ textarea.form-input {
   <div id="knowledgeUploadStatus" class="form-status"></div>
 </section>
 
-    <div class="card">
+    <div class="card junior-only">
       <h2>Email Reply Assistant</h2>
       <p class="muted">Paste a client email and generate a draft reply.</p>
 

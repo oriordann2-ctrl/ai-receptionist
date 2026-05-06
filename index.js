@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const cookieParser = require("cookie-parser");
+const { createClient } = require("@supabase/supabase-js");
 dotenv.config();
 
 const supabase = createClient(
@@ -45,8 +46,6 @@ const MAEVE_VOICE_ID = "sgk995upfe3tYLvoGcBN";
 const nodemailer = require("nodemailer");
 
 const brokerEmail = process.env.BROKER_EMAIL;
-
-const { createClient } = require("@supabase/supabase-js");
 
 async function extractPdfText(filePath) {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");

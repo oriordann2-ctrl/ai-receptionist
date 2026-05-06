@@ -2256,6 +2256,18 @@ Use plain numbers where possible.
   }
 });
 
+app.delete("/api/knowledge-answer/flagged/:id", requireSenior, (req, res) => {
+  const flagged = readJsonFile(flaggedAnswersFile, []);
+
+  const updated = flagged.filter(
+    item => item.id !== req.params.id
+  );
+
+  writeJsonFile(flaggedAnswersFile, updated);
+
+  res.json({ success: true });
+});
+
 app.get("/api/knowledge-answer/flagged", requireSenior, (req, res) => {
   const flagged = readJsonFile(flaggedAnswersFile, []);
   res.json(flagged);

@@ -1089,7 +1089,11 @@ textarea.form-input {
                 <strong>Flagged by:</strong> ${item.flaggedBy || "-"}<br>
                 <strong>Flagged:</strong> ${item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}
               </div>
-              <button class="btn-primary" onclick="approveFlagged('${String(item.question).replace(/'/g, "\\'")}', '${String(item.answer).replace(/'/g, "\\'")}')">
+              <button class="btn-primary" onclick="approveFlagged(
+                '${item.id}',
+                '${String(item.question).replace(/'/g, "\\'")}',
+                `${String(item.answer).replace(/`/g, "\\`")}`
+              )">
                 Approve as Correct Answer
               </button>
             `;
@@ -1563,7 +1567,7 @@ async function flagCurrentKBAnswer() {
   }
 }
 
-function approveFlagged(question, answer) {
+async function approveFlagged(id, question, answer) {
   document.getElementById("approvedQuestion").value = question;
   document.getElementById("approvedAnswer").value = answer;
   document.getElementById("approvedCategory").value = "Knowledge Base Review";
@@ -1572,6 +1576,12 @@ function approveFlagged(question, answer) {
     behavior: "smooth",
     block: "center"
   });
+
+  await fetch(`/api/knowledge-answer/flagged/${id}`, {
+    method: "DELETE"
+  });
+
+  loadData();
 }
 </script>
 

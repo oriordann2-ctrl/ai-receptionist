@@ -6,6 +6,13 @@ const crypto = require("crypto");
 const cookieParser = require("cookie-parser");
 dotenv.config();
 
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "knowledge-documents";
+
 const { OpenAI } = require("openai");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY2 });
 
@@ -38,6 +45,8 @@ const MAEVE_VOICE_ID = "sgk995upfe3tYLvoGcBN";
 const nodemailer = require("nodemailer");
 
 const brokerEmail = process.env.BROKER_EMAIL;
+
+const { createClient } = require("@supabase/supabase-js");
 
 async function extractPdfText(filePath) {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -121,34 +130,79 @@ app.post(
         });
       }
 
-      const docs = loadKnowledgeDocs();
+      const fileExt = path.extname(req.file.originalname);
+      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const storagePath = `${Date.now()}-${safeName}`;
 
-      const newDoc = {
-        id: Date.now().toString(),
-        filename: req.file.originalname,
-        mimetype: req.file.mimetype,
-        text: extractedText,
-        uploadedAt: new Date().toISOString()
-      };
+      const fileBuffer = fs.readFileSync(req.file.path);
 
-      docs.unshift(newDoc);
-      saveKnowledgeDocs(docs);
+      const { error: uploadError } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(storagePath, fileBuffer, {
+          contentType: req.file.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error("Supabase storage upload error:", uploadError);
+        return res.status(500).json({ error: "Failed to upload file to Supabase" });
+      }
+
+      const { data, error: insertError } = await supabase
+        .from("knowledge_documents")
+        .insert({
+          filename: req.file.originalname,
+          storage_path: storagePath,
+          mimetype: req.file.mimetype,
+          extracted_text: extractedText
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Supabase insert error:", insertError);
+        return res.status(500).json({ error: "Failed to save document metadata" });
+      }
+
+      fs.unlink(req.file.path, () => {});
 
       res.json({
         success: true,
-        message: "Document added to knowledge base",
+        message: "Document added to Supabase knowledge base",
         document: {
-          id: newDoc.id,
-          filename: newDoc.filename,
-          uploadedAt: newDoc.uploadedAt
+          id: data.id,
+          filename: data.filename,
+          uploadedAt: data.uploaded_at
         }
       });
+
     } catch (err) {
       console.error("Knowledge document upload error:", err);
       res.status(500).json({ error: "Failed to process document" });
     }
   }
 );
+
+async function loadKnowledgeDocs() {
+  const { data, error } = await supabase
+    .from("knowledge_documents")
+    .select("*")
+    .order("uploaded_at", { ascending: false });
+
+  if (error) {
+    console.error("Supabase loadKnowledgeDocs error:", error);
+    return [];
+  }
+
+  return data.map(doc => ({
+    id: doc.id,
+    filename: doc.filename,
+    mimetype: doc.mimetype,
+    text: doc.extracted_text,
+    uploadedAt: doc.uploaded_at,
+    storagePath: doc.storage_path
+  }));
+}
 
 function startMaeveIntroOnce() {
   if (maeveIntroPlayed) return;
@@ -1391,8 +1445,8 @@ function getBestKnowledgeSnippet(text, message) {
   return fullText.slice(bestIndex, bestIndex + 4000);
 }
 
-function findRelevantKnowledgeChunks(message) {
-  const docs = loadKnowledgeDocs();
+async function findRelevantKnowledgeChunks(message) {
+  const docs = await loadKnowledgeDocs();
 
   const words = message
     .toLowerCase()
@@ -2409,7 +2463,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   }
 
     const kb = readJsonFile(knowledgeBaseFile, []);
-    const relevantDocs = findRelevantKnowledgeChunks(question);
+    const relevantDocs = await findRelevantKnowledgeChunks(question);
 
     const manualContext = kb
       .map(entry => `${entry.topic}:\n${entry.content}`)

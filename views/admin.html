@@ -1580,25 +1580,62 @@ async function askKB() {
     const sourceDetail = data.sourceDetail || "";
 
     answerBox.innerHTML = `
-      <div>${lastKBAnswer}</div>
+      <div style="
+        font-size:18px;
+        line-height:1.7;
+        color:#111827;
+      ">
+        ${lastKBAnswer}
+      </div>
 
       <div style="
-        margin-top:16px;
-        padding-top:12px;
+        margin-top:18px;
+        padding-top:14px;
         border-top:1px solid #e5e7eb;
-        font-size:14px;
-        color:#4b5563;
-        line-height:1.6;
+        display:flex;
+        flex-wrap:wrap;
+        gap:10px;
+        align-items:center;
       ">
-        <strong>Source:</strong> ${source}<br>
+
+        <span style="
+          background:#ecfdf5;
+          color:#065f46;
+          padding:6px 12px;
+          border-radius:999px;
+          font-size:13px;
+          font-weight:700;
+        ">
+          ${source}
+        </span>
+
+        <span style="
+          background:#eff6ff;
+          color:#1d4ed8;
+          padding:6px 12px;
+          border-radius:999px;
+          font-size:13px;
+          font-weight:700;
+        ">
+          Confidence: ${confidence}
+        </span>
 
         ${
           sourceDetail
-            ? `<strong>Detail:</strong> ${sourceDetail}<br>`
+            ? `
+            <span style="
+              background:#f3f4f6;
+              color:#374151;
+              padding:6px 12px;
+              border-radius:999px;
+              font-size:13px;
+            ">
+              ${sourceDetail}
+            </span>
+          `
             : ""
         }
 
-        <strong>Confidence:</strong> ${confidence}
       </div>
     `;
 

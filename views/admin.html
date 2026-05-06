@@ -1092,14 +1092,22 @@ textarea.form-input {
     async function loadData() {
       await loadStatus();
 
-      const [appointmentsRes, chatLogsRes, documentsRes, leadsRes, emailLeadsRes, flaggedRes] = await Promise.all([
+      //const [appointmentsRes, chatLogsRes, documentsRes, leadsRes, emailLeadsRes, flaggedRes] = await Promise.all([
 /*         fetch("/appointments"),
         fetch("/chat-logs"),
         fetch("/admin/documents"),
         fetch("/admin/mortgage-leads"),
         fetch("/api/mortgage-leads"), */
-        fetch("/api/knowledge-answer/flagged")
-      ]);
+        //fetch("/api/knowledge-answer/flagged")
+      //]);
+
+      const flaggedRes = await fetch("/api/knowledge-answer/flagged", {
+        credentials: "include"
+      });
+
+      const flagged = await flaggedRes.json();
+
+      console.log("Flagged answers response:", flagged);
 
 /*       const appointments = await appointmentsRes.json();
       const chatLogs = await chatLogsRes.json();

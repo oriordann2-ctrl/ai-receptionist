@@ -2398,8 +2398,9 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   if (match) {
     return res.json({
       answer: match.answer,
-      source: "approved",
-      confidence: "high"
+      source: "Approved Answer",
+      confidence: "High",
+      sourceDetail: match.category || "Senior broker approved"
     });
   }
 
@@ -2465,8 +2466,36 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
     });
 
     const answer = completion.choices[0].message.content || "No answer returned.";
+
+    const answerLower = answer.toLowerCase();
+
+    let source = "AI Generated";
+    let confidence = "Low";
+    let sourceDetail = "No approved answer or document match found";
+
+    if (relevantDocs.length > 0 && !answerLower.includes("i don't have that in the knowledge base yet")) {
+      source = "Knowledge Document";
+      confidence = "Medium";
+      sourceDetail = relevantDocs.map(doc => doc.filename).join(", ");
+    }
+
+    if (
+      answerLower.includes("i don't have that in the knowledge base yet") ||
+      answerLower.includes("no answer returned")
+    ) {
+      source = "Knowledge Gap";
+      confidence = "Low";
+      sourceDetail = "Needs senior broker review";
+    }
+
     console.log("[/api/knowledge-answer] question:", question, "| answer length:", answer.length);
-    res.json({ answer });
+
+    res.json({
+      answer,
+      source,
+      confidence,
+      sourceDetail
+    });
   } catch (err) {
     console.error("[/api/knowledge-answer] OpenAI error:", err.message);
     res.status(500).json({ error: "Failed to generate answer." });

@@ -1561,6 +1561,7 @@ async function askKB() {
 
     const source = data.source || "AI Generated";
     const confidence = data.confidence || "Medium";
+    const sourceDetail = data.sourceDetail || "";
 
     answerBox.innerHTML = `
       <div>${lastKBAnswer}</div>
@@ -1571,9 +1572,17 @@ async function askKB() {
         border-top:1px solid #e5e7eb;
         font-size:14px;
         color:#4b5563;
+        line-height:1.6;
       ">
-        <strong>Source:</strong> ${source === "approved" ? "Approved Answer" : source}<br>
-        <strong>Confidence:</strong> ${confidence === "high" ? "High" : confidence}
+        <strong>Source:</strong> ${source}<br>
+
+        ${
+          sourceDetail
+            ? `<strong>Detail:</strong> ${sourceDetail}<br>`
+            : ""
+        }
+
+        <strong>Confidence:</strong> ${confidence}
       </div>
     `;
 

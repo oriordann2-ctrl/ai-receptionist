@@ -517,61 +517,7 @@ textarea.form-input {
       <div id="chatLogs"></div>
     </div> -->
 
-  <div class="card senior-only">
-  <h2>Approved Answers</h2>
-  <p class="subtitle">
-    Save broker-approved answers that Sprimal should use first in future.
-  </p>
-
-  <div class="form-group">
-    <label>Question</label>
-    <input
-      id="approvedQuestion"
-      type="text"
-      placeholder="e.g. What is a sales advice notice?"
-      class="form-input"
-    />
-  </div>
-
-  <div class="form-group">
-    <label>Approved Answer</label>
-    <textarea
-      id="approvedAnswer"
-      rows="5"
-      placeholder="Enter Cormac-approved answer..."
-      class="form-input"
-    ></textarea>
-  </div>
-
-  <div class="form-group">
-    <label>Category</label>
-    <input
-      id="approvedCategory"
-      type="text"
-      placeholder="e.g. Mortgage Process"
-      class="form-input"
-    />
-  </div>
-
-  <div class="button-row">
-    <button class="btn-primary" onclick="saveApprovedAnswer()">
-      Save Approved Answer
-    </button>
-  </div>
-
-  <p id="approvedAnswerStatus" class="meta"></p>
-</div>
-
-<div class="card senior-only">
-  <h2>Flagged Answers (Review)</h2>
-  <p class="subtitle">
-    Review answers flagged by junior staff and improve the knowledge base.
-  </p>
-
-  <div id="flaggedAnswers"></div>
-</div>
-
-    <div class="card">
+<div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
         <div>
           <h2>Knowledge Base Assistant ⭐</h2>
@@ -642,6 +588,61 @@ textarea.form-input {
       </div>
     </div>
 
+  <div class="card senior-only">
+    <h2>Flagged Answers (Review)</h2>
+    <p class="subtitle">
+      Review answers flagged by junior staff and improve the knowledge base.
+    </p>
+
+    <div id="flaggedAnswers"></div>
+  </div>
+
+  <div class="card senior-only">
+  <h2>Approved Answers</h2>
+  <p class="subtitle">
+    Save broker-approved answers that Sprimal should use first in future.
+  </p>
+
+  <div class="form-group">
+    <label>Question</label>
+    <input
+      id="approvedQuestion"
+      type="text"
+      placeholder="e.g. What is a sales advice notice?"
+      class="form-input"
+    />
+  </div>
+
+  <div class="form-group">
+    <label>Approved Answer</label>
+    <textarea
+      id="approvedAnswer"
+      rows="5"
+      placeholder="Enter Cormac-approved answer..."
+      class="form-input"
+    ></textarea>
+  </div>
+
+  <div class="form-group">
+    <label>Category</label>
+    <input
+      id="approvedCategory"
+      type="text"
+      placeholder="e.g. Mortgage Process"
+      class="form-input"
+    />
+  </div>
+
+  <div class="button-row">
+    <button class="btn-primary" onclick="saveApprovedAnswer()">
+      Save Approved Answer
+    </button>
+  </div>
+
+  <p id="approvedAnswerStatus" class="meta"></p>
+</div>
+
+    
 <section class="card senior-only">
   <h2>Knowledge Base Documents</h2>
 

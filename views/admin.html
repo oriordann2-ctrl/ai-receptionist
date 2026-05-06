@@ -1160,7 +1160,7 @@ textarea.form-input {
 
             const button = document.createElement("button");
             button.className = "btn-primary";
-            button.innerText = "Approve as Correct Answer";
+            button.innerText = "Review / Edit / Approve";
 
             button.addEventListener("click", () => {
               approveFlagged(item.id, item.question || "", item.answer || "");
@@ -1704,9 +1704,15 @@ async function flagCurrentKBAnswer() {
 }
 
 async function approveFlagged(id, question, answer) {
-  document.getElementById("approvedQuestion").value = question || "";
-  document.getElementById("approvedAnswer").value = answer || "";
-  document.getElementById("approvedCategory").value = "Knowledge Base Review";
+document.getElementById("approvedQuestion").value = question || "";
+document.getElementById("approvedAnswer").value = answer || "";
+document.getElementById("approvedCategory").value = "Knowledge Base Review";
+
+const status = document.getElementById("approvedAnswerStatus");
+if (status) {
+  status.innerText =
+    "Review and edit this answer if needed, then click Save Approved Answer.";
+}
 
   document.getElementById("approvedQuestion").scrollIntoView({
     behavior: "smooth",

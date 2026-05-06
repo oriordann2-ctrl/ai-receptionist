@@ -618,7 +618,7 @@ textarea.form-input {
     <textarea
       id="approvedAnswer"
       rows="5"
-      placeholder="Enter Cormac-approved answer..."
+      placeholder="Enter senior broker-approved answer..."
       class="form-input"
     ></textarea>
   </div>
@@ -666,6 +666,50 @@ textarea.form-input {
   </div>
 
   <div id="knowledgeUploadStatus" class="form-status"></div>
+
+  <div style="margin-top:24px; border-top:1px solid #e5e7eb; padding-top:20px;">
+
+  <h3 style="margin-bottom:12px;">Paste Knowledge</h3>
+
+  <input
+    id="pastedKnowledgeTitle"
+    type="text"
+    placeholder="Title or subject"
+    style="
+      width:100%;
+      padding:12px;
+      border:1px solid #d1d5db;
+      border-radius:10px;
+      margin-bottom:12px;
+      box-sizing:border-box;
+    "
+  />
+
+  <textarea
+    id="pastedKnowledgeText"
+    placeholder="Paste email, lender clarification, process note, FAQ answer..."
+    style="
+      width:100%;
+      min-height:180px;
+      padding:14px;
+      border:1px solid #d1d5db;
+      border-radius:12px;
+      box-sizing:border-box;
+      resize:vertical;
+      font-family:Arial, sans-serif;
+      line-height:1.5;
+    "
+  ></textarea>
+
+  <button
+    onclick="savePastedKnowledge()"
+    class="btn-primary"
+    style="margin-top:12px;"
+  >
+    Save Knowledge
+  </button>
+
+</div>
 </section>
 
     <div class="card">
@@ -1088,6 +1132,47 @@ textarea.form-input {
     document.getElementById("previewModal").addEventListener("click", (e) => {
       if (e.target.id === "previewModal") closePreview();
     });
+
+async function savePastedKnowledge() {
+  const title = document.getElementById("pastedKnowledgeTitle").value.trim();
+  const text = document.getElementById("pastedKnowledgeText").value.trim();
+
+  if (!title || !text) {
+    alert("Please enter both title and content");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/knowledge-documents/paste", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        title,
+        text
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to save knowledge");
+    }
+
+    alert("Knowledge saved");
+
+    document.getElementById("pastedKnowledgeTitle").value = "";
+    document.getElementById("pastedKnowledgeText").value = "";
+
+    loadData();
+
+  } catch (err) {
+    console.error(err);
+    alert("Failed to save knowledge");
+  }
+}
 
     async function loadData() {
       await loadStatus();

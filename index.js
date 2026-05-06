@@ -2373,6 +2373,49 @@ app.get("/api/knowledge-base", requireAdmin, (req, res) => {
   res.json(kb);
 });
 
+app.post("/api/knowledge-documents/paste", requireSenior, async (req, res) => {
+  try {
+    const { title, text } = req.body;
+
+    if (!title || !text) {
+      return res.status(400).json({
+        error: "Title and text are required"
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("knowledge_documents")
+      .insert({
+        filename: `${title}.txt`,
+        storage_path: null,
+        mimetype: "text/plain",
+        extracted_text: text
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Paste knowledge insert error:", error);
+
+      return res.status(500).json({
+        error: "Failed to save knowledge"
+      });
+    }
+
+    res.json({
+      success: true,
+      document: data
+    });
+
+  } catch (err) {
+    console.error("Paste knowledge error:", err);
+
+    res.status(500).json({
+      error: "Failed to save knowledge"
+    });
+  }
+});
+
 const knowledgeAnswersFile = path.join(__dirname, "data", "knowledgeAnswers.json");
 const answerCorrectionsFile = path.join(__dirname, "data", "answerCorrections.json");
 const auditLogFile = path.join(__dirname, "data", "auditLog.json");

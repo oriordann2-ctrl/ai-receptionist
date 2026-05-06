@@ -2319,21 +2319,53 @@ Use plain numbers where possible.
   }
 });
 
-app.delete("/api/knowledge-answer/flagged/:id", requireSenior, (req, res) => {
-  const flagged = readJsonFile(flaggedAnswersFile, []);
+app.delete("/api/knowledge-answer/flagged/:id", requireSenior, async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  const updated = flagged.filter(
-    item => item.id !== req.params.id
-  );
+    const { error } = await supabase
+      .from("flagged_answers")
+      .delete()
+      .eq("id", id);
 
-  writeJsonFile(flaggedAnswersFile, updated);
+    if (error) {
+      console.error("Supabase flagged answer delete error:", error);
+      return res.status(500).json({ error: "Failed to delete flagged answer" });
+    }
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete flagged answer error:", err);
+    res.status(500).json({ error: "Failed to delete flagged answer" });
+  }
 });
 
-app.get("/api/knowledge-answer/flagged", requireSenior, (req, res) => {
-  const flagged = readJsonFile(flaggedAnswersFile, []);
-  res.json(flagged);
+app.get("/api/knowledge-answer/flagged", requireSenior, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("flagged_answers")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Supabase flagged answers load error:", error);
+      return res.status(500).json({ error: "Failed to load flagged answers" });
+    }
+
+    res.json(
+      data.map(item => ({
+        id: item.id,
+        question: item.question,
+        answer: item.answer,
+        feedback: item.feedback,
+        flaggedBy: item.flagged_by,
+        createdAt: item.created_at
+      }))
+    );
+  } catch (err) {
+    console.error("Load flagged answers error:", err);
+    res.status(500).json({ error: "Failed to load flagged answers" });
+  }
 });
 
 app.get("/api/knowledge-base", requireAdmin, (req, res) => {
@@ -2345,94 +2377,63 @@ const knowledgeAnswersFile = path.join(__dirname, "data", "knowledgeAnswers.json
 const answerCorrectionsFile = path.join(__dirname, "data", "answerCorrections.json");
 const auditLogFile = path.join(__dirname, "data", "auditLog.json");
 
-app.post("/api/knowledge-answer/save", requireSenior, (req, res) => {
-  const { question, answer, category, previousAnswer } = req.body;
+app.post("/api/knowledge-answer/save", requireSenior, async (req, res) => {
+  try {
+    const { question, answer, category } = req.body;
 
-  if (!question || !answer) {
-    return res.status(400).json({ error: "Question and answer are required" });
+    if (!question || !answer) {
+      return res.status(400).json({ error: "Question and answer are required" });
+    }
+
+    const { error } = await supabase
+      .from("approved_answers")
+      .insert({
+        question,
+        answer,
+        category: category || "General"
+      });
+
+    if (error) {
+      console.error("Supabase approved answer save error:", error);
+      return res.status(500).json({ error: "Failed to save approved answer" });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Save approved answer error:", err);
+    res.status(500).json({ error: "Failed to save approved answer" });
   }
-
-  const answers = readJsonFile(knowledgeAnswersFile, []);
-  const corrections = readJsonFile(answerCorrectionsFile, []);
-  const auditLog = readJsonFile(auditLogFile, []);
-
-  const existingIndex = answers.findIndex(entry =>
-    (entry.question || "").toLowerCase().trim() === question.toLowerCase().trim()
-  );
-
-  const savedAnswer = {
-    id: existingIndex >= 0 ? answers[existingIndex].id : "ans_" + Date.now(),
-    question: question.trim(),
-    answer: answer.trim(),
-    category: category || "General",
-    source: "senior-approved",
-    approvedBy: req.user.role,
-    updatedAt: new Date().toISOString(),
-    status: "active"
-  };
-
-  if (existingIndex >= 0) {
-    corrections.unshift({
-      id: "cor_" + Date.now(),
-      question,
-      oldAnswer: answers[existingIndex].answer,
-      newAnswer: answer,
-      correctedBy: req.user.role,
-      createdAt: new Date().toISOString()
-    });
-
-    answers[existingIndex] = {
-      ...answers[existingIndex],
-      ...savedAnswer
-    };
-  } else {
-    answers.unshift({
-      ...savedAnswer,
-      createdAt: new Date().toISOString()
-    });
-  }
-
-  auditLog.unshift({
-    id: "log_" + Date.now(),
-    userRole: req.user.role,
-    action: existingIndex >= 0 ? "updated_approved_answer" : "created_approved_answer",
-    target: question,
-    createdAt: new Date().toISOString()
-  });
-
-  writeJsonFile(knowledgeAnswersFile, answers);
-  writeJsonFile(answerCorrectionsFile, corrections);
-  writeJsonFile(auditLogFile, auditLog);
-
-  res.json({
-    success: true,
-    answer: savedAnswer
-  });
 });
 
 const flaggedAnswersFile = path.join(__dirname, "data", "flaggedAnswers.json");
 
-app.post("/api/knowledge-answer/flag", requireLogin, (req, res) => {
-  const { question, answer, feedback } = req.body;
+app.post("/api/knowledge-answer/flag", requireLogin, async (req, res) => {
+  try {
+    const { question, answer, feedback } = req.body;
 
-  if (!question || !answer) {
-    return res.status(400).json({ error: "Missing data" });
+    if (!question || !answer) {
+      return res.status(400).json({ error: "Question and answer are required" });
+    }
+
+    const { error } = await supabase
+      .from("flagged_answers")
+      .insert({
+        question,
+        answer,
+        feedback: feedback || "",
+        flagged_by: req.user?.role || "unknown"
+      });
+
+    if (error) {
+      console.error("Supabase flag answer error:", error);
+      return res.status(500).json({ error: "Failed to flag answer" });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Flag answer error:", err);
+    res.status(500).json({ error: "Failed to flag answer" });
   }
-
-  const flagged = readJsonFile(flaggedAnswersFile, []);
-
-  flagged.unshift({
-    id: "flag_" + Date.now(),
-    question,
-    answer,
-    feedback: feedback || "",
-    flaggedBy: req.user.role,
-    createdAt: new Date().toISOString()
-  });
-
-  writeJsonFile(flaggedAnswersFile, flagged);
-
-  res.json({ success: true });
 });
 
 app.post("/api/knowledge-answer", requireLogin, async (req, res) => {

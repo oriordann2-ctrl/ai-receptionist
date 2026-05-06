@@ -2436,6 +2436,65 @@ app.post("/api/knowledge-answer/flag", requireLogin, async (req, res) => {
   }
 });
 
+function isGeneralMortgageQuestion(question) {
+  const q = String(question || "").toLowerCase();
+
+  const specificTerms = [
+    "aib",
+    "ptsb",
+    "bank of ireland",
+    "boi",
+    "avant",
+    "pepper",
+    "ics",
+    "haven",
+    "finance ireland",
+    "exact",
+    "policy",
+    "criteria",
+    "lender",
+    "rate",
+    "exception",
+    "turnaround",
+    "sla",
+    "document checklist",
+    "self-employed requirement",
+    "broker process",
+    "compliance",
+    "dora",
+    "gdpr"
+  ];
+
+  if (specificTerms.some(term => q.includes(term))) {
+    return false;
+  }
+
+  const generalTerms = [
+    "what is",
+    "explain",
+    "how does",
+    "what does",
+    "meaning of",
+    "difference between",
+    "mortgage",
+    "deposit",
+    "approval in principle",
+    "aip",
+    "loan offer",
+    "drawdown",
+    "valuation",
+    "solicitor",
+    "repayment capacity",
+    "fixed rate",
+    "variable rate",
+    "first time buyer",
+    "help to buy",
+    "first home scheme"
+  ];
+
+  return generalTerms.some(term => q.includes(term));
+}
+
 app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   const { question } = req.body;
 
@@ -2560,6 +2619,46 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
       answerLower.includes("i don't have that in the knowledge base yet") ||
       answerLower.includes("no answer returned")
     ) {
+      if (isGeneralMortgageQuestion(question)) {
+        const generalCompletion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `
+    You are Sprimal, an AI assistant for Irish mortgage broker staff.
+
+    You may answer general mortgage education questions.
+
+    Rules:
+    - Give general educational information only
+    - Do not invent lender-specific criteria
+    - Do not give financial advice
+    - Do not promise approval, rates, or timelines
+    - Keep the answer concise and useful for junior broker staff
+    - If the question asks for a specific lender, broker process, compliance rule, or exact requirement, say it needs broker-approved knowledge
+              `
+            },
+            {
+              role: "user",
+              content: question
+            }
+          ],
+          temperature: 0.2
+        });
+
+        const generalAnswer =
+          generalCompletion.choices[0].message.content ||
+          "I don't have that in the knowledge base yet.";
+
+        return res.json({
+          answer: generalAnswer,
+          source: "AI Generated",
+          confidence: "Low",
+          sourceDetail: "General mortgage knowledge only — not broker-approved"
+        });
+      }
+
       source = "Knowledge Gap";
       confidence = "Low";
       sourceDetail = "Needs senior broker review";

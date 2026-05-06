@@ -1559,7 +1559,14 @@ async function askKB() {
     lastKBQuestion = question;
     lastKBAnswer = data.answer || data.error || "No response";
 
-    answerBox.innerText = lastKBAnswer;
+    const source = data.source || "AI Generated";
+    const confidence = data.confidence || "Medium";
+
+    answerBox.innerText =
+      lastKBAnswer +
+      "\n\n---\n" +
+      "Source: " + source + "\n" +
+      "Confidence: " + confidence;
 
     if (
       actionBox &&

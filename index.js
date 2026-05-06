@@ -47,6 +47,8 @@ const nodemailer = require("nodemailer");
 
 const brokerEmail = process.env.BROKER_EMAIL;
 
+const mammoth = require("mammoth");
+
 async function extractPdfText(filePath) {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
@@ -121,11 +123,23 @@ app.post(
 
       if (req.file.mimetype === "application/pdf") {
         extractedText = await extractPdfText(req.file.path);
+
       } else if (req.file.mimetype === "text/plain") {
         extractedText = fs.readFileSync(req.file.path, "utf8");
+
+      } else if (
+        req.file.mimetype ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ) {
+        const result = await mammoth.extractRawText({
+          path: req.file.path
+        });
+
+        extractedText = result.value;
+
       } else {
         return res.status(400).json({
-          error: "Only PDF and TXT files are supported for now"
+          error: "Only PDF, TXT and Word DOCX files are supported for now"
         });
       }
 

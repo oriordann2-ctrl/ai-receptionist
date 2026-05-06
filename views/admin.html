@@ -552,6 +552,15 @@ textarea.form-input {
   <p id="approvedAnswerStatus" class="meta"></p>
 </div>
 
+<div class="card senior-only">
+  <h2>Flagged Answers (Review)</h2>
+  <p class="subtitle">
+    Review answers flagged by junior staff and improve the knowledge base.
+  </p>
+
+  <div id="flaggedAnswers"></div>
+</div>
+
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
         <div>
@@ -608,9 +617,13 @@ textarea.form-input {
           "
         ></div>
 
-        <div id="kb-answer-actions" class="button-row senior-only" style="display:none;">
-          <button class="btn-primary" onclick="saveCurrentKBAnswer()">
+        <div id="kb-answer-actions" class="button-row" style="display:none;">
+          <button class="btn-primary senior-only" onclick="saveCurrentKBAnswer()">
             Save This Answer
+          </button>
+
+          <button class="btn-gray" onclick="flagCurrentKBAnswer()">
+            Flag This Answer
           </button>
         </div>
       </div>
@@ -1021,12 +1034,13 @@ textarea.form-input {
     async function loadData() {
       await loadStatus();
 
-      const [appointmentsRes, chatLogsRes, documentsRes, leadsRes, emailLeadsRes] = await Promise.all([
+      const [appointmentsRes, chatLogsRes, documentsRes, leadsRes, emailLeadsRes, flaggedRes] = await Promise.all([
         fetch("/appointments"),
         fetch("/chat-logs"),
         fetch("/admin/documents"),
         fetch("/admin/mortgage-leads"),
-        fetch("/api/mortgage-leads")
+        fetch("/api/mortgage-leads"),
+        fetch("/api/knowledge-answer/flagged")
       ]);
 
       const appointments = await appointmentsRes.json();
@@ -1034,6 +1048,7 @@ textarea.form-input {
       const documents = await documentsRes.json();
       const mortgageLeads = await leadsRes.json();
       const emailLeads = await emailLeadsRes.json();
+      const flagged = await flaggedRes.json();
 
       const appointmentsDiv = document.getElementById("appointments");
       const chatLogsDiv = document.getElementById("chatLogs");
@@ -1054,6 +1069,34 @@ textarea.form-input {
       documentsDiv.innerHTML = "";
       mortgageLeadsDiv.innerHTML = "";
       emailLeadsDiv.innerHTML = "";
+
+      const flaggedDiv = document.getElementById("flaggedAnswers");
+
+      if (flaggedDiv) {
+        flaggedDiv.innerHTML = "";
+
+        if (!Array.isArray(flagged) || flagged.length === 0) {
+          flaggedDiv.innerHTML = "<p class='empty'>No flagged answers</p>";
+        } else {
+          flagged.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "item";
+            div.innerHTML = `
+              <div class="item-title">${item.question}</div>
+              <div class="meta">
+                <strong>Answer:</strong> ${item.answer}<br>
+                <strong>Feedback:</strong> ${item.feedback || "None"}<br>
+                <strong>Flagged by:</strong> ${item.flaggedBy || "-"}<br>
+                <strong>Flagged:</strong> ${item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}
+              </div>
+              <button class="btn-primary" onclick="approveFlagged('${String(item.question).replace(/'/g, "\\'")}', '${String(item.answer).replace(/'/g, "\\'")}')">
+                Approve as Correct Answer
+              </button>
+            `;
+            flaggedDiv.appendChild(div);
+          });
+        }
+      }
 
       if (!Array.isArray(mortgageLeads) || mortgageLeads.length === 0) {
         mortgageLeadsDiv.innerHTML = `<p class="empty">No mortgage leads yet.</p>`;
@@ -1489,6 +1532,46 @@ async function saveCurrentKBAnswer() {
   } else {
     alert(result.error || "Failed to save answer.");
   }
+}
+
+async function flagCurrentKBAnswer() {
+  if (!lastKBQuestion || !lastKBAnswer) {
+    alert("No answer to flag.");
+    return;
+  }
+
+  const feedback = prompt("What is wrong or missing in this answer?");
+
+  const response = await fetch("/api/knowledge-answer/flag", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      question: lastKBQuestion,
+      answer: lastKBAnswer,
+      feedback
+    })
+  });
+
+  const result = await response.json();
+
+  if (result.success) {
+    alert("✅ Feedback saved for review.");
+  } else {
+    alert(result.error || "Failed to flag answer.");
+  }
+}
+
+function approveFlagged(question, answer) {
+  document.getElementById("approvedQuestion").value = question;
+  document.getElementById("approvedAnswer").value = answer;
+  document.getElementById("approvedCategory").value = "Knowledge Base Review";
+
+  document.getElementById("approvedQuestion").scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
 }
 </script>
 

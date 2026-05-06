@@ -2256,6 +2256,11 @@ Use plain numbers where possible.
   }
 });
 
+app.get("/api/knowledge-answer/flagged", requireSenior, (req, res) => {
+  const flagged = readJsonFile(flaggedAnswersFile, []);
+  res.json(flagged);
+});
+
 app.get("/api/knowledge-base", requireAdmin, (req, res) => {
   const kb = readJsonFile(knowledgeBaseFile, []);
   res.json(kb);
@@ -2328,6 +2333,31 @@ app.post("/api/knowledge-answer/save", requireSenior, (req, res) => {
     success: true,
     answer: savedAnswer
   });
+});
+
+const flaggedAnswersFile = path.join(__dirname, "data", "flaggedAnswers.json");
+
+app.post("/api/knowledge-answer/flag", requireLogin, (req, res) => {
+  const { question, answer, feedback } = req.body;
+
+  if (!question || !answer) {
+    return res.status(400).json({ error: "Missing data" });
+  }
+
+  const flagged = readJsonFile(flaggedAnswersFile, []);
+
+  flagged.unshift({
+    id: "flag_" + Date.now(),
+    question,
+    answer,
+    feedback: feedback || "",
+    flaggedBy: req.user.role,
+    createdAt: new Date().toISOString()
+  });
+
+  writeJsonFile(flaggedAnswersFile, flagged);
+
+  res.json({ success: true });
 });
 
 app.post("/api/knowledge-answer", requireLogin, async (req, res) => {

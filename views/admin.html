@@ -470,9 +470,9 @@ textarea.form-input {
 
         <div class="stat-row">
           <span id="statusBadge" class="badge">Loading...</span>
-          <span id="leadsBadge" class="badge badge-leads">0 leads</span>
+<!--           <span id="leadsBadge" class="badge badge-leads">0 leads</span>
           <span id="countBadge" class="badge badge-count">0 appointments</span>
-          <span id="docsBadge" class="badge badge-docs">0 documents</span>
+          <span id="docsBadge" class="badge badge-docs">0 documents</span> -->
         </div>
 
         <div class="button-row">
@@ -1044,22 +1044,22 @@ textarea.form-input {
       await loadStatus();
 
       const [appointmentsRes, chatLogsRes, documentsRes, leadsRes, emailLeadsRes, flaggedRes] = await Promise.all([
-        fetch("/appointments"),
+/*         fetch("/appointments"),
         fetch("/chat-logs"),
         fetch("/admin/documents"),
         fetch("/admin/mortgage-leads"),
-        fetch("/api/mortgage-leads"),
+        fetch("/api/mortgage-leads"), */
         fetch("/api/knowledge-answer/flagged")
       ]);
 
-      const appointments = await appointmentsRes.json();
+/*       const appointments = await appointmentsRes.json();
       const chatLogs = await chatLogsRes.json();
       const documents = await documentsRes.json();
       const mortgageLeads = await leadsRes.json();
-      const emailLeads = await emailLeadsRes.json();
+      const emailLeads = await emailLeadsRes.json(); */
       const flagged = await flaggedRes.json();
 
-      const appointmentsDiv = document.getElementById("appointments");
+/*       const appointmentsDiv = document.getElementById("appointments");
       const chatLogsDiv = document.getElementById("chatLogs");
       const documentsDiv = document.getElementById("documents");
       const mortgageLeadsDiv = document.getElementById("mortgageLeads");
@@ -1067,17 +1067,17 @@ textarea.form-input {
 
       const countBadge = document.getElementById("countBadge");
       const docsBadge = document.getElementById("docsBadge");
-      const leadsBadge = document.getElementById("leadsBadge");
+      const leadsBadge = document.getElementById("leadsBadge"); */
 
-      countBadge.textContent = `${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`;
+/*       countBadge.textContent = `${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`;
       docsBadge.textContent = `${documents.length} document${documents.length === 1 ? "" : "s"}`;
       leadsBadge.textContent = `${mortgageLeads.length} lead${mortgageLeads.length === 1 ? "" : "s"}`;
-
-      appointmentsDiv.innerHTML = "";
+ */
+/*       appointmentsDiv.innerHTML = "";
       chatLogsDiv.innerHTML = "";
       documentsDiv.innerHTML = "";
       mortgageLeadsDiv.innerHTML = "";
-      emailLeadsDiv.innerHTML = "";
+      emailLeadsDiv.innerHTML = ""; */
 
       const flaggedDiv = document.getElementById("flaggedAnswers");
 
@@ -1111,7 +1111,7 @@ textarea.form-input {
         }
       }
 
-      if (!Array.isArray(mortgageLeads) || mortgageLeads.length === 0) {
+      /* if (!Array.isArray(mortgageLeads) || mortgageLeads.length === 0) {
         mortgageLeadsDiv.innerHTML = `<p class="empty">No mortgage leads yet.</p>`;
       } else {
       mortgageLeads
@@ -1410,7 +1410,7 @@ textarea.form-input {
 
             chatLogsDiv.appendChild(div);
           });
-      }
+      } */
     }
 
     loadData();

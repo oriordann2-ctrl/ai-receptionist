@@ -2439,23 +2439,40 @@ app.post("/api/knowledge-answer/flag", requireLogin, async (req, res) => {
 app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   const { question } = req.body;
 
-  const approvedAnswers = readJsonFile(
-    path.join(__dirname, "data", "knowledgeAnswers.json"),
-    []
-  );
+  if (!question) {
+    return res.status(400).json({ error: "question is required" });
+  }
 
-  const lowerQuestion = question.toLowerCase();
+  const { data: approvedAnswers, error: approvedError } = await supabase
+    .from("approved_answers")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-  console.log("[approved answers loaded]:", approvedAnswers.length);
+  if (approvedError) {
+    console.error("Supabase approved answer lookup error:", approvedError);
+  }
+
+  const normalise = (text) =>
+    String(text || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, " ");
+
+  const lowerQuestion = normalise(question);
+
+  console.log("[approved answers loaded]:", approvedAnswers ? approvedAnswers.length : 0);
   console.log("[question asked]:", lowerQuestion);
 
-  const match = approvedAnswers.find(entry => {
-  const storedQuestion = (entry.question || "").toLowerCase().trim();
-  return (
-    lowerQuestion.includes(storedQuestion) ||
-    storedQuestion.includes(lowerQuestion)
-  );
-});
+  const match = (approvedAnswers || []).find(entry => {
+    const storedQuestion = normalise(entry.question);
+
+    return (
+      lowerQuestion === storedQuestion ||
+      lowerQuestion.includes(storedQuestion) ||
+      storedQuestion.includes(lowerQuestion)
+    );
+  });
 
   console.log("[approved answer match]:", match);
 
@@ -2466,10 +2483,6 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
       confidence: "High",
       sourceDetail: match.category || "Senior broker approved"
     });
-  }
-
-  if (!question) {
-    return res.status(400).json({ error: "question is required" });
   }
 
     const kb = readJsonFile(knowledgeBaseFile, []);

@@ -1600,6 +1600,70 @@ async function generateReply() {
   const data = await res.json();
 
   replyBox.innerText = data.reply || data.error || "No response";
+
+  const reply = data.reply || data.error || "No response";
+const source = data.source || "General Mortgage Guidance";
+const confidence = data.confidence || "";
+const sourceDetail = data.sourceDetail || "";
+
+replyBox.innerHTML = `
+  <div>${reply}</div>
+
+  <div style="
+    margin-top:16px;
+    padding-top:12px;
+    border-top:1px solid #e5e7eb;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+  ">
+    <span style="
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      background:#ecfdf5;
+      color:#065f46;
+      padding:8px 14px;
+      border-radius:999px;
+      font-size:13px;
+      font-weight:700;
+    ">
+      ${source}
+    </span>
+
+    ${
+      confidence
+        ? `<span style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            background:#eff6ff;
+            color:#1d4ed8;
+            padding:8px 14px;
+            border-radius:999px;
+            font-size:13px;
+            font-weight:700;
+          ">${confidence}</span>`
+        : ""
+    }
+
+    ${
+      sourceDetail
+        ? `<span style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            background:#f3f4f6;
+            color:#374151;
+            padding:8px 14px;
+            border-radius:999px;
+            font-size:13px;
+          ">${sourceDetail}</span>`
+        : ""
+    }
+  </div>
+`;
 }
 </script>
 

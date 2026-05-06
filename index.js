@@ -613,7 +613,7 @@ app.get("/admin/mortgage-leads", requireAdmin, (req, res) => {
   res.json(sortedLeads);
 });
 
-app.post("/api/email-reply", requireAdmin, async (req, res) => {
+app.post("/api/email-reply", requireLogin, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -621,11 +621,30 @@ app.post("/api/email-reply", requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "Email is required" });
     }
 
-    const kb = readJsonFile(knowledgeBaseFile, []);
+    // 1. Load approved answers
+    const { data: approvedAnswers, error: approvedError } = await supabase
+      .from("approved_answers")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    const context = kb
-      .map(entry => `TOPIC: ${entry.topic}\nCONTENT: ${entry.content}`)
+    if (approvedError) {
+      console.error("Email reply approved lookup error:", approvedError);
+    }
+
+    // 2. Search uploaded / pasted KB docs
+    const relevantDocs = await findRelevantKnowledgeChunks(email);
+
+    const approvedContext = (approvedAnswers || [])
+      .slice(0, 10)
+      .map(a => `APPROVED QUESTION: ${a.question}\nAPPROVED ANSWER: ${a.answer}`)
       .join("\n\n");
+
+    const documentContext = relevantDocs
+      .map(doc => `SOURCE DOCUMENT: ${doc.filename}\n${doc.text}`)
+      .join("\n\n");
+
+    const hasKnowledge =
+      approvedContext.trim().length > 0 || documentContext.trim().length > 0;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -633,25 +652,34 @@ app.post("/api/email-reply", requireAdmin, async (req, res) => {
         {
           role: "system",
           content: `
-          You are an experienced Irish mortgage broker.
+You are Sprimal, an AI assistant for Irish mortgage broker staff.
 
-          Write a reply to a client email.
+Draft a professional reply to a client email.
 
-          RULES:
-          - Friendly, professional, human tone
-          - Reassuring (client is often anxious)
-          - Keep it concise (4–6 lines max)
-          - Do NOT promise timelines
-          - Do NOT give financial advice
-          - If no update, explain calmly and set expectation
+Use this priority:
+1. Broker-approved answers
+2. Uploaded/pasted broker knowledge documents
+3. General mortgage wording only if the email is general
 
-          STYLE:
-          - Start with: "Hi [Name]," if possible, otherwise "Hi there,"
-          - End with: "Kind regards,"
-          - Sound like a real person, not AI
+Rules:
+- Do NOT invent lender-specific criteria
+- Do NOT promise approval, rates, or timelines
+- Do NOT give financial advice
+- Keep it concise and human
+- If the knowledge base does not contain enough detail, say the broker will confirm
 
-          KNOWLEDGE BASE:
-          ${context}
+Style:
+- Friendly and professional
+- Reassuring
+- 4–8 lines max
+- Start with "Hi there," unless a name is obvious
+- End with "Kind regards,"
+
+BROKER-APPROVED KNOWLEDGE:
+${approvedContext || "None"}
+
+BROKER DOCUMENT KNOWLEDGE:
+${documentContext || "None"}
           `
         },
         {
@@ -662,8 +690,30 @@ app.post("/api/email-reply", requireAdmin, async (req, res) => {
       temperature: 0.3
     });
 
+    const reply = completion.choices[0].message.content || "No reply generated.";
+
+    let source = "General Mortgage Guidance";
+    let confidence = "Low";
+    let sourceDetail = "No direct broker knowledge matched";
+
+    if (relevantDocs.length > 0) {
+      source = "Broker Documents";
+      confidence = "Document Based";
+      sourceDetail = [...new Set(relevantDocs.map(doc => doc.filename))].join(", ");
+    }
+
+    if ((approvedAnswers || []).length > 0) {
+      source = relevantDocs.length > 0
+        ? "Approved Answers + Broker Documents"
+        : "Approved Answers";
+      confidence = "Broker Knowledge Used";
+    }
+
     res.json({
-      reply: completion.choices[0].message.content
+      reply,
+      source,
+      confidence,
+      sourceDetail
     });
 
   } catch (err) {

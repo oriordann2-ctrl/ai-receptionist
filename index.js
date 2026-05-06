@@ -129,9 +129,17 @@ app.post(
         });
       }
 
-      const fileExt = path.extname(req.file.originalname);
-      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-      const storagePath = `${Date.now()}-${safeName}`;
+      const originalExt = path.extname(req.file.originalname || "").toLowerCase() || ".pdf";
+
+      const baseName = path
+        .basename(req.file.originalname || "document", originalExt)
+        .replace(/[^a-zA-Z0-9-_]/g, "_")
+        .replace(/_+/g, "_")
+        .slice(0, 80);
+
+      const storagePath = `documents/${Date.now()}-${baseName}${originalExt}`;
+
+      console.log("Uploading to Supabase bucket/path:", SUPABASE_BUCKET, storagePath);
 
       const fileBuffer = fs.readFileSync(req.file.path);
 

@@ -751,8 +751,17 @@ textarea.form-input {
     let currentPreviewDownloadUrl = "";
 
     async function logout() {
-      await fetch("/logout", { method: "POST" });
-      window.location.href = "/login";
+      try {
+        await fetch("/logout", {
+          method: "POST",
+          credentials: "include"
+        });
+
+        window.location.href = "/login";
+      } catch (err) {
+        console.error("Logout failed:", err);
+        alert("Logout failed");
+      }
     }
 
     async function loadStatus() {

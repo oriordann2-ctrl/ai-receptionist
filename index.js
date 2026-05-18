@@ -2630,15 +2630,41 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   console.log("[approved answers loaded]:", approvedAnswers ? approvedAnswers.length : 0);
   console.log("[question asked]:", lowerQuestion);
 
-  const match = (approvedAnswers || []).find(entry => {
-    const storedQuestion = normalise(entry.question);
+  let match = null;
 
-    return (
-      lowerQuestion === storedQuestion ||
-      lowerQuestion.includes(storedQuestion) ||
-      storedQuestion.includes(lowerQuestion)
-    );
-  });
+  if ((approvedAnswers || []).length > 0) {
+    const semanticMatch = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a semantic matching assistant.
+  Given a question and a list of stored questions, return the INDEX of the best matching stored question if it is semantically equivalent to the asked question.
+  Two questions are equivalent if they are asking for the same information, even if worded differently.
+  Examples of equivalent questions:
+  - "Who is our PTSB account manager?" and "Who is the PTSB account manager?"
+  - "What documents are needed?" and "What do I need to provide?"
+  Return -1 if no good semantic match exists.
+  Return ONLY a single integer. No explanation. No punctuation.`
+        },
+        {
+          role: "user",
+          content: `Asked question: "${question}"
+
+  Stored questions:
+  ${(approvedAnswers || []).map((a, i) => `${i}: ${a.question}`).join("\n")}`
+        }
+      ],
+      temperature: 0
+    });
+
+    const rawIndex = semanticMatch.choices[0].message.content.trim();
+    const matchIndex = parseInt(rawIndex);
+
+    if (!isNaN(matchIndex) && matchIndex >= 0 && matchIndex < approvedAnswers.length) {
+      match = approvedAnswers[matchIndex];
+    }
+  }
 
   console.log("[approved answer match]:", match);
 

@@ -2318,7 +2318,7 @@ Use plain numbers where possible.
 } else {
 
   // 🔥 NEW: Check knowledge base documents FIRST
-  const relevantDocs = findRelevantKnowledgeChunks(trimmedMessage);
+  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage);
 
   console.log("Relevant knowledge docs:", relevantDocs);
 

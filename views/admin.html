@@ -816,6 +816,15 @@ textarea.form-input {
 </div>
 </section>
 
+<!-- Junior staff: read-only document download section -->
+<section class="card junior-only" style="display:none;">
+  <h2>Knowledge Base Documents</h2>
+  <p class="subtitle" style="margin-bottom:16px;">Download reference documents for mortgage guidance.</p>
+  <div id="juniorDocsList">
+    <p class="meta" style="font-style:italic;">Loading documents...</p>
+  </div>
+</section>
+
     <div class="card">
       <h2>Email Reply Assistant</h2>
       <p class="muted">Paste a client email and generate a draft reply.</p>
@@ -947,12 +956,20 @@ textarea.form-input {
             role === "senior" ? "Senior Broker View" : "Junior Staff View";
         }
 
-       document.querySelectorAll(".senior-only").forEach(el => {
+        document.querySelectorAll(".senior-only").forEach(el => {
           el.style.display = role === "senior" ? "block" : "none";
+        });
+
+        document.querySelectorAll(".junior-only").forEach(el => {
+          el.style.display = role === "junior" ? "block" : "none";
         });
 
         if (role === "senior") {
           await loadKnowledgeDocuments();
+        }
+
+        if (role === "junior") {
+          await loadJuniorDocuments();
         }
 
       } catch (err) {
@@ -1302,6 +1319,66 @@ textarea.form-input {
       } catch (err) {
         console.error("Delete document error:", err);
         alert("Delete failed. Please try again.");
+      }
+    }
+
+    // ── Junior read-only document list ────────────────────────────────────
+    async function loadJuniorDocuments() {
+      const list = document.getElementById("juniorDocsList");
+      if (!list) return;
+
+      try {
+        const res = await fetch("/api/knowledge-documents", { credentials: "include" });
+        if (!res.ok) {
+          list.innerHTML = "<p class='meta' style='color:#dc2626;'>Failed to load documents.</p>";
+          return;
+        }
+
+        const docs = await res.json();
+
+        if (!docs.length) {
+          list.innerHTML = "<p class='meta' style='font-style:italic;'>No documents available yet.</p>";
+          return;
+        }
+
+        list.innerHTML = docs
+          .filter(d => d.metadataComplete)
+          .map(doc => {
+            const typeLabel =
+              doc.mimetype === "application/pdf"          ? "PDF"  :
+              doc.mimetype === "text/plain"               ? "TXT"  :
+              doc.mimetype?.includes("wordprocessing")    ? "DOCX" : "File";
+
+            const typeBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:bold;background:#dbeafe;color:#1d4ed8;margin-right:6px;">${typeLabel}</span>`;
+            const lenderBadge = doc.lender ? `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:bold;background:#f3e8ff;color:#6b21a8;margin-right:6px;">${doc.lender}</span>` : "";
+            const typeLabelBadge = doc.documentType ? `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:bold;background:#dcfce7;color:#166534;">${doc.documentType}</span>` : "";
+
+            return `
+              <div class="item" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:4px;">
+                    ${typeBadge}${lenderBadge}${typeLabelBadge}
+                  </div>
+                  <div style="font-weight:bold;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${doc.filename}</div>
+                  <div style="font-size:13px;color:#6b7280;margin-top:2px;">Effective ${new Date(doc.effectiveDate || doc.uploadedAt).toLocaleDateString("en-IE", { month:"short", year:"numeric" })}</div>
+                </div>
+                <a href="/api/knowledge-documents/${doc.id}/download" style="
+                  display:inline-block;
+                  padding:8px 18px;
+                  background:#2563eb;
+                  color:white;
+                  border-radius:10px;
+                  font-size:14px;
+                  font-weight:bold;
+                  text-decoration:none;
+                  white-space:nowrap;
+                ">Download</a>
+              </div>`;
+          }).join("") || "<p class='meta' style='font-style:italic;'>No documents available yet.</p>";
+
+      } catch (err) {
+        console.error("Load junior docs error:", err);
+        list.innerHTML = "<p class='meta' style='color:#dc2626;'>Failed to load documents.</p>";
       }
     }
 

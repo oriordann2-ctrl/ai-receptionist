@@ -159,7 +159,7 @@ async function generateAndStoreChunks(documentId, text, lender, documentType, ef
 }
 
 // ── GET /api/knowledge-documents — list all docs for senior broker UI ─────────
-app.get("/api/knowledge-documents", requireSenior, async (req, res) => {
+app.get("/api/knowledge-documents", requireLogin, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("documents")
@@ -289,7 +289,7 @@ app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
   }
 });
 
-app.get("/api/knowledge-documents/:id/download", requireSenior, async (req, res) => {
+app.get("/api/knowledge-documents/:id/download", requireLogin, async (req, res) => {
   try {
     const { id } = req.params;
 

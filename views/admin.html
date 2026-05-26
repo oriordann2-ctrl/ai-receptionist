@@ -1060,11 +1060,29 @@ textarea.form-input {
                 </div>
                 <div class="meta" style="margin-top:4px;">Uploaded ${date}</div>
               </div>
-              <button
-                class="btn-red"
-                style="flex-shrink:0; padding:8px 14px; font-size:13px; min-height:36px; border-radius:10px;"
-                onclick="deleteKnowledgeDocument('${doc.id}', '${doc.filename.replace(/'/g, "\\'")}')"
-              >Delete</button>
+              <div style="display:flex; gap:8px; flex-shrink:0;">
+                <a
+                  href="/api/knowledge-documents/${doc.id}/download"
+                  download="${doc.filename.replace(/"/g, '&quot;')}"
+                  style="
+                    display:inline-flex;
+                    align-items:center;
+                    padding:8px 14px;
+                    background:#2563eb;
+                    color:white;
+                    border-radius:10px;
+                    font-size:13px;
+                    font-weight:bold;
+                    text-decoration:none;
+                    min-height:36px;
+                  "
+                >Download</a>
+                <button
+                  class="btn-red"
+                  style="padding:8px 14px; font-size:13px; min-height:36px; border-radius:10px;"
+                  onclick="deleteKnowledgeDocument('${doc.id}', '${doc.filename.replace(/'/g, "\\'")}')"
+                >Delete</button>
+              </div>
             </div>`;
         }).join("");
 

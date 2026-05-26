@@ -159,6 +159,57 @@ app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
   }
 });
 
+app.get("/api/knowledge-documents/:id/download", requireSenior, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch document metadata
+    const { data: doc, error: fetchError } = await supabase
+      .from("knowledge_documents")
+      .select("id, filename, mimetype, storage_path, extracted_text")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !doc) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    // Pasted text document — no file in storage, serve extracted text as .txt
+    if (!doc.storage_path) {
+      const textContent = doc.extracted_text || "";
+      const safeFilename = doc.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const downloadName = safeFilename.endsWith(".txt") ? safeFilename : `${safeFilename}.txt`;
+
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${downloadName}"`);
+      return res.send(textContent);
+    }
+
+    // Uploaded file — download from Supabase Storage and stream to client
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .download(doc.storage_path);
+
+    if (downloadError || !fileData) {
+      console.error("Supabase storage download error:", downloadError);
+      return res.status(500).json({ error: "Failed to download file from storage" });
+    }
+
+    const arrayBuffer = await fileData.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const safeFilename = doc.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+    res.setHeader("Content-Type", doc.mimetype || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    return res.send(buffer);
+
+  } catch (err) {
+    console.error("Download knowledge document error:", err);
+    res.status(500).json({ error: "Failed to download document" });
+  }
+});
+
 app.post(
   "/api/knowledge-documents/upload",
   requireSenior,

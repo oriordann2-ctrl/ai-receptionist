@@ -737,6 +737,13 @@ textarea.form-input {
       <input type="text" id="uploadTags" class="form-input" placeholder="e.g. self-employed, high-ltv, switcher" />
     </div>
 
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <input type="checkbox" id="uploadJuniorAccess" style="width:18px;height:18px;cursor:pointer;accent-color:#2563eb;" />
+      <label for="uploadJuniorAccess" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">
+        Make available to junior staff
+      </label>
+    </div>
+
     <!-- Filename preview -->
     <div id="filenamePreview" style="display:none; margin:12px 0; padding:10px 14px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:13px; color:#166534;">
       <strong>Will be stored as:</strong> <span id="filenamePreviewText" style="font-family:monospace;"></span>
@@ -1251,7 +1258,16 @@ textarea.form-input {
                 <div class="meta" style="margin-top:6px;">${lenderBadge}${typeCatBadge}</div>
                 <div class="meta" style="margin-top:4px;">Uploaded ${date}${doc.effectiveDate ? " · Effective " + new Date(doc.effectiveDate).toLocaleDateString("en-IE", {month:"short",year:"numeric"}) : ""}</div>
               </div>
-              <div style="display:flex;gap:8px;flex-shrink:0;">
+              <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+                <button
+                  id="junior-toggle-${doc.id}"
+                  onclick="toggleJuniorAccess('${doc.id}', ${!!doc.juniorAccessible})"
+                  style="padding:8px 12px;font-size:12px;min-height:36px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;
+                    ${doc.juniorAccessible
+                      ? 'background:#dcfce7;color:#166534;'
+                      : 'background:#f1f5f9;color:#6b7280;'}">
+                  ${doc.juniorAccessible ? '👥 Junior: On' : '👥 Junior: Off'}
+                </button>
                 <a href="/api/knowledge-documents/${doc.id}/download"
                    download="${doc.filename.replace(/"/g, "&quot;")}"
                    style="display:inline-flex;align-items:center;padding:8px 14px;background:#2563eb;color:white;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;min-height:36px;">Download</a>
@@ -1330,6 +1346,33 @@ textarea.form-input {
       } catch (err) {
         console.error("Delete document error:", err);
         alert("Delete failed. Please try again.");
+      }
+    }
+
+    // ── Junior access toggle ──────────────────────────────────────────────
+    async function toggleJuniorAccess(id, current) {
+      const newValue = !current;
+      const btn = document.getElementById(`junior-toggle-${id}`);
+      if (btn) btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/documents/${id}/junior-access`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ juniorAccessible: newValue })
+        });
+        const result = await res.json();
+        if (result.success) {
+          await loadKnowledgeDocuments();
+        } else {
+          alert("Failed to update access. Please try again.");
+          if (btn) btn.disabled = false;
+        }
+      } catch (err) {
+        console.error("Toggle junior access error:", err);
+        alert("Failed to update access. Please try again.");
+        if (btn) btn.disabled = false;
       }
     }
 
@@ -1474,6 +1517,7 @@ textarea.form-input {
       document.getElementById("uploadEffectiveDate").value = "";
       document.getElementById("uploadExpiryDate").value = "";
       document.getElementById("uploadTags").value = "";
+      document.getElementById("uploadJuniorAccess").checked = false;
       document.getElementById("uploadMetadataFields").style.display = "none";
       document.getElementById("filenamePreview").style.display = "none";
       document.getElementById("knowledgeUploadStatus").innerText = "";
@@ -1485,8 +1529,9 @@ textarea.form-input {
       const docType     = document.getElementById("uploadDocType").value.trim();
       const description = document.getElementById("uploadDescription").value.trim();
       const effectiveDate = document.getElementById("uploadEffectiveDate").value;
-      const expiryDate  = document.getElementById("uploadExpiryDate").value || "";
-      const tags        = document.getElementById("uploadTags").value.trim();
+      const expiryDate      = document.getElementById("uploadExpiryDate").value || "";
+      const tags            = document.getElementById("uploadTags").value.trim();
+      const juniorAccessible = document.getElementById("uploadJuniorAccess").checked;
       const status      = document.getElementById("knowledgeUploadStatus");
       const btn         = document.getElementById("uploadBtn");
 
@@ -1504,6 +1549,7 @@ textarea.form-input {
       formData.append("effectiveDate", effectiveDate);
       if (expiryDate)  formData.append("expiryDate", expiryDate);
       if (tags)        formData.append("tags", tags);
+      formData.append("juniorAccessible", juniorAccessible);
 
       status.innerText = "Uploading...";
       btn.disabled = true;

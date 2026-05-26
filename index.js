@@ -163,7 +163,7 @@ app.get("/api/knowledge-documents", requireLogin, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("documents")
-      .select("id, original_filename, stored_filename, mimetype, lender, document_type, effective_date, tags, uploaded_at, metadata_complete, storage_path")
+      .select("id, original_filename, stored_filename, mimetype, lender, document_type, effective_date, tags, uploaded_at, metadata_complete, storage_path, junior_accessible")
       .order("uploaded_at", { ascending: false });
 
     if (error) {
@@ -182,7 +182,8 @@ app.get("/api/knowledge-documents", requireLogin, async (req, res) => {
       tags:             doc.tags,
       uploadedAt:       doc.uploaded_at,
       metadataComplete: doc.metadata_complete,
-      storagePath:      doc.storage_path
+      storagePath:      doc.storage_path,
+      juniorAccessible: doc.junior_accessible
     })));
   } catch (err) {
     console.error("Load knowledge documents error:", err);
@@ -191,6 +192,28 @@ app.get("/api/knowledge-documents", requireLogin, async (req, res) => {
 });
 
 // ── PATCH /api/documents/:id/metadata — save metadata for existing doc ────────
+app.patch("/api/documents/:id/junior-access", requireSenior, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { juniorAccessible } = req.body;
+
+    const { error } = await supabase
+      .from("documents")
+      .update({ junior_accessible: !!juniorAccessible })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Junior access update error:", error);
+      return res.status(500).json({ error: "Failed to update access" });
+    }
+
+    res.json({ success: true, juniorAccessible: !!juniorAccessible });
+  } catch (err) {
+    console.error("Junior access toggle error:", err);
+    res.status(500).json({ error: "Failed to update access" });
+  }
+});
+
 app.patch("/api/documents/:id/metadata", requireSenior, async (req, res) => {
   try {
     const { id } = req.params;
@@ -280,11 +303,17 @@ app.post("/api/knowledge-documents/search", requireLogin, async (req, res) => {
       .slice(0, 1)
       .map(c => c.document_id);
 
-    // 4. Fetch document details
-    const { data: docs, error: docsError } = await supabase
+    // 4. Fetch document details — junior users only see accessible docs
+    const docsQuery = supabase
       .from("documents")
-      .select("id, original_filename, stored_filename, lender, document_type, effective_date, mimetype")
+      .select("id, original_filename, stored_filename, lender, document_type, effective_date, mimetype, junior_accessible")
       .in("id", topDocIds);
+
+    if (req.user.role === "junior") {
+      docsQuery.eq("junior_accessible", true);
+    }
+
+    const { data: docs, error: docsError } = await docsQuery;
 
     if (docsError) {
       console.error("[doc search] documents lookup error:", docsError);
@@ -376,12 +405,17 @@ app.get("/api/knowledge-documents/:id/download", requireLogin, async (req, res) 
     // Fetch document metadata from source-of-record table
     const { data: doc, error: fetchError } = await supabase
       .from("documents")
-      .select("id, original_filename, stored_filename, mimetype, storage_path")
+      .select("id, original_filename, stored_filename, mimetype, storage_path, junior_accessible")
       .eq("id", id)
       .single();
 
     if (fetchError || !doc) {
       return res.status(404).json({ error: "Document not found" });
+    }
+
+    // Junior users can only download documents marked as accessible
+    if (req.user.role === "junior" && !doc.junior_accessible) {
+      return res.status(403).json({ error: "This document is not available to junior staff" });
     }
 
     if (!doc.storage_path) {
@@ -424,7 +458,7 @@ app.post(
       }
 
       // ── Validate required metadata ──────────────────────────────────────
-      const { lender, documentType, description, effectiveDate, expiryDate, tags } = req.body;
+      const { lender, documentType, description, effectiveDate, expiryDate, tags, juniorAccessible } = req.body;
 
       if (!lender)        return res.status(400).json({ error: "Lender is required" });
       if (!documentType)  return res.status(400).json({ error: "Document type is required" });
@@ -494,7 +528,8 @@ app.post(
           effective_date:    effectiveDate ? `${effectiveDate}-01` : null,
           expiry_date:       expiryDate  ? `${expiryDate}-01`  : null,
           tags:              tagsArray,
-          metadata_complete: true
+          metadata_complete: true,
+          junior_accessible: juniorAccessible === "true" || juniorAccessible === true
         })
         .select()
         .single();

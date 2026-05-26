@@ -2591,7 +2591,7 @@ Use plain numbers where possible.
           {
             role: "system",
             content:
-              "You are a mortgage assistant. Answer ONLY using the provided knowledge base context. If the answer is not clearly in the context, say you do not know."
+              "You are a mortgage assistant. Answer ONLY using the provided knowledge base context. If the answer is not clearly in the context, say you do not know. Format your answer in HTML: use <p> for paragraphs, <ul><li> for lists, and <strong> for key figures or limits. Do not use markdown or headings."
           },
           {
             role: "user",
@@ -2973,10 +2973,15 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
             - Do NOT provide financial advice or approval decisions
             - Do NOT make promises on timelines
 
-            STYLE:
-            - Clear, professional, and helpful
-            - Written for internal staff use
-            - Can be used to help draft replies to clients
+            FORMATTING — always return HTML using these rules:
+            - Wrap the whole answer in a <div>
+            - Use <p> for each distinct point or paragraph
+            - Use <ul><li> for lists of criteria, requirements, or options
+            - Use <strong> to highlight key figures, percentages, amounts, and limits
+            - Use a <p style="margin-top:12px;color:#6b7280;font-size:13px;"> for any caveats or notes at the end
+            - Do NOT use headings (h1, h2, h3)
+            - Do NOT use markdown — only HTML tags
+            - Keep it concise and scannable
 
             KNOWLEDGE BASE:
             ${context}

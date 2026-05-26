@@ -63,28 +63,28 @@
 
   .btn-logout:hover { background: #e2e8f0; opacity: 1; }
 
-  .btn-test-mode {
-    background: #f1f5f9;
-    color: #94a3b8;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 14px;
+  /* ── Toast notification ──────────────────────────────────── */
+  .sprimal-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e293b;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 10px;
     font-size: 13px;
     font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-    min-height: unset;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
   }
 
-  .btn-test-mode:hover { background: #e2e8f0; opacity: 1; }
-
-  .btn-test-mode.active {
-    background: #fef3c7;
-    color: #92400e;
+  .sprimal-toast.show {
+    opacity: 1;
+    transform: translateY(0);
   }
-
-  .btn-test-mode.active:hover { background: #fde68a; }
 
   /* ── Container ───────────────────────────────────────────── */
   .container {
@@ -762,9 +762,6 @@
     </div>
     <div class="nav-right">
       <span id="roleBadge" class="badge badge-mode">Loading...</span>
-      <button id="testModeBtn" class="btn-test-mode" onclick="toggleTestMode()" title="When on, your activity won't appear in usage stats">
-        🧪 Testing off
-      </button>
       <button class="btn-logout" onclick="logout()">Sign out</button>
     </div>
   </nav>
@@ -1273,8 +1270,8 @@
         const user = await res.json();
         const role = user.role;
 
-        // Restore test mode state from session
-        applyTestModeUI(user.isTest || false);
+        // Restore test mode state silently (no toast on page load)
+        applyTestModeUI(user.isTest || false, false);
 
         const roleBadge = document.getElementById("roleBadge");
 
@@ -2428,16 +2425,27 @@ async function savePastedKnowledge() {
 
   let isTestMode = false;
 
-  function applyTestModeUI(active) {
+  function showToast(msg) {
+    let toast = document.getElementById("sprimalToast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "sprimalToast";
+      toast.className = "sprimal-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => toast.classList.remove("show"), 2800);
+  }
+
+  function applyTestModeUI(active, notify = false) {
     isTestMode = active;
-    const btn = document.getElementById("testModeBtn");
-    if (!btn) return;
-    if (active) {
-      btn.textContent = "🧪 Testing on";
-      btn.classList.add("active");
-    } else {
-      btn.textContent = "🧪 Testing off";
-      btn.classList.remove("active");
+    if (notify) {
+      showToast(active
+        ? "🧪 Testing mode ON — your queries won't be logged"
+        : "✅ Testing mode OFF — activity is being recorded"
+      );
     }
   }
 
@@ -2450,11 +2458,19 @@ async function savePastedKnowledge() {
         credentials: "include",
         body: JSON.stringify({ enabled: newState })
       });
-      if (res.ok) applyTestModeUI(newState);
+      if (res.ok) applyTestModeUI(newState, true);
     } catch (err) {
       console.error("toggleTestMode failed:", err);
     }
   }
+
+  // Ctrl+Shift+T — invisible to casual users
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === "T") {
+      e.preventDefault();
+      toggleTestMode();
+    }
+  });
 
   let activityChartInstance = null;
 

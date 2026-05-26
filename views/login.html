@@ -53,15 +53,17 @@
     }
 
     .brand-logo {
-      font-size: 34px;
-      font-weight: 800;
-      letter-spacing: -1px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
       margin-bottom: 16px;
-      color: white;
     }
 
-    .brand-logo span {
-      color: #3b82f6;
+    .brand-logo-text {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: white;
     }
 
     .brand-tagline {
@@ -213,7 +215,18 @@
 <body>
 
   <div class="brand-panel">
-    <div class="brand-logo">Sprim<span>al</span></div>
+    <div class="brand-logo">
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="11" fill="#4f76f6"/>
+        <line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="24" cy="11" r="4.5" fill="white"/>
+        <circle cx="38.5" cy="36" r="4.5" fill="white"/>
+        <circle cx="9.5" cy="36" r="4.5" fill="white"/>
+      </svg>
+      <span class="brand-logo-text">Sprimal</span>
+    </div>
     <p class="brand-tagline">
       AI-powered knowledge for your mortgage brokerage team.
     </p>
@@ -235,6 +248,18 @@
 
   <div class="form-panel">
     <div class="login-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+        <svg width="36" height="36" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="48" height="48" rx="11" fill="#4f76f6"/>
+          <line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+          <line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+          <line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="24" cy="11" r="4.5" fill="white"/>
+          <circle cx="38.5" cy="36" r="4.5" fill="white"/>
+          <circle cx="9.5" cy="36" r="4.5" fill="white"/>
+        </svg>
+        <span style="font-size:22px;font-weight:800;color:#0f1d40;letter-spacing:-0.3px;">Sprimal</span>
+      </div>
       <h1>Welcome back</h1>
       <p class="login-subtitle">Enter your password to access the dashboard.</p>
 

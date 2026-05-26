@@ -364,8 +364,8 @@ app.post(
           lender,
           document_type:     documentType,
           description,
-          effective_date:    effectiveDate,
-          expiry_date:       expiryDate || null,
+          effective_date:    effectiveDate ? `${effectiveDate}-01` : null,
+          expiry_date:       expiryDate  ? `${expiryDate}-01`  : null,
           tags:              tagsArray,
           metadata_complete: true
         })

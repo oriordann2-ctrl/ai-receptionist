@@ -2980,6 +2980,8 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
     return res.status(400).json({ error: "question is required" });
   }
 
+  try {
+
   const { data: approvedAnswers, error: approvedError } = await supabase
     .from("approved_answers")
     .select("*")
@@ -3069,7 +3071,6 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
 
     console.log("[/api/knowledge-answer] relevant docs:", relevantDocs);
 
-  try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -3182,9 +3183,10 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
       sourceDetail
     });
   } catch (err) {
-    console.error("[/api/knowledge-answer] OpenAI error:", err.message);
+    console.error("[/api/knowledge-answer] error:", err.message);
     res.status(500).json({ error: "Failed to generate answer." });
   }
+
 });
 
 const PORT = process.env.PORT || 3000;

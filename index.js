@@ -296,6 +296,15 @@ app.post(
         return res.status(400).json({ error: "No document uploaded" });
       }
 
+      // ── Validate required metadata ──────────────────────────────────────
+      const { lender, documentType, description, effectiveDate, expiryDate, tags } = req.body;
+
+      if (!lender)        return res.status(400).json({ error: "Lender is required" });
+      if (!documentType)  return res.status(400).json({ error: "Document type is required" });
+      if (!description)   return res.status(400).json({ error: "Description is required" });
+      if (!effectiveDate) return res.status(400).json({ error: "Effective date is required" });
+
+      // ── Extract text ─────────────────────────────────────────────────────
       let extractedText = "";
 
       if (req.file.mimetype === "application/pdf") {
@@ -308,10 +317,7 @@ app.post(
         req.file.mimetype ===
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
       ) {
-        const result = await mammoth.extractRawText({
-          path: req.file.path
-        });
-
+        const result = await mammoth.extractRawText({ path: req.file.path });
         extractedText = result.value;
 
       } else {
@@ -320,15 +326,11 @@ app.post(
         });
       }
 
-      const originalExt = path.extname(req.file.originalname || "").toLowerCase() || ".pdf";
-
-      const baseName = path
-        .basename(req.file.originalname || "document", originalExt)
-        .replace(/[^a-zA-Z0-9-_]/g, "_")
-        .replace(/_+/g, "_")
-        .slice(0, 80);
-
-      const storagePath = `documents/${Date.now()}-${baseName}${originalExt}`;
+      // ── Generate standardised filename ───────────────────────────────────
+      const storedFilename = generateStoredFilename(
+        lender, documentType, effectiveDate, description, req.file.originalname
+      );
+      const storagePath = `documents/${storedFilename}`;
 
       console.log("Uploading to Supabase bucket/path:", SUPABASE_BUCKET, storagePath);
 
@@ -341,38 +343,67 @@ app.post(
           upsert: false
         });
 
-        // test
-
       if (uploadError) {
         console.error("Supabase storage upload error:", uploadError);
         return res.status(500).json({ error: "Failed to upload file to Supabase" });
       }
 
-      const { data, error: insertError } = await supabase
-        .from("knowledge_documents")
+      // ── Parse tags ────────────────────────────────────────────────────────
+      const tagsArray = tags
+        ? tags.split(",").map(t => t.trim()).filter(Boolean)
+        : [];
+
+      // ── Insert into documents table (source of record) ───────────────────
+      const { data: docData, error: docInsertError } = await supabase
+        .from("documents")
         .insert({
-          filename: req.file.originalname,
-          storage_path: storagePath,
-          mimetype: req.file.mimetype,
-          extracted_text: extractedText
+          original_filename: req.file.originalname,
+          stored_filename:   storedFilename,
+          storage_path:      storagePath,
+          mimetype:          req.file.mimetype,
+          lender,
+          document_type:     documentType,
+          description,
+          effective_date:    effectiveDate,
+          expiry_date:       expiryDate || null,
+          tags:              tagsArray,
+          metadata_complete: true
         })
         .select()
         .single();
 
-      if (insertError) {
-        console.error("Supabase insert error:", insertError);
-        return res.status(500).json({ error: "Failed to save document metadata" });
+      if (docInsertError) {
+        console.error("Documents table insert error:", docInsertError);
+        return res.status(500).json({ error: "Failed to save document record" });
+      }
+
+      // ── Also insert into knowledge_documents for backward AI compat ───────
+      const { error: kdInsertError } = await supabase
+        .from("knowledge_documents")
+        .insert({
+          filename:       storedFilename,
+          storage_path:   storagePath,
+          mimetype:       req.file.mimetype,
+          extracted_text: extractedText
+        });
+
+      if (kdInsertError) {
+        // Non-fatal: document is safely in documents table
+        console.error("knowledge_documents insert (non-fatal):", kdInsertError);
       }
 
       fs.unlink(req.file.path, () => {});
 
       res.json({
         success: true,
-        message: "Document added to Supabase knowledge base",
+        message: "Document added to knowledge base",
         document: {
-          id: data.id,
-          filename: data.filename,
-          uploadedAt: data.uploaded_at
+          id:           docData.id,
+          storedFilename,
+          lender,
+          documentType,
+          effectiveDate,
+          uploadedAt:   docData.uploaded_at
         }
       });
 

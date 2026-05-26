@@ -646,23 +646,80 @@ textarea.form-input {
 <section class="card senior-only">
   <h2>Knowledge Base Documents</h2>
 
+  <!-- Step 1: File picker -->
   <div class="form-group">
-    <label for="knowledgeDocument">Upload Document</label>
+    <label for="knowledgeDocument">Select Document</label>
     <input
       type="file"
       id="knowledgeDocument"
       accept=".pdf,.txt,.docx"
       class="form-input"
+      onchange="onDocumentSelected()"
     />
     <small class="form-hint">
-      Upload PDF, TXT or Word DOCX broker guides, lender notes, or common query documents.
+      PDF, TXT or Word DOCX — you'll add details before uploading.
     </small>
   </div>
 
-  <div class="form-actions">
-    <button class="primary-btn" onclick="uploadKnowledgeDocument()">
-      Upload to Knowledge Base
-    </button>
+  <!-- Step 2: Metadata fields (revealed after file chosen) -->
+  <div id="uploadMetadataFields" style="display:none;">
+    <hr style="margin:16px 0; border:none; border-top:1px solid #e5e7eb;">
+    <p style="font-size:13px; color:#6b7280; margin-bottom:16px;">
+      Complete the details below so Sprimal can categorise and search this document correctly.
+    </p>
+
+    <div class="form-group">
+      <label for="uploadLender">Lender <span style="color:#dc2626;">*</span></label>
+      <select id="uploadLender" class="form-input" onchange="updateFilenamePreview()">
+        <option value="">— Select lender —</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="uploadDocType">Document Type <span style="color:#dc2626;">*</span></label>
+      <select id="uploadDocType" class="form-input" onchange="updateFilenamePreview()">
+        <option value="">— Select type —</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="uploadDescription">Description <span style="color:#dc2626;">*</span></label>
+      <input
+        type="text"
+        id="uploadDescription"
+        class="form-input"
+        placeholder="e.g. Variable rate criteria for high LTV borrowers"
+        maxlength="120"
+        oninput="updateFilenamePreview()"
+      />
+      <small class="form-hint">Brief description — used in the filename and AI search.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="uploadEffectiveDate">Effective Date <span style="color:#dc2626;">*</span></label>
+      <input type="month" id="uploadEffectiveDate" class="form-input" oninput="updateFilenamePreview()" />
+      <small class="form-hint">Month this document came into effect.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="uploadExpiryDate">Expiry Date <span style="color:#6b7280; font-weight:400;">(optional)</span></label>
+      <input type="month" id="uploadExpiryDate" class="form-input" />
+    </div>
+
+    <div class="form-group">
+      <label for="uploadTags">Tags <span style="color:#6b7280; font-weight:400;">(optional, comma-separated)</span></label>
+      <input type="text" id="uploadTags" class="form-input" placeholder="e.g. self-employed, high-ltv, switcher" />
+    </div>
+
+    <!-- Filename preview -->
+    <div id="filenamePreview" style="display:none; margin:12px 0; padding:10px 14px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:13px; color:#166534;">
+      <strong>Will be stored as:</strong> <span id="filenamePreviewText" style="font-family:monospace;"></span>
+    </div>
+
+    <div class="form-actions" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <button class="btn-gray" onclick="resetUploadForm()" style="padding:10px 18px;">← Clear</button>
+      <button class="btn-primary" id="uploadBtn" onclick="uploadKnowledgeDocument()">Upload to Knowledge Base</button>
+    </div>
   </div>
 
   <div id="knowledgeUploadStatus" class="form-status"></div>
@@ -1222,33 +1279,135 @@ textarea.form-input {
       }
     }
 
-    async function uploadKnowledgeDocument() {
+    // ── Upload form helpers ────────────────────────────────────────────────
+
+    function onDocumentSelected() {
       const fileInput = document.getElementById("knowledgeDocument");
-      const status = document.getElementById("knowledgeUploadStatus");
+      const metaFields = document.getElementById("uploadMetadataFields");
+      const lenderSel = document.getElementById("uploadLender");
+      const typeSel = document.getElementById("uploadDocType");
 
       if (!fileInput.files.length) {
-        status.innerText = "Please choose a document first.";
+        metaFields.style.display = "none";
         return;
       }
 
+      // Populate dropdowns once
+      if (lenderSel.options.length <= 1) {
+        LENDERS.forEach(l => {
+          const opt = document.createElement("option");
+          opt.value = l; opt.textContent = l;
+          lenderSel.appendChild(opt);
+        });
+      }
+      if (typeSel.options.length <= 1) {
+        DOC_TYPES.forEach(t => {
+          const opt = document.createElement("option");
+          opt.value = t; opt.textContent = t;
+          typeSel.appendChild(opt);
+        });
+      }
+
+      metaFields.style.display = "block";
+      document.getElementById("knowledgeUploadStatus").innerText = "";
+      updateFilenamePreview();
+    }
+
+    function clientGenerateFilename(lender, docType, effectiveDate, description, originalFilename) {
+      if (!lender || !docType || !effectiveDate || !description) return "";
+      const ext = originalFilename.includes(".")
+        ? originalFilename.slice(originalFilename.lastIndexOf("."))
+        : "";
+      const lenderSlug = lender.toUpperCase().replace(/[\s/]+/g, "").replace(/[^A-Z0-9]/g, "").slice(0, 15);
+      const typeSlug = docType.replace(/[\s/]+/g, "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 20);
+      const dateSlug = effectiveDate ? String(effectiveDate).slice(0, 7) : new Date().toISOString().slice(0, 7);
+      const descSlug = description.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).slice(0, 5).join("-").slice(0, 40);
+      return `${lenderSlug}_${typeSlug}_${dateSlug}_${descSlug}${ext}`;
+    }
+
+    function updateFilenamePreview() {
+      const fileInput = document.getElementById("knowledgeDocument");
+      const lender = document.getElementById("uploadLender").value;
+      const docType = document.getElementById("uploadDocType").value;
+      const effectiveDate = document.getElementById("uploadEffectiveDate").value;
+      const description = document.getElementById("uploadDescription").value.trim();
+      const preview = document.getElementById("filenamePreview");
+      const previewText = document.getElementById("filenamePreviewText");
+
+      if (lender && docType && effectiveDate && description && fileInput.files.length) {
+        const name = clientGenerateFilename(lender, docType, effectiveDate, description, fileInput.files[0].name);
+        previewText.textContent = name;
+        preview.style.display = "block";
+      } else {
+        preview.style.display = "none";
+      }
+    }
+
+    function resetUploadForm() {
+      document.getElementById("knowledgeDocument").value = "";
+      document.getElementById("uploadLender").value = "";
+      document.getElementById("uploadDocType").value = "";
+      document.getElementById("uploadDescription").value = "";
+      document.getElementById("uploadEffectiveDate").value = "";
+      document.getElementById("uploadExpiryDate").value = "";
+      document.getElementById("uploadTags").value = "";
+      document.getElementById("uploadMetadataFields").style.display = "none";
+      document.getElementById("filenamePreview").style.display = "none";
+      document.getElementById("knowledgeUploadStatus").innerText = "";
+    }
+
+    async function uploadKnowledgeDocument() {
+      const fileInput   = document.getElementById("knowledgeDocument");
+      const lender      = document.getElementById("uploadLender").value.trim();
+      const docType     = document.getElementById("uploadDocType").value.trim();
+      const description = document.getElementById("uploadDescription").value.trim();
+      const effectiveDate = document.getElementById("uploadEffectiveDate").value;
+      const expiryDate  = document.getElementById("uploadExpiryDate").value || "";
+      const tags        = document.getElementById("uploadTags").value.trim();
+      const status      = document.getElementById("knowledgeUploadStatus");
+      const btn         = document.getElementById("uploadBtn");
+
+      if (!fileInput.files.length)  { status.innerText = "Please choose a document first."; return; }
+      if (!lender)                  { status.innerText = "Please select a lender."; return; }
+      if (!docType)                 { status.innerText = "Please select a document type."; return; }
+      if (!description)             { status.innerText = "Please enter a description."; return; }
+      if (!effectiveDate)           { status.innerText = "Please enter an effective date."; return; }
+
       const formData = new FormData();
       formData.append("document", fileInput.files[0]);
+      formData.append("lender", lender);
+      formData.append("documentType", docType);
+      formData.append("description", description);
+      formData.append("effectiveDate", effectiveDate);
+      if (expiryDate)  formData.append("expiryDate", expiryDate);
+      if (tags)        formData.append("tags", tags);
 
       status.innerText = "Uploading...";
+      btn.disabled = true;
 
-      const response = await fetch("/api/knowledge-documents/upload", {
-        method: "POST",
-        body: formData
-      });
+      try {
+        const response = await fetch("/api/knowledge-documents/upload", {
+          method: "POST",
+          credentials: "include",
+          body: formData
+        });
+        const result = await response.json();
 
-      const result = await response.json();
-
-      if (result.success) {
-        status.innerText = "✅ Document uploaded. Sprimal can now use this knowledge.";
-        fileInput.value = "";
-        await loadKnowledgeDocuments();
-      } else {
-        status.innerText = result.error || "Upload failed.";
+        if (result.success) {
+          status.style.color = "#16a34a";
+          status.innerText = "✅ Document uploaded. Sprimal can now use this knowledge.";
+          resetUploadForm();
+          await loadKnowledgeDocuments();
+        } else {
+          status.style.color = "#dc2626";
+          status.innerText = result.error || "Upload failed.";
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+        status.style.color = "#dc2626";
+        status.innerText = "Upload failed — please try again.";
+      } finally {
+        btn.disabled = false;
       }
     }
 

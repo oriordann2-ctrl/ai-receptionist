@@ -1425,7 +1425,8 @@ app.post("/mode", requireAdmin, (req, res) => {
 });
 
 // ── Feature toggles ──────────────────────────────────────────────────────────
-app.get("/features", requireSenior, (req, res) => {
+// GET is requireLogin so junior staff can read current feature state for UI visibility
+app.get("/features", requireLogin, (req, res) => {
   res.json({ features });
 });
 

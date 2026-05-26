@@ -745,7 +745,7 @@
   <p id="feature-save-msg" class="meta" style="margin-top:8px; min-height:18px;"></p>
 </div>
 
-<div class="card">
+<div class="card" id="kbCard">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
         <div>
           <h2>Knowledge Base Assistant ⭐</h2>
@@ -1018,7 +1018,7 @@
 </section>
 
 <!-- Junior staff: semantic document finder -->
-<section class="card junior-only" style="display:none;">
+<section class="card junior-only" id="juniorDocCard" style="display:none;">
   <h2>Find a Document</h2>
   <p class="subtitle" style="margin-bottom:16px;">Describe what you're looking for and Sprimal will find the most relevant document.</p>
 
@@ -1039,7 +1039,7 @@
   <div id="juniorDocResults" style="margin-top:20px;"></div>
 </section>
 
-    <div class="card">
+    <div class="card" id="emailCard">
       <h2>Email Reply Assistant</h2>
       <p class="muted">Paste a client email and generate a draft reply.</p>
 
@@ -1181,6 +1181,9 @@
         if (role === "senior") {
           await loadKnowledgeDocuments();
         }
+
+        // Apply feature visibility now that we know the role
+        await loadFeatures(role);
 
         // Junior document search is triggered on demand, not on load
 
@@ -2309,16 +2312,34 @@ async function savePastedKnowledge() {
       } */
     }
 
-  async function loadFeatures() {
+  async function loadFeatures(role) {
     try {
       const res = await fetch("/features", { credentials: "include" });
-      if (!res.ok) return; // non-senior: silently skip
+      if (!res.ok) return;
       const data = await res.json();
       const f = data.features || {};
-      ["aiReceptionist", "knowledgeBase", "emailAssistant"].forEach(key => {
-        const el = document.getElementById("toggle-" + key);
-        if (el) el.checked = (f[key] !== false);
-      });
+
+      // Senior: update the toggle switch positions
+      if (role === "senior") {
+        ["aiReceptionist", "knowledgeBase", "emailAssistant"].forEach(key => {
+          const el = document.getElementById("toggle-" + key);
+          if (el) el.checked = (f[key] !== false);
+        });
+      }
+
+      // Junior: show/hide sections based on current feature flags
+      if (role === "junior") {
+        const kbOn    = f.knowledgeBase    !== false;
+        const emailOn = f.emailAssistant   !== false;
+
+        const kbCard       = document.getElementById("kbCard");
+        const juniorDocCard= document.getElementById("juniorDocCard");
+        const emailCard    = document.getElementById("emailCard");
+
+        if (kbCard)        kbCard.style.display        = kbOn    ? "block" : "none";
+        if (juniorDocCard) juniorDocCard.style.display  = kbOn    ? "block" : "none";
+        if (emailCard)     emailCard.style.display      = emailOn ? "block" : "none";
+      }
     } catch (err) {
       console.error("loadFeatures failed:", err);
     }
@@ -2349,9 +2370,8 @@ async function savePastedKnowledge() {
   }
 
   async function initAdminPage() {
-    await setupRoleView();
+    await setupRoleView(); // calls loadFeatures(role) internally
     await loadData();
-    await loadFeatures();
   }
 
   initAdminPage();

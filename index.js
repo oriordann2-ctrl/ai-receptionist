@@ -277,8 +277,10 @@ app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
       return res.status(500).json({ error: "Failed to delete document" });
     }
 
-    // Also remove from legacy knowledge_documents table
-    await supabase.from("knowledge_documents").delete().eq("id", id);
+    // Also remove from legacy knowledge_documents table (match by storage_path, not id)
+    if (doc.storage_path) {
+      await supabase.from("knowledge_documents").delete().eq("storage_path", doc.storage_path);
+    }
 
     res.json({ success: true });
   } catch (err) {

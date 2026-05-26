@@ -2464,11 +2464,20 @@ async function savePastedKnowledge() {
     }
   }
 
-  // Ctrl+Shift+T — invisible to casual users
+  // Press backtick (`) 3 times quickly — invisible to casual users
+  let _testKeyCount = 0;
+  let _testKeyTimer = null;
   document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === "T") {
-      e.preventDefault();
+    const tag = document.activeElement ? document.activeElement.tagName : "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (e.key !== "`") { _testKeyCount = 0; return; }
+    _testKeyCount++;
+    clearTimeout(_testKeyTimer);
+    if (_testKeyCount >= 3) {
+      _testKeyCount = 0;
       toggleTestMode();
+    } else {
+      _testKeyTimer = setTimeout(() => { _testKeyCount = 0; }, 1500);
     }
   });
 

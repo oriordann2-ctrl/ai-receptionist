@@ -239,6 +239,86 @@ app.patch("/api/documents/:id/metadata", requireSenior, async (req, res) => {
   }
 });
 
+app.post("/api/knowledge-documents/search", requireLogin, async (req, res) => {
+  try {
+    const query = (req.body.query || "").trim();
+    if (!query) return res.status(400).json({ error: "Query is required" });
+
+    // 1. Embed the query
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query
+    });
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+
+    // 2. Get top chunks across all documents
+    const { data: chunks, error: rpcError } = await supabase.rpc("match_chunks", {
+      query_embedding: queryEmbedding,
+      match_count: 15,
+      filter_lender: null,
+      filter_document_type: null
+    });
+
+    if (rpcError) {
+      console.error("[doc search] match_chunks error:", rpcError);
+      return res.status(500).json({ error: "Search failed" });
+    }
+
+    if (!chunks?.length) return res.json([]);
+
+    // 3. Group by document_id — keep best similarity score per document
+    const docMap = {};
+    for (const chunk of chunks) {
+      if (!docMap[chunk.document_id] || chunk.similarity > docMap[chunk.document_id].similarity) {
+        docMap[chunk.document_id] = chunk;
+      }
+    }
+
+    // Top 3 documents by similarity
+    const topDocIds = Object.values(docMap)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 3)
+      .map(c => c.document_id);
+
+    // 4. Fetch document details
+    const { data: docs, error: docsError } = await supabase
+      .from("documents")
+      .select("id, original_filename, stored_filename, lender, document_type, effective_date, mimetype")
+      .in("id", topDocIds);
+
+    if (docsError) {
+      console.error("[doc search] documents lookup error:", docsError);
+      return res.status(500).json({ error: "Failed to fetch document details" });
+    }
+
+    // 5. Build response in similarity order
+    const results = topDocIds
+      .map(id => {
+        const doc = docs.find(d => d.id === id);
+        if (!doc) return null;
+        const similarity = docMap[id].similarity;
+        return {
+          id:           doc.id,
+          filename:     doc.original_filename || doc.stored_filename,
+          lender:       doc.lender,
+          documentType: doc.document_type,
+          effectiveDate: doc.effective_date,
+          mimetype:     doc.mimetype,
+          similarity,
+          confidence:   similarity >= 0.45 ? "Strong match" :
+                        similarity >= 0.32 ? "Good match"   : "Possible match"
+        };
+      })
+      .filter(Boolean);
+
+    res.json(results);
+
+  } catch (err) {
+    console.error("[doc search] error:", err.message);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
 app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
   try {
     const { id } = req.params;

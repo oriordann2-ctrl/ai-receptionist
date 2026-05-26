@@ -274,10 +274,10 @@ app.post("/api/knowledge-documents/search", requireLogin, async (req, res) => {
       }
     }
 
-    // Top 3 documents by similarity
+    // Top document by similarity
     const topDocIds = Object.values(docMap)
       .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 3)
+      .slice(0, 1)
       .map(c => c.document_id);
 
     // 4. Fetch document details

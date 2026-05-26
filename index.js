@@ -1273,7 +1273,7 @@ app.get("/chat", (req, res) => {
 .msg{text-align:center;color:#64748b;}h2{color:#0f172a;font-size:22px;margin-bottom:8px;}</style></head>
 <body><div class="msg"><h2>AI Receptionist is currently offline</h2><p>Please check back later or contact us directly.</p></div></body></html>`);
   }
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(__dirname, "views", "chat.html"));
 });
 
 app.get("/admin/documents", (req, res) => {

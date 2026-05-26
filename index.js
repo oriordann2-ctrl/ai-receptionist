@@ -95,18 +95,68 @@ function saveKnowledgeDocs(docs) {
   fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");
 }
 
-app.get("/api/knowledge-documents", requireAdmin, (req, res) => {
-  const docs = loadKnowledgeDocs();
+app.get("/api/knowledge-documents", requireSenior, async (req, res) => {
+  try {
+    const docs = await loadKnowledgeDocs();
 
-  res.json(
-    docs.map(doc => ({
-      id: doc.id,
-      filename: doc.filename,
-      mimetype: doc.mimetype,
-      textPreview: (doc.text || "").slice(0, 500),
-      uploadedAt: doc.uploadedAt
-    }))
-  );
+    res.json(
+      docs.map(doc => ({
+        id: doc.id,
+        filename: doc.filename,
+        mimetype: doc.mimetype,
+        uploadedAt: doc.uploadedAt,
+        storagePath: doc.storagePath
+      }))
+    );
+  } catch (err) {
+    console.error("Load knowledge documents error:", err);
+    res.status(500).json({ error: "Failed to load documents" });
+  }
+});
+
+app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch the document first so we know its storage path
+    const { data: doc, error: fetchError } = await supabase
+      .from("knowledge_documents")
+      .select("id, filename, storage_path")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !doc) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    // Delete from Supabase Storage if the file was stored there
+    if (doc.storage_path) {
+      const { error: storageError } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .remove([doc.storage_path]);
+
+      if (storageError) {
+        console.error("Supabase storage delete error:", storageError);
+        // Continue anyway — still delete the DB record
+      }
+    }
+
+    // Delete the metadata row from the table
+    const { error: deleteError } = await supabase
+      .from("knowledge_documents")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      console.error("Supabase document delete error:", deleteError);
+      return res.status(500).json({ error: "Failed to delete document" });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete knowledge document error:", err);
+    res.status(500).json({ error: "Failed to delete document" });
+  }
 });
 
 app.post(

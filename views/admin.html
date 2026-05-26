@@ -667,6 +667,14 @@ textarea.form-input {
 
   <div id="knowledgeUploadStatus" class="form-status"></div>
 
+  <!-- Uploaded documents list -->
+  <div style="margin-top:24px; border-top:1px solid #e5e7eb; padding-top:20px;">
+    <h3 style="margin-bottom:12px;">Uploaded Documents</h3>
+    <div id="knowledgeDocsList">
+      <p class="meta" style="font-style:italic;">Loading documents...</p>
+    </div>
+  </div>
+
   <div style="margin-top:24px; border-top:1px solid #e5e7eb; padding-top:20px;">
 
   <h3 style="margin-bottom:12px;">Paste Knowledge</h3>
@@ -847,6 +855,10 @@ textarea.form-input {
           el.style.display = role === "senior" ? "block" : "none";
         });
 
+        if (role === "senior") {
+          await loadKnowledgeDocuments();
+        }
+
       } catch (err) {
         console.error("Role setup failed:", err);
         window.location.href = "/login";
@@ -1000,6 +1012,90 @@ textarea.form-input {
       document.body.style.overflow = "hidden";
     }
 
+    async function loadKnowledgeDocuments() {
+      const list = document.getElementById("knowledgeDocsList");
+      if (!list) return;
+
+      try {
+        const res = await fetch("/api/knowledge-documents", { credentials: "include" });
+        if (!res.ok) {
+          list.innerHTML = "<p class='meta' style='color:#dc2626;'>Failed to load documents.</p>";
+          return;
+        }
+
+        const docs = await res.json();
+
+        if (!docs.length) {
+          list.innerHTML = "<p class='meta' style='font-style:italic;'>No documents uploaded yet.</p>";
+          return;
+        }
+
+        list.innerHTML = docs.map(doc => {
+          const date = new Date(doc.uploadedAt).toLocaleDateString("en-IE", {
+            day: "numeric", month: "short", year: "numeric"
+          });
+
+          const typeLabel =
+            doc.mimetype === "application/pdf" ? "PDF" :
+            doc.mimetype === "text/plain" ? "TXT" :
+            doc.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ? "DOCX" :
+            "File";
+
+          const typeBadge = `<span style="
+            display:inline-block;
+            padding:2px 8px;
+            border-radius:999px;
+            font-size:12px;
+            font-weight:bold;
+            background:#dbeafe;
+            color:#1d4ed8;
+            margin-right:8px;
+          ">${typeLabel}</span>`;
+
+          return `
+            <div class="item" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:bold; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  ${typeBadge}${doc.filename}
+                </div>
+                <div class="meta" style="margin-top:4px;">Uploaded ${date}</div>
+              </div>
+              <button
+                class="btn-red"
+                style="flex-shrink:0; padding:8px 14px; font-size:13px; min-height:36px; border-radius:10px;"
+                onclick="deleteKnowledgeDocument('${doc.id}', '${doc.filename.replace(/'/g, "\\'")}')"
+              >Delete</button>
+            </div>`;
+        }).join("");
+
+      } catch (err) {
+        console.error("Load documents error:", err);
+        list.innerHTML = "<p class='meta' style='color:#dc2626;'>Error loading documents.</p>";
+      }
+    }
+
+    async function deleteKnowledgeDocument(id, filename) {
+      if (!confirm(`Delete "${filename}"?\n\nThis will remove it from the knowledge base permanently.`)) return;
+
+      try {
+        const res = await fetch(`/api/knowledge-documents/${id}`, {
+          method: "DELETE",
+          credentials: "include"
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          await loadKnowledgeDocuments();
+        } else {
+          alert(result.error || "Delete failed. Please try again.");
+        }
+      } catch (err) {
+        console.error("Delete document error:", err);
+        alert("Delete failed. Please try again.");
+      }
+    }
+
     async function uploadKnowledgeDocument() {
       const fileInput = document.getElementById("knowledgeDocument");
       const status = document.getElementById("knowledgeUploadStatus");
@@ -1012,6 +1108,8 @@ textarea.form-input {
       const formData = new FormData();
       formData.append("document", fileInput.files[0]);
 
+      status.innerText = "Uploading...";
+
       const response = await fetch("/api/knowledge-documents/upload", {
         method: "POST",
         body: formData
@@ -1022,6 +1120,7 @@ textarea.form-input {
       if (result.success) {
         status.innerText = "✅ Document uploaded. Sprimal can now use this knowledge.";
         fileInput.value = "";
+        await loadKnowledgeDocuments();
       } else {
         status.innerText = result.error || "Upload failed.";
       }
@@ -1166,6 +1265,7 @@ async function savePastedKnowledge() {
     document.getElementById("pastedKnowledgeTitle").value = "";
     document.getElementById("pastedKnowledgeText").value = "";
 
+    await loadKnowledgeDocuments();
     loadData();
 
   } catch (err) {

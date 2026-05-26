@@ -835,6 +835,17 @@
   </div>
 
   <p id="feature-save-msg" class="meta" style="margin-top:8px; min-height:18px;"></p>
+
+  <div style="margin-top:20px; padding-top:14px; border-top:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+    <div>
+      <div style="font-size:12px; color:#94a3b8; font-weight:600;">Developer</div>
+      <div style="font-size:13px; color:#94a3b8;">Suppress my activity from usage stats</div>
+    </div>
+    <label class="toggle-switch" title="When on, your queries won't appear in the activity log">
+      <input type="checkbox" id="testModeToggle" onchange="toggleTestMode(this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
 </div>
 
 <!-- ── Recent Activity (senior only) ────────────────────────────── -->
@@ -2441,6 +2452,8 @@ async function savePastedKnowledge() {
 
   function applyTestModeUI(active, notify = false) {
     isTestMode = active;
+    const cb = document.getElementById("testModeToggle");
+    if (cb) cb.checked = active;
     if (notify) {
       showToast(active
         ? "🧪 Testing mode ON — your queries won't be logged"
@@ -2449,37 +2462,23 @@ async function savePastedKnowledge() {
     }
   }
 
-  async function toggleTestMode() {
-    const newState = !isTestMode;
+  async function toggleTestMode(enabled) {
     try {
       const res = await fetch("/session/test-mode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ enabled: newState })
+        body: JSON.stringify({ enabled })
       });
-      if (res.ok) applyTestModeUI(newState, true);
+      if (res.ok) applyTestModeUI(enabled, true);
     } catch (err) {
       console.error("toggleTestMode failed:", err);
+      // revert checkbox on failure
+      const cb = document.getElementById("testModeToggle");
+      if (cb) cb.checked = !enabled;
     }
   }
 
-  // Press backtick (`) 3 times quickly — invisible to casual users
-  let _testKeyCount = 0;
-  let _testKeyTimer = null;
-  document.addEventListener("keydown", (e) => {
-    const tag = document.activeElement ? document.activeElement.tagName : "";
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-    if (e.key !== "`") { _testKeyCount = 0; return; }
-    _testKeyCount++;
-    clearTimeout(_testKeyTimer);
-    if (_testKeyCount >= 3) {
-      _testKeyCount = 0;
-      toggleTestMode();
-    } else {
-      _testKeyTimer = setTimeout(() => { _testKeyCount = 0; }, 1500);
-    }
-  });
 
   let activityChartInstance = null;
 

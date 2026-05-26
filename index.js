@@ -667,18 +667,18 @@ const settings = readJsonFile(settingsFile, {
   aiEnabled: true,
   businessMode: "mortgage",
   features: {
-    aiReceptionist: true,
+    aiReceptionist: false,
     knowledgeBase: true,
-    emailAssistant: false
+    emailAssistant: true
   }
 });
 
 let aiEnabled = settings.aiEnabled;
 let businessMode = "mortgage";
 let features = settings.features || {
-  aiReceptionist: true,
+  aiReceptionist: false,
   knowledgeBase: true,
-  emailAssistant: false
+  emailAssistant: true
 };
 let testMode = false; // global — suppresses all activity logging when on
 

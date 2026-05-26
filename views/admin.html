@@ -856,24 +856,35 @@
 
 <!-- ── Recent Activity (senior only) ────────────────────────────── -->
 <div class="card senior-only" id="activityCard" style="display:none;">
-  <h2>Recent Activity</h2>
-  <p class="muted">See when staff log in and what questions they're asking.</p>
-
-  <div class="activity-summary" id="activitySummary"></div>
-
-  <div style="margin:16px 0 20px;">
-    <canvas id="activityChart" height="90"></canvas>
-  </div>
-
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-    <h2 style="font-size:15px; margin:0;">Recent Events</h2>
-    <button onclick="toggleActivityFeed()" id="activityFeedToggle"
+  <div style="display:flex; align-items:center; justify-content:space-between;">
+    <div>
+      <h2 style="margin-bottom:4px;">Recent Activity</h2>
+      <p class="muted" style="margin:0;">See when staff log in and what questions they're asking.</p>
+    </div>
+    <button onclick="toggleActivityCard()" id="activityCardToggle"
       style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:600;
-             cursor:pointer; padding:4px 0; min-height:unset;">
+             cursor:pointer; padding:4px 0; min-height:unset; flex-shrink:0;">
       Show ▾
     </button>
   </div>
-  <div id="activityFeed" style="display:none;"><p class="meta" style="font-style:italic;">Loading...</p></div>
+
+  <div id="activityCardBody" style="display:none;">
+    <div class="activity-summary" id="activitySummary" style="margin-top:16px;"></div>
+
+    <div style="margin:16px 0 20px;">
+      <canvas id="activityChart" height="90"></canvas>
+    </div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+      <h2 style="font-size:15px; margin:0;">Recent Events</h2>
+      <button onclick="toggleActivityFeed()" id="activityFeedToggle"
+        style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:600;
+               cursor:pointer; padding:4px 0; min-height:unset;">
+        Show ▾
+      </button>
+    </div>
+    <div id="activityFeed" style="display:none;"><p class="meta" style="font-style:italic;">Loading...</p></div>
+  </div>
 </div>
 
 <div class="card" id="kbCard">
@@ -2674,6 +2685,15 @@ async function savePastedKnowledge() {
     } catch (err) {
       console.error("loadFeatures failed:", err);
     }
+  }
+
+  function toggleActivityCard() {
+    const body = document.getElementById("activityCardBody");
+    const btn  = document.getElementById("activityCardToggle");
+    if (!body || !btn) return;
+    const open = body.style.display === "none";
+    body.style.display = open ? "block" : "none";
+    btn.textContent    = open ? "Hide ▴" : "Show ▾";
   }
 
   function toggleActivityFeed() {

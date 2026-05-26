@@ -538,6 +538,57 @@
   .junior-only,
   .senior-only { display: none; }
 
+  /* ── Document list row ───────────────────────────────────── */
+  .doc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 0;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .doc-row:first-child { border-top: none; padding-top: 0; }
+
+  .doc-row-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .doc-row-name {
+    font-weight: 600;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 6px;
+  }
+
+  .doc-row-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 640px) {
+    .doc-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .doc-row-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    .doc-row-name {
+      white-space: normal;
+      word-break: break-word;
+    }
+  }
+
 </style>
 </head>
 
@@ -1244,7 +1295,7 @@
                   <span style="font-weight:bold;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${doc.filename}</span>
                   <span style="background:#fef3c7;color:#b45309;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:bold;flex-shrink:0;">⚠️ Metadata needed</span>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
                   <div>
                     <label style="font-size:13px;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">Lender <span style="color:#dc2626;">*</span></label>
                     <select id="lender-${doc.id}" style="width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:14px;background:white;">
@@ -1288,19 +1339,17 @@
           const typeCatBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:bold;background:#f3e8ff;color:#7e22ce;">${doc.documentType}</span>`;
 
           return `
-            <div class="item" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-              <div style="flex:1;min-width:0;">
-                <div style="font-weight:bold;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                  ${typeBadge}${doc.filename}
-                </div>
-                <div class="meta" style="margin-top:6px;">${lenderBadge}${typeCatBadge}</div>
+            <div class="doc-row">
+              <div class="doc-row-info">
+                <div class="doc-row-name">${typeBadge}${doc.filename}</div>
+                <div class="meta" style="margin-top:2px;">${lenderBadge}${typeCatBadge}</div>
                 <div class="meta" style="margin-top:4px;">Uploaded ${date}${doc.effectiveDate ? " · Effective " + new Date(doc.effectiveDate).toLocaleDateString("en-IE", {month:"short",year:"numeric"}) : ""}</div>
               </div>
-              <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+              <div class="doc-row-actions">
                 <button
                   id="junior-toggle-${doc.id}"
                   onclick="toggleJuniorAccess('${doc.id}', ${!!doc.juniorAccessible})"
-                  style="padding:8px 12px;font-size:12px;min-height:36px;border-radius:10px;border:none;cursor:pointer;font-weight:bold;
+                  style="padding:7px 12px;font-size:12px;min-height:34px;border-radius:10px;border:none;cursor:pointer;font-weight:600;
                     ${doc.juniorAccessible
                       ? 'background:#dcfce7;color:#166534;'
                       : 'background:#f1f5f9;color:#6b7280;'}">
@@ -1308,8 +1357,8 @@
                 </button>
                 <a href="/api/knowledge-documents/${doc.id}/download"
                    download="${doc.filename.replace(/"/g, "&quot;")}"
-                   style="display:inline-flex;align-items:center;padding:8px 14px;background:#2563eb;color:white;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;min-height:36px;">Download</a>
-                <button class="btn-red" style="padding:8px 14px;font-size:13px;min-height:36px;border-radius:10px;"
+                   style="display:inline-flex;align-items:center;padding:7px 14px;background:#2563eb;color:white;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;min-height:34px;">Download</a>
+                <button class="btn-red" style="padding:7px 14px;font-size:13px;min-height:34px;border-radius:10px;"
                   onclick="deleteKnowledgeDocument('${doc.id}', '${doc.filename.replace(/'/g, "\\'")}')">Delete</button>
               </div>
             </div>`;

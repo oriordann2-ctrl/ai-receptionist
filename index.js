@@ -291,10 +291,10 @@ app.get("/api/knowledge-documents/:id/download", requireSenior, async (req, res)
   try {
     const { id } = req.params;
 
-    // Fetch document metadata
+    // Fetch document metadata from source-of-record table
     const { data: doc, error: fetchError } = await supabase
-      .from("knowledge_documents")
-      .select("id, filename, mimetype, storage_path, extracted_text")
+      .from("documents")
+      .select("id, original_filename, stored_filename, mimetype, storage_path")
       .eq("id", id)
       .single();
 
@@ -302,18 +302,11 @@ app.get("/api/knowledge-documents/:id/download", requireSenior, async (req, res)
       return res.status(404).json({ error: "Document not found" });
     }
 
-    // Pasted text document — no file in storage, serve extracted text as .txt
     if (!doc.storage_path) {
-      const textContent = doc.extracted_text || "";
-      const safeFilename = doc.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const downloadName = safeFilename.endsWith(".txt") ? safeFilename : `${safeFilename}.txt`;
-
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="${downloadName}"`);
-      return res.send(textContent);
+      return res.status(404).json({ error: "No file in storage for this document" });
     }
 
-    // Uploaded file — download from Supabase Storage and stream to client
+    // Download from Supabase Storage and stream to client
     const { data: fileData, error: downloadError } = await supabase.storage
       .from(SUPABASE_BUCKET)
       .download(doc.storage_path);
@@ -325,10 +318,10 @@ app.get("/api/knowledge-documents/:id/download", requireSenior, async (req, res)
 
     const arrayBuffer = await fileData.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const safeFilename = doc.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const downloadName = (doc.original_filename || doc.stored_filename || "document").replace(/[^a-zA-Z0-9._-]/g, "_");
 
     res.setHeader("Content-Type", doc.mimetype || "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${downloadName}"`);
     res.setHeader("Content-Length", buffer.length);
     return res.send(buffer);
 

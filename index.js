@@ -106,6 +106,58 @@ function generateStoredFilename(lender, documentType, effectiveDate, description
   return `${lenderSlug}_${typeSlug}_${dateSlug}_${descSlug}${ext}`;
 }
 
+// ── Text chunking ──────────────────────────────────────────────────────────
+function chunkText(text, chunkWords = 500, overlapWords = 50) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const chunks = [];
+  if (words.length === 0) return chunks;
+
+  let start = 0;
+  while (start < words.length) {
+    const end = Math.min(start + chunkWords, words.length);
+    chunks.push(words.slice(start, end).join(" "));
+    if (end === words.length) break;
+    start += chunkWords - overlapWords;
+  }
+  return chunks;
+}
+
+// ── Generate embeddings and store in knowledge_chunks ─────────────────────
+async function generateAndStoreChunks(documentId, text, lender, documentType, effectiveDate) {
+  const chunks = chunkText(text);
+  if (chunks.length === 0) {
+    console.log(`[embeddings] No text to embed for document ${documentId} — skipping`);
+    return;
+  }
+
+  console.log(`[embeddings] Generating embeddings for ${chunks.length} chunk(s) — document ${documentId}`);
+
+  // Single batched API call for all chunks
+  const embeddingResponse = await openai.embeddings.create({
+    model: "text-embedding-3-small",
+    input: chunks
+  });
+
+  const rows = embeddingResponse.data.map((item, i) => ({
+    document_id:   documentId,
+    chunk_index:   i,
+    chunk_text:    chunks[i],
+    embedding:     item.embedding,
+    lender,
+    document_type: documentType,
+    effective_date: effectiveDate ? `${effectiveDate}-01` : null
+  }));
+
+  const { error } = await supabase.from("knowledge_chunks").insert(rows);
+
+  if (error) {
+    console.error("[embeddings] knowledge_chunks insert error:", error);
+    throw error;
+  }
+
+  console.log(`[embeddings] Stored ${rows.length} chunk(s) for document ${documentId}`);
+}
+
 // ── GET /api/knowledge-documents — list all docs for senior broker UI ─────────
 app.get("/api/knowledge-documents", requireSenior, async (req, res) => {
   try {
@@ -375,6 +427,13 @@ app.post(
       if (docInsertError) {
         console.error("Documents table insert error:", docInsertError);
         return res.status(500).json({ error: "Failed to save document record" });
+      }
+
+      // ── Generate embeddings and store chunks ──────────────────────────────
+      try {
+        await generateAndStoreChunks(docData.id, extractedText, lender, documentType, effectiveDate);
+      } catch (embedErr) {
+        console.error("[embeddings] Failed (non-fatal, upload still succeeded):", embedErr.message);
       }
 
       // ── Also insert into knowledge_documents for backward AI compat ───────

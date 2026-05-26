@@ -800,8 +800,14 @@
 
   <div class="feature-row">
     <div class="feature-info">
-      <div class="feature-name">AI Receptionist</div>
-      <div class="feature-desc">Public chat widget at /chat for clients</div>
+      <div class="feature-name" style="display:flex;align-items:center;gap:8px;">
+        AI Receptionist
+        <span id="aiReceptionistStatus" class="badge badge-on" style="font-size:11px;padding:2px 8px;">Online</span>
+      </div>
+      <div class="feature-desc">
+        Public chat widget —
+        <a href="/chat" target="_blank" style="color:#2563eb;text-decoration:none;font-weight:600;">test it ↗</a>
+      </div>
     </div>
     <label class="toggle-switch" title="Toggle AI Receptionist">
       <input type="checkbox" id="toggle-aiReceptionist"
@@ -2642,6 +2648,7 @@ async function savePastedKnowledge() {
           const el = document.getElementById("toggle-" + key);
           if (el) el.checked = (f[key] !== false);
         });
+        updateAiReceptionistBadge(f.aiReceptionist !== false);
       }
 
       // Junior: show/hide sections based on current feature flags
@@ -2662,6 +2669,18 @@ async function savePastedKnowledge() {
     }
   }
 
+  function updateAiReceptionistBadge(online) {
+    const badge = document.getElementById("aiReceptionistStatus");
+    if (!badge) return;
+    if (online) {
+      badge.textContent = "Online";
+      badge.className = "badge badge-on";
+    } else {
+      badge.textContent = "Offline";
+      badge.className = "badge badge-off";
+    }
+  }
+
   async function toggleFeature(feature, enabled) {
     const msg = document.getElementById("feature-save-msg");
     try {
@@ -2673,6 +2692,7 @@ async function savePastedKnowledge() {
       });
       const data = await res.json();
       if (data.success) {
+        if (feature === "aiReceptionist") updateAiReceptionistBadge(enabled);
         if (msg) {
           msg.textContent = "✓ Saved";
           msg.style.color = "#16a34a";

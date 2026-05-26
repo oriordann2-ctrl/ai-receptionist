@@ -63,6 +63,29 @@
 
   .btn-logout:hover { background: #e2e8f0; opacity: 1; }
 
+  .btn-test-mode {
+    background: #f1f5f9;
+    color: #94a3b8;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    min-height: unset;
+  }
+
+  .btn-test-mode:hover { background: #e2e8f0; opacity: 1; }
+
+  .btn-test-mode.active {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .btn-test-mode.active:hover { background: #fde68a; }
+
   /* ── Container ───────────────────────────────────────────── */
   .container {
     max-width: 960px;
@@ -739,6 +762,9 @@
     </div>
     <div class="nav-right">
       <span id="roleBadge" class="badge badge-mode">Loading...</span>
+      <button id="testModeBtn" class="btn-test-mode" onclick="toggleTestMode()" title="When on, your activity won't appear in usage stats">
+        🧪 Testing off
+      </button>
       <button class="btn-logout" onclick="logout()">Sign out</button>
     </div>
   </nav>
@@ -1246,6 +1272,9 @@
 
         const user = await res.json();
         const role = user.role;
+
+        // Restore test mode state from session
+        applyTestModeUI(user.isTest || false);
 
         const roleBadge = document.getElementById("roleBadge");
 
@@ -2396,6 +2425,36 @@ async function savePastedKnowledge() {
           });
       } */
     }
+
+  let isTestMode = false;
+
+  function applyTestModeUI(active) {
+    isTestMode = active;
+    const btn = document.getElementById("testModeBtn");
+    if (!btn) return;
+    if (active) {
+      btn.textContent = "🧪 Testing on";
+      btn.classList.add("active");
+    } else {
+      btn.textContent = "🧪 Testing off";
+      btn.classList.remove("active");
+    }
+  }
+
+  async function toggleTestMode() {
+    const newState = !isTestMode;
+    try {
+      const res = await fetch("/session/test-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ enabled: newState })
+      });
+      if (res.ok) applyTestModeUI(newState);
+    } catch (err) {
+      console.error("toggleTestMode failed:", err);
+    }
+  }
 
   let activityChartInstance = null;
 

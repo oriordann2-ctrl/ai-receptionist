@@ -95,33 +95,63 @@ function saveKnowledgeDocs(docs) {
   fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");
 }
 
+// ── Helper: generate standardised stored filename from metadata ──────────────
+function generateStoredFilename(lender, documentType, effectiveDate, description, originalFilename) {
+  const ext = path.extname(originalFilename) || "";
+  const lenderSlug  = lender.toUpperCase().replace(/[\s/]+/g, "").replace(/[^A-Z0-9]/g, "").slice(0, 15);
+  const typeSlug    = documentType.replace(/[\s/]+/g, "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 20);
+  const dateSlug    = effectiveDate ? String(effectiveDate).slice(0, 7) : new Date().toISOString().slice(0, 7);
+  const descSlug    = description.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim()
+                        .split(/\s+/).slice(0, 5).join("-").slice(0, 40);
+  return `${lenderSlug}_${typeSlug}_${dateSlug}_${descSlug}${ext}`;
+}
+
+// ── GET /api/knowledge-documents — list all docs for senior broker UI ─────────
 app.get("/api/knowledge-documents", requireSenior, async (req, res) => {
   try {
-    const docs = await loadKnowledgeDocs();
+    const { data, error } = await supabase
+      .from("documents")
+      .select("id, original_filename, stored_filename, mimetype, lender, document_type, effective_date, tags, uploaded_at, metadata_complete, storage_path")
+      .order("uploaded_at", { ascending: false });
 
-    res.json(
-      docs.map(doc => ({
-        id: doc.id,
-        filename: doc.filename,
-        mimetype: doc.mimetype,
-        uploadedAt: doc.uploadedAt,
-        storagePath: doc.storagePath
-      }))
-    );
+    if (error) {
+      console.error("Load documents error:", error);
+      return res.status(500).json({ error: "Failed to load documents" });
+    }
+
+    res.json(data.map(doc => ({
+      id:               doc.id,
+      filename:         doc.original_filename,
+      storedFilename:   doc.stored_filename,
+      mimetype:         doc.mimetype,
+      lender:           doc.lender,
+      documentType:     doc.document_type,
+      effectiveDate:    doc.effective_date,
+      tags:             doc.tags,
+      uploadedAt:       doc.uploaded_at,
+      metadataComplete: doc.metadata_complete,
+      storagePath:      doc.storage_path
+    })));
   } catch (err) {
     console.error("Load knowledge documents error:", err);
     res.status(500).json({ error: "Failed to load documents" });
   }
 });
 
-app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
+// ── PATCH /api/documents/:id/metadata — save metadata for existing doc ────────
+app.patch("/api/documents/:id/metadata", requireSenior, async (req, res) => {
   try {
     const { id } = req.params;
+    const { lender, document_type, description, effective_date, expiry_date, tags } = req.body;
 
-    // Fetch the document first so we know its storage path
+    if (!lender || !document_type || !description || !effective_date) {
+      return res.status(400).json({ error: "Lender, document type, description and effective date are required" });
+    }
+
+    // Fetch original filename to build stored filename
     const { data: doc, error: fetchError } = await supabase
-      .from("knowledge_documents")
-      .select("id, filename, storage_path")
+      .from("documents")
+      .select("original_filename")
       .eq("id", id)
       .single();
 
@@ -129,7 +159,50 @@ app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
       return res.status(404).json({ error: "Document not found" });
     }
 
-    // Delete from Supabase Storage if the file was stored there
+    const storedFilename = generateStoredFilename(lender, document_type, effective_date, description, doc.original_filename);
+
+    const { error: updateError } = await supabase
+      .from("documents")
+      .update({
+        lender,
+        document_type,
+        description,
+        effective_date:    effective_date   || null,
+        expiry_date:       expiry_date      || null,
+        tags:              tags             || null,
+        stored_filename:   storedFilename,
+        metadata_complete: true
+      })
+      .eq("id", id);
+
+    if (updateError) {
+      console.error("Metadata update error:", updateError);
+      return res.status(500).json({ error: "Failed to save metadata" });
+    }
+
+    res.json({ success: true, stored_filename: storedFilename });
+  } catch (err) {
+    console.error("Save metadata error:", err);
+    res.status(500).json({ error: "Failed to save metadata" });
+  }
+});
+
+app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch from documents table (source of record)
+    const { data: doc, error: fetchError } = await supabase
+      .from("documents")
+      .select("id, original_filename, storage_path")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !doc) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    // Delete file from Supabase Storage if present
     if (doc.storage_path) {
       const { error: storageError } = await supabase.storage
         .from(SUPABASE_BUCKET)
@@ -137,13 +210,13 @@ app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
 
       if (storageError) {
         console.error("Supabase storage delete error:", storageError);
-        // Continue anyway — still delete the DB record
+        // Continue — still remove the DB records
       }
     }
 
-    // Delete the metadata row from the table
+    // Delete from documents (knowledge_chunks cascade automatically)
     const { error: deleteError } = await supabase
-      .from("knowledge_documents")
+      .from("documents")
       .delete()
       .eq("id", id);
 
@@ -151,6 +224,9 @@ app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
       console.error("Supabase document delete error:", deleteError);
       return res.status(500).json({ error: "Failed to delete document" });
     }
+
+    // Also remove from legacy knowledge_documents table
+    await supabase.from("knowledge_documents").delete().eq("id", id);
 
     res.json({ success: true });
   } catch (err) {

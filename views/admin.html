@@ -667,6 +667,19 @@ textarea.form-input {
 
   <div id="knowledgeUploadStatus" class="form-status"></div>
 
+  <!-- Metadata warning banner -->
+  <div id="metadataBanner" style="
+    display:none;
+    margin-top:20px;
+    padding:12px 16px;
+    background:#fffbeb;
+    border:1px solid #fbbf24;
+    border-radius:12px;
+    font-size:14px;
+    font-weight:bold;
+    color:#92400e;
+  "></div>
+
   <!-- Uploaded documents list -->
   <div style="margin-top:24px; border-top:1px solid #e5e7eb; padding-top:20px;">
     <h3 style="margin-bottom:12px;">Uploaded Documents</h3>
@@ -1012,8 +1025,22 @@ textarea.form-input {
       document.body.style.overflow = "hidden";
     }
 
+    // ── Dropdown options ────────────────────────────────────────────────────
+    const LENDERS = [
+      "AIB", "Bank of Ireland", "EBS", "Haven", "Avant Money",
+      "Nua", "Finance Ireland", "ICS / Dilosk", "PTSB", "Pepper Money",
+      "General / Multiple"
+    ];
+    const DOC_TYPES = [
+      "Lender Policy", "Rate Sheet", "Process Guide", "Product Guide",
+      "Compliance / Regulatory", "FAQ / Q&A", "Internal Reference"
+    ];
+    const lenderOptions  = LENDERS.map(l   => `<option value="${l}">${l}</option>`).join("");
+    const docTypeOptions = DOC_TYPES.map(t  => `<option value="${t}">${t}</option>`).join("");
+
     async function loadKnowledgeDocuments() {
-      const list = document.getElementById("knowledgeDocsList");
+      const list   = document.getElementById("knowledgeDocsList");
+      const banner = document.getElementById("metadataBanner");
       if (!list) return;
 
       try {
@@ -1025,6 +1052,17 @@ textarea.form-input {
 
         const docs = await res.json();
 
+        // Update warning banner
+        const incomplete = docs.filter(d => !d.metadataComplete);
+        if (banner) {
+          if (incomplete.length > 0) {
+            banner.style.display = "block";
+            banner.innerHTML = `⚠️ ${incomplete.length} document${incomplete.length > 1 ? "s" : ""} need${incomplete.length === 1 ? "s" : ""} metadata before the AI can use them.`;
+          } else {
+            banner.style.display = "none";
+          }
+        }
+
         if (!docs.length) {
           list.innerHTML = "<p class='meta' style='font-style:italic;'>No documents uploaded yet.</p>";
           return;
@@ -1034,54 +1072,80 @@ textarea.form-input {
           const date = new Date(doc.uploadedAt).toLocaleDateString("en-IE", {
             day: "numeric", month: "short", year: "numeric"
           });
-
           const typeLabel =
-            doc.mimetype === "application/pdf" ? "PDF" :
-            doc.mimetype === "text/plain" ? "TXT" :
-            doc.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ? "DOCX" :
-            "File";
+            doc.mimetype === "application/pdf"  ? "PDF"  :
+            doc.mimetype === "text/plain"        ? "TXT"  :
+            doc.mimetype.includes("wordprocessing") ? "DOCX" : "File";
 
-          const typeBadge = `<span style="
-            display:inline-block;
-            padding:2px 8px;
-            border-radius:999px;
-            font-size:12px;
-            font-weight:bold;
-            background:#dbeafe;
-            color:#1d4ed8;
-            margin-right:8px;
-          ">${typeLabel}</span>`;
+          const typeBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:bold;background:#dbeafe;color:#1d4ed8;margin-right:8px;">${typeLabel}</span>`;
+
+          // ── Incomplete doc — show metadata form ──────────────────────────
+          if (!doc.metadataComplete) {
+            return `
+              <div class="item" id="doc-row-${doc.id}" style="background:#fffbeb;border-radius:12px;padding:16px;border:1px solid #fbbf24;margin-bottom:4px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                  ${typeBadge}
+                  <span style="font-weight:bold;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${doc.filename}</span>
+                  <span style="background:#fef3c7;color:#b45309;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:bold;flex-shrink:0;">⚠️ Metadata needed</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <label style="font-size:13px;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">Lender <span style="color:#dc2626;">*</span></label>
+                    <select id="lender-${doc.id}" style="width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:14px;background:white;">
+                      <option value="">Select lender...</option>
+                      ${lenderOptions}
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:13px;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">Document Type <span style="color:#dc2626;">*</span></label>
+                    <select id="doctype-${doc.id}" style="width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:14px;background:white;">
+                      <option value="">Select type...</option>
+                      ${docTypeOptions}
+                    </select>
+                  </div>
+                  <div style="grid-column:1/-1;">
+                    <label style="font-size:13px;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">Description <span style="color:#dc2626;">*</span> <span style="font-weight:normal;color:#6b7280;">(what questions will this answer?)</span></label>
+                    <textarea id="desc-${doc.id}" placeholder="e.g. Covers Avant Money's residential mortgage lending criteria including LTV limits, income multiples and AIP requirements for first and second time buyers." style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;font-size:14px;min-height:80px;resize:vertical;font-family:Arial,sans-serif;box-sizing:border-box;"></textarea>
+                  </div>
+                  <div>
+                    <label style="font-size:13px;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">Effective Date <span style="color:#dc2626;">*</span></label>
+                    <input type="date" id="effdate-${doc.id}" style="width:100%;box-sizing:border-box;" />
+                  </div>
+                  <div>
+                    <label style="font-size:13px;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">Expiry Date <span style="color:#6b7280;font-weight:normal;">(optional)</span></label>
+                    <input type="date" id="expdate-${doc.id}" style="width:100%;box-sizing:border-box;" />
+                  </div>
+                  <div style="grid-column:1/-1;">
+                    <label style="font-size:13px;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">Tags <span style="color:#6b7280;font-weight:normal;">(optional, comma-separated)</span></label>
+                    <input type="text" id="tags-${doc.id}" placeholder="e.g. LTV, FTB, green mortgage, AIP" style="width:100%;box-sizing:border-box;" />
+                  </div>
+                </div>
+                <div style="margin-top:14px;display:flex;align-items:center;gap:10px;">
+                  <button onclick="saveDocumentMetadata('${doc.id}')" style="background:#16a34a;color:white;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:bold;border:none;cursor:pointer;min-height:40px;">Save Metadata</button>
+                  <span id="meta-status-${doc.id}" style="font-size:13px;color:#6b7280;"></span>
+                </div>
+              </div>`;
+          }
+
+          // ── Complete doc — show normally ─────────────────────────────────
+          const lenderBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:bold;background:#dcfce7;color:#166534;margin-right:6px;">${doc.lender}</span>`;
+          const typeCatBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:bold;background:#f3e8ff;color:#7e22ce;">${doc.documentType}</span>`;
 
           return `
-            <div class="item" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-              <div style="flex:1; min-width:0;">
-                <div style="font-weight:bold; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            <div class="item" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:bold;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                   ${typeBadge}${doc.filename}
                 </div>
-                <div class="meta" style="margin-top:4px;">Uploaded ${date}</div>
+                <div class="meta" style="margin-top:6px;">${lenderBadge}${typeCatBadge}</div>
+                <div class="meta" style="margin-top:4px;">Uploaded ${date}${doc.effectiveDate ? " · Effective " + new Date(doc.effectiveDate).toLocaleDateString("en-IE", {month:"short",year:"numeric"}) : ""}</div>
               </div>
-              <div style="display:flex; gap:8px; flex-shrink:0;">
-                <a
-                  href="/api/knowledge-documents/${doc.id}/download"
-                  download="${doc.filename.replace(/"/g, '&quot;')}"
-                  style="
-                    display:inline-flex;
-                    align-items:center;
-                    padding:8px 14px;
-                    background:#2563eb;
-                    color:white;
-                    border-radius:10px;
-                    font-size:13px;
-                    font-weight:bold;
-                    text-decoration:none;
-                    min-height:36px;
-                  "
-                >Download</a>
-                <button
-                  class="btn-red"
-                  style="padding:8px 14px; font-size:13px; min-height:36px; border-radius:10px;"
-                  onclick="deleteKnowledgeDocument('${doc.id}', '${doc.filename.replace(/'/g, "\\'")}')"
-                >Delete</button>
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <a href="/api/knowledge-documents/${doc.id}/download"
+                   download="${doc.filename.replace(/"/g, "&quot;")}"
+                   style="display:inline-flex;align-items:center;padding:8px 14px;background:#2563eb;color:white;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;min-height:36px;">Download</a>
+                <button class="btn-red" style="padding:8px 14px;font-size:13px;min-height:36px;border-radius:10px;"
+                  onclick="deleteKnowledgeDocument('${doc.id}', '${doc.filename.replace(/'/g, "\\'")}')">Delete</button>
               </div>
             </div>`;
         }).join("");
@@ -1089,6 +1153,50 @@ textarea.form-input {
       } catch (err) {
         console.error("Load documents error:", err);
         list.innerHTML = "<p class='meta' style='color:#dc2626;'>Error loading documents.</p>";
+      }
+    }
+
+    async function saveDocumentMetadata(id) {
+      const lender      = document.getElementById(`lender-${id}`)?.value.trim();
+      const docType     = document.getElementById(`doctype-${id}`)?.value.trim();
+      const description = document.getElementById(`desc-${id}`)?.value.trim();
+      const effectiveDate = document.getElementById(`effdate-${id}`)?.value;
+      const expiryDate  = document.getElementById(`expdate-${id}`)?.value;
+      const tags        = document.getElementById(`tags-${id}`)?.value.trim();
+      const status      = document.getElementById(`meta-status-${id}`);
+
+      if (!lender || !docType || !description || !effectiveDate) {
+        if (status) status.innerText = "Please fill in all required fields.";
+        return;
+      }
+
+      if (status) status.innerText = "Saving...";
+
+      try {
+        const res = await fetch(`/api/documents/${id}/metadata`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            lender,
+            document_type: docType,
+            description,
+            effective_date: effectiveDate,
+            expiry_date:    expiryDate || null,
+            tags:           tags       || null
+          })
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          await loadKnowledgeDocuments();
+        } else {
+          if (status) status.innerText = result.error || "Save failed.";
+        }
+      } catch (err) {
+        console.error("Save metadata error:", err);
+        if (status) status.innerText = "Save failed. Please try again.";
       }
     }
 

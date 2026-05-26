@@ -1780,49 +1780,43 @@ function getBestKnowledgeSnippet(text, message) {
   return fullText.slice(bestIndex, bestIndex + 4000);
 }
 
-async function findRelevantKnowledgeChunks(message) {
-  const docs = await loadKnowledgeDocs();
+async function findRelevantKnowledgeChunks(message, matchCount = 5) {
+  try {
+    // 1. Embed the query
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: message
+    });
+    const queryEmbedding = embeddingResponse.data[0].embedding;
 
-  const words = message
-    .toLowerCase()
-    .split(/\W+/)
-    .filter(word => word.length > 2);
+    // 2. Vector similarity search
+    const { data: chunks, error } = await supabase.rpc("match_chunks", {
+      query_embedding: queryEmbedding,
+      match_count: matchCount,
+      filter_lender: null,
+      filter_document_type: null
+    });
 
-  const matches = [];
-
-  docs.forEach(doc => {
-    const fullText = doc.text || "";
-    const chunkSize = 3000;
-    const overlap = 500;
-
-    for (let i = 0; i < fullText.length; i += chunkSize - overlap) {
-      const chunk = fullText.slice(i, i + chunkSize);
-      const lowerChunk = chunk.toLowerCase();
-
-      let score = 0;
-
-      words.forEach(word => {
-        if (lowerChunk.includes(word)) score += 1;
-      });
-
-      // Extra weighting for important mortgage terms
-      if (lowerChunk.includes("avant")) score += 5;
-      if (lowerChunk.includes("ftb")) score += 5;
-      if (lowerChunk.includes("first time")) score += 5;
-      if (lowerChunk.includes("first-time")) score += 5;
-      if (lowerChunk.includes("documents")) score += 3;
-
-      if (score > 0) {
-        matches.push({
-          filename: doc.filename,
-          text: chunk,
-          score
-        });
-      }
+    if (error) {
+      console.error("[vector search] match_chunks error:", error);
+      return [];
     }
-  });
 
-  return matches.sort((a, b) => b.score - a.score).slice(0, 3);
+    if (!chunks || chunks.length === 0) return [];
+
+    // 3. Return in the shape callers expect: { filename, text }
+    return chunks.map(chunk => ({
+      filename: chunk.lender
+        ? `${chunk.lender} — ${chunk.document_type}`
+        : (chunk.document_type || "Knowledge Base"),
+      text: chunk.chunk_text,
+      similarity: chunk.similarity
+    }));
+
+  } catch (err) {
+    console.error("[vector search] Error:", err.message);
+    return [];
+  }
 }
 
 app.post("/whatsapp", async (req, res) => {

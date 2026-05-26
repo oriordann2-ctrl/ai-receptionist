@@ -1,0 +1,12 @@
+# Sprimal Hub — Staging Netlify config (dev branch only)
+# Proxies all non-static requests to the staging Render backend.
+# This file does NOT exist on main, so production is completely unaffected.
+
+[build]
+  publish = "public"
+
+[[redirects]]
+  from = "/*"
+  to = "https://sprimal-hub-staging.onrender.com/:splat"
+  status = 200
+  force = false

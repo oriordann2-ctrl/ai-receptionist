@@ -589,6 +589,67 @@
     }
   }
 
+  /* ── Feature toggle switches ──────────────────────────── */
+  .feature-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .feature-row:first-of-type { border-top: none; }
+
+  .feature-info { flex: 1; min-width: 0; }
+
+  .feature-name {
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 3px;
+  }
+
+  .feature-desc {
+    font-size: 13px;
+    color: #64748b;
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: #cbd5e1;
+    border-radius: 26px;
+    transition: background 0.2s;
+  }
+
+  .toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+  }
+
+  .toggle-switch input:checked + .toggle-slider { background: #16a34a; }
+  .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
 </style>
 </head>
 
@@ -639,6 +700,50 @@
       <h2>Chat Logs</h2>
       <div id="chatLogs"></div>
     </div> -->
+
+<!-- ── Feature Toggles (senior only) ─────────────────────────── -->
+<div class="card senior-only" id="featureTogglesCard" style="display:none;">
+  <h2>Feature Settings</h2>
+  <p class="muted">Turn features on or off for all staff.</p>
+
+  <div class="feature-row">
+    <div class="feature-info">
+      <div class="feature-name">AI Receptionist</div>
+      <div class="feature-desc">Public chat widget at /chat for clients</div>
+    </div>
+    <label class="toggle-switch" title="Toggle AI Receptionist">
+      <input type="checkbox" id="toggle-aiReceptionist"
+             onchange="toggleFeature('aiReceptionist', this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-info">
+      <div class="feature-name">Knowledge Base</div>
+      <div class="feature-desc">AI assistant for broker staff queries</div>
+    </div>
+    <label class="toggle-switch" title="Toggle Knowledge Base">
+      <input type="checkbox" id="toggle-knowledgeBase"
+             onchange="toggleFeature('knowledgeBase', this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-info">
+      <div class="feature-name">Email Assistant</div>
+      <div class="feature-desc">AI draft replies for client emails</div>
+    </div>
+    <label class="toggle-switch" title="Toggle Email Assistant">
+      <input type="checkbox" id="toggle-emailAssistant"
+             onchange="toggleFeature('emailAssistant', this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <p id="feature-save-msg" class="meta" style="margin-top:8px; min-height:18px;"></p>
+</div>
 
 <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
@@ -2204,9 +2309,49 @@ async function savePastedKnowledge() {
       } */
     }
 
+  async function loadFeatures() {
+    try {
+      const res = await fetch("/features", { credentials: "include" });
+      if (!res.ok) return; // non-senior: silently skip
+      const data = await res.json();
+      const f = data.features || {};
+      ["aiReceptionist", "knowledgeBase", "emailAssistant"].forEach(key => {
+        const el = document.getElementById("toggle-" + key);
+        if (el) el.checked = (f[key] !== false);
+      });
+    } catch (err) {
+      console.error("loadFeatures failed:", err);
+    }
+  }
+
+  async function toggleFeature(feature, enabled) {
+    const msg = document.getElementById("feature-save-msg");
+    try {
+      const res = await fetch("/features", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ feature, enabled })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (msg) {
+          msg.textContent = "✓ Saved";
+          msg.style.color = "#16a34a";
+          setTimeout(() => { if (msg) msg.textContent = ""; }, 2000);
+        }
+      } else {
+        if (msg) { msg.textContent = data.error || "Failed to save"; msg.style.color = "#dc2626"; }
+      }
+    } catch (err) {
+      if (msg) { msg.textContent = "Failed to save"; msg.style.color = "#dc2626"; }
+    }
+  }
+
   async function initAdminPage() {
     await setupRoleView();
     await loadData();
+    await loadFeatures();
   }
 
   initAdminPage();

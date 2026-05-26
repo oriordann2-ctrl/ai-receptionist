@@ -24,6 +24,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+// Redirect root to login so the AI receptionist is not the landing page
+app.get("/", (req, res) => res.redirect("/login"));
 app.use(express.static(path.join(__dirname, "public")));
 
 const appointmentsFile = path.join(__dirname, "data", "appointments.json");
@@ -663,11 +665,21 @@ let documents = readJsonFile(documentsFile, []);
 let chatLogs = readJsonFile(chatLogsFile, []);
 const settings = readJsonFile(settingsFile, {
   aiEnabled: true,
-  businessMode: "mortgage"
+  businessMode: "mortgage",
+  features: {
+    aiReceptionist: true,
+    knowledgeBase: true,
+    emailAssistant: false
+  }
 });
 
 let aiEnabled = settings.aiEnabled;
 let businessMode = "mortgage";
+let features = settings.features || {
+  aiReceptionist: true,
+  knowledgeBase: true,
+  emailAssistant: false
+};
 
 const availableSlots = {
   "2026-04-22": ["10:00", "11:00", "14:00"],
@@ -746,7 +758,8 @@ function saveChatLogs() {
 function saveSettings() {
   writeJsonFile(settingsFile, {
     aiEnabled,
-    businessMode
+    businessMode,
+    features
   });
 }
 
@@ -1253,6 +1266,16 @@ app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
+app.get("/chat", (req, res) => {
+  if (!features.aiReceptionist) {
+    return res.status(503).send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Sprimal</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc;}
+.msg{text-align:center;color:#64748b;}h2{color:#0f172a;font-size:22px;margin-bottom:8px;}</style></head>
+<body><div class="msg"><h2>AI Receptionist is currently offline</h2><p>Please check back later or contact us directly.</p></div></body></html>`);
+  }
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 app.get("/admin/documents", (req, res) => {
   try {
     const sortedDocuments = [...documents].sort(
@@ -1372,7 +1395,7 @@ app.get("/chat-logs", requireAdmin, (req, res) => {
 });
 
 app.get("/status", requireAdmin, (req, res) => {
-  res.json({ aiEnabled, businessMode });
+  res.json({ aiEnabled, businessMode, features });
 });
 
 app.post("/status", requireAdmin, (req, res) => {
@@ -1399,6 +1422,28 @@ app.post("/mode", requireAdmin, (req, res) => {
   saveSettings();
 
   res.json({ success: true, businessMode });
+});
+
+// ── Feature toggles ──────────────────────────────────────────────────────────
+app.get("/features", requireSenior, (req, res) => {
+  res.json({ features });
+});
+
+app.post("/features", requireSenior, (req, res) => {
+  const { feature, enabled } = req.body;
+  const validFeatures = ["aiReceptionist", "knowledgeBase", "emailAssistant"];
+
+  if (!validFeatures.includes(feature)) {
+    return res.status(400).json({ error: "Invalid feature name" });
+  }
+  if (typeof enabled !== "boolean") {
+    return res.status(400).json({ error: "enabled must be a boolean" });
+  }
+
+  features[feature] = enabled;
+  saveSettings();
+  console.log(`[/features] ${feature} set to ${enabled}`);
+  res.json({ success: true, features });
 });
 
 app.get("/admin", requireAdminPage, (req, res) => {
@@ -2978,6 +3023,10 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
 
   if (!question) {
     return res.status(400).json({ error: "question is required" });
+  }
+
+  if (!features.knowledgeBase) {
+    return res.status(503).json({ error: "Knowledge base is currently disabled." });
   }
 
   try {

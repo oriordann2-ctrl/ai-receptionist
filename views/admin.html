@@ -865,8 +865,15 @@
     <canvas id="activityChart" height="90"></canvas>
   </div>
 
-  <h2 style="font-size:15px; margin-bottom:0;">Recent Events</h2>
-  <div id="activityFeed"><p class="meta" style="font-style:italic;">Loading...</p></div>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+    <h2 style="font-size:15px; margin:0;">Recent Events</h2>
+    <button onclick="toggleActivityFeed()" id="activityFeedToggle"
+      style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:600;
+             cursor:pointer; padding:4px 0; min-height:unset;">
+      Show ▾
+    </button>
+  </div>
+  <div id="activityFeed" style="display:none;"><p class="meta" style="font-style:italic;">Loading...</p></div>
 </div>
 
 <div class="card" id="kbCard">
@@ -2667,6 +2674,15 @@ async function savePastedKnowledge() {
     } catch (err) {
       console.error("loadFeatures failed:", err);
     }
+  }
+
+  function toggleActivityFeed() {
+    const feed   = document.getElementById("activityFeed");
+    const btn    = document.getElementById("activityFeedToggle");
+    if (!feed || !btn) return;
+    const open = feed.style.display === "none";
+    feed.style.display = open ? "block" : "none";
+    btn.textContent    = open ? "Hide ▴" : "Show ▾";
   }
 
   function updateAiReceptionistBadge(online) {

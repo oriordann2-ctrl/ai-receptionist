@@ -680,6 +680,7 @@ let features = settings.features || {
   knowledgeBase: true,
   emailAssistant: false
 };
+let testMode = false; // global — suppresses all activity logging when on
 
 const availableSlots = {
   "2026-04-22": ["10:00", "11:00", "14:00"],
@@ -765,7 +766,7 @@ function saveSettings() {
 
 // ── Activity logging ─────────────────────────────────────────────────────────
 function logActivity(type, data = {}) {
-  if (data.isTest) return; // suppress test sessions
+  if (testMode) return; // global test mode — suppress all activity
   supabase.from("activity_log").insert({
     type,
     role:     data.role     || null,
@@ -1390,19 +1391,17 @@ app.get("/appointments", requireAdmin, (req, res) => {
 app.get("/api/me", requireLogin, (req, res) => {
   res.json({
     role:   req.user.role,
-    isTest: req.user.isTest || false
+    isTest: testMode
   });
 });
 
-app.post("/session/test-mode", requireLogin, (req, res) => {
+app.post("/session/test-mode", requireSenior, (req, res) => {
   const { enabled } = req.body;
   if (typeof enabled !== "boolean") {
     return res.status(400).json({ error: "enabled must be a boolean" });
   }
-  const sessionId = req.cookies.admin_session;
-  const session   = sessions.get(sessionId);
-  if (session) session.isTest = enabled;
-  console.log(`[test-mode] set to ${enabled} for role ${session?.role}`);
+  testMode = enabled;
+  console.log(`[test-mode] global testMode set to ${enabled}`);
   res.json({ success: true, isTest: enabled });
 });
 
@@ -3137,7 +3136,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   console.log("[approved answer match]:", match);
 
   if (match) {
-    logActivity("kb_query", { role: req.user.role, isTest: req.user.isTest, question, answered: true, source: "Approved Answer" });
+    logActivity("kb_query", { role: req.user.role, question, answered: true, source: "Approved Answer" });
     return res.json({
       answer: match.answer,
       source: "Approved Answer",
@@ -3257,7 +3256,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
           generalCompletion.choices[0].message.content ||
           "I don't have that in the knowledge base yet.";
 
-        logActivity("kb_query", { role: req.user.role, isTest: req.user.isTest, question, answered: true, source: "General Knowledge" });
+        logActivity("kb_query", { role: req.user.role, question, answered: true, source: "General Knowledge" });
         return res.json({
           answer: generalAnswer,
           source: "AI Generated",
@@ -3274,8 +3273,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
     console.log("[/api/knowledge-answer] question:", question, "| answer length:", answer.length);
 
     logActivity("kb_query", {
-      role:   req.user.role,
-      isTest: req.user.isTest,
+      role:     req.user.role,
       question,
       answered: source !== "Knowledge Gap",
       source

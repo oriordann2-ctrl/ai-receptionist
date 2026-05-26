@@ -5,6 +5,13 @@
 [build]
   publish = "public"
 
+# Redirect root to login (force=true overrides the public/index.html static file)
+[[redirects]]
+  from = "/"
+  to = "/login"
+  status = 302
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "https://sprimal-hub-staging.onrender.com/:splat"

@@ -24,6 +24,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+// Redirect root to login so the AI receptionist is not the landing page
+app.get("/", (req, res) => res.redirect("/login"));
 app.use(express.static(path.join(__dirname, "public")));
 
 const appointmentsFile = path.join(__dirname, "data", "appointments.json");
@@ -663,11 +665,22 @@ let documents = readJsonFile(documentsFile, []);
 let chatLogs = readJsonFile(chatLogsFile, []);
 const settings = readJsonFile(settingsFile, {
   aiEnabled: true,
-  businessMode: "mortgage"
+  businessMode: "mortgage",
+  features: {
+    aiReceptionist: false,
+    knowledgeBase: true,
+    emailAssistant: true
+  }
 });
 
 let aiEnabled = settings.aiEnabled;
 let businessMode = "mortgage";
+let features = settings.features || {
+  aiReceptionist: false,
+  knowledgeBase: true,
+  emailAssistant: true
+};
+let testMode = false; // global — suppresses all activity logging when on
 
 const availableSlots = {
   "2026-04-22": ["10:00", "11:00", "14:00"],
@@ -746,7 +759,22 @@ function saveChatLogs() {
 function saveSettings() {
   writeJsonFile(settingsFile, {
     aiEnabled,
-    businessMode
+    businessMode,
+    features
+  });
+}
+
+// ── Activity logging ─────────────────────────────────────────────────────────
+function logActivity(type, data = {}) {
+  if (testMode) return; // global test mode — suppress all activity
+  supabase.from("activity_log").insert({
+    type,
+    role:     data.role     || null,
+    question: data.question || null,
+    answered: data.answered !== undefined ? data.answered : null,
+    source:   data.source   || null
+  }).then(({ error }) => {
+    if (error) console.error("[logActivity] insert failed:", error.message);
   });
 }
 
@@ -1253,6 +1281,16 @@ app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
+app.get("/chat", (req, res) => {
+  if (!features.aiReceptionist) {
+    return res.status(503).send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Sprimal</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc;}
+.msg{text-align:center;color:#64748b;}h2{color:#0f172a;font-size:22px;margin-bottom:8px;}</style></head>
+<body><div class="msg"><h2>AI Receptionist is currently offline</h2><p>Please check back later or contact us directly.</p></div></body></html>`);
+  }
+  res.sendFile(path.join(__dirname, "views", "chat.html"));
+});
+
 app.get("/admin/documents", (req, res) => {
   try {
     const sortedDocuments = [...documents].sort(
@@ -1324,12 +1362,14 @@ app.get("/admin/documents/:id/view", (req, res) => {
 
     const sessionId = crypto.randomUUID();
 
-    sessions.set(sessionId, { role });
+    sessions.set(sessionId, { role, isTest: false });
 
     res.cookie("admin_session", sessionId, {
       httpOnly: true,
       sameSite: "lax"
     });
+
+    logActivity("login", { role });
 
     res.json({ success: true, role });
   });
@@ -1350,8 +1390,19 @@ app.get("/appointments", requireAdmin, (req, res) => {
 
 app.get("/api/me", requireLogin, (req, res) => {
   res.json({
-    role: req.user.role
+    role:   req.user.role,
+    isTest: testMode
   });
+});
+
+app.post("/session/test-mode", requireSenior, (req, res) => {
+  const { enabled } = req.body;
+  if (typeof enabled !== "boolean") {
+    return res.status(400).json({ error: "enabled must be a boolean" });
+  }
+  testMode = enabled;
+  console.log(`[test-mode] global testMode set to ${enabled}`);
+  res.json({ success: true, isTest: enabled });
 });
 
 app.get("/admin/documents", (req, res) => {
@@ -1372,7 +1423,7 @@ app.get("/chat-logs", requireAdmin, (req, res) => {
 });
 
 app.get("/status", requireAdmin, (req, res) => {
-  res.json({ aiEnabled, businessMode });
+  res.json({ aiEnabled, businessMode, features });
 });
 
 app.post("/status", requireAdmin, (req, res) => {
@@ -1399,6 +1450,45 @@ app.post("/mode", requireAdmin, (req, res) => {
   saveSettings();
 
   res.json({ success: true, businessMode });
+});
+
+// ── Feature toggles ──────────────────────────────────────────────────────────
+// GET is requireLogin so junior staff can read current feature state for UI visibility
+app.get("/features", requireLogin, (req, res) => {
+  res.json({ features });
+});
+
+app.post("/features", requireSenior, (req, res) => {
+  const { feature, enabled } = req.body;
+  const validFeatures = ["aiReceptionist", "knowledgeBase", "emailAssistant"];
+
+  if (!validFeatures.includes(feature)) {
+    return res.status(400).json({ error: "Invalid feature name" });
+  }
+  if (typeof enabled !== "boolean") {
+    return res.status(400).json({ error: "enabled must be a boolean" });
+  }
+
+  features[feature] = enabled;
+  saveSettings();
+  console.log(`[/features] ${feature} set to ${enabled}`);
+  res.json({ success: true, features });
+});
+
+app.get("/api/activity", requireSenior, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("activity_log")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error("[/api/activity] error:", err.message);
+    res.status(500).json({ error: "Failed to load activity" });
+  }
 });
 
 app.get("/admin", requireAdminPage, (req, res) => {
@@ -2980,6 +3070,10 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
     return res.status(400).json({ error: "question is required" });
   }
 
+  if (!features.knowledgeBase) {
+    return res.status(503).json({ error: "Knowledge base is currently disabled." });
+  }
+
   try {
 
   const { data: approvedAnswers, error: approvedError } = await supabase
@@ -3042,6 +3136,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   console.log("[approved answer match]:", match);
 
   if (match) {
+    logActivity("kb_query", { role: req.user.role, question, answered: true, source: "Approved Answer" });
     return res.json({
       answer: match.answer,
       source: "Approved Answer",
@@ -3161,6 +3256,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
           generalCompletion.choices[0].message.content ||
           "I don't have that in the knowledge base yet.";
 
+        logActivity("kb_query", { role: req.user.role, question, answered: true, source: "General Knowledge" });
         return res.json({
           answer: generalAnswer,
           source: "AI Generated",
@@ -3175,6 +3271,13 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
     }
 
     console.log("[/api/knowledge-answer] question:", question, "| answer length:", answer.length);
+
+    logActivity("kb_query", {
+      role:     req.user.role,
+      question,
+      answered: source !== "Knowledge Gap",
+      source
+    });
 
     res.json({
       answer,

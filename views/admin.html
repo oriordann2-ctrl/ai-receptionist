@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; }
 
@@ -61,6 +62,29 @@
   }
 
   .btn-logout:hover { background: #e2e8f0; opacity: 1; }
+
+  /* ── Toast notification ──────────────────────────────────── */
+  .sprimal-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e293b;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+  }
+
+  .sprimal-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
 
   /* ── Container ───────────────────────────────────────────── */
   .container {
@@ -589,6 +613,135 @@
     }
   }
 
+  /* ── Feature toggle switches ──────────────────────────── */
+  .feature-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .feature-row:first-of-type { border-top: none; }
+
+  .feature-info { flex: 1; min-width: 0; }
+
+  .feature-name {
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 3px;
+  }
+
+  .feature-desc {
+    font-size: 13px;
+    color: #64748b;
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: #cbd5e1;
+    border-radius: 26px;
+    transition: background 0.2s;
+  }
+
+  .toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+  }
+
+  .toggle-switch input:checked + .toggle-slider { background: #16a34a; }
+  .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+  /* ── Activity feed ────────────────────────────────────── */
+  .activity-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .activity-row:first-child { border-top: none; }
+
+  .activity-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .activity-login { background: #eff6ff; color: #2563eb; }
+  .activity-kb    { background: #faf5ff; color: #7c3aed; }
+
+  .activity-body { flex: 1; min-width: 0; }
+
+  .activity-text {
+    font-size: 14px;
+    color: #0f172a;
+    line-height: 1.5;
+  }
+
+  .activity-text em {
+    color: #334155;
+    font-style: italic;
+  }
+
+  .activity-time {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+  }
+
+  .activity-summary {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .summary-chip {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #475569;
+  }
+
+  .summary-chip strong {
+    display: block;
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+
 </style>
 </head>
 
@@ -640,7 +793,101 @@
       <div id="chatLogs"></div>
     </div> -->
 
-<div class="card">
+<!-- ── Feature Toggles (senior only) ─────────────────────────── -->
+<div class="card senior-only" id="featureTogglesCard" style="display:none;">
+  <h2>Feature Settings</h2>
+  <p class="muted">Turn features on or off for all staff.</p>
+
+  <div class="feature-row">
+    <div class="feature-info">
+      <div class="feature-name" style="display:flex;align-items:center;gap:8px;">
+        AI Receptionist
+        <span id="aiReceptionistStatus" class="badge badge-on" style="font-size:11px;padding:2px 8px;">Online</span>
+      </div>
+      <div class="feature-desc">
+        Public chat widget —
+        <a href="/chat" target="_blank" style="color:#2563eb;text-decoration:none;font-weight:600;">test it ↗</a>
+      </div>
+    </div>
+    <label class="toggle-switch" title="Toggle AI Receptionist">
+      <input type="checkbox" id="toggle-aiReceptionist"
+             onchange="toggleFeature('aiReceptionist', this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-info">
+      <div class="feature-name">Knowledge Base</div>
+      <div class="feature-desc">AI assistant for broker staff queries</div>
+    </div>
+    <label class="toggle-switch" title="Toggle Knowledge Base">
+      <input type="checkbox" id="toggle-knowledgeBase"
+             onchange="toggleFeature('knowledgeBase', this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-info">
+      <div class="feature-name">Email Assistant</div>
+      <div class="feature-desc">AI draft replies for client emails</div>
+    </div>
+    <label class="toggle-switch" title="Toggle Email Assistant">
+      <input type="checkbox" id="toggle-emailAssistant"
+             onchange="toggleFeature('emailAssistant', this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <p id="feature-save-msg" class="meta" style="margin-top:8px; min-height:18px;"></p>
+
+  <div style="margin-top:20px; padding-top:14px; border-top:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+    <div>
+      <div style="font-size:12px; color:#94a3b8; font-weight:600;">Developer</div>
+      <div style="font-size:13px; color:#94a3b8;">Suppress my activity from usage stats</div>
+    </div>
+    <label class="toggle-switch" title="When on, your queries won't appear in the activity log">
+      <input type="checkbox" id="testModeToggle" onchange="toggleTestMode(this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+</div>
+
+<!-- ── Recent Activity (senior only) ────────────────────────────── -->
+<div class="card senior-only" id="activityCard" style="display:none;">
+  <div style="display:flex; align-items:center; justify-content:space-between;">
+    <div>
+      <h2 style="margin-bottom:4px;">Recent Activity</h2>
+      <p class="muted" style="margin:0;">See when staff log in and what questions they're asking.</p>
+    </div>
+    <button onclick="toggleActivityCard()" id="activityCardToggle"
+      style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:600;
+             cursor:pointer; padding:4px 0; min-height:unset; flex-shrink:0;">
+      Show ▾
+    </button>
+  </div>
+
+  <div id="activityCardBody" style="display:none;">
+    <div class="activity-summary" id="activitySummary" style="margin-top:16px;"></div>
+
+    <div style="margin:16px 0 20px;">
+      <canvas id="activityChart" height="90"></canvas>
+    </div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+      <h2 style="font-size:15px; margin:0;">Recent Events</h2>
+      <button onclick="toggleActivityFeed()" id="activityFeedToggle"
+        style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:600;
+               cursor:pointer; padding:4px 0; min-height:unset;">
+        Show ▾
+      </button>
+    </div>
+    <div id="activityFeed" style="display:none;"><p class="meta" style="font-style:italic;">Loading...</p></div>
+  </div>
+</div>
+
+<div class="card" id="kbCard">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
         <div>
           <h2>Knowledge Base Assistant ⭐</h2>
@@ -913,7 +1160,7 @@
 </section>
 
 <!-- Junior staff: semantic document finder -->
-<section class="card junior-only" style="display:none;">
+<section class="card junior-only" id="juniorDocCard" style="display:none;">
   <h2>Find a Document</h2>
   <p class="subtitle" style="margin-bottom:16px;">Describe what you're looking for and Sprimal will find the most relevant document.</p>
 
@@ -934,7 +1181,7 @@
   <div id="juniorDocResults" style="margin-top:20px;"></div>
 </section>
 
-    <div class="card">
+    <div class="card" id="emailCard">
       <h2>Email Reply Assistant</h2>
       <p class="muted">Paste a client email and generate a draft reply.</p>
 
@@ -1058,6 +1305,9 @@
         const user = await res.json();
         const role = user.role;
 
+        // Restore test mode state silently (no toast on page load)
+        applyTestModeUI(user.isTest || false, false);
+
         const roleBadge = document.getElementById("roleBadge");
 
         if (roleBadge) {
@@ -1075,7 +1325,11 @@
 
         if (role === "senior") {
           await loadKnowledgeDocuments();
+          await loadActivity();
         }
+
+        // Apply feature visibility now that we know the role
+        await loadFeatures(role);
 
         // Junior document search is triggered on demand, not on load
 
@@ -2204,8 +2458,292 @@ async function savePastedKnowledge() {
       } */
     }
 
+  let isTestMode = false;
+
+  function showToast(msg) {
+    let toast = document.getElementById("sprimalToast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "sprimalToast";
+      toast.className = "sprimal-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => toast.classList.remove("show"), 2800);
+  }
+
+  function applyTestModeUI(active, notify = false) {
+    isTestMode = active;
+    const cb = document.getElementById("testModeToggle");
+    if (cb) cb.checked = active;
+    if (notify) {
+      showToast(active
+        ? "🧪 Testing mode ON — your queries won't be logged"
+        : "✅ Testing mode OFF — activity is being recorded"
+      );
+    }
+  }
+
+  async function toggleTestMode(enabled) {
+    try {
+      const res = await fetch("/session/test-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ enabled })
+      });
+      if (res.ok) applyTestModeUI(enabled, true);
+    } catch (err) {
+      console.error("toggleTestMode failed:", err);
+      // revert checkbox on failure
+      const cb = document.getElementById("testModeToggle");
+      if (cb) cb.checked = !enabled;
+    }
+  }
+
+
+  let activityChartInstance = null;
+
+  async function loadActivity() {
+    try {
+      const res = await fetch("/api/activity", { credentials: "include" });
+      if (!res.ok) return;
+      const items = await res.json();
+
+      const feed    = document.getElementById("activityFeed");
+      const summary = document.getElementById("activitySummary");
+      if (!feed) return;
+
+      // ── Summary chips ──────────────────────────────────────────
+      const today = new Date().toDateString();
+      const todayLogins  = items.filter(i => i.type === "login"    && new Date(i.created_at).toDateString() === today).length;
+      const todayQueries = items.filter(i => i.type === "kb_query" && new Date(i.created_at).toDateString() === today).length;
+      const totalQueries = items.filter(i => i.type === "kb_query").length;
+      const gaps         = items.filter(i => i.type === "kb_query" && i.source === "Knowledge Gap").length;
+
+      if (summary) {
+        summary.innerHTML = `
+          <div class="summary-chip"><strong>${todayLogins}</strong>Logins today</div>
+          <div class="summary-chip"><strong>${todayQueries}</strong>Questions today</div>
+          <div class="summary-chip"><strong>${totalQueries}</strong>Total questions</div>
+          <div class="summary-chip"><strong>${gaps}</strong>Knowledge gaps</div>
+        `;
+      }
+
+      // ── Trend chart — last 5 days ──────────────────────────────
+      const days = [];
+      for (let i = 4; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days.push(d);
+      }
+
+      const labels = days.map(d =>
+        d.toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "short" })
+      );
+
+      const queryCounts = days.map(d =>
+        items.filter(i => i.type === "kb_query" && new Date(i.created_at).toDateString() === d.toDateString()).length
+      );
+
+      const loginCounts = days.map(d =>
+        items.filter(i => i.type === "login" && new Date(i.created_at).toDateString() === d.toDateString()).length
+      );
+
+      const canvas = document.getElementById("activityChart");
+      if (canvas) {
+        if (activityChartInstance) activityChartInstance.destroy();
+
+        activityChartInstance = new Chart(canvas, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "Questions asked",
+                data: queryCounts,
+                backgroundColor: "rgba(99, 102, 241, 0.75)",
+                borderRadius: 6,
+                borderSkipped: false
+              },
+              {
+                label: "Logins",
+                data: loginCounts,
+                backgroundColor: "rgba(37, 99, 235, 0.35)",
+                borderRadius: 6,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                position: "top",
+                labels: { font: { size: 12 }, boxWidth: 12, padding: 16 }
+              },
+              tooltip: { mode: "index", intersect: false }
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { font: { size: 12 } }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, font: { size: 12 } },
+                grid: { color: "#f1f5f9" }
+              }
+            }
+          }
+        });
+      }
+
+      // ── Event feed ─────────────────────────────────────────────
+      if (!items.length) {
+        feed.innerHTML = '<p class="empty">No activity recorded yet.</p>';
+        return;
+      }
+
+      feed.innerHTML = items.slice(0, 50).map(item => {
+        const dt = new Date(item.created_at);
+        const time = dt.toLocaleString("en-IE", {
+          day: "numeric", month: "short",
+          hour: "2-digit", minute: "2-digit"
+        });
+
+        const roleTag = item.role === "senior"
+          ? `<span class="badge badge-mode"  style="font-size:11px;padding:2px 8px;">Senior</span>`
+          : `<span class="badge badge-count" style="font-size:11px;padding:2px 8px;">Junior</span>`;
+
+        if (item.type === "login") {
+          return `<div class="activity-row">
+            <div class="activity-icon activity-login">→</div>
+            <div class="activity-body">
+              <div class="activity-text">${roleTag} logged in</div>
+              <div class="activity-time">${time}</div>
+            </div>
+          </div>`;
+        }
+
+        if (item.type === "kb_query") {
+          const srcTag = item.source === "Knowledge Gap"
+            ? `<span class="badge badge-off"  style="font-size:11px;padding:2px 8px;">Not in KB</span>`
+            : item.source === "Approved Answer"
+              ? `<span class="badge badge-on"   style="font-size:11px;padding:2px 8px;">Approved</span>`
+              : `<span class="badge badge-docs" style="font-size:11px;padding:2px 8px;">Document</span>`;
+
+          return `<div class="activity-row">
+            <div class="activity-icon activity-kb">?</div>
+            <div class="activity-body">
+              <div class="activity-text">${roleTag} asked: <em>${item.question}</em> ${srcTag}</div>
+              <div class="activity-time">${time}</div>
+            </div>
+          </div>`;
+        }
+
+        return "";
+      }).join("");
+
+    } catch (err) {
+      console.error("loadActivity failed:", err);
+    }
+  }
+
+  async function loadFeatures(role) {
+    try {
+      const res = await fetch("/features", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const f = data.features || {};
+
+      // Senior: update the toggle switch positions
+      if (role === "senior") {
+        ["aiReceptionist", "knowledgeBase", "emailAssistant"].forEach(key => {
+          const el = document.getElementById("toggle-" + key);
+          if (el) el.checked = (f[key] !== false);
+        });
+        updateAiReceptionistBadge(f.aiReceptionist !== false);
+      }
+
+      // Junior: show/hide sections based on current feature flags
+      if (role === "junior") {
+        const kbOn    = f.knowledgeBase    !== false;
+        const emailOn = f.emailAssistant   !== false;
+
+        const kbCard       = document.getElementById("kbCard");
+        const juniorDocCard= document.getElementById("juniorDocCard");
+        const emailCard    = document.getElementById("emailCard");
+
+        if (kbCard)        kbCard.style.display        = kbOn    ? "block" : "none";
+        if (juniorDocCard) juniorDocCard.style.display  = kbOn    ? "block" : "none";
+        if (emailCard)     emailCard.style.display      = emailOn ? "block" : "none";
+      }
+    } catch (err) {
+      console.error("loadFeatures failed:", err);
+    }
+  }
+
+  function toggleActivityCard() {
+    const body = document.getElementById("activityCardBody");
+    const btn  = document.getElementById("activityCardToggle");
+    if (!body || !btn) return;
+    const open = body.style.display === "none";
+    body.style.display = open ? "block" : "none";
+    btn.textContent    = open ? "Hide ▴" : "Show ▾";
+  }
+
+  function toggleActivityFeed() {
+    const feed   = document.getElementById("activityFeed");
+    const btn    = document.getElementById("activityFeedToggle");
+    if (!feed || !btn) return;
+    const open = feed.style.display === "none";
+    feed.style.display = open ? "block" : "none";
+    btn.textContent    = open ? "Hide ▴" : "Show ▾";
+  }
+
+  function updateAiReceptionistBadge(online) {
+    const badge = document.getElementById("aiReceptionistStatus");
+    if (!badge) return;
+    if (online) {
+      badge.textContent = "Online";
+      badge.className = "badge badge-on";
+    } else {
+      badge.textContent = "Offline";
+      badge.className = "badge badge-off";
+    }
+  }
+
+  async function toggleFeature(feature, enabled) {
+    const msg = document.getElementById("feature-save-msg");
+    try {
+      const res = await fetch("/features", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ feature, enabled })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (feature === "aiReceptionist") updateAiReceptionistBadge(enabled);
+        if (msg) {
+          msg.textContent = "✓ Saved";
+          msg.style.color = "#16a34a";
+          setTimeout(() => { if (msg) msg.textContent = ""; }, 2000);
+        }
+      } else {
+        if (msg) { msg.textContent = data.error || "Failed to save"; msg.style.color = "#dc2626"; }
+      }
+    } catch (err) {
+      if (msg) { msg.textContent = "Failed to save"; msg.style.color = "#dc2626"; }
+    }
+  }
+
   async function initAdminPage() {
-    await setupRoleView();
+    await setupRoleView(); // calls loadFeatures(role) internally
     await loadData();
   }
 

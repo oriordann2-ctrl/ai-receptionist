@@ -763,6 +763,19 @@ function saveSettings() {
   });
 }
 
+// ── Activity logging ─────────────────────────────────────────────────────────
+function logActivity(type, data = {}) {
+  supabase.from("activity_log").insert({
+    type,
+    role:     data.role     || null,
+    question: data.question || null,
+    answered: data.answered !== undefined ? data.answered : null,
+    source:   data.source   || null
+  }).then(({ error }) => {
+    if (error) console.error("[logActivity] insert failed:", error.message);
+  });
+}
+
 function addChatLog(entry) {
   chatLogs.push(entry);
   saveChatLogs();
@@ -1354,6 +1367,8 @@ app.get("/admin/documents/:id/view", (req, res) => {
       sameSite: "lax"
     });
 
+    logActivity("login", { role });
+
     res.json({ success: true, role });
   });
 
@@ -1445,6 +1460,22 @@ app.post("/features", requireSenior, (req, res) => {
   saveSettings();
   console.log(`[/features] ${feature} set to ${enabled}`);
   res.json({ success: true, features });
+});
+
+app.get("/api/activity", requireSenior, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("activity_log")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error("[/api/activity] error:", err.message);
+    res.status(500).json({ error: "Failed to load activity" });
+  }
 });
 
 app.get("/admin", requireAdminPage, (req, res) => {
@@ -3092,6 +3123,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   console.log("[approved answer match]:", match);
 
   if (match) {
+    logActivity("kb_query", { role: req.user.role, question, answered: true, source: "Approved Answer" });
     return res.json({
       answer: match.answer,
       source: "Approved Answer",
@@ -3211,6 +3243,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
           generalCompletion.choices[0].message.content ||
           "I don't have that in the knowledge base yet.";
 
+        logActivity("kb_query", { role: req.user.role, question, answered: true, source: "General Knowledge" });
         return res.json({
           answer: generalAnswer,
           source: "AI Generated",
@@ -3225,6 +3258,13 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
     }
 
     console.log("[/api/knowledge-answer] question:", question, "| answer length:", answer.length);
+
+    logActivity("kb_query", {
+      role: req.user.role,
+      question,
+      answered: source !== "Knowledge Gap",
+      source
+    });
 
     res.json({
       answer,

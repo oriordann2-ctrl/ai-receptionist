@@ -650,6 +650,74 @@
   .toggle-switch input:checked + .toggle-slider { background: #16a34a; }
   .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
 
+  /* ── Activity feed ────────────────────────────────────── */
+  .activity-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .activity-row:first-child { border-top: none; }
+
+  .activity-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .activity-login { background: #eff6ff; color: #2563eb; }
+  .activity-kb    { background: #faf5ff; color: #7c3aed; }
+
+  .activity-body { flex: 1; min-width: 0; }
+
+  .activity-text {
+    font-size: 14px;
+    color: #0f172a;
+    line-height: 1.5;
+  }
+
+  .activity-text em {
+    color: #334155;
+    font-style: italic;
+  }
+
+  .activity-time {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+  }
+
+  .activity-summary {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .summary-chip {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #475569;
+  }
+
+  .summary-chip strong {
+    display: block;
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+
 </style>
 </head>
 
@@ -743,6 +811,15 @@
   </div>
 
   <p id="feature-save-msg" class="meta" style="margin-top:8px; min-height:18px;"></p>
+</div>
+
+<!-- ── Recent Activity (senior only) ────────────────────────────── -->
+<div class="card senior-only" id="activityCard" style="display:none;">
+  <h2>Recent Activity</h2>
+  <p class="muted">See when staff log in and what questions they're asking.</p>
+
+  <div class="activity-summary" id="activitySummary"></div>
+  <div id="activityFeed"><p class="meta" style="font-style:italic;">Loading...</p></div>
 </div>
 
 <div class="card" id="kbCard">
@@ -1180,6 +1257,7 @@
 
         if (role === "senior") {
           await loadKnowledgeDocuments();
+          await loadActivity();
         }
 
         // Apply feature visibility now that we know the role
@@ -2311,6 +2389,82 @@ async function savePastedKnowledge() {
           });
       } */
     }
+
+  async function loadActivity() {
+    try {
+      const res = await fetch("/api/activity", { credentials: "include" });
+      if (!res.ok) return;
+      const items = await res.json();
+
+      const feed    = document.getElementById("activityFeed");
+      const summary = document.getElementById("activitySummary");
+      if (!feed) return;
+
+      // Summary chips — counts for today
+      const today = new Date().toDateString();
+      const todayLogins  = items.filter(i => i.type === "kb_query" === false && i.type === "login"    && new Date(i.created_at).toDateString() === today).length;
+      const todayQueries = items.filter(i => i.type === "kb_query" && new Date(i.created_at).toDateString() === today).length;
+      const totalQueries = items.filter(i => i.type === "kb_query").length;
+      const gaps         = items.filter(i => i.type === "kb_query" && i.source === "Knowledge Gap").length;
+
+      if (summary) {
+        summary.innerHTML = `
+          <div class="summary-chip"><strong>${todayLogins}</strong>Logins today</div>
+          <div class="summary-chip"><strong>${todayQueries}</strong>Questions today</div>
+          <div class="summary-chip"><strong>${totalQueries}</strong>Total questions</div>
+          <div class="summary-chip"><strong>${gaps}</strong>Knowledge gaps</div>
+        `;
+      }
+
+      if (!items.length) {
+        feed.innerHTML = '<p class="empty">No activity recorded yet.</p>';
+        return;
+      }
+
+      feed.innerHTML = items.map(item => {
+        const dt = new Date(item.created_at);
+        const time = dt.toLocaleString("en-IE", {
+          day: "numeric", month: "short",
+          hour: "2-digit", minute: "2-digit"
+        });
+
+        const roleTag = item.role === "senior"
+          ? `<span class="badge badge-mode" style="font-size:11px;padding:2px 8px;">Senior</span>`
+          : `<span class="badge badge-count" style="font-size:11px;padding:2px 8px;">Junior</span>`;
+
+        if (item.type === "login") {
+          return `<div class="activity-row">
+            <div class="activity-icon activity-login">→</div>
+            <div class="activity-body">
+              <div class="activity-text">${roleTag} logged in</div>
+              <div class="activity-time">${time}</div>
+            </div>
+          </div>`;
+        }
+
+        if (item.type === "kb_query") {
+          const srcTag = item.source === "Knowledge Gap"
+            ? `<span class="badge badge-off"  style="font-size:11px;padding:2px 8px;">Not in KB</span>`
+            : item.source === "Approved Answer"
+              ? `<span class="badge badge-on"   style="font-size:11px;padding:2px 8px;">Approved</span>`
+              : `<span class="badge badge-docs" style="font-size:11px;padding:2px 8px;">Document</span>`;
+
+          return `<div class="activity-row">
+            <div class="activity-icon activity-kb">?</div>
+            <div class="activity-body">
+              <div class="activity-text">${roleTag} asked: <em>${item.question}</em> ${srcTag}</div>
+              <div class="activity-time">${time}</div>
+            </div>
+          </div>`;
+        }
+
+        return "";
+      }).join("");
+
+    } catch (err) {
+      console.error("loadActivity failed:", err);
+    }
+  }
 
   async function loadFeatures(role) {
     try {

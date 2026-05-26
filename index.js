@@ -415,7 +415,7 @@ app.get("/api/knowledge-documents/:id/download", requireLogin, async (req, res) 
 
     // Junior users can only download documents marked as accessible
     if (req.user.role === "junior" && !doc.junior_accessible) {
-      return res.status(404).json({ error: "Document not found" });
+      return res.status(403).json({ error: "You don't have permission to view this document. Please ask your senior broker to enable access." });
     }
 
     if (!doc.storage_path) {

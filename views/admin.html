@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; }
 
@@ -819,6 +820,12 @@
   <p class="muted">See when staff log in and what questions they're asking.</p>
 
   <div class="activity-summary" id="activitySummary"></div>
+
+  <div style="margin:16px 0 20px;">
+    <canvas id="activityChart" height="90"></canvas>
+  </div>
+
+  <h2 style="font-size:15px; margin-bottom:0;">Recent Events</h2>
   <div id="activityFeed"><p class="meta" style="font-style:italic;">Loading...</p></div>
 </div>
 
@@ -2390,6 +2397,8 @@ async function savePastedKnowledge() {
       } */
     }
 
+  let activityChartInstance = null;
+
   async function loadActivity() {
     try {
       const res = await fetch("/api/activity", { credentials: "include" });
@@ -2400,9 +2409,9 @@ async function savePastedKnowledge() {
       const summary = document.getElementById("activitySummary");
       if (!feed) return;
 
-      // Summary chips — counts for today
+      // ── Summary chips ──────────────────────────────────────────
       const today = new Date().toDateString();
-      const todayLogins  = items.filter(i => i.type === "kb_query" === false && i.type === "login"    && new Date(i.created_at).toDateString() === today).length;
+      const todayLogins  = items.filter(i => i.type === "login"    && new Date(i.created_at).toDateString() === today).length;
       const todayQueries = items.filter(i => i.type === "kb_query" && new Date(i.created_at).toDateString() === today).length;
       const totalQueries = items.filter(i => i.type === "kb_query").length;
       const gaps         = items.filter(i => i.type === "kb_query" && i.source === "Knowledge Gap").length;
@@ -2416,12 +2425,83 @@ async function savePastedKnowledge() {
         `;
       }
 
+      // ── Trend chart — last 5 days ──────────────────────────────
+      const days = [];
+      for (let i = 4; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days.push(d);
+      }
+
+      const labels = days.map(d =>
+        d.toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "short" })
+      );
+
+      const queryCounts = days.map(d =>
+        items.filter(i => i.type === "kb_query" && new Date(i.created_at).toDateString() === d.toDateString()).length
+      );
+
+      const loginCounts = days.map(d =>
+        items.filter(i => i.type === "login" && new Date(i.created_at).toDateString() === d.toDateString()).length
+      );
+
+      const canvas = document.getElementById("activityChart");
+      if (canvas) {
+        if (activityChartInstance) activityChartInstance.destroy();
+
+        activityChartInstance = new Chart(canvas, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "Questions asked",
+                data: queryCounts,
+                backgroundColor: "rgba(99, 102, 241, 0.75)",
+                borderRadius: 6,
+                borderSkipped: false
+              },
+              {
+                label: "Logins",
+                data: loginCounts,
+                backgroundColor: "rgba(37, 99, 235, 0.35)",
+                borderRadius: 6,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                position: "top",
+                labels: { font: { size: 12 }, boxWidth: 12, padding: 16 }
+              },
+              tooltip: { mode: "index", intersect: false }
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { font: { size: 12 } }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, font: { size: 12 } },
+                grid: { color: "#f1f5f9" }
+              }
+            }
+          }
+        });
+      }
+
+      // ── Event feed ─────────────────────────────────────────────
       if (!items.length) {
         feed.innerHTML = '<p class="empty">No activity recorded yet.</p>';
         return;
       }
 
-      feed.innerHTML = items.map(item => {
+      feed.innerHTML = items.slice(0, 50).map(item => {
         const dt = new Date(item.created_at);
         const time = dt.toLocaleString("en-IE", {
           day: "numeric", month: "short",
@@ -2429,7 +2509,7 @@ async function savePastedKnowledge() {
         });
 
         const roleTag = item.role === "senior"
-          ? `<span class="badge badge-mode" style="font-size:11px;padding:2px 8px;">Senior</span>`
+          ? `<span class="badge badge-mode"  style="font-size:11px;padding:2px 8px;">Senior</span>`
           : `<span class="badge badge-count" style="font-size:11px;padding:2px 8px;">Junior</span>`;
 
         if (item.type === "login") {

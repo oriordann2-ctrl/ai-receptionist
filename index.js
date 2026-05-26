@@ -1468,7 +1468,7 @@ app.get("/api/activity", requireSenior, async (req, res) => {
       .from("activity_log")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(500);
 
     if (error) throw error;
     res.json(data || []);

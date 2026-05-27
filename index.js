@@ -3379,7 +3379,15 @@ ${draft.trim()}
 
 Review the draft above and send it from your own email if it looks good.`;
 
-    const recipients = [brokerEmail, "hello@sprimal.com"].filter(Boolean);
+    // Never send back to the monitored inbox — that causes a loop
+    const recipients = [brokerEmail, "hello@sprimal.com"]
+      .filter(Boolean)
+      .filter(e => e.toLowerCase() !== (process.env.GMAIL_USER || "").toLowerCase());
+
+    if (recipients.length === 0) {
+      console.log("[email-poll] No recipients configured — skipping send");
+      return;
+    }
 
     // Use the Gmail account for sending draft notifications
     const gmailTransporter = nodemailer.createTransport({
@@ -3437,6 +3445,8 @@ async function pollGmailInbox() {
 
       console.log(`[email-poll] ${uids.length} unseen message(s)`);
 
+      const processedUids = [];
+
       for await (const msg of client.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
         try {
           const parsed = await simpleParser(msg.source);
@@ -3447,17 +3457,21 @@ async function pollGmailInbox() {
           // Prevent loop — skip draft notification emails
           if (subject.startsWith("Draft reply:")) {
             console.log(`[email-poll] Skipping loop-guard email: "${subject}"`);
-            await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
-            continue;
+          } else {
+            await processInboundEmail({ from, subject, body });
           }
 
-          await processInboundEmail({ from, subject, body });
-
-          // Mark as read so it isn't processed again next poll
-          await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
+          // Collect UID — we'll mark all as seen after the loop
+          processedUids.push(msg.uid);
         } catch (msgErr) {
           console.error("[email-poll] Error on individual message:", msgErr.message);
         }
+      }
+
+      // Batch mark all processed messages as read
+      if (processedUids.length > 0) {
+        await client.messageFlagsAdd(processedUids.join(","), ["\\Seen"], { uid: true });
+        console.log(`[email-poll] Marked ${processedUids.length} message(s) as read`);
       }
     } finally {
       lock.release();

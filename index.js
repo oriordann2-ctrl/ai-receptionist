@@ -3381,8 +3381,17 @@ Review the draft above and send it from your own email if it looks good.`;
 
     const recipients = [brokerEmail, "hello@sprimal.com"].filter(Boolean);
 
-    await mailTransporter.sendMail({
-      from: process.env.EMAIL_USER,
+    // Use the Gmail account for sending draft notifications
+    const gmailTransporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD
+      }
+    });
+
+    await gmailTransporter.sendMail({
+      from: process.env.GMAIL_USER,
       to: recipients.join(", "),
       subject: `Draft reply: ${subject}`,
       text: emailBody
@@ -3406,6 +3415,11 @@ async function pollGmailInbox() {
       pass: process.env.GMAIL_APP_PASSWORD
     },
     logger: false
+  });
+
+  // Prevent unhandled 'error' events from crashing the process
+  client.on("error", (err) => {
+    console.error("[email-poll] ImapFlow error event:", err.message);
   });
 
   try {
@@ -3448,10 +3462,10 @@ async function pollGmailInbox() {
     } finally {
       lock.release();
     }
-
-    await client.logout();
   } catch (err) {
     console.error("[email-poll] IMAP connection error:", err.message);
+  } finally {
+    // Always close the connection — prevents socket leaks that cause ETIMEOUT crashes
     try { await client.logout(); } catch (_) {}
   }
 }

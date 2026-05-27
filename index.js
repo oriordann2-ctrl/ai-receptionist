@@ -5,6 +5,8 @@ const fs = require("fs");
 const crypto = require("crypto");
 const cookieParser = require("cookie-parser");
 const { createClient } = require("@supabase/supabase-js");
+const { ImapFlow } = require("imapflow");
+const { simpleParser } = require("mailparser");
 dotenv.config();
 
 const supabase = createClient(
@@ -3292,7 +3294,181 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
 
 });
 
+// ── Gmail IMAP email polling ──────────────────────────────────────────────────
+
+async function processInboundEmail({ from, subject, body }) {
+  console.log(`[email-poll] Processing: "${subject}" from ${from}`);
+
+  try {
+    // Load approved broker answers (same logic as /api/email-reply)
+    const { data: approvedAnswers } = await supabase
+      .from("approved_answers")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const relevantDocs = await findRelevantKnowledgeChunks(body);
+
+    const approvedContext = (approvedAnswers || [])
+      .slice(0, 10)
+      .map(a => `APPROVED QUESTION: ${a.question}\nAPPROVED ANSWER: ${a.answer}`)
+      .join("\n\n");
+
+    const documentContext = relevantDocs
+      .map(doc => `SOURCE DOCUMENT: ${doc.filename}\n${doc.text}`)
+      .join("\n\n");
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are Sprimal, an AI assistant for Irish mortgage broker staff.
+
+Draft a professional reply to a client email.
+
+Use this priority:
+1. Broker-approved answers
+2. Uploaded/pasted broker knowledge documents
+3. General mortgage wording only if the email is general
+
+Rules:
+- Do NOT invent lender-specific criteria
+- Do NOT promise approval, rates, or timelines
+- Do NOT give financial advice
+- Keep it concise and human
+- If the knowledge base does not contain enough detail, say the broker will confirm
+
+Style:
+- Friendly and professional
+- Reassuring
+- 4–8 lines max
+- Start with "Hi there," unless a name is obvious from the email
+- End with "Kind regards,"
+
+BROKER-APPROVED KNOWLEDGE:
+${approvedContext || "None"}
+
+BROKER DOCUMENT KNOWLEDGE:
+${documentContext || "None"}`
+        },
+        {
+          role: "user",
+          content: `Client email:\n${body}`
+        }
+      ],
+      temperature: 0.3
+    });
+
+    const draft = completion.choices[0].message.content || "No draft generated.";
+
+    const emailBody =
+`A client email has arrived at cormac.sprimal@gmail.com. Here is a suggested draft reply:
+
+═══════════════════════════════════════════
+ORIGINAL EMAIL
+From: ${from}
+Subject: ${subject}
+
+${body.trim()}
+═══════════════════════════════════════════
+
+SUGGESTED DRAFT REPLY:
+
+${draft.trim()}
+═══════════════════════════════════════════
+
+Review the draft above and send it from your own email if it looks good.`;
+
+    const recipients = [brokerEmail, "hello@sprimal.com"].filter(Boolean);
+
+    await mailTransporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: recipients.join(", "),
+      subject: `Draft reply: ${subject}`,
+      text: emailBody
+    });
+
+    console.log(`[email-poll] Draft sent to ${recipients.join(", ")}`);
+  } catch (err) {
+    console.error(`[email-poll] processInboundEmail error for "${subject}":`, err.message);
+  }
+}
+
+async function pollGmailInbox() {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
+
+  const client = new ImapFlow({
+    host: "imap.gmail.com",
+    port: 993,
+    secure: true,
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD
+    },
+    logger: false
+  });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock("INBOX");
+
+    try {
+      // Search for unseen messages by UID
+      const uids = await client.search({ seen: false }, { uid: true });
+
+      if (!uids || uids.length === 0) {
+        console.log("[email-poll] No new messages");
+        return;
+      }
+
+      console.log(`[email-poll] ${uids.length} unseen message(s)`);
+
+      for await (const msg of client.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
+        try {
+          const parsed = await simpleParser(msg.source);
+          const from    = parsed.from?.text || "Unknown";
+          const subject = parsed.subject   || "(no subject)";
+          const body    = parsed.text      || parsed.html || "";
+
+          // Prevent loop — skip draft notification emails
+          if (subject.startsWith("Draft reply:")) {
+            console.log(`[email-poll] Skipping loop-guard email: "${subject}"`);
+            await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
+            continue;
+          }
+
+          await processInboundEmail({ from, subject, body });
+
+          // Mark as read so it isn't processed again next poll
+          await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
+        } catch (msgErr) {
+          console.error("[email-poll] Error on individual message:", msgErr.message);
+        }
+      }
+    } finally {
+      lock.release();
+    }
+
+    await client.logout();
+  } catch (err) {
+    console.error("[email-poll] IMAP connection error:", err.message);
+    try { await client.logout(); } catch (_) {}
+  }
+}
+
+function startEmailPolling() {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.log("[email-poll] GMAIL_USER or GMAIL_APP_PASSWORD not set — email polling disabled");
+    return;
+  }
+
+  console.log(`[email-poll] Gmail polling active for ${process.env.GMAIL_USER} (every 2 min)`);
+  pollGmailInbox();
+  setInterval(pollGmailInbox, 2 * 60 * 1000);
+}
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  startEmailPolling();
 });

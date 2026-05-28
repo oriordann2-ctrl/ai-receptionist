@@ -75,8 +75,9 @@ async function extractPdfText(filePath) {
 
 const mailTransporter = nodemailer.createTransport({
   host:   "smtp.gmail.com",
-  port:   587,
-  secure: false,          // STARTTLS on 587, not SSL on 465
+  port:   465,
+  secure: true,
+  family: 4,              // force IPv4 — Render blocks IPv6 to Google SMTP
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS

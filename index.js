@@ -1766,7 +1766,7 @@ app.post("/voice-call", async (req, res) => {
 
     const twiml = `
       <Response>
-        <Gather input="speech dtmf" numDigits="1" action="/voice-process" method="POST" speechTimeout="auto">
+        <Gather input="speech dtmf" numDigits="1" action="/voice-process" method="POST" speechTimeout="5">
           <Play>${audioUrl}</Play>
         </Gather>
         <Hangup/>
@@ -1805,7 +1805,7 @@ app.post("/voice-gdpr", (req, res) => {
 
     const twiml = `
       <Response>
-        <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
+        <Gather input="speech" action="/voice-process" method="POST" speechTimeout="5">
           <Say voice="alice">
             Thanks. How can I help today?
             You can say apply for a mortgage, book an appointment, or upload documents.
@@ -1861,7 +1861,7 @@ app.post("/voice-process", async (req, res) => {
 
         const twiml = `
           <Response>
-            <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
+            <Gather input="speech" action="/voice-process" method="POST" speechTimeout="5">
               <Play>${audioUrl}</Play>
             </Gather>
             <Hangup/>
@@ -1895,7 +1895,7 @@ app.post("/voice-process", async (req, res) => {
       res.type("text/xml");
       return res.send(`
         <Response>
-          <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
+          <Gather input="speech" action="/voice-process" method="POST" speechTimeout="5">
             <Play>${audioUrl}</Play>
           </Gather>
           <Hangup/>
@@ -1936,7 +1936,7 @@ app.post("/voice-process", async (req, res) => {
     res.type("text/xml");
     res.send(`
       <Response>
-        <Gather input="speech" action="/voice-process" method="POST" speechTimeout="auto">
+        <Gather input="speech" action="/voice-process" method="POST" speechTimeout="5">
           <Play>${audioUrl}</Play>
         </Gather>
         <Hangup/>
@@ -3489,10 +3489,12 @@ Collect this information through friendly conversation — don't list questions 
 7. Any missed loan or mortgage repayments in the last 5 years
 8. Their name, phone number, and email address
 
-Be warm and natural — use phrases like "No bother at all", "That's great", "Sound".
-Keep each message short — 2-3 sentences maximum.
+Be warm and natural — use short Irish phrases like "Sound", "Grand", "Perfect", "No bother".
+Keep each response to 1-2 sentences MAXIMUM.
+Do NOT summarise or repeat back what the customer has already told you.
 Do NOT use mortgage jargon like LTV or LTI.
 Do NOT tell them the outcome — just thank them and say the broker will be in touch.
+Ask only ONE question at a time.
 
 Only call submit_qualification when you have ALL required fields including name, phone, and email.`;
 

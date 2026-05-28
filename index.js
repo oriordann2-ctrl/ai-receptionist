@@ -3478,37 +3478,162 @@ Qualification via Sprimal AI Chat`;
   }
 }
 
+// ── Qual Agent: answer tracking helpers ──────────────────────────────────────
+
+function extractAnswersFromMessages(qualMessages, existingAnswers) {
+  const answers = { ...existingAnswers };
+
+  // Combined text of all USER messages only
+  const userText = qualMessages
+    .filter(m => m.role === "user")
+    .map(m => m.content)
+    .join(" ");
+  const lower = userText.toLowerCase();
+
+  // Buyer type
+  if (!answers.buyerType) {
+    if (/\bfirst[\s-]?time\b|\bftb\b|\bnever owned\b/.test(lower)) {
+      answers.buyerType = "first_time";
+    } else if (/\bbuy[\s-]to[\s-]let\b|\binvestment property\b|\bbtl\b|\bto rent(?: it)? out\b/.test(lower)) {
+      answers.buyerType = "buy_to_let";
+    } else if (/\bmoving home\b|\bmover\b|\bsecond[\s-]?time buyer\b|\balready own\b|\bupgrading\b|\bdownsizing\b/.test(lower)) {
+      answers.buyerType = "mover";
+    }
+  }
+
+  // Employment type
+  if (!answers.employmentType) {
+    if (/\bpaye\b|\bfull[\s-]?time employed\b/.test(lower)) {
+      answers.employmentType = "paye";
+    } else if (/\bself[\s-]?employed\b/.test(lower)) {
+      answers.employmentType = "self_employed";
+    } else if (/\bcontractor\b/.test(lower)) {
+      answers.employmentType = "contractor";
+    }
+  }
+
+  // Credit history
+  if (!answers.creditHistory) {
+    if (/\bno missed\b|\bclean credit\b|\bnever missed\b|\bperfect credit\b|\bno issues\b/.test(lower)) {
+      answers.creditHistory = "clean";
+    } else if (/\bmissed (?:a )?(?:loan|mortgage|repayment|payment)\b/.test(lower)) {
+      answers.creditHistory = "issues";
+    }
+  }
+
+  // Existing debts
+  if (!answers.existingDebts) {
+    if (/\bno (?:loans?|debts?|finance|car loan|credit card)\b|\bno existing\b|\bdebt[\s-]?free\b/.test(lower)) {
+      answers.existingDebts = "none";
+    } else if (/\bcar (?:loan|finance)\b|\bpersonal loan\b|\bcredit card debt\b/.test(lower)) {
+      answers.existingDebts = "has debts";
+    }
+  }
+
+  // Scan each user message for money values with context keywords
+  for (const msg of qualMessages.filter(m => m.role === "user")) {
+    const text = msg.content;
+
+    if (!answers.deposit) {
+      const m = text.match(/(\d[\d,.]*[kKmM]?)\s*(?:euro|€)?\s*(?:deposit|saved|in savings)/i)
+             || text.match(/(?:deposit|saved|savings)[^\d]*(\d[\d,.]*[kKmM]?)/i);
+      if (m) answers.deposit = parseMoneyValue(m[1]);
+    }
+
+    if (!answers.annualIncome) {
+      const m = text.match(/(\d[\d,.]*[kKmM]?)\s*(?:a year|per year|annually|gross|salary|income)/i)
+             || text.match(/(?:earn|income|salary|make)\D{0,10}(\d[\d,.]*[kKmM]?)/i);
+      if (m) answers.annualIncome = parseMoneyValue(m[1]);
+    }
+
+    if (!answers.propertyPrice) {
+      const m = text.match(/(?:property|house|home|flat|apartment|place|worth|asking|costs?|value)\D{0,10}(\d[\d,.]*[kKmM]?)/i)
+             || text.match(/(\d[\d,.]*[kKmM]?)\s*(?:property|house|home|flat|apartment|place)/i);
+      if (m) answers.propertyPrice = parseMoneyValue(m[1]);
+    }
+  }
+
+  return answers;
+}
+
+function buildConfirmedBlock(answers) {
+  if (!answers || Object.keys(answers).length === 0) return "";
+
+  const lines = [];
+  const buyerLabels = { first_time: "first-time buyer", mover: "mover / second buyer", buy_to_let: "buy-to-let investor" };
+
+  if (answers.buyerType)      lines.push(`✓ Buyer type: ${buyerLabels[answers.buyerType] || answers.buyerType}`);
+  if (answers.propertyPrice)  lines.push(`✓ Property price: €${answers.propertyPrice.toLocaleString("en-IE")}`);
+  if (answers.deposit)        lines.push(`✓ Deposit: €${answers.deposit.toLocaleString("en-IE")}`);
+  if (answers.annualIncome)   lines.push(`✓ Annual income: €${answers.annualIncome.toLocaleString("en-IE")}`);
+  if (answers.employmentType) lines.push(`✓ Employment: ${answers.employmentType}`);
+  if (answers.existingDebts)  lines.push(`✓ Existing debts: ${answers.existingDebts}`);
+  if (answers.creditHistory)  lines.push(`✓ Credit history: ${answers.creditHistory}`);
+
+  if (lines.length === 0) return "";
+
+  return `\n\n=== CONFIRMED — DO NOT ASK ABOUT THESE AGAIN ===\n${lines.join("\n")}\n================================================`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const QUAL_SYSTEM_PROMPT = `You are Maeve, a warm and friendly Irish mortgage assistant working for At Once Mortgages in Cork.
 
 Your job is to have a natural, conversational chat to qualify a potential mortgage customer.
 
-Collect this information through friendly conversation — don't list questions like a form. Ask 1-2 things at a time and respond naturally to what they say:
-1. First-time buyer, moving home, or buying to let?
-2. What property price are they thinking about?
-3. How much deposit they have saved
-4. Gross annual income (combined if applying with a partner)
+CRITICAL — BEFORE EVERY SINGLE RESPONSE, scan the ENTIRE conversation history and mentally mark off everything already answered:
+- Has buyer type been mentioned? → CONFIRMED. Do NOT ask again.
+- Has property price been mentioned? → CONFIRMED. Do NOT ask again.
+- Has deposit been mentioned? → CONFIRMED. Do NOT ask again.
+- Has income been mentioned? → CONFIRMED. Do NOT ask again.
+- Has employment been mentioned? → CONFIRMED. Do NOT ask again.
+- Have debts been mentioned? → CONFIRMED. Do NOT ask again.
+- Has credit history been mentioned? → CONFIRMED. Do NOT ask again.
+
+BUYER TYPE RECOGNITION — these phrases ALL confirm buyer type immediately. Never ask about buyer type again after any of these:
+- "first time", "first-time", "first time buyer", "never owned", "FTB" → buyerType = first_time_buyer ✓ CONFIRMED
+- "moving", "mover", "second time", "already own", "upgrading", "downsizing" → buyerType = mover ✓ CONFIRMED
+- "buy to let", "investment", "rental", "BTL", "renting it out" → buyerType = buy_to_let ✓ CONFIRMED
+
+If the customer mentions a property, price, location, or area they are looking at, that also confirms they are buying (not already an owner specifying existing home) — treat as context, not a re-ask trigger.
+
+MULTIPLE ANSWERS: If the customer gives several pieces of information in one message (e.g. "first time buyer, looking at a 450k place, have 50k deposit"), accept ALL of them at once and only ask for the NEXT missing item.
+
+Collect these 8 pieces of information through friendly conversation:
+1. Buyer type (first-time, moving home, or buy-to-let)
+2. Property price
+3. Deposit amount
+4. Gross annual income (combined if joint application)
 5. Employment type — PAYE, self-employed, or contractor
 6. Any existing loans, car finance, or credit card debt
 7. Any missed loan or mortgage repayments in the last 5 years
-8. Their name, phone number, and email address
+8. Name, phone number, and email address
 
-Be warm and natural — use short Irish phrases like "Sound", "Grand", "Perfect", "No bother".
-Keep each response to 1-2 sentences MAXIMUM.
-Do NOT re-ask for information the customer has already provided, even if it was given in an earlier message.
-If the customer provides multiple answers at once, accept them all and only ask for what is still missing.
-Do NOT summarise or repeat back what the customer has already told you.
-Do NOT use mortgage jargon like LTV or LTI.
-Do NOT tell them the outcome — just thank them and say the broker will be in touch.
-Ask only ONE question at a time — the next missing piece of information only.
+Rules:
+- Be warm and natural — use short Irish phrases like "Sound", "Grand", "Perfect", "No bother".
+- Keep each response to 1-2 sentences MAXIMUM.
+- Ask only ONE question at a time — the next missing piece of information only.
+- Do NOT summarise or repeat back what the customer has already told you.
+- Do NOT use mortgage jargon like LTV or LTI.
+- Do NOT tell them the outcome — just thank them and say the broker will be in touch.
 
 Only call submit_qualification when you have ALL required fields including name, phone, and email.`;
 
 async function runQualificationAgent(convo, userMessage) {
   if (!convo.qualMessages) {
     convo.qualMessages = [{ role: "system", content: QUAL_SYSTEM_PROMPT }];
+    convo.qualAnswers = {};
   }
 
   convo.qualMessages.push({ role: "user", content: userMessage });
+
+  // Track confirmed answers in code, then inject them into the system prompt so the model can't forget
+  convo.qualAnswers = extractAnswersFromMessages(convo.qualMessages, convo.qualAnswers || {});
+  const confirmedBlock = buildConfirmedBlock(convo.qualAnswers);
+  convo.qualMessages[0] = { role: "system", content: QUAL_SYSTEM_PROMPT + confirmedBlock };
+  if (confirmedBlock) {
+    console.log("[qual-agent] Confirmed answers injected:", JSON.stringify(convo.qualAnswers));
+  }
 
   const tools = [
     {

@@ -74,7 +74,9 @@ async function extractPdfText(filePath) {
 }
 
 const mailTransporter = nodemailer.createTransport({
-  service: "gmail",
+  host:   "smtp.gmail.com",
+  port:   587,
+  secure: false,          // STARTTLS on 587, not SSL on 465
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS

@@ -3484,14 +3484,15 @@ Qualification via Sprimal AI Chat`;
 function extractAnswersFromMessages(qualMessages, existingAnswers) {
   const answers = { ...existingAnswers };
 
-  // Combined text of all USER messages only
-  const userText = qualMessages
+  // All user text combined (categorical field detection)
+  const allUserText = qualMessages
     .filter(m => m.role === "user")
     .map(m => m.content)
     .join(" ");
-  const lower = userText.toLowerCase();
+  const lower = allUserText.toLowerCase();
 
-  // Buyer type
+  // ── Categorical fields (regex across all user text) ──────────────────────
+
   if (!answers.buyerType) {
     if (/\bfirst[\s-]?time\b|\bftb\b|\bnever owned\b/.test(lower)) {
       answers.buyerType = "first_time";
@@ -3502,7 +3503,6 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
     }
   }
 
-  // Employment type
   if (!answers.employmentType) {
     if (/\bpaye\b|\bfull[\s-]?time employed\b/.test(lower)) {
       answers.employmentType = "paye";
@@ -3513,7 +3513,6 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
     }
   }
 
-  // Credit history
   if (!answers.creditHistory) {
     if (/\bno missed\b|\bclean credit\b|\bnever missed\b|\bperfect credit\b|\bno issues\b/.test(lower)) {
       answers.creditHistory = "clean";
@@ -3522,7 +3521,6 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
     }
   }
 
-  // Existing debts
   if (!answers.existingDebts) {
     if (/\bno (?:loans?|debts?|finance|car loan|credit card)\b|\bno existing\b|\bdebt[\s-]?free\b/.test(lower)) {
       answers.existingDebts = "none";
@@ -3531,38 +3529,75 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
     }
   }
 
-  // Email — easy to detect reliably
   if (!answers.customerEmail) {
-    const emailMatch = userText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    if (emailMatch) answers.customerEmail = emailMatch[0];
+    const m = allUserText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (m) answers.customerEmail = m[0];
   }
 
-  // Phone — Irish mobile/landline patterns
   if (!answers.customerPhone) {
-    const phoneMatch = userText.match(/(?:\+353|0)[0-9\s]{9,11}/);
-    if (phoneMatch) answers.customerPhone = phoneMatch[0].replace(/\s/g, "");
+    const m = allUserText.match(/(?:\+353|0)[0-9\s]{9,11}/);
+    if (m) answers.customerPhone = m[0].replace(/\s/g, "");
   }
 
-  // Scan each user message for money values with context keywords
-  for (const msg of qualMessages.filter(m => m.role === "user")) {
-    const text = msg.content;
+  // ── Numeric + short-answer fields: per message, with previous assistant Q as context ──
+  // Build ordered list of user+assistant messages (excluding system/tool)
+  const msgs = qualMessages.filter(m => m.role === "user" || m.role === "assistant");
 
+  for (let i = 0; i < msgs.length; i++) {
+    if (msgs[i].role !== "user") continue;
+    const userText = msgs[i].content || "";
+    // What did Maeve just ask?
+    const prevQ = (i > 0 && msgs[i - 1].role === "assistant")
+      ? (msgs[i - 1].content || "").toLowerCase()
+      : "";
+
+    // 1. Explicit-context keywords in the user's own message
+    //    (property keywords only — NOT "worth"/"value"/"costs" to avoid "Car loan worth X")
+    if (!answers.propertyPrice) {
+      const m = userText.match(/(?:property|house|home|flat|apartment|place|asking price)\D{0,10}(\d[\d,.]*[kKmM]?)/i)
+             || userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:property|house|home|flat|apartment)/i);
+      if (m) answers.propertyPrice = parseMoneyValue(m[1]);
+    }
     if (!answers.deposit) {
-      const m = text.match(/(\d[\d,.]*[kKmM]?)\s*(?:euro|€)?\s*(?:deposit|saved|in savings)/i)
-             || text.match(/(?:deposit|saved|savings)[^\d]*(\d[\d,.]*[kKmM]?)/i);
+      const m = userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:euro|€)?\s*(?:deposit|saved|in savings)/i)
+             || userText.match(/(?:deposit|saved|savings)[^\d]*(\d[\d,.]*[kKmM]?)/i);
       if (m) answers.deposit = parseMoneyValue(m[1]);
     }
-
     if (!answers.annualIncome) {
-      const m = text.match(/(\d[\d,.]*[kKmM]?)\s*(?:a year|per year|annually|gross|salary|income)/i)
-             || text.match(/(?:earn|income|salary|make)\D{0,10}(\d[\d,.]*[kKmM]?)/i);
+      const m = userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:a year|per year|annually|gross|salary|income)/i)
+             || userText.match(/(?:earn|income|salary|make)\D{0,10}(\d[\d,.]*[kKmM]?)/i);
       if (m) answers.annualIncome = parseMoneyValue(m[1]);
     }
 
-    if (!answers.propertyPrice) {
-      const m = text.match(/(?:property|house|home|flat|apartment|place|worth|asking|costs?|value)\D{0,10}(\d[\d,.]*[kKmM]?)/i)
-             || text.match(/(\d[\d,.]*[kKmM]?)\s*(?:property|house|home|flat|apartment|place)/i);
-      if (m) answers.propertyPrice = parseMoneyValue(m[1]);
+    // 2. Standalone number (e.g. "700k", "120000", "85k") — use the preceding Q for context
+    const standaloneNum = userText.match(/^\s*(\d[\d,.]*[kKmM]?)\s*(?:€|euros?)?\s*$/i);
+    if (standaloneNum && prevQ) {
+      const val = parseMoneyValue(standaloneNum[1]);
+      if (val > 0) {
+        if (!answers.propertyPrice && /property|price|house|home|flat|apartment|looking at|how much.*buy|buying/i.test(prevQ)) {
+          answers.propertyPrice = val;
+        } else if (!answers.deposit && /deposit|saved|savings|put down|how much.*deposit/i.test(prevQ)) {
+          answers.deposit = val;
+        } else if (!answers.annualIncome && /income|earn|salary|gross|annual|year|combined|how much.*earn|joint/i.test(prevQ)) {
+          answers.annualIncome = val;
+        }
+      }
+    }
+
+    // 3. Short yes/no/none — use the preceding Q to set categorical fields
+    const shortAns = userText.trim().toLowerCase();
+    if (/^(no|none|nope|never|clean|all good|no issues?|never missed|all clear)$/.test(shortAns) && prevQ) {
+      if (!answers.creditHistory && /missed|repayment|credit history|bad debt|loan payment/i.test(prevQ)) {
+        answers.creditHistory = "clean";
+      }
+      if (!answers.existingDebts && /loans?|debts?|finance|credit card|existing|car loan|owe/i.test(prevQ)) {
+        answers.existingDebts = "none";
+      }
+    }
+    if (/^(yes|yep|yeah|i have|i do|had one|a few)$/.test(shortAns) && prevQ) {
+      if (!answers.creditHistory && /missed|repayment|credit history|bad debt|loan payment/i.test(prevQ)) {
+        answers.creditHistory = "issues";
+      }
     }
   }
 

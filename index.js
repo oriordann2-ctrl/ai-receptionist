@@ -3694,15 +3694,27 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
       console.log("[qual-agent] Forcing submit_qualification — all fields confirmed or banned content intercepted");
     }
 
-    const response = await openai.chat.completions.create({
-      model:       voiceMode ? "gpt-4o-mini" : "gpt-4o",
-      messages:    convo.qualMessages,
-      tools,
-      tool_choice: forceSubmit
-        ? { type: "function", function: { name: "submit_qualification" } }
-        : "auto",
-      temperature: 0.5
-    });
+    let response;
+    try {
+      response = await openai.chat.completions.create({
+        model:       voiceMode ? "gpt-4o-mini" : "gpt-4o",
+        messages:    convo.qualMessages,
+        tools,
+        tool_choice: forceSubmit
+          ? { type: "function", function: { name: "submit_qualification" } }
+          : "auto",
+        temperature: 0.5
+      });
+    } catch (apiErr) {
+      console.error("[qual-agent] OpenAI API error on iteration", i,
+        "| status:", apiErr.status || "n/a",
+        "| code:", apiErr.code || "n/a",
+        "| message:", apiErr.message);
+      console.error("[qual-agent] Messages at time of error:", JSON.stringify(convo.qualMessages.map(m => ({ role: m.role, contentLen: (m.content || "").length }))));
+      convo.qualMode  = false;
+      convo.completed = true;
+      return "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
+    }
 
     const message = response.choices[0].message;
     convo.qualMessages.push(message);

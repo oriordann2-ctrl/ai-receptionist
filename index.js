@@ -1766,7 +1766,7 @@ app.post("/voice-call", async (req, res) => {
 
     const twiml = `
       <Response>
-        <Gather input="speech dtmf" numDigits="1" action="/voice-process" method="POST" speechTimeout="5">
+        <Gather input="speech dtmf" numDigits="1" action="/voice-process" method="POST" speechTimeout="2">
           <Play>${audioUrl}</Play>
         </Gather>
         <Hangup/>

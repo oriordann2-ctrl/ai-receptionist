@@ -3439,12 +3439,8 @@ SCORE: ${emoji} ${label}
 ──────────────────────────────────────────
 Qualification via Sprimal AI Chat`;
 
-  const recipients = [...new Set(
-    [brokerEmail, "hello@sprimal.com"]
-      .filter(Boolean)
-      .map(e => e.toLowerCase())
-      .filter(e => e !== (process.env.GMAIL_USER || "").toLowerCase())
-  )];
+  // Sending to hello@sprimal.com only during testing — add brokerEmail once validated
+  const recipients = ["hello@sprimal.com"];
 
   if (recipients.length === 0) return;
 

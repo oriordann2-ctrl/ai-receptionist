@@ -3469,27 +3469,19 @@ Qualification via Sprimal AI Chat`;
   // Sending to hello@sprimal.com only during testing — add brokerEmail once validated
   const recipients = ["hello@sprimal.com"];
 
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.warn("[qual-agent] Gmail credentials not set — skipping lead email");
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn("[qual-agent] Email credentials not set — skipping lead email");
     return;
   }
 
-  const gmailTransporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD
-    }
-  });
-
   try {
-    await gmailTransporter.sendMail({
-      from: process.env.GMAIL_USER,
+    await mailTransporter.sendMail({
+      from: process.env.EMAIL_USER,
       to: recipients.join(", "),
       subject,
       text
     });
-    console.log(`[qual-agent] Lead email sent: ${label} — ${answers.customerName}`);
+    console.log(`[qual-agent] Lead email sent to ${recipients.join(", ")} — ${label} — ${answers.customerName}`);
   } catch (err) {
     console.error("[qual-agent] Email failed:", err.message);
   }

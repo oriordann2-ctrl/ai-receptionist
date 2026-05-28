@@ -3452,7 +3452,10 @@ Qualification via Sprimal AI Chat`;
   // Sending to hello@sprimal.com only during testing — add brokerEmail once validated
   const recipients = ["hello@sprimal.com"];
 
-  if (recipients.length === 0) return;
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.warn("[qual-agent] Gmail credentials not set — skipping lead email");
+    return;
+  }
 
   const gmailTransporter = nodemailer.createTransport({
     service: "gmail",
@@ -3551,13 +3554,20 @@ async function runQualificationAgent(convo, userMessage) {
     // Tool call — all info collected
     if (response.choices[0].finish_reason === "tool_calls" && message.tool_calls?.length) {
       const toolCall = message.tool_calls[0];
-      const answers  = JSON.parse(toolCall.function.arguments);
+      let answers;
+      try {
+        answers = JSON.parse(toolCall.function.arguments);
+      } catch (e) {
+        console.error("[qual-agent] Failed to parse tool arguments:", e.message);
+        return "Thanks for that — a broker will be in touch with you shortly.";
+      }
 
       // Score the lead
       const scoring = calculateLeadScore(answers);
       console.log(`[qual-agent] Score: ${scoring.score.toUpperCase()} — ${answers.customerName}`);
 
-      // Save lead
+      // Save lead (non-fatal if it fails)
+      try {
       const leads   = loadMortgageLeads();
       const newLead = {
         id:                     "ML-" + Date.now(),
@@ -3581,9 +3591,16 @@ async function runQualificationAgent(convo, userMessage) {
       };
       leads.push(newLead);
       saveMortgageLeads(leads);
+      } catch (saveErr) {
+        console.error("[qual-agent] Lead save failed:", saveErr.message);
+      }
 
-      // Email Cormac
-      await emailLeadQualification(answers, scoring);
+      // Email Cormac (non-fatal)
+      try {
+        await emailLeadQualification(answers, scoring);
+      } catch (emailErr) {
+        console.error("[qual-agent] Email error:", emailErr.message);
+      }
 
       // Ack tool call
       convo.qualMessages.push({

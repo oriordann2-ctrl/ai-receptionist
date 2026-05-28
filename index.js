@@ -3472,21 +3472,34 @@ Qualification via Sprimal AI Chat`;
   // Sending to hello@sprimal.com only during testing — add brokerEmail once validated
   const recipients = ["hello@sprimal.com"];
 
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.warn("[qual-agent] Email credentials not set — skipping lead email");
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[qual-agent] RESEND_API_KEY not set — skipping lead email");
     return;
   }
 
   try {
-    await mailTransporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: recipients.join(", "),
-      subject,
-      text
+    const res = await fetch("https://api.resend.com/emails", {
+      method:  "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type":  "application/json"
+      },
+      body: JSON.stringify({
+        from:    "Maeve <maeve@sprimal.com>",
+        to:      recipients,
+        subject,
+        text
+      })
     });
-    console.log(`[qual-agent] Lead email sent to ${recipients.join(", ")} — ${label} — ${answers.customerName}`);
+
+    if (res.ok) {
+      console.log(`[qual-agent] Lead email sent to ${recipients.join(", ")} — ${label} — ${answers.customerName}`);
+    } else {
+      const body = await res.text();
+      console.error(`[qual-agent] Email failed: ${res.status} — ${body}`);
+    }
   } catch (err) {
-    console.error("[qual-agent] Email failed:", err.message);
+    console.error("[qual-agent] Email error:", err.message);
   }
 }
 

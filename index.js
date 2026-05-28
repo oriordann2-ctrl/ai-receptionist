@@ -1766,7 +1766,7 @@ app.post("/voice-call", async (req, res) => {
 
     const twiml = `
       <Response>
-        <Gather input="speech dtmf" numDigits="1" action="/voice-process" method="POST" speechTimeout="5">
+        <Gather input="speech dtmf" numDigits="1" action="/voice-process" method="POST" speechTimeout="2">
           <Play>${audioUrl}</Play>
         </Gather>
         <Hangup/>
@@ -1911,7 +1911,8 @@ app.post("/voice-process", async (req, res) => {
       body: JSON.stringify({
         userId,
         conversationId,
-        message: speech
+        message: speech,
+        voiceMode: true
       })
     });
 
@@ -2214,7 +2215,7 @@ Maeve
 
 app.post("/chat", async (req, res) => {
   try {
-    const { userId, conversationId, message } = req.body;
+    const { userId, conversationId, message, voiceMode } = req.body;
 
     if (!userId || !message) {
       return res.status(400).json({ error: "userId and message are required" });
@@ -2437,11 +2438,25 @@ Use plain numbers where possible.
 
       // ── Qualification agent — takes priority ────────────────────────────────
       if (convo.qualMode) {
-        result.reply = await runQualificationAgent(convo, trimmedMessage);
+        try {
+          result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
+        } catch (qualErr) {
+          console.error("[qual-agent] Unhandled exception escaped qual agent:", qualErr.message, qualErr.stack);
+          convo.qualMode  = false;
+          convo.completed = true;
+          result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
+        }
 
       } else if (isMortgageApplicationIntent(trimmedMessage, intent) && !bookingInProgress) {
         convo.qualMode = true;
-        result.reply   = await runQualificationAgent(convo, trimmedMessage);
+        try {
+          result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
+        } catch (qualErr) {
+          console.error("[qual-agent] Unhandled exception escaped qual agent:", qualErr.message, qualErr.stack);
+          convo.qualMode  = false;
+          convo.completed = true;
+          result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
+        }
 
       } else if (mortgageInProgress) {
         const extracted = await extractMortgageFields(trimmedMessage);
@@ -2845,6 +2860,8 @@ Use plain numbers where possible.
     } else {
       result.reply = "Invalid business mode configuration.";
     }
+
+    console.log("[chat] Sending reply, length:", (result.reply || "").length, "| preview:", (result.reply || "").slice(0, 60));
 
     addChatLog({
       userId,
@@ -3478,37 +3495,222 @@ Qualification via Sprimal AI Chat`;
   }
 }
 
+// ── Qual Agent: answer tracking helpers ──────────────────────────────────────
+
+function extractAnswersFromMessages(qualMessages, existingAnswers) {
+  const answers = { ...existingAnswers };
+
+  // All user text combined (categorical field detection)
+  const allUserText = qualMessages
+    .filter(m => m.role === "user")
+    .map(m => m.content)
+    .join(" ");
+  const lower = allUserText.toLowerCase();
+
+  // ── Categorical fields (regex across all user text) ──────────────────────
+
+  if (!answers.buyerType) {
+    if (/\bfirst[\s-]?time\b|\bftb\b|\bnever owned\b/.test(lower)) {
+      answers.buyerType = "first_time";
+    } else if (/\bbuy[\s-]to[\s-]let\b|\binvestment property\b|\bbtl\b|\bto rent(?: it)? out\b/.test(lower)) {
+      answers.buyerType = "buy_to_let";
+    } else if (/\bmoving home\b|\bmover\b|\bsecond[\s-]?time buyer\b|\balready own\b|\bupgrading\b|\bdownsizing\b/.test(lower)) {
+      answers.buyerType = "mover";
+    }
+  }
+
+  if (!answers.employmentType) {
+    if (/\bpaye\b|\bfull[\s-]?time employed\b/.test(lower)) {
+      answers.employmentType = "paye";
+    } else if (/\bself[\s-]?employed\b/.test(lower)) {
+      answers.employmentType = "self_employed";
+    } else if (/\bcontractor\b/.test(lower)) {
+      answers.employmentType = "contractor";
+    }
+  }
+
+  if (!answers.creditHistory) {
+    if (/\bno missed\b|\bclean credit\b|\bnever missed\b|\bperfect credit\b|\bno issues\b/.test(lower)) {
+      answers.creditHistory = "clean";
+    } else if (/\bmissed (?:a )?(?:loan|mortgage|repayment|payment)\b/.test(lower)) {
+      answers.creditHistory = "issues";
+    }
+  }
+
+  if (!answers.existingDebts) {
+    if (/\bno (?:loans?|debts?|finance|car loan|credit card)\b|\bno existing\b|\bdebt[\s-]?free\b/.test(lower)) {
+      answers.existingDebts = "none";
+    } else if (/\bcar (?:loan|finance)\b|\bpersonal loan\b|\bcredit card debt\b/.test(lower)) {
+      answers.existingDebts = "has debts";
+    }
+  }
+
+  if (!answers.customerEmail) {
+    const m = allUserText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (m) answers.customerEmail = m[0];
+  }
+
+  if (!answers.customerPhone) {
+    const m = allUserText.match(/(?:\+353|0)[0-9\s]{9,11}/);
+    if (m) answers.customerPhone = m[0].replace(/\s/g, "");
+  }
+
+  // ── Numeric + short-answer fields: per message, with previous assistant Q as context ──
+  // Build ordered list of user+assistant messages (excluding system/tool)
+  const msgs = qualMessages.filter(m => m.role === "user" || m.role === "assistant");
+
+  for (let i = 0; i < msgs.length; i++) {
+    if (msgs[i].role !== "user") continue;
+    const userText = msgs[i].content || "";
+    // What did Maeve just ask?
+    const prevQ = (i > 0 && msgs[i - 1].role === "assistant")
+      ? (msgs[i - 1].content || "").toLowerCase()
+      : "";
+
+    // 1. Explicit-context keywords in the user's own message
+    //    (property keywords only — NOT "worth"/"value"/"costs" to avoid "Car loan worth X")
+    if (!answers.propertyPrice) {
+      const m = userText.match(/(?:property|house|home|flat|apartment|place|asking price)\D{0,10}(\d[\d,.]*[kKmM]?)/i)
+             || userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:property|house|home|flat|apartment)/i);
+      if (m) answers.propertyPrice = parseMoneyValue(m[1]);
+    }
+    if (!answers.deposit) {
+      const m = userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:euro|€)?\s*(?:deposit|saved|in savings)/i)
+             || userText.match(/(?:deposit|saved|savings)[^\d]*(\d[\d,.]*[kKmM]?)/i);
+      if (m) answers.deposit = parseMoneyValue(m[1]);
+    }
+    if (!answers.annualIncome) {
+      const m = userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:a year|per year|annually|gross|salary|income)/i)
+             || userText.match(/(?:earn|income|salary|make)\D{0,10}(\d[\d,.]*[kKmM]?)/i);
+      if (m) answers.annualIncome = parseMoneyValue(m[1]);
+    }
+
+    // 2. Standalone number (e.g. "700k", "120000", "85k") — use the preceding Q for context
+    const standaloneNum = userText.match(/^\s*(\d[\d,.]*[kKmM]?)\s*(?:€|euros?)?\s*$/i);
+    if (standaloneNum && prevQ) {
+      const val = parseMoneyValue(standaloneNum[1]);
+      if (val > 0) {
+        if (!answers.propertyPrice && /property|price|house|home|flat|apartment|looking at|how much.*buy|buying/i.test(prevQ)) {
+          answers.propertyPrice = val;
+        } else if (!answers.deposit && /deposit|saved|savings|put down|how much.*deposit/i.test(prevQ)) {
+          answers.deposit = val;
+        } else if (!answers.annualIncome && /income|earn|salary|gross|annual|year|combined|how much.*earn|joint/i.test(prevQ)) {
+          answers.annualIncome = val;
+        }
+      }
+    }
+
+    // 3. Short yes/no/none — use the preceding Q to set categorical fields
+    const shortAns = userText.trim().toLowerCase();
+    if (/^(no|none|nope|never|clean|all good|no issues?|never missed|all clear)$/.test(shortAns) && prevQ) {
+      if (!answers.creditHistory && /missed|repayment|credit history|bad debt|loan payment/i.test(prevQ)) {
+        answers.creditHistory = "clean";
+      }
+      if (!answers.existingDebts && /loans?|debts?|finance|credit card|existing|car loan|owe/i.test(prevQ)) {
+        answers.existingDebts = "none";
+      }
+    }
+    if (/^(yes|yep|yeah|i have|i do|had one|a few)$/.test(shortAns) && prevQ) {
+      if (!answers.creditHistory && /missed|repayment|credit history|bad debt|loan payment/i.test(prevQ)) {
+        answers.creditHistory = "issues";
+      }
+    }
+  }
+
+  return answers;
+}
+
+function allFieldsCollected(answers) {
+  // Email and phone are always the last things Maeve collects.
+  // If both are confirmed in code, the full conversation has happened — force submit immediately.
+  return !!(answers.customerEmail && answers.customerPhone);
+}
+
+function buildConfirmedBlock(answers) {
+  if (!answers || Object.keys(answers).length === 0) return "";
+
+  const lines = [];
+  const buyerLabels = { first_time: "first-time buyer", mover: "mover / second buyer", buy_to_let: "buy-to-let investor" };
+
+  if (answers.buyerType)      lines.push(`✓ Buyer type: ${buyerLabels[answers.buyerType] || answers.buyerType}`);
+  if (answers.propertyPrice)  lines.push(`✓ Property price: €${answers.propertyPrice.toLocaleString("en-IE")}`);
+  if (answers.deposit)        lines.push(`✓ Deposit: €${answers.deposit.toLocaleString("en-IE")}`);
+  if (answers.annualIncome)   lines.push(`✓ Annual income: €${answers.annualIncome.toLocaleString("en-IE")}`);
+  if (answers.employmentType) lines.push(`✓ Employment: ${answers.employmentType}`);
+  if (answers.existingDebts)  lines.push(`✓ Existing debts: ${answers.existingDebts}`);
+  if (answers.creditHistory)  lines.push(`✓ Credit history: ${answers.creditHistory}`);
+
+  if (lines.length === 0) return "";
+
+  return `\n\n=== CONFIRMED — DO NOT ASK ABOUT THESE AGAIN ===\n${lines.join("\n")}\n================================================`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const QUAL_SYSTEM_PROMPT = `You are Maeve, a warm and friendly Irish mortgage assistant working for At Once Mortgages in Cork.
 
 Your job is to have a natural, conversational chat to qualify a potential mortgage customer.
 
-Collect this information through friendly conversation — don't list questions like a form. Ask 1-2 things at a time and respond naturally to what they say:
-1. First-time buyer, moving home, or buying to let?
-2. What property price are they thinking about?
-3. How much deposit they have saved
-4. Gross annual income (combined if applying with a partner)
+CRITICAL — BEFORE EVERY SINGLE RESPONSE, scan the ENTIRE conversation history and mentally mark off everything already answered:
+- Has buyer type been mentioned? → CONFIRMED. Do NOT ask again.
+- Has property price been mentioned? → CONFIRMED. Do NOT ask again.
+- Has deposit been mentioned? → CONFIRMED. Do NOT ask again.
+- Has income been mentioned? → CONFIRMED. Do NOT ask again.
+- Has employment been mentioned? → CONFIRMED. Do NOT ask again.
+- Have debts been mentioned? → CONFIRMED. Do NOT ask again.
+- Has credit history been mentioned? → CONFIRMED. Do NOT ask again.
+
+BUYER TYPE RECOGNITION — these phrases ALL confirm buyer type immediately. Never ask about buyer type again after any of these:
+- "first time", "first-time", "first time buyer", "never owned", "FTB" → buyerType = first_time_buyer ✓ CONFIRMED
+- "moving", "mover", "second time", "already own", "upgrading", "downsizing" → buyerType = mover ✓ CONFIRMED
+- "buy to let", "investment", "rental", "BTL", "renting it out" → buyerType = buy_to_let ✓ CONFIRMED
+
+If the customer mentions a property, price, location, or area they are looking at, that also confirms they are buying (not already an owner specifying existing home) — treat as context, not a re-ask trigger.
+
+MULTIPLE ANSWERS: If the customer gives several pieces of information in one message (e.g. "first time buyer, looking at a 450k place, have 50k deposit"), accept ALL of them at once and only ask for the NEXT missing item.
+
+Collect these 8 pieces of information through friendly conversation:
+1. Buyer type (first-time, moving home, or buy-to-let)
+2. Property price
+3. Deposit amount
+4. Gross annual income (combined if joint application)
 5. Employment type — PAYE, self-employed, or contractor
 6. Any existing loans, car finance, or credit card debt
 7. Any missed loan or mortgage repayments in the last 5 years
-8. Their name, phone number, and email address
+8. Name, phone number, and email address
 
-Be warm and natural — use short Irish phrases like "Sound", "Grand", "Perfect", "No bother".
-Keep each response to 1-2 sentences MAXIMUM.
-Do NOT re-ask for information the customer has already provided, even if it was given in an earlier message.
-If the customer provides multiple answers at once, accept them all and only ask for what is still missing.
-Do NOT summarise or repeat back what the customer has already told you.
-Do NOT use mortgage jargon like LTV or LTI.
-Do NOT tell them the outcome — just thank them and say the broker will be in touch.
-Ask only ONE question at a time — the next missing piece of information only.
+Rules:
+- Be warm and natural — use short Irish phrases like "Sound", "Grand", "Perfect", "No bother".
+- Keep each response to 1-2 sentences MAXIMUM.
+- Ask only ONE question at a time — the next missing piece of information only.
+- Do NOT summarise or repeat back what the customer has already told you.
+- Do NOT use mortgage jargon like LTV or LTI.
+- Do NOT tell them the outcome — just thank them and say the broker will be in touch.
 
-Only call submit_qualification when you have ALL required fields including name, phone, and email.`;
+Only call submit_qualification when you have ALL required fields including name, phone, and email.
 
-async function runQualificationAgent(convo, userMessage) {
+ABSOLUTE PROHIBITIONS — never do any of the following under any circumstances:
+- Do NOT ask for payslips, bank statements, P60s, or any documents
+- Do NOT mention document upload or file upload
+- Do NOT suggest sending a link by text, WhatsApp, or email
+- Do NOT add any extra steps after collecting the 8 fields above
+- The moment you have all 8 fields, call submit_qualification immediately — nothing else`;
+
+async function runQualificationAgent(convo, userMessage, voiceMode = false) {
   if (!convo.qualMessages) {
     convo.qualMessages = [{ role: "system", content: QUAL_SYSTEM_PROMPT }];
+    convo.qualAnswers = {};
   }
 
   convo.qualMessages.push({ role: "user", content: userMessage });
+
+  // Track confirmed answers in code, then inject them into the system prompt so the model can't forget
+  convo.qualAnswers = extractAnswersFromMessages(convo.qualMessages, convo.qualAnswers || {});
+  const confirmedBlock = buildConfirmedBlock(convo.qualAnswers);
+  convo.qualMessages[0] = { role: "system", content: QUAL_SYSTEM_PROMPT + confirmedBlock };
+  if (confirmedBlock) {
+    console.log("[qual-agent] Confirmed answers injected:", JSON.stringify(convo.qualAnswers));
+  }
 
   const tools = [
     {
@@ -3536,29 +3738,50 @@ async function runQualificationAgent(convo, userMessage) {
     }
   ];
 
-  for (let i = 0; i < 5; i++) {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages:     convo.qualMessages,
-      tools,
-      tool_choice:  "auto",
-      temperature:  0.5
-    });
-
-    const message = response.choices[0].message;
-    convo.qualMessages.push(message);
-
-    // Natural conversation reply
-    if (response.choices[0].finish_reason === "stop") {
-      return message.content;
+  for (let i = 0; i < 6; i++) {
+    // Force submit if: email+phone confirmed in code, OR intercept already fired once
+    const forceSubmit = allFieldsCollected(convo.qualAnswers) || !!convo._forceSubmit;
+    if (forceSubmit) {
+      console.log("[qual-agent] Forcing submit_qualification — all fields confirmed or banned content intercepted");
     }
 
-    // Tool call — all info collected
-    if (response.choices[0].finish_reason === "tool_calls" && message.tool_calls?.length) {
+    let response;
+    try {
+      console.log(`[qual-agent] Calling OpenAI iter=${i} forceSubmit=${forceSubmit} msgs=${convo.qualMessages.length}`);
+      response = await openai.chat.completions.create({
+        model:       voiceMode ? "gpt-4o-mini" : "gpt-4o",
+        messages:    convo.qualMessages,
+        tools,
+        tool_choice: forceSubmit
+          ? { type: "function", function: { name: "submit_qualification" } }
+          : "auto",
+        temperature: 0.5
+      });
+      console.log(`[qual-agent] OpenAI returned iter=${i}`);
+    } catch (apiErr) {
+      console.error("[qual-agent] OpenAI API error on iteration", i,
+        "| status:", apiErr.status || "n/a",
+        "| code:", apiErr.code || "n/a",
+        "| message:", apiErr.message);
+      console.error("[qual-agent] Messages at time of error:", JSON.stringify(convo.qualMessages.map(m => ({ role: m.role, contentLen: (m.content || "").length }))));
+      convo.qualMode  = false;
+      convo.completed = true;
+      return "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
+    }
+
+    const finishReason = response.choices[0].finish_reason;
+    const message = response.choices[0].message;
+    console.log(`[qual-agent] iter=${i} finish_reason=${finishReason} tool_calls=${message.tool_calls?.length || 0} content_len=${(message.content || "").length}`);
+    convo.qualMessages.push(message);
+
+    // ── Tool call check FIRST — some models return finish_reason=stop even
+    //    when tool_calls are present, so we check the message itself, not the flag.
+    if (message.tool_calls?.length) {
       const toolCall = message.tool_calls[0];
       let answers;
       try {
         answers = JSON.parse(toolCall.function.arguments);
+        console.log("[qual-agent] Tool call parsed, customerName:", answers.customerName, "| fields:", Object.keys(answers).join(","));
       } catch (e) {
         console.error("[qual-agent] Failed to parse tool arguments:", e.message);
         return "Thanks for that — a broker will be in touch with you shortly.";
@@ -3613,16 +3836,36 @@ async function runQualificationAgent(convo, userMessage) {
 
       // Closing message by score
       const closing = {
-        hot:  "That's brilliant — thank you so much for those details! 😊 You look like a really strong candidate. Cormac Collins from At Once Mortgages will be in touch with you very shortly. Have a great day!",
-        warm: "Lovely, thank you for sharing all of that! You're in a good position and Cormac will be in touch soon to go through your options. Talk soon! 👋",
-        cold: "Thanks so much for chatting with me today. Cormac will take a look at your details and be in touch to discuss the best path forward for you. Have a lovely day! 👋"
+        hot:     "That's brilliant — thank you so much for those details! 😊 You look like a really strong candidate. Cormac Collins from At Once Mortgages will be in touch with you very shortly. Have a great day!",
+        warm:    "Lovely, thank you for sharing all of that! You're in a good position and Cormac will be in touch soon to go through your options. Talk soon! 👋",
+        cold:    "Thanks so much for chatting with me today. Cormac will take a look at your details and be in touch to discuss the best path forward for you. Have a lovely day! 👋",
+        unknown: "Thanks so much for chatting with me today! Cormac Collins from At Once Mortgages will be in touch with you shortly to go through your options. Have a great day! 👋"
       };
 
       convo.qualMode  = false;
       convo.completed = true;
 
-      return closing[scoring.score];
+      return closing[scoring.score] || closing.unknown;
     }
+
+    // ── Natural conversation reply (no tool_calls present) ───────────────────
+    if (finishReason === "stop") {
+      const reply = message.content || "";
+
+      // Hard intercept: if model hallucinated a payslip/upload/document step
+      const hasBannedContent = /payslip|pay[\s-]slip|bank[\s-]?statement|p60|\bupload\b|secure[\s-]?link|whatsapp.*link|text.*link/i.test(reply);
+      if (hasBannedContent) {
+        console.warn("[qual-agent] Intercepted prohibited step — forcing submit on next iteration");
+        convo.qualMessages.pop(); // remove the bad assistant message
+        convo._forceSubmit = true;
+        continue;
+      }
+
+      return reply;
+    }
+
+    // Unexpected finish_reason (e.g. "length") — loop continues to next iteration
+    console.warn("[qual-agent] Unexpected finish_reason:", finishReason, "— retrying");
   }
 
   return "Sorry, something went wrong. Please try again or contact us directly at 021 4315 815.";
@@ -3632,7 +3875,7 @@ async function runQualificationAgent(convo, userMessage) {
 function isMortgageApplicationIntent(message, intent) {
   const lower = message.toLowerCase();
   const triggerPhrases = [
-    "apply", "application", "get a mortgage", "take out a mortgage",
+    "mortgage", "apply", "application", "get a mortgage", "take out a mortgage",
     "buying a house", "buying a home", "buying a property",
     "first time buyer", "first-time buyer", "looking for a mortgage",
     "interested in a mortgage", "mortgage enquiry", "can i get",

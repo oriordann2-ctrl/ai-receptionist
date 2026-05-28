@@ -3802,7 +3802,7 @@ async function runQualificationAgent(convo, userMessage) {
 function isMortgageApplicationIntent(message, intent) {
   const lower = message.toLowerCase();
   const triggerPhrases = [
-    "apply", "application", "get a mortgage", "take out a mortgage",
+    "mortgage", "apply", "application", "get a mortgage", "take out a mortgage",
     "buying a house", "buying a home", "buying a property",
     "first time buyer", "first-time buyer", "looking for a mortgage",
     "interested in a mortgage", "mortgage enquiry", "can i get",

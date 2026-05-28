@@ -3682,7 +3682,20 @@ async function runQualificationAgent(convo, userMessage) {
 
     // Natural conversation reply
     if (response.choices[0].finish_reason === "stop") {
-      return message.content;
+      const reply = message.content || "";
+
+      // Hard intercept: if model hallucinated a payslip/upload/document step, kill it and retry
+      if (/payslip|bank.?statement|p60|upload|choose.?document|secure.?link|whatsapp.*link|text.*link/i.test(reply)) {
+        console.warn("[qual-agent] Intercepted prohibited payslip/upload response — retrying with correction");
+        convo.qualMessages.pop(); // remove the bad assistant message
+        convo.qualMessages.push({
+          role: "user",
+          content: "SYSTEM CORRECTION: Your last response mentioned payslips, uploads, or documents — that is not allowed. Ask only for the next missing qualification field, or call submit_qualification if you already have all required fields."
+        });
+        continue; // retry
+      }
+
+      return reply;
     }
 
     // Tool call — all info collected

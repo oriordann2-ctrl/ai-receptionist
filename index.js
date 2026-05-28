@@ -2241,9 +2241,18 @@ app.post("/chat", async (req, res) => {
       if (
         lowerMessage.includes("yes") ||
         lowerMessage.includes("ok") ||
+        lowerMessage.includes("okay") ||
         lowerMessage.includes("yeah") ||
         lowerMessage.includes("sure") ||
-        lowerMessage.includes("yep")
+        lowerMessage.includes("yep") ||
+        lowerMessage.includes("fine") ||
+        lowerMessage.includes("alright") ||
+        lowerMessage.includes("absolutely") ||
+        lowerMessage.includes("of course") ||
+        lowerMessage.includes("go ahead") ||
+        lowerMessage.includes("happy") ||
+        lowerMessage.includes("no problem") ||
+        lowerMessage.includes("sounds good")
       ) {
         convo.consentGiven = true;
 

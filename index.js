@@ -3296,6 +3296,26 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
 
 // ── Gmail IMAP email polling ──────────────────────────────────────────────────
 
+const CORMAC_SIGNATURE = `Kind Regards,
+
+Cormac Collins
+
+At Once Mortgages
+11A Georges Quay,
+Cork.
+Tel: 021 4315 815
+Email: cormac@aom.ie
+
+https://www.atoncemortgages.com/
+
+At Once Mortgages is regulated by the Central Bank of Ireland.
+
+Services Provided: Financial Planning - Monthly Budget Planning, Mortgage Advice, Income Protection, Permanent Health Insurance, Investment Advice, Pensions.
+
+Life Assurance Products - Mortgage Protection, Life Assurance, Serious Illness Cover, Permanent Total Disability Cover.
+
+This email (including any attachments) is confidential, privileged and may be used only by the person to whom it is addressed. If you are not the addressee then you may not read, disseminate, print, copy, store or otherwise use it. If you have received it in error, please notify At Once Mortgages and delete it from your system.`;
+
 async function processInboundEmail({ from, subject, body }) {
   console.log(`[email-poll] Processing: "${subject}" from ${from}`);
 
@@ -3359,7 +3379,11 @@ ${documentContext || "None"}`
       temperature: 0.3
     });
 
-    const draft = completion.choices[0].message.content || "No draft generated.";
+    const rawDraft = completion.choices[0].message.content || "No draft generated.";
+
+    // Strip any trailing sign-off the AI added (e.g. "Kind regards,") — the real signature provides it
+    const draftBody = rawDraft.trim().replace(/\n*kind regards,?\s*$/i, "").trim();
+    const draft = `${draftBody}\n\n${CORMAC_SIGNATURE}`;
 
     const emailBody =
 `A client email has arrived at cormac.sprimal@gmail.com. Here is a suggested draft reply:

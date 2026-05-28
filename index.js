@@ -2438,11 +2438,25 @@ Use plain numbers where possible.
 
       // ── Qualification agent — takes priority ────────────────────────────────
       if (convo.qualMode) {
-        result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
+        try {
+          result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
+        } catch (qualErr) {
+          console.error("[qual-agent] Unhandled exception escaped qual agent:", qualErr.message, qualErr.stack);
+          convo.qualMode  = false;
+          convo.completed = true;
+          result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
+        }
 
       } else if (isMortgageApplicationIntent(trimmedMessage, intent) && !bookingInProgress) {
         convo.qualMode = true;
-        result.reply   = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
+        try {
+          result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
+        } catch (qualErr) {
+          console.error("[qual-agent] Unhandled exception escaped qual agent:", qualErr.message, qualErr.stack);
+          convo.qualMode  = false;
+          convo.completed = true;
+          result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
+        }
 
       } else if (mortgageInProgress) {
         const extracted = await extractMortgageFields(trimmedMessage);

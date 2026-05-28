@@ -3473,10 +3473,13 @@ ${draft.trim()}
 
 Review the draft above and send it from your own email if it looks good.`;
 
-    // Never send back to the monitored inbox — that causes a loop
-    const recipients = [brokerEmail, "hello@sprimal.com"]
-      .filter(Boolean)
-      .filter(e => e.toLowerCase() !== (process.env.GMAIL_USER || "").toLowerCase());
+    // Never send back to the monitored inbox — that causes a loop; deduplicate addresses
+    const recipients = [...new Set(
+      [brokerEmail, "hello@sprimal.com"]
+        .filter(Boolean)
+        .map(e => e.toLowerCase())
+        .filter(e => e !== (process.env.GMAIL_USER || "").toLowerCase())
+    )];
 
     if (recipients.length === 0) {
       console.log("[email-poll] No recipients configured — skipping send");

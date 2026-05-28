@@ -3774,31 +3774,9 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
     console.log(`[qual-agent] iter=${i} finish_reason=${finishReason} tool_calls=${message.tool_calls?.length || 0} content_len=${(message.content || "").length}`);
     convo.qualMessages.push(message);
 
-    // Natural conversation reply
-    if (finishReason === "stop") {
-      const reply = message.content || "";
-
-      // Hard intercept: if model hallucinated a payslip/upload/document step
-      const hasBannedContent = /payslip|pay[\s-]slip|bank[\s-]?statement|p60|\bupload\b|secure[\s-]?link|whatsapp.*link|text.*link/i.test(reply);
-      if (hasBannedContent) {
-        console.warn("[qual-agent] Intercepted prohibited step — forcing submit on next iteration");
-        convo.qualMessages.pop(); // remove the bad assistant message
-        // Force submit_qualification on the very next iteration — no more free text
-        convo._forceSubmit = true;
-        continue;
-      }
-
-      if (!reply) {
-        console.warn("[qual-agent] finish_reason=stop but content is empty — treating as force-submit needed");
-        convo._forceSubmit = true;
-        continue;
-      }
-
-      return reply;
-    }
-
-    // Tool call — all info collected
-    if (finishReason === "tool_calls" && message.tool_calls?.length) {
+    // ── Tool call check FIRST — some models return finish_reason=stop even
+    //    when tool_calls are present, so we check the message itself, not the flag.
+    if (message.tool_calls?.length) {
       const toolCall = message.tool_calls[0];
       let answers;
       try {
@@ -3869,6 +3847,25 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
 
       return closing[scoring.score] || closing.unknown;
     }
+
+    // ── Natural conversation reply (no tool_calls present) ───────────────────
+    if (finishReason === "stop") {
+      const reply = message.content || "";
+
+      // Hard intercept: if model hallucinated a payslip/upload/document step
+      const hasBannedContent = /payslip|pay[\s-]slip|bank[\s-]?statement|p60|\bupload\b|secure[\s-]?link|whatsapp.*link|text.*link/i.test(reply);
+      if (hasBannedContent) {
+        console.warn("[qual-agent] Intercepted prohibited step — forcing submit on next iteration");
+        convo.qualMessages.pop(); // remove the bad assistant message
+        convo._forceSubmit = true;
+        continue;
+      }
+
+      return reply;
+    }
+
+    // Unexpected finish_reason (e.g. "length") — loop continues to next iteration
+    console.warn("[qual-agent] Unexpected finish_reason:", finishReason, "— retrying");
   }
 
   return "Sorry, something went wrong. Please try again or contact us directly at 021 4315 815.";

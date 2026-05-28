@@ -3617,7 +3617,14 @@ Rules:
 - Do NOT use mortgage jargon like LTV or LTI.
 - Do NOT tell them the outcome — just thank them and say the broker will be in touch.
 
-Only call submit_qualification when you have ALL required fields including name, phone, and email.`;
+Only call submit_qualification when you have ALL required fields including name, phone, and email.
+
+ABSOLUTE PROHIBITIONS — never do any of the following under any circumstances:
+- Do NOT ask for payslips, bank statements, P60s, or any documents
+- Do NOT mention document upload or file upload
+- Do NOT suggest sending a link by text, WhatsApp, or email
+- Do NOT add any extra steps after collecting the 8 fields above
+- The moment you have all 8 fields, call submit_qualification immediately — nothing else`;
 
 async function runQualificationAgent(convo, userMessage) {
   if (!convo.qualMessages) {

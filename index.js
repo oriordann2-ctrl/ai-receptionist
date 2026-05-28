@@ -3687,10 +3687,10 @@ async function runQualificationAgent(convo, userMessage) {
   ];
 
   for (let i = 0; i < 6; i++) {
-    // If all required fields are already confirmed in code, force the tool call — don't give the model any choice
-    const forceSubmit = allFieldsCollected(convo.qualAnswers);
+    // Force submit if: email+phone confirmed in code, OR intercept already fired once
+    const forceSubmit = allFieldsCollected(convo.qualAnswers) || !!convo._forceSubmit;
     if (forceSubmit) {
-      console.log("[qual-agent] All fields confirmed — forcing submit_qualification");
+      console.log("[qual-agent] Forcing submit_qualification — all fields confirmed or banned content intercepted");
     }
 
     const response = await openai.chat.completions.create({
@@ -3710,15 +3710,14 @@ async function runQualificationAgent(convo, userMessage) {
     if (response.choices[0].finish_reason === "stop") {
       const reply = message.content || "";
 
-      // Hard intercept: if model hallucinated a payslip/upload/document step, kill it and retry
-      if (/payslip|pay[\s-]slip|bank[\s-]?statement|p60|upload|document|paperwork|proof.of|verify.*income|support.*doc|financ[ei]al.*record|secure[\s-]?link|whatsapp.*link|text.*link/i.test(reply)) {
-        console.warn("[qual-agent] Intercepted prohibited payslip/upload response — retrying with correction");
+      // Hard intercept: if model hallucinated a payslip/upload/document step
+      const hasBannedContent = /payslip|pay[\s-]slip|bank[\s-]?statement|p60|\bupload\b|secure[\s-]?link|whatsapp.*link|text.*link/i.test(reply);
+      if (hasBannedContent) {
+        console.warn("[qual-agent] Intercepted prohibited step — forcing submit on next iteration");
         convo.qualMessages.pop(); // remove the bad assistant message
-        convo.qualMessages.push({
-          role: "user",
-          content: "SYSTEM CORRECTION: Your last response mentioned payslips, uploads, or documents — that is not allowed. Ask only for the next missing qualification field, or call submit_qualification if you already have all required fields."
-        });
-        continue; // retry
+        // Force submit_qualification on the very next iteration — no more free text
+        convo._forceSubmit = true;
+        continue;
       }
 
       return reply;

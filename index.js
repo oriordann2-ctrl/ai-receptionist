@@ -3737,6 +3737,19 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
       console.log("[qual-agent] Forcing submit_qualification — all fields confirmed or banned content intercepted");
     }
 
+    // Remove any orphaned assistant tool_calls messages that have no tool response
+    // (can happen if a previous request timed out before we could push the ack)
+    for (let j = convo.qualMessages.length - 1; j >= 0; j--) {
+      const m = convo.qualMessages[j];
+      if (m.role === "assistant" && m.tool_calls?.length) {
+        const hasAck = convo.qualMessages.slice(j + 1).some(r => r.role === "tool");
+        if (!hasAck) {
+          console.warn("[qual-agent] Removing orphaned tool_calls message at index", j);
+          convo.qualMessages.splice(j, 1);
+        }
+      }
+    }
+
     let response;
     try {
       console.log(`[qual-agent] Calling OpenAI iter=${i} forceSubmit=${forceSubmit} msgs=${convo.qualMessages.length}`);
@@ -3812,12 +3825,10 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
         console.error("[qual-agent] Lead save failed:", saveErr.message);
       }
 
-      // Email Cormac (non-fatal)
-      try {
-        await emailLeadQualification(answers, scoring);
-      } catch (emailErr) {
-        console.error("[qual-agent] Email error:", emailErr.message);
-      }
+      // Email — fire-and-forget, never block qual completion
+      emailLeadQualification(answers, scoring).catch(err =>
+        console.error("[qual-agent] Email error (async):", err.message)
+      );
 
       // Ack tool call
       convo.qualMessages.push({

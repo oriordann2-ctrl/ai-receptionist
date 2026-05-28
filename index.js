@@ -669,7 +669,7 @@ const settings = readJsonFile(settingsFile, {
   aiEnabled: true,
   businessMode: "mortgage",
   features: {
-    aiReceptionist: false,
+    aiReceptionist: true,
     knowledgeBase: true,
     emailAssistant: true
   }

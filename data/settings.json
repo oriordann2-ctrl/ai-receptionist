@@ -1,4 +1,9 @@
 {
   "aiEnabled": true,
-  "businessMode": "mortgage"
+  "businessMode": "mortgage",
+  "features": {
+    "aiReceptionist": true,
+    "knowledgeBase": true,
+    "emailAssistant": true
+  }
 }

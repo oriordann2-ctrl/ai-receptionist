@@ -3316,70 +3316,140 @@ Life Assurance Products - Mortgage Protection, Life Assurance, Serious Illness C
 
 This email (including any attachments) is confidential, privileged and may be used only by the person to whom it is addressed. If you are not the addressee then you may not read, disseminate, print, copy, store or otherwise use it. If you have received it in error, please notify At Once Mortgages and delete it from your system.`;
 
+// ── Email Response Agent ─────────────────────────────────────────────────────
+// Uses OpenAI tool calls so the agent decides what to search rather than
+// having everything pre-loaded into the prompt.
+
+const EMAIL_AGENT_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "search_knowledge_base",
+      description: "Search the mortgage broker knowledge base for lender criteria, policy documents, rates, and procedures. Use specific queries related to what the client is asking about.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Specific search query, e.g. 'AIB self-employed criteria' or 'fixed rate switching rules'" }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_approved_answers",
+      description: "Search broker-approved answers to common client questions. Use this to find pre-approved responses the broker has already written.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Question or topic to search for" }
+        },
+        required: ["query"]
+      }
+    }
+  }
+];
+
+async function runEmailResponseAgent(emailContent) {
+  const messages = [
+    {
+      role: "system",
+      content: `You are Sprimal, an AI assistant for Irish mortgage broker staff.
+
+Your job is to draft a professional reply to a client email.
+
+You have two tools:
+- search_knowledge_base: searches lender criteria, policy docs, rates and procedures
+- search_approved_answers: searches broker-pre-approved Q&A pairs
+
+Instructions:
+1. Read the email carefully and identify the specific topic(s) being asked about
+2. Search for relevant information using specific targeted queries
+3. You may search multiple times with different queries if needed
+4. Once you have enough information, draft the reply
+
+Rules for the draft:
+- Do NOT invent lender-specific criteria not found in your searches
+- Do NOT promise approval, rates, or timelines
+- Do NOT give financial advice
+- If searches return nothing useful, say the broker will be in touch to confirm
+- Keep it concise and human — 4 to 8 lines
+
+Style:
+- Friendly and professional
+- Start with "Hi there," unless a name is clear from the email
+- Do NOT add a sign-off or "Kind regards" — the signature is added automatically`
+    },
+    {
+      role: "user",
+      content: `Draft a reply to this client email:\n\n${emailContent}`
+    }
+  ];
+
+  // Agent loop — max 6 iterations (3 rounds of tool calls + final answer)
+  for (let i = 0; i < 6; i++) {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+      tools: EMAIL_AGENT_TOOLS,
+      tool_choice: "auto",
+      temperature: 0.3
+    });
+
+    const message = response.choices[0].message;
+    messages.push(message);
+
+    if (response.choices[0].finish_reason === "stop") {
+      console.log(`[email-agent] Draft complete after ${i + 1} iteration(s)`);
+      return message.content;
+    }
+
+    if (response.choices[0].finish_reason === "tool_calls" && message.tool_calls) {
+      for (const toolCall of message.tool_calls) {
+        let result;
+        const args = JSON.parse(toolCall.function.arguments);
+
+        if (toolCall.function.name === "search_knowledge_base") {
+          console.log(`[email-agent] Tool call: search_knowledge_base("${args.query}")`);
+          const docs = await findRelevantKnowledgeChunks(args.query);
+          result = docs.length > 0
+            ? docs.map(d => `[${d.filename}]\n${d.text}`).join("\n\n")
+            : "No relevant documents found for that query.";
+
+        } else if (toolCall.function.name === "search_approved_answers") {
+          console.log(`[email-agent] Tool call: search_approved_answers("${args.query}")`);
+          const { data } = await supabase
+            .from("approved_answers")
+            .select("question, answer")
+            .order("created_at", { ascending: false })
+            .limit(20);
+          result = (data && data.length > 0)
+            ? data.map(a => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
+            : "No approved answers found.";
+        } else {
+          result = "Unknown tool.";
+        }
+
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: result
+        });
+      }
+    }
+  }
+
+  console.warn("[email-agent] Max iterations reached — returning partial draft");
+  const last = messages.filter(m => m.role === "assistant" && m.content).pop();
+  return last?.content || "Unable to generate draft.";
+}
+
 async function processInboundEmail({ from, subject, body }) {
   console.log(`[email-poll] Processing: "${subject}" from ${from}`);
 
   try {
-    // Load approved broker answers (same logic as /api/email-reply)
-    const { data: approvedAnswers } = await supabase
-      .from("approved_answers")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    const relevantDocs = await findRelevantKnowledgeChunks(body);
-
-    const approvedContext = (approvedAnswers || [])
-      .slice(0, 10)
-      .map(a => `APPROVED QUESTION: ${a.question}\nAPPROVED ANSWER: ${a.answer}`)
-      .join("\n\n");
-
-    const documentContext = relevantDocs
-      .map(doc => `SOURCE DOCUMENT: ${doc.filename}\n${doc.text}`)
-      .join("\n\n");
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are Sprimal, an AI assistant for Irish mortgage broker staff.
-
-Draft a professional reply to a client email.
-
-Use this priority:
-1. Broker-approved answers
-2. Uploaded/pasted broker knowledge documents
-3. General mortgage wording only if the email is general
-
-Rules:
-- Do NOT invent lender-specific criteria
-- Do NOT promise approval, rates, or timelines
-- Do NOT give financial advice
-- Keep it concise and human
-- If the knowledge base does not contain enough detail, say the broker will confirm
-
-Style:
-- Friendly and professional
-- Reassuring
-- 4–8 lines max
-- Start with "Hi there," unless a name is obvious from the email
-- End with "Kind regards,"
-
-BROKER-APPROVED KNOWLEDGE:
-${approvedContext || "None"}
-
-BROKER DOCUMENT KNOWLEDGE:
-${documentContext || "None"}`
-        },
-        {
-          role: "user",
-          content: `Client email:\n${body}`
-        }
-      ],
-      temperature: 0.3
-    });
-
-    const rawDraft = completion.choices[0].message.content || "No draft generated.";
+    const rawDraft = await runEmailResponseAgent(body);
 
     // Strip any trailing sign-off the AI added (e.g. "Kind regards,") — the real signature provides it
     const draftBody = rawDraft.trim().replace(/\n*kind regards,?\s*$/i, "").trim();

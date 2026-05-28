@@ -3755,8 +3755,7 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
         tool_choice: forceSubmit
           ? { type: "function", function: { name: "submit_qualification" } }
           : "auto",
-        temperature: 0.5,
-        timeout:     20000
+        temperature: 0.5
       });
       console.log(`[qual-agent] OpenAI returned iter=${i}`);
     } catch (apiErr) {

@@ -3443,14 +3443,22 @@ Qualification via Sprimal AI Chat`;
     [brokerEmail, "hello@sprimal.com"]
       .filter(Boolean)
       .map(e => e.toLowerCase())
-      .filter(e => e !== (process.env.EMAIL_USER || "").toLowerCase())
+      .filter(e => e !== (process.env.GMAIL_USER || "").toLowerCase())
   )];
 
   if (recipients.length === 0) return;
 
+  const gmailTransporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD
+    }
+  });
+
   try {
-    await mailTransporter.sendMail({
-      from: process.env.EMAIL_USER,
+    await gmailTransporter.sendMail({
+      from: process.env.GMAIL_USER,
       to: recipients.join(", "),
       subject,
       text
@@ -3567,7 +3575,7 @@ async function runQualificationAgent(convo, userMessage) {
       saveMortgageLeads(leads);
 
       // Email Cormac
-      emailLeadQualification(answers, scoring);
+      await emailLeadQualification(answers, scoring);
 
       // Ack tool call
       convo.qualMessages.push({

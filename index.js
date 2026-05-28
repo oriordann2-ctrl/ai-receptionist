@@ -1911,7 +1911,8 @@ app.post("/voice-process", async (req, res) => {
       body: JSON.stringify({
         userId,
         conversationId,
-        message: speech
+        message: speech,
+        voiceMode: true
       })
     });
 
@@ -2214,7 +2215,7 @@ Maeve
 
 app.post("/chat", async (req, res) => {
   try {
-    const { userId, conversationId, message } = req.body;
+    const { userId, conversationId, message, voiceMode } = req.body;
 
     if (!userId || !message) {
       return res.status(400).json({ error: "userId and message are required" });
@@ -2437,11 +2438,11 @@ Use plain numbers where possible.
 
       // ── Qualification agent — takes priority ────────────────────────────────
       if (convo.qualMode) {
-        result.reply = await runQualificationAgent(convo, trimmedMessage);
+        result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
 
       } else if (isMortgageApplicationIntent(trimmedMessage, intent) && !bookingInProgress) {
         convo.qualMode = true;
-        result.reply   = await runQualificationAgent(convo, trimmedMessage);
+        result.reply   = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
 
       } else if (mortgageInProgress) {
         const extracted = await extractMortgageFields(trimmedMessage);
@@ -3644,7 +3645,7 @@ ABSOLUTE PROHIBITIONS — never do any of the following under any circumstances:
 - Do NOT add any extra steps after collecting the 8 fields above
 - The moment you have all 8 fields, call submit_qualification immediately — nothing else`;
 
-async function runQualificationAgent(convo, userMessage) {
+async function runQualificationAgent(convo, userMessage, voiceMode = false) {
   if (!convo.qualMessages) {
     convo.qualMessages = [{ role: "system", content: QUAL_SYSTEM_PROMPT }];
     convo.qualAnswers = {};
@@ -3694,7 +3695,7 @@ async function runQualificationAgent(convo, userMessage) {
     }
 
     const response = await openai.chat.completions.create({
-      model:       "gpt-4o",
+      model:       voiceMode ? "gpt-4o-mini" : "gpt-4o",
       messages:    convo.qualMessages,
       tools,
       tool_choice: forceSubmit

@@ -2861,6 +2861,8 @@ Use plain numbers where possible.
       result.reply = "Invalid business mode configuration.";
     }
 
+    console.log("[chat] Sending reply, length:", (result.reply || "").length, "| preview:", (result.reply || "").slice(0, 60));
+
     addChatLog({
       userId,
       conversationId,
@@ -3765,11 +3767,13 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
       return "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
     }
 
+    const finishReason = response.choices[0].finish_reason;
     const message = response.choices[0].message;
+    console.log(`[qual-agent] iter=${i} finish_reason=${finishReason} tool_calls=${message.tool_calls?.length || 0} content_len=${(message.content || "").length}`);
     convo.qualMessages.push(message);
 
     // Natural conversation reply
-    if (response.choices[0].finish_reason === "stop") {
+    if (finishReason === "stop") {
       const reply = message.content || "";
 
       // Hard intercept: if model hallucinated a payslip/upload/document step
@@ -3782,15 +3786,22 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
         continue;
       }
 
+      if (!reply) {
+        console.warn("[qual-agent] finish_reason=stop but content is empty — treating as force-submit needed");
+        convo._forceSubmit = true;
+        continue;
+      }
+
       return reply;
     }
 
     // Tool call — all info collected
-    if (response.choices[0].finish_reason === "tool_calls" && message.tool_calls?.length) {
+    if (finishReason === "tool_calls" && message.tool_calls?.length) {
       const toolCall = message.tool_calls[0];
       let answers;
       try {
         answers = JSON.parse(toolCall.function.arguments);
+        console.log("[qual-agent] Tool call parsed, customerName:", answers.customerName, "| fields:", Object.keys(answers).join(","));
       } catch (e) {
         console.error("[qual-agent] Failed to parse tool arguments:", e.message);
         return "Thanks for that — a broker will be in touch with you shortly.";

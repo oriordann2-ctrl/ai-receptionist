@@ -2425,7 +2425,15 @@ Use plain numbers where possible.
 
     } else if (businessMode === "mortgage") {
 
-      if (mortgageInProgress) {
+      // ── Qualification agent — takes priority ────────────────────────────────
+      if (convo.qualMode) {
+        result.reply = await runQualificationAgent(convo, trimmedMessage);
+
+      } else if (isMortgageApplicationIntent(trimmedMessage, intent) && !bookingInProgress) {
+        convo.qualMode = true;
+        result.reply   = await runQualificationAgent(convo, trimmedMessage);
+
+      } else if (mortgageInProgress) {
         const extracted = await extractMortgageFields(trimmedMessage);
 
         const leadUpdates = {};
@@ -3293,6 +3301,314 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
   }
 
 });
+
+// ── Lead Qualification Agent ──────────────────────────────────────────────────
+
+const leadCriteria = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "data", "leadCriteria.json"), "utf8")
+);
+
+function parseMoneyValue(value) {
+  if (!value && value !== 0) return 0;
+  const text = String(value).toLowerCase().replace(/,/g, "").replace(/€/g, "").trim();
+  const number = parseFloat(text.replace(/[^\d.]/g, ""));
+  if (text.includes("k")) return number * 1000;
+  if (text.includes("m")) return number * 1000000;
+  return number || 0;
+}
+
+function calculateLeadScore(answers) {
+  const propertyPrice = parseMoneyValue(answers.propertyPrice);
+  const deposit       = parseMoneyValue(answers.deposit);
+  const income        = parseMoneyValue(answers.annualIncome);
+
+  if (!propertyPrice || !deposit || !income) {
+    return { score: "unknown", reason: "Insufficient data to calculate score" };
+  }
+
+  const loanRequired = propertyPrice - deposit;
+  const ltv          = (loanRequired / propertyPrice) * 100;
+  const isFirstTime  = String(answers.buyerType || "").toLowerCase().includes("first");
+  const maxLTV       = isFirstTime ? leadCriteria.ltvLimits.firstTimeBuyer.maxLTV : leadCriteria.ltvLimits.secondSubsequentBuyer.maxLTV;
+  const maxLTI       = isFirstTime ? leadCriteria.ltiLimits.firstTimeBuyer.maxMultiple : leadCriteria.ltiLimits.secondSubsequentBuyer.maxMultiple;
+  const lti          = loanRequired / income;
+
+  const issues    = [];
+  const strengths = [];
+
+  // LTV
+  if (ltv > maxLTV) {
+    issues.push(`Deposit too low — LTV is ${ltv.toFixed(1)}%, maximum is ${maxLTV}% for ${isFirstTime ? "first-time buyers" : "movers"}`);
+  } else {
+    strengths.push(`Deposit sufficient — LTV ${ltv.toFixed(1)}% within ${maxLTV}% limit ✅`);
+  }
+
+  // LTI
+  if (lti > maxLTI) {
+    issues.push(`Income may not support loan — LTI is ${lti.toFixed(1)}x, maximum is ${maxLTI}x`);
+  } else {
+    strengths.push(`Income supports loan — LTI ${lti.toFixed(1)}x within ${maxLTI}x limit ✅`);
+  }
+
+  // Employment
+  const emp = String(answers.employmentType || "").toLowerCase();
+  if (emp.includes("self")) {
+    issues.push("Self-employed — will need 2+ years of certified accounts");
+  } else if (emp.includes("contract")) {
+    issues.push("Contractor — lenders may require employment track record");
+  } else {
+    strengths.push("PAYE employed — strongest position for lenders ✅");
+  }
+
+  // Credit
+  const credit = String(answers.creditHistory || "").toLowerCase();
+  if (credit === "issues" || credit.includes("miss") || credit.includes("bad") || credit.includes("yes")) {
+    issues.push("Credit issues reported — significant concern for lenders");
+  } else {
+    strengths.push("Clean credit history ✅");
+  }
+
+  // Existing debts
+  const debts = String(answers.existingDebts || "").toLowerCase();
+  if (debts && debts !== "none" && debts !== "no" && debts.length > 3) {
+    issues.push(`Existing debts: ${answers.existingDebts}`);
+  }
+
+  // Score
+  const criticalIssues = issues.filter(i =>
+    i.includes("Deposit too low") ||
+    i.includes("Income may not support") ||
+    i.includes("Credit issues")
+  );
+
+  const score = criticalIssues.length === 0 && issues.length === 0 ? "hot"
+              : criticalIssues.length === 0                         ? "warm"
+              :                                                        "cold";
+
+  return {
+    score,
+    issues,
+    strengths,
+    loanRequired:  Math.round(loanRequired),
+    propertyPrice: Math.round(propertyPrice),
+    deposit:       Math.round(deposit),
+    income:        Math.round(income),
+    ltv:           ltv.toFixed(1),
+    lti:           lti.toFixed(1),
+    isFirstTime,
+    maxLTV,
+    maxLTI
+  };
+}
+
+async function emailLeadQualification(answers, scoring) {
+  const emoji = { hot: "🔥", warm: "⚡", cold: "❄️" }[scoring.score] || "📋";
+  const label = scoring.score.toUpperCase();
+
+  const subject = `${emoji} ${label} LEAD — ${answers.customerName || "New enquiry"}`;
+
+  const text =
+`${emoji} ${label} LEAD — ${scoring.score === "hot" ? "FOLLOW UP NOW" : "FOLLOW UP RECOMMENDED"}
+
+Name:           ${answers.customerName  || "Not provided"}
+Phone:          ${answers.customerPhone || "Not provided"}
+Email:          ${answers.customerEmail || "Not provided"}
+
+MORTGAGE DETAILS
+──────────────────────────────────────────
+Buyer type:     ${answers.buyerType}
+Property price: €${scoring.propertyPrice?.toLocaleString("en-IE")}
+Deposit:        €${scoring.deposit?.toLocaleString("en-IE")}
+Required loan:  €${scoring.loanRequired?.toLocaleString("en-IE")}
+Annual income:  €${scoring.income?.toLocaleString("en-IE")}
+LTV:            ${scoring.ltv}%  (limit: ${scoring.maxLTV}%)
+LTI:            ${scoring.lti}x  (limit: ${scoring.maxLTI}x)
+Employment:     ${answers.employmentType}
+Credit history: ${answers.creditHistory}
+Existing debts: ${answers.existingDebts || "None"}
+
+STRENGTHS
+──────────────────────────────────────────
+${scoring.strengths.map(s => `• ${s}`).join("\n") || "None identified"}
+
+ISSUES
+──────────────────────────────────────────
+${scoring.issues.map(i => `• ${i}`).join("\n") || "None"}
+
+SCORE: ${emoji} ${label}
+──────────────────────────────────────────
+Qualification via Sprimal AI Chat`;
+
+  const recipients = [...new Set(
+    [brokerEmail, "hello@sprimal.com"]
+      .filter(Boolean)
+      .map(e => e.toLowerCase())
+      .filter(e => e !== (process.env.EMAIL_USER || "").toLowerCase())
+  )];
+
+  if (recipients.length === 0) return;
+
+  try {
+    await mailTransporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: recipients.join(", "),
+      subject,
+      text
+    });
+    console.log(`[qual-agent] Lead email sent: ${label} — ${answers.customerName}`);
+  } catch (err) {
+    console.error("[qual-agent] Email failed:", err.message);
+  }
+}
+
+const QUAL_SYSTEM_PROMPT = `You are Maeve, a warm and friendly Irish mortgage assistant working for At Once Mortgages in Cork.
+
+Your job is to have a natural, conversational chat to qualify a potential mortgage customer.
+
+Collect this information through friendly conversation — don't list questions like a form. Ask 1-2 things at a time and respond naturally to what they say:
+1. First-time buyer, moving home, or buying to let?
+2. What property price are they thinking about?
+3. How much deposit they have saved
+4. Gross annual income (combined if applying with a partner)
+5. Employment type — PAYE, self-employed, or contractor
+6. Any existing loans, car finance, or credit card debt
+7. Any missed loan or mortgage repayments in the last 5 years
+8. Their name, phone number, and email address
+
+Be warm and natural — use phrases like "No bother at all", "That's great", "Sound".
+Keep each message short — 2-3 sentences maximum.
+Do NOT use mortgage jargon like LTV or LTI.
+Do NOT tell them the outcome — just thank them and say the broker will be in touch.
+
+Only call submit_qualification when you have ALL required fields including name, phone, and email.`;
+
+async function runQualificationAgent(convo, userMessage) {
+  if (!convo.qualMessages) {
+    convo.qualMessages = [{ role: "system", content: QUAL_SYSTEM_PROMPT }];
+  }
+
+  convo.qualMessages.push({ role: "user", content: userMessage });
+
+  const tools = [
+    {
+      type: "function",
+      function: {
+        name: "submit_qualification",
+        description: "Submit when ALL information is collected: buyer type, property price, deposit, income, employment, debts, credit history, name, phone, and email.",
+        parameters: {
+          type: "object",
+          properties: {
+            buyerType:      { type: "string", description: "first_time, mover, or buy_to_let" },
+            propertyPrice:  { type: "number", description: "Property price in euros" },
+            deposit:        { type: "number", description: "Deposit saved in euros" },
+            annualIncome:   { type: "number", description: "Gross annual income in euros (combined if joint)" },
+            employmentType: { type: "string", description: "paye, self_employed, or contractor" },
+            existingDebts:  { type: "string", description: "Description of existing debts or 'none'" },
+            creditHistory:  { type: "string", description: "clean or issues" },
+            customerName:   { type: "string" },
+            customerPhone:  { type: "string" },
+            customerEmail:  { type: "string" }
+          },
+          required: ["buyerType", "propertyPrice", "deposit", "annualIncome", "employmentType", "creditHistory", "customerName", "customerPhone", "customerEmail"]
+        }
+      }
+    }
+  ];
+
+  for (let i = 0; i < 5; i++) {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages:     convo.qualMessages,
+      tools,
+      tool_choice:  "auto",
+      temperature:  0.5
+    });
+
+    const message = response.choices[0].message;
+    convo.qualMessages.push(message);
+
+    // Natural conversation reply
+    if (response.choices[0].finish_reason === "stop") {
+      return message.content;
+    }
+
+    // Tool call — all info collected
+    if (response.choices[0].finish_reason === "tool_calls" && message.tool_calls?.length) {
+      const toolCall = message.tool_calls[0];
+      const answers  = JSON.parse(toolCall.function.arguments);
+
+      // Score the lead
+      const scoring = calculateLeadScore(answers);
+      console.log(`[qual-agent] Score: ${scoring.score.toUpperCase()} — ${answers.customerName}`);
+
+      // Save lead
+      const leads   = loadMortgageLeads();
+      const newLead = {
+        id:                     "ML-" + Date.now(),
+        createdAt:              new Date().toISOString(),
+        status:                 `New lead — ${scoring.score}`,
+        name:                   answers.customerName,
+        phone:                  answers.customerPhone,
+        email:                  answers.customerEmail,
+        buyerType:              answers.buyerType,
+        propertyPrice:          answers.propertyPrice,
+        deposit:                answers.deposit,
+        income:                 answers.annualIncome,
+        employmentType:         answers.employmentType,
+        existingDebts:          answers.existingDebts,
+        creditHistory:          answers.creditHistory,
+        lead_score:             scoring.score,
+        ltvPct:                 scoring.ltv,
+        ltiX:                   scoring.lti,
+        qualificationStrengths: scoring.strengths,
+        qualificationIssues:    scoring.issues
+      };
+      leads.push(newLead);
+      saveMortgageLeads(leads);
+
+      // Email Cormac
+      emailLeadQualification(answers, scoring);
+
+      // Ack tool call
+      convo.qualMessages.push({
+        role:         "tool",
+        tool_call_id: toolCall.id,
+        content:      JSON.stringify({ success: true, score: scoring.score })
+      });
+
+      // Closing message by score
+      const closing = {
+        hot:  "That's brilliant — thank you so much for those details! 😊 You look like a really strong candidate. Cormac Collins from At Once Mortgages will be in touch with you very shortly. Have a great day!",
+        warm: "Lovely, thank you for sharing all of that! You're in a good position and Cormac will be in touch soon to go through your options. Talk soon! 👋",
+        cold: "Thanks so much for chatting with me today. Cormac will take a look at your details and be in touch to discuss the best path forward for you. Have a lovely day! 👋"
+      };
+
+      convo.qualMode  = false;
+      convo.completed = true;
+
+      return closing[scoring.score];
+    }
+  }
+
+  return "Sorry, something went wrong. Please try again or contact us directly at 021 4315 815.";
+}
+
+// Keywords that trigger lead qualification (vs general mortgage questions)
+function isMortgageApplicationIntent(message, intent) {
+  const lower = message.toLowerCase();
+  const triggerPhrases = [
+    "apply", "application", "get a mortgage", "take out a mortgage",
+    "buying a house", "buying a home", "buying a property",
+    "first time buyer", "first-time buyer", "looking for a mortgage",
+    "interested in a mortgage", "mortgage enquiry", "can i get",
+    "how much can i borrow", "afford a mortgage", "start the process",
+    "moving home", "second time buyer"
+  ];
+  const triggerIntents = ["mortgage application", "apply for mortgage", "mortgage enquiry"];
+
+  return triggerPhrases.some(p => lower.includes(p)) ||
+         triggerIntents.some(i => (intent || "").includes(i));
+}
 
 // ── Gmail IMAP email polling ──────────────────────────────────────────────────
 

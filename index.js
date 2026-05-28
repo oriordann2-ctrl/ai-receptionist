@@ -3569,16 +3569,9 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
 }
 
 function allFieldsCollected(answers) {
-  return !!(
-    answers.buyerType &&
-    answers.propertyPrice &&
-    answers.deposit &&
-    answers.annualIncome &&
-    answers.employmentType &&
-    answers.creditHistory &&
-    answers.customerEmail &&
-    answers.customerPhone
-  );
+  // Email and phone are always the last things Maeve collects.
+  // If both are confirmed in code, the full conversation has happened — force submit immediately.
+  return !!(answers.customerEmail && answers.customerPhone);
 }
 
 function buildConfirmedBlock(answers) {
@@ -3718,7 +3711,7 @@ async function runQualificationAgent(convo, userMessage) {
       const reply = message.content || "";
 
       // Hard intercept: if model hallucinated a payslip/upload/document step, kill it and retry
-      if (/payslip|bank.?statement|p60|upload|choose.?document|secure.?link|whatsapp.*link|text.*link/i.test(reply)) {
+      if (/payslip|pay[\s-]slip|bank[\s-]?statement|p60|upload|document|paperwork|proof.of|verify.*income|support.*doc|financ[ei]al.*record|secure[\s-]?link|whatsapp.*link|text.*link/i.test(reply)) {
         console.warn("[qual-agent] Intercepted prohibited payslip/upload response — retrying with correction");
         convo.qualMessages.pop(); // remove the bad assistant message
         convo.qualMessages.push({

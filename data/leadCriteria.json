@@ -1,0 +1,102 @@
+{
+  "_source": "Central Bank of Ireland Mortgage Measures — effective 1 January 2023",
+  "_url": "https://www.centralbank.ie/financial-system/financial-stability/macro-prudential-policy/mortgage-measures",
+
+  "ltvLimits": {
+    "firstTimeBuyer": {
+      "maxLTV": 90,
+      "minDepositPct": 10,
+      "label": "First-time buyer"
+    },
+    "secondSubsequentBuyer": {
+      "maxLTV": 80,
+      "minDepositPct": 20,
+      "label": "Second or subsequent buyer (mover)"
+    },
+    "buyToLet": {
+      "maxLTV": 70,
+      "minDepositPct": 30,
+      "label": "Buy-to-let"
+    }
+  },
+
+  "ltiLimits": {
+    "firstTimeBuyer": {
+      "maxMultiple": 4.0,
+      "label": "First-time buyer — max loan is 4x gross annual income"
+    },
+    "secondSubsequentBuyer": {
+      "maxMultiple": 3.5,
+      "label": "Second or subsequent buyer — max loan is 3.5x gross annual income"
+    }
+  },
+
+  "qualifyingQuestions": [
+    {
+      "key": "buyerType",
+      "question": "Are you a first-time buyer, or have you owned a property before?",
+      "purpose": "Determines which LTV and LTI limits apply"
+    },
+    {
+      "key": "propertyPrice",
+      "question": "What price property are you looking at?",
+      "purpose": "Used to calculate required loan and LTV"
+    },
+    {
+      "key": "deposit",
+      "question": "How much deposit do you have saved?",
+      "purpose": "Used to calculate LTV ratio"
+    },
+    {
+      "key": "annualIncome",
+      "question": "What is your gross annual income? If applying jointly, what is the combined income?",
+      "purpose": "Used to calculate maximum borrowing under LTI rules"
+    },
+    {
+      "key": "employmentType",
+      "question": "Are you PAYE employed, self-employed, or a contractor?",
+      "purpose": "Self-employed typically requires 2+ years of accounts. PAYE is strongest."
+    },
+    {
+      "key": "existingDebts",
+      "question": "Do you have any existing loans, car finance, or credit card debt?",
+      "purpose": "Affects affordability assessment — reduces effective borrowing capacity"
+    },
+    {
+      "key": "creditHistory",
+      "question": "Have you ever missed a loan or mortgage repayment?",
+      "purpose": "Any missed payments within the last 5 years is a significant red flag for lenders"
+    }
+  ],
+
+  "scoringRules": {
+    "hot": [
+      "Deposit meets or exceeds the minimum required for their buyer type",
+      "Required loan does not exceed the LTI limit for their buyer type",
+      "PAYE employment",
+      "No missed payments or credit issues",
+      "No significant existing debts"
+    ],
+    "warm": [
+      "Meets LTV and LTI rules but is self-employed (needs 2+ years accounts)",
+      "Marginally short on deposit (within 5% of requirement)",
+      "Has minor existing debts but income still supports the loan",
+      "No credit issues but contractor employment status"
+    ],
+    "cold": [
+      "Deposit is significantly below the minimum required",
+      "Required loan exceeds the LTI limit",
+      "Missed payments in the last 5 years",
+      "Income does not support the required mortgage",
+      "Less than 2 years self-employed accounts"
+    ]
+  },
+
+  "additionalNotes": [
+    "Lenders may grant LTI exemptions — up to 20% of new FTB lending can exceed 4x (some lenders allow up to 4.5x)",
+    "Lenders may grant LTV exemptions in limited cases",
+    "Minimum income thresholds vary by lender — typically €30,000+ for single applicants",
+    "Maximum loan term is generally 35 years (some lenders 30)",
+    "Age at end of mortgage term typically cannot exceed 70"
+  ]
+}

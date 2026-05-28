@@ -3530,6 +3530,18 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
     }
   }
 
+  // Email — easy to detect reliably
+  if (!answers.customerEmail) {
+    const emailMatch = userText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (emailMatch) answers.customerEmail = emailMatch[0];
+  }
+
+  // Phone — Irish mobile/landline patterns
+  if (!answers.customerPhone) {
+    const phoneMatch = userText.match(/(?:\+353|0)[0-9\s]{9,11}/);
+    if (phoneMatch) answers.customerPhone = phoneMatch[0].replace(/\s/g, "");
+  }
+
   // Scan each user message for money values with context keywords
   for (const msg of qualMessages.filter(m => m.role === "user")) {
     const text = msg.content;
@@ -3554,6 +3566,19 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
   }
 
   return answers;
+}
+
+function allFieldsCollected(answers) {
+  return !!(
+    answers.buyerType &&
+    answers.propertyPrice &&
+    answers.deposit &&
+    answers.annualIncome &&
+    answers.employmentType &&
+    answers.creditHistory &&
+    answers.customerEmail &&
+    answers.customerPhone
+  );
 }
 
 function buildConfirmedBlock(answers) {
@@ -3668,13 +3693,21 @@ async function runQualificationAgent(convo, userMessage) {
     }
   ];
 
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
+    // If all required fields are already confirmed in code, force the tool call — don't give the model any choice
+    const forceSubmit = allFieldsCollected(convo.qualAnswers);
+    if (forceSubmit) {
+      console.log("[qual-agent] All fields confirmed — forcing submit_qualification");
+    }
+
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages:     convo.qualMessages,
+      model:       "gpt-4o-mini",
+      messages:    convo.qualMessages,
       tools,
-      tool_choice:  "auto",
-      temperature:  0.5
+      tool_choice: forceSubmit
+        ? { type: "function", function: { name: "submit_qualification" } }
+        : "auto",
+      temperature: 0.5
     });
 
     const message = response.choices[0].message;

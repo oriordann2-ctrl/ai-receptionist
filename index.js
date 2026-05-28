@@ -3747,6 +3747,7 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
 
     let response;
     try {
+      console.log(`[qual-agent] Calling OpenAI iter=${i} forceSubmit=${forceSubmit} msgs=${convo.qualMessages.length}`);
       response = await openai.chat.completions.create({
         model:       voiceMode ? "gpt-4o-mini" : "gpt-4o",
         messages:    convo.qualMessages,
@@ -3754,8 +3755,10 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
         tool_choice: forceSubmit
           ? { type: "function", function: { name: "submit_qualification" } }
           : "auto",
-        temperature: 0.5
+        temperature: 0.5,
+        timeout:     20000
       });
+      console.log(`[qual-agent] OpenAI returned iter=${i}`);
     } catch (apiErr) {
       console.error("[qual-agent] OpenAI API error on iteration", i,
         "| status:", apiErr.status || "n/a",

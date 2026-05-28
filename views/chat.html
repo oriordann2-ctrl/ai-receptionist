@@ -209,10 +209,11 @@ async function sendMessage() {
 
   addMessage(reply, "bot");
 
-  if (reply !== window.lastSpokenReply) {
-    window.lastSpokenReply = reply;
-    playMaeveVoice(reply);
-  }
+  // Voice disabled — re-enable by uncommenting the block below
+  // if (reply !== window.lastSpokenReply) {
+  //   window.lastSpokenReply = reply;
+  //   playMaeveVoice(reply);
+  // }
 
   const replyLower = reply.toLowerCase();
 
@@ -251,9 +252,8 @@ const introText =
 
 addMessage(introText, "bot");
 
-playMaeveVoice(
-  "Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. Before we begin, I’ll ask a few questions and may collect personal information to help with your enquiry. This information will only be used for that purpose. Is that okay?"
-);
+// Voice disabled — re-enable by uncommenting the line below
+// playMaeveVoice("Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. Before we begin, I’ll ask a few questions and may collect personal information to help with your enquiry. This information will only be used for that purpose. Is that okay?");
 
 messageInput.addEventListener("keypress", function (e) {
   if (e.key === "Enter") {

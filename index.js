@@ -2252,7 +2252,8 @@ app.post("/chat", async (req, res) => {
         lowerMessage.includes("go ahead") ||
         lowerMessage.includes("happy") ||
         lowerMessage.includes("no problem") ||
-        lowerMessage.includes("sounds good")
+        lowerMessage.includes("sounds good") ||
+        lowerMessage.includes("grand")
       ) {
         convo.consentGiven = true;
 

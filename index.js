@@ -3434,6 +3434,35 @@ function calculateLeadScore(answers) {
   };
 }
 
+function scoringReason(scoring) {
+  const { score, issues, strengths } = scoring;
+
+  if (score === "hot") {
+    return "Reason: All key indicators are positive — financials are strong, employment is stable, and no credit concerns. Prioritise this lead.";
+  }
+
+  if (score === "warm") {
+    const issueList = issues.length > 0
+      ? issues.map(i => i.split("—")[0].trim()).join("; ")
+      : "minor concerns";
+    return `Reason: Core financials are within limits but there are some considerations: ${issueList}. Worth a follow-up call to explore options.`;
+  }
+
+  if (score === "cold") {
+    const criticals = issues.filter(i =>
+      i.includes("Deposit too low") ||
+      i.includes("Income may not support") ||
+      i.includes("Credit issues")
+    );
+    const issueList = criticals.length > 0
+      ? criticals.map(i => i.split("—")[0].trim()).join("; ")
+      : issues.map(i => i.split("—")[0].trim()).join("; ");
+    return `Reason: This lead has significant barriers to standard lender approval: ${issueList}. Cormac may need to explore specialist options.`;
+  }
+
+  return "Reason: Insufficient data to fully assess this lead.";
+}
+
 async function emailLeadQualification(answers, scoring) {
   const emoji = { hot: "🔥", warm: "⚡", cold: "❄️" }[scoring.score] || "📋";
   const label = scoring.score.toUpperCase();
@@ -3470,6 +3499,8 @@ ${scoring.issues.map(i => `• ${i}`).join("\n") || "None"}
 
 SCORE: ${emoji} ${label}
 ──────────────────────────────────────────
+${scoringReason(scoring)}
+
 Qualification via Sprimal AI Chat`;
 
   // Sending to hello@sprimal.com only during testing — add brokerEmail once validated

@@ -871,7 +871,7 @@ async function createAppointment(userId, conversationId, customerName, date, tim
         },
         body: JSON.stringify({
           from: "Maeve <maeve@sprimal.com>",
-          to: ["hello@sprimal.com"],
+          to: ["hello@sprimal.com", "cormac@aom.ie"],
           subject: "📅 New Appointment Booked",
           text: `New appointment booked:\n\nName: ${customerName}\nPhone: ${customerPhone || "-"}\nEmail: ${customerEmail || "-"}\nDate: ${formatDateNice(date)}\nTime: ${time}\nType: ${type}`
         })
@@ -3503,8 +3503,7 @@ ${scoringReason(scoring)}
 
 Qualification via Sprimal AI Chat`;
 
-  // Sending to hello@sprimal.com only during testing — add brokerEmail once validated
-  const recipients = ["hello@sprimal.com"];
+  const recipients = ["hello@sprimal.com", "cormac@aom.ie"];
 
   if (!process.env.RESEND_API_KEY) {
     console.warn("[qual-agent] RESEND_API_KEY not set — skipping lead email");

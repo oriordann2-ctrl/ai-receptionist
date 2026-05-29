@@ -3770,7 +3770,7 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
     try {
       console.log(`[qual-agent] Calling OpenAI iter=${i} forceSubmit=${forceSubmit} msgs=${convo.qualMessages.length}`);
       response = await openai.chat.completions.create({
-        model:       voiceMode ? "gpt-4o-mini" : "gpt-4o",
+        model:       "gpt-4o-mini",
         messages:    convo.qualMessages,
         tools,
         tool_choice: forceSubmit

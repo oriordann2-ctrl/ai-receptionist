@@ -877,7 +877,7 @@ async function createAppointment(userId, conversationId, customerName, date, tim
         })
       })
         .then(r => r.ok
-          ? console.log("[createAppointment] Booking email sent to", brokerEmail)
+          ? console.log("[createAppointment] Booking email sent to hello@sprimal.com, cormac@aom.ie")
           : r.text().then(b => console.error("[createAppointment] Email failed:", r.status, b))
         )
         .catch(err => console.error("[createAppointment] Email error:", err.message));

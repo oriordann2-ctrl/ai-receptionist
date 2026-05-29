@@ -2289,24 +2289,37 @@ app.post("/chat", async (req, res) => {
     // 🔒 GDPR Consent check
     if (!convo.consentGiven) {
 
-      if (
-        lowerMessage.includes("yes") ||
-        lowerMessage.includes("ok") ||
-        lowerMessage.includes("okay") ||
-        lowerMessage.includes("yeah") ||
-        lowerMessage.includes("sure") ||
-        lowerMessage.includes("yep") ||
-        lowerMessage.includes("fine") ||
-        lowerMessage.includes("alright") ||
-        lowerMessage.includes("absolutely") ||
-        lowerMessage.includes("of course") ||
-        lowerMessage.includes("go ahead") ||
-        lowerMessage.includes("happy") ||
-        lowerMessage.includes("no problem") ||
-        lowerMessage.includes("sounds good") ||
-        lowerMessage.includes("grand")
-      ) {
+      // Check for booking or mortgage intent in the message — treat as implicit consent
+      const hasBookingIntent = /book|appointment|consultation|meet|speak to|call/i.test(lowerMessage);
+      const hasMortgageIntent = /mortgage|apply|application|get started|buy|purchase/i.test(lowerMessage);
+
+      const consentWords = /\byes\b|\bok\b|\bokay\b|\byeah\b|\bsure\b|\byep\b|\bfine\b|\balright\b|\babsolutely\b|\bof course\b|\bgo ahead\b|\bhappy\b|\bno problem\b|\bsounds good\b|\bgrand\b/i;
+
+      if (consentWords.test(lowerMessage) || hasBookingIntent || hasMortgageIntent) {
         convo.consentGiven = true;
+
+        // If they already stated their intent, route directly rather than showing the menu
+        if (hasBookingIntent) {
+          const bookingResult = await handleBookingFlow({
+            userId,
+            conversationId,
+            message: trimmedMessage,
+            bookingType: "appointment",
+            confirmationLabel: "appointment"
+          });
+          return res.json({ reply: bookingResult.reply });
+        }
+
+        if (hasMortgageIntent) {
+          convo.qualMode = true;
+          try {
+            result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
+          } catch (qualErr) {
+            console.error("[qual-agent] Error after consent:", qualErr.message);
+            result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
+          }
+          return res.json({ reply: result.reply });
+        }
 
         result.reply =
           "Perfect. I can help with applying for a mortgage, booking an appointment, or answering any questions. What would you like to do?";

@@ -687,10 +687,37 @@ let features = settings.features || {
 };
 let testMode = false; // global — suppresses all activity logging when on
 
-const availableSlots = {
-  "2026-04-22": ["10:00", "11:00", "14:00"],
-  "2026-04-23": ["09:30", "13:00", "15:00"]
-};
+const BOOKING_TIMES = ["09:30", "11:00", "14:00", "15:30"];
+
+function getAvailableSlots() {
+  const slots = {};
+  let count = 0;
+  const d = new Date();
+  d.setDate(d.getDate() + 1); // start from tomorrow
+  while (count < 2) {
+    const day = d.getDay(); // 0=Sun, 6=Sat
+    if (day !== 0 && day !== 6) {
+      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      slots[key] = [...BOOKING_TIMES];
+      count++;
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return slots;
+}
+
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function formatDateNice(dateStr) {
+  const d = new Date(dateStr + "T12:00:00");
+  const days   = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return `${days[d.getDay()]} ${ordinal(d.getDate())} ${months[d.getMonth()]}`;
+}
 
 const urgentKeywords = [
   "chest pain",
@@ -939,58 +966,69 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
     lowerMessage.includes("appointment") ||
     lowerMessage.includes("consultation")
   ) {
+    const slots = getAvailableSlots();
+    const dateKeys = Object.keys(slots);
     convo.step = "awaiting_date";
     convo.bookingType = bookingType;
     convo.date = null;
     convo.time = null;
+    convo._availableSlots = slots;
 
+    const dateList = dateKeys.map((k, i) => `${i + 1}. ${formatDateNice(k)}`).join("\n");
     return {
-      reply: "Sure — what date would you like? Available dates are 2026-04-22 or 2026-04-23."
+      reply: `Sure! I have the following dates available:\n\n${dateList}\n\nJust reply with 1 or 2.`
     };
   }
 
   if (convo.step === "awaiting_date") {
-    if (!isDateInput(trimmedMessage)) {
+    const slots = convo._availableSlots || getAvailableSlots();
+    const dateKeys = Object.keys(slots);
+    const dateList = dateKeys.map((k, i) => `${i + 1}. ${formatDateNice(k)}`).join("\n");
+
+    // Accept "1" or "2"
+    const pick = parseInt(trimmedMessage, 10);
+    if (pick === 1 || pick === 2) {
+      convo.date = dateKeys[pick - 1];
+      convo.step = "awaiting_time";
+      const times = slots[convo.date];
+      const timeList = times.map((t, i) => `${i + 1}. ${t}`).join("\n");
       return {
-        reply: "Please enter the date in YYYY-MM-DD format, for example 2026-04-22."
+        reply: `${formatDateNice(convo.date)} it is! Available times:\n\n${timeList}\n\nWhich time suits you?`
       };
     }
-
-    if (!availableSlots[trimmedMessage]) {
-      return {
-        reply: "That date is not available. Please choose 2026-04-22 or 2026-04-23."
-      };
-    }
-
-    convo.date = trimmedMessage;
-    convo.step = "awaiting_time";
 
     return {
-      reply: `Available times on ${trimmedMessage} are: ${availableSlots[trimmedMessage].join(", ")}. Which time would you like?`
+      reply: `Please reply with 1 or 2:\n\n${dateList}`
     };
   }
 
   if (convo.step === "awaiting_time") {
+    const slots = convo._availableSlots || getAvailableSlots();
+
     if (!convo.date) {
       convo.step = "awaiting_date";
+      const dateKeys = Object.keys(slots);
+      const dateList = dateKeys.map((k, i) => `${i + 1}. ${formatDateNice(k)}`).join("\n");
       return {
-        reply: "Please choose a date first: 2026-04-22 or 2026-04-23."
+        reply: `Let's start over — which date suits you?\n\n${dateList}`
       };
     }
 
-    if (!isTimeInput(trimmedMessage)) {
+    const times = slots[convo.date] || BOOKING_TIMES;
+    const timeList = times.map((t, i) => `${i + 1}. ${t}`).join("\n");
+
+    // Accept number pick or direct HH:MM
+    const pick = parseInt(trimmedMessage, 10);
+    if (pick >= 1 && pick <= times.length) {
+      convo.time = times[pick - 1];
+    } else if (isTimeInput(trimmedMessage) && times.includes(trimmedMessage)) {
+      convo.time = trimmedMessage;
+    } else {
       return {
-        reply: `Please enter a time in HH:MM format. Available times are: ${availableSlots[convo.date].join(", ")}.`
+        reply: `Please choose a time by replying with its number:\n\n${timeList}`
       };
     }
 
-    if (!availableSlots[convo.date].includes(trimmedMessage)) {
-      return {
-        reply: `That time is not available. Please choose one of these: ${availableSlots[convo.date].join(", ")}.`
-      };
-    }
-
-    convo.time = trimmedMessage;
     convo.step = "awaiting_name";
 
     return {
@@ -1001,8 +1039,11 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
   if (convo.step === "awaiting_name") {
     if (!convo.date || !convo.time) {
       convo.step = "awaiting_date";
+      const slots = convo._availableSlots || getAvailableSlots();
+      const dateKeys = Object.keys(slots);
+      const dateList = dateKeys.map((k, i) => `${i + 1}. ${formatDateNice(k)}`).join("\n");
       return {
-        reply: "We need to restart the booking. Please choose a date first: 2026-04-22 or 2026-04-23."
+        reply: `Let's start over — which date suits you?\n\n${dateList}`
       };
     }
 
@@ -1018,7 +1059,7 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
     resetConversation(userId);
 
     return {
-      reply: `Thanks ${trimmedMessage}. Your ${confirmationLabel} is booked for ${newAppointment.date} at ${newAppointment.time}.`
+      reply: `Thanks ${trimmedMessage}! Your ${confirmationLabel} is confirmed for ${formatDateNice(newAppointment.date)} at ${newAppointment.time}. Cormac will be in touch to confirm. See you then! 👋`
     };
   }
 

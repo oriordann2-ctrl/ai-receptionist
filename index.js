@@ -859,22 +859,28 @@ async function createAppointment(userId, conversationId, customerName, date, tim
     appointments.push(newAppointment);
     saveAppointments();
 
-    try {
-      await mailTransporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: brokerEmail,
-        subject: "📅 New Appointment Booked",
-        text: `
-  New appointment booked:
-
-  Name: ${customerName}
-  Date: ${date}
-  Time: ${time}
-  Type: ${type}
-  `
-      });
-    } catch (err) {
-      console.error("[createAppointment] email failed:", err.message);
+    // Fire-and-forget — never block the booking confirmation response
+    if (process.env.RESEND_API_KEY) {
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          from: "Maeve <maeve@sprimal.com>",
+          to: [brokerEmail],
+          subject: "📅 New Appointment Booked",
+          text: `New appointment booked:\n\nName: ${customerName}\nDate: ${formatDateNice(date)} (${date})\nTime: ${time}\nType: ${type}`
+        })
+      })
+        .then(r => r.ok
+          ? console.log("[createAppointment] Booking email sent to", brokerEmail)
+          : r.text().then(b => console.error("[createAppointment] Email failed:", r.status, b))
+        )
+        .catch(err => console.error("[createAppointment] Email error:", err.message));
+    } else {
+      console.warn("[createAppointment] RESEND_API_KEY not set — skipping booking email");
     }
 
   return newAppointment;

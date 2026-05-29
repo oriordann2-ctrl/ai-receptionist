@@ -843,12 +843,14 @@ function requireSenior(req, res, next) {
   next();
 }
 
-async function createAppointment(userId, conversationId, customerName, date, time, type) {
+async function createAppointment(userId, conversationId, customerName, date, time, type, customerPhone = "", customerEmail = "") {
   const newAppointment = {
     id: appointments.length > 0 ? Math.max(...appointments.map(a => a.id)) + 1 : 1,
     userId,
-    conversationId, // 👈 IMPORTANT
+    conversationId,
     customerName,
+    customerPhone,
+    customerEmail,
     date,
     time,
     type,
@@ -871,7 +873,7 @@ async function createAppointment(userId, conversationId, customerName, date, tim
           from: "Maeve <maeve@sprimal.com>",
           to: ["hello@sprimal.com"],
           subject: "📅 New Appointment Booked",
-          text: `New appointment booked:\n\nName: ${customerName}\nDate: ${formatDateNice(date)} (${date})\nTime: ${time}\nType: ${type}`
+          text: `New appointment booked:\n\nName: ${customerName}\nPhone: ${customerPhone || "-"}\nEmail: ${customerEmail || "-"}\nDate: ${formatDateNice(date)}\nTime: ${time}\nType: ${type}`
         })
       })
         .then(r => r.ok
@@ -1053,19 +1055,39 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
       };
     }
 
+    convo.bookingName = trimmedMessage;
+    convo.step = "awaiting_phone";
+    return {
+      reply: `Nice to meet you, ${trimmedMessage}! What's the best phone number to reach you on?`
+    };
+  }
+
+  if (convo.step === "awaiting_phone") {
+    convo.bookingPhone = trimmedMessage;
+    convo.step = "awaiting_email";
+    return {
+      reply: "And your email address?"
+    };
+  }
+
+  if (convo.step === "awaiting_email") {
+    convo.bookingEmail = trimmedMessage;
+
     const newAppointment = await createAppointment(
       userId,
       conversationId,
-      trimmedMessage,
+      convo.bookingName,
       convo.date,
       convo.time,
-      convo.bookingType || bookingType
+      convo.bookingType || bookingType,
+      convo.bookingPhone,
+      convo.bookingEmail
     );
 
     resetConversation(userId);
 
     return {
-      reply: `Thanks ${trimmedMessage}! Your ${confirmationLabel} is confirmed for ${formatDateNice(newAppointment.date)} at ${newAppointment.time}. Cormac will be in touch to confirm. See you then! 👋`
+      reply: `All booked! Your ${confirmationLabel} is confirmed for ${formatDateNice(newAppointment.date)} at ${newAppointment.time}. Cormac will be in touch to confirm. See you then! 👋`
     };
   }
 

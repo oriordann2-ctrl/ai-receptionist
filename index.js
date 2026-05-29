@@ -869,7 +869,7 @@ async function createAppointment(userId, conversationId, customerName, date, tim
         },
         body: JSON.stringify({
           from: "Maeve <maeve@sprimal.com>",
-          to: [brokerEmail],
+          to: ["hello@sprimal.com"],
           subject: "📅 New Appointment Booked",
           text: `New appointment booked:\n\nName: ${customerName}\nDate: ${formatDateNice(date)} (${date})\nTime: ${time}\nType: ${type}`
         })

@@ -3610,9 +3610,11 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
 }
 
 function allFieldsCollected(answers) {
-  // Email and phone are always the last things Maeve collects.
-  // If both are confirmed in code, the full conversation has happened — force submit immediately.
-  return !!(answers.customerEmail && answers.customerPhone);
+  // Only force submit when we have contact details AND the core mortgage figures.
+  // Prevents premature submission if Maeve asks for name/phone/email before mortgage questions.
+  const hasContact      = !!(answers.customerEmail && answers.customerPhone);
+  const hasMortgageData = !!(answers.propertyPrice && answers.deposit && answers.annualIncome);
+  return hasContact && hasMortgageData;
 }
 
 function buildConfirmedBlock(answers) {

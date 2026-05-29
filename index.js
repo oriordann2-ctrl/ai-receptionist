@@ -2220,48 +2220,6 @@ app.get("/upload", (req, res) => {
   `);
 });
 
-async function emailBrokerAboutLead(lead) {
-  if (!brokerEmail) {
-    console.log("BROKER_EMAIL not set. Skipping broker email.");
-    return;
-  }
-
-  const subject = `🔥 HOT LEAD: €${lead.income} income / €${lead.deposit} deposit`;
-
-  const body = `
-Hi,
-
-Maeve has captured a new mortgage lead.
-
-Lead Reference: http://ai-receptionist-wmr7.onrender.com/admin?leadId=${lead.id}
-Name: ${lead.name || "-"}
-Phone: ${lead.phone || "-"}
-Email: ${lead.email || "-"}
-Buyer Type: ${lead.buyerType || "-"}
-Property Price: ${lead.propertyPrice || "-"}
-Deposit: ${lead.deposit || "-"}
-Income: ${lead.income || "-"}
-Employment: ${lead.employmentType || "-"}
-Lead Temperature: ${lead.leadTemperature || lead.temperature || lead.status || "-"}
-
-Please review this lead in the Sprimal admin dashboard.
-
-Regards,
-Maeve
-`;
-
-  try {
-    await mailTransporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: brokerEmail,
-      subject,
-      text: body
-    });
-    console.log("[emailBrokerAboutLead] email sent for lead:", lead.id);
-  } catch (err) {
-    console.error("[emailBrokerAboutLead] email failed:", err.message);
-  }
-}
 
 app.post("/chat", async (req, res) => {
   try {
@@ -2562,12 +2520,7 @@ Use plain numbers where possible.
             leadTemperature: isHot ? "Hot" : "Cold"
           });
 
-          if (isHot && !completedLead?.emailSent) {
-            await emailBrokerAboutLead({
-              ...completedLead,
-              leadTemperature: "Hot"
-            });
-
+          if (isHot) {
             updateMortgageLead(convo.mortgageLeadId, {
               emailSent: true
             });
@@ -2719,19 +2672,11 @@ Use plain numbers where possible.
 
           console.log("Lead check:", { income, deposit, isHot });
 
-          if (isHot && !completedLead?.emailSent) {
-            await emailBrokerAboutLead({
-              ...completedLead,
-              leadTemperature: "Hot"
-            });
-
-            updateMortgageLead(completedLead.id, {
-              emailSent: true
-            });
-
-            console.log("🔥 EMAIL SENT");
+          if (isHot) {
+            updateMortgageLead(completedLead.id, { emailSent: true });
+            console.log("🔥 HOT lead flagged");
           } else {
-            console.log("❌ NOT HOT — no email");
+            console.log("❌ NOT HOT");
           }
 
           convo.completed = true;
@@ -2824,15 +2769,8 @@ Use plain numbers where possible.
         leadTemperature: isHot ? "Hot" : "Cold"
       });
 
-      if (isHot && !completedLead?.emailSent) {
-        await emailBrokerAboutLead({
-          ...completedLead,
-          leadTemperature: "Hot"
-        });
-
-        updateMortgageLead(convo.mortgageLeadId, {
-          emailSent: true
-        });
+      if (isHot) {
+        updateMortgageLead(convo.mortgageLeadId, { emailSent: true });
       }
 
       convo.completed = true;

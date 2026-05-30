@@ -95,10 +95,14 @@
   var hasOpened = false;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+  function stripHtml(str) {
+    return str.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim();
+  }
+
   function addMsg(text, sender) {
     var div = document.createElement("div");
     div.className = "sprimal-msg sprimal-" + sender;
-    div.textContent = text;
+    div.textContent = stripHtml(text);
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
     return div;

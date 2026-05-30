@@ -3489,8 +3489,9 @@ async function emailLeadQualification(answers, scoring) {
   const text =
 `${emoji} ${label} LEAD — ${scoring.score === "hot" ? "FOLLOW UP NOW" : "FOLLOW UP RECOMMENDED"}
 
-Name:           ${answers.customerName  || "Not provided"}
-Phone:          ${answers.customerPhone || "Not provided"}
+Name:           ${answers.customerName   || "Not provided"}
+Phone:          ${answers.customerPhone  || "Not provided"}
+Referred by:    ${answers.referralSource || "Not provided"}
 Email:          ${answers.customerEmail || "Not provided"}
 
 MORTGAGE DETAILS
@@ -3683,7 +3684,8 @@ function allFieldsCollected(answers) {
   // Prevents premature submission if Maeve asks for name/phone/email before mortgage questions.
   const hasContact      = !!(answers.customerEmail && answers.customerPhone);
   const hasMortgageData = !!(answers.propertyPrice && answers.deposit && answers.annualIncome);
-  return hasContact && hasMortgageData;
+  const hasReferral     = !!(answers.referralSource);
+  return hasContact && hasMortgageData && hasReferral;
 }
 
 function buildConfirmedBlock(answers) {
@@ -3729,7 +3731,7 @@ If the customer mentions a property, price, location, or area they are looking a
 
 MULTIPLE ANSWERS: If the customer gives several pieces of information in one message (e.g. "first time buyer, looking at a 450k place, have 50k deposit"), accept ALL of them at once and only ask for the NEXT missing item.
 
-Collect these 8 pieces of information through friendly conversation:
+Collect these 9 pieces of information through friendly conversation:
 1. Buyer type (first-time, moving home, or buy-to-let)
 2. Property price
 3. Deposit amount
@@ -3738,6 +3740,7 @@ Collect these 8 pieces of information through friendly conversation:
 6. Any existing loans, car finance, or credit card debt
 7. Any missed loan or mortgage repayments in the last 5 years
 8. Name, phone number, and email address
+9. How they heard about At Once Mortgages (ask this naturally near the end, e.g. "Just before we finish — how did you hear about us?")
 
 Rules:
 - Be warm and natural — use short Irish phrases like "Sound", "Grand", "Perfect", "No bother".
@@ -3747,7 +3750,7 @@ Rules:
 - Do NOT use mortgage jargon like LTV or LTI.
 - Do NOT tell them the outcome — just thank them and say the broker will be in touch.
 
-Only call submit_qualification when you have ALL required fields including name, phone, and email.
+Only call submit_qualification when you have ALL required fields including name, phone, email, and referral source.
 
 ABSOLUTE PROHIBITIONS — never do any of the following under any circumstances:
 - Do NOT ask for payslips, bank statements, P60s, or any documents
@@ -3790,9 +3793,10 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
             creditHistory:  { type: "string", description: "clean or issues" },
             customerName:   { type: "string" },
             customerPhone:  { type: "string" },
-            customerEmail:  { type: "string" }
+            customerEmail:  { type: "string" },
+            referralSource: { type: "string", description: "How the customer heard about At Once Mortgages" }
           },
-          required: ["buyerType", "propertyPrice", "deposit", "annualIncome", "employmentType", "creditHistory", "customerName", "customerPhone", "customerEmail"]
+          required: ["buyerType", "propertyPrice", "deposit", "annualIncome", "employmentType", "creditHistory", "customerName", "customerPhone", "customerEmail", "referralSource"]
         }
       }
     }

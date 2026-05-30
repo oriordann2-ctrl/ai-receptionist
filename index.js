@@ -2249,6 +2249,153 @@ app.get("/upload", (req, res) => {
 });
 
 
+// ── Website import helpers ────────────────────────────────────────────────
+
+function extractTextFromHtml(html) {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, " ")
+    .replace(/<\/?(p|div|h[1-6]|li|br|tr|td|th)[^>]*>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ").replace(/&[a-z]+;/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractPageTitle(html) {
+  const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return m ? m[1].trim() : "Page";
+}
+
+function extractInternalLinks(html, baseUrl) {
+  const base = new URL(baseUrl);
+  const links = new Set();
+  const re = /href=["']([^"'#][^"']*)["']/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    try {
+      const href = m[1];
+      if (href.startsWith("mailto:") || href.startsWith("tel:")) continue;
+      const resolved = new URL(href, base.href);
+      if (resolved.hostname !== base.hostname) continue;
+      if (!["http:", "https:"].includes(resolved.protocol)) continue;
+      if (/\.(pdf|jpg|jpeg|png|gif|svg|ico|css|js|woff|woff2|ttf|zip|xml|json)$/i.test(resolved.pathname)) continue;
+      resolved.hash = "";
+      links.add(resolved.href.replace(/\/$/, ""));
+    } catch { /* skip invalid URLs */ }
+  }
+  return [...links];
+}
+
+async function crawlWebsite(rootUrl, maxPages = 40) {
+  const visited = new Set();
+  const queue   = [rootUrl.replace(/\/$/, "")];
+  const pages   = [];
+
+  while (queue.length > 0 && pages.length < maxPages) {
+    const url = queue.shift();
+    if (visited.has(url)) continue;
+    visited.add(url);
+
+    try {
+      console.log(`[crawler] Fetching: ${url}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(url, {
+        headers: { "User-Agent": "Sprimal-Bot/1.0 (knowledge import)" },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) continue;
+      const ct = response.headers.get("content-type") || "";
+      if (!ct.includes("text/html")) continue;
+
+      const html  = await response.text();
+      const title = extractPageTitle(html);
+      const text  = extractTextFromHtml(html);
+
+      if (text.length < 80) continue; // skip near-empty pages
+
+      pages.push({ url, title, text });
+
+      const links = extractInternalLinks(html, url);
+      for (const link of links) {
+        if (!visited.has(link) && !queue.includes(link)) queue.push(link);
+      }
+    } catch (err) {
+      console.error(`[crawler] Error fetching ${url}:`, err.message);
+    }
+  }
+
+  return pages;
+}
+
+// ── POST /api/import-website ──────────────────────────────────────────────
+
+app.post("/api/import-website", requireSenior, async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: "URL is required" });
+
+  let rootUrl;
+  try { rootUrl = new URL(url).href; }
+  catch { return res.status(400).json({ error: "Invalid URL" }); }
+
+  try {
+    console.log(`[import-website] Starting crawl of ${rootUrl}`);
+    const pages = await crawlWebsite(rootUrl, 40);
+    console.log(`[import-website] Crawled ${pages.length} pages`);
+
+    let imported = 0;
+    const errors = [];
+
+    for (const page of pages) {
+      try {
+        const { data: doc, error: insertError } = await supabase
+          .from("documents")
+          .insert({
+            original_filename: page.title,
+            stored_filename:   page.url,
+            mimetype:          "text/html",
+            lender:            null,
+            document_type:     "Website Content",
+            effective_date:    null,
+            tags:              ["website"],
+            metadata_complete: true,
+            junior_accessible: true,
+            storage_path:      page.url
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          errors.push(`${page.url}: ${insertError.message}`);
+          continue;
+        }
+
+        await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null);
+        imported++;
+        console.log(`[import-website] Imported page ${imported}: ${page.title}`);
+      } catch (err) {
+        errors.push(`${page.url}: ${err.message}`);
+      }
+    }
+
+    res.json({ success: true, pagesFound: pages.length, imported, errors: errors.length ? errors : undefined });
+
+  } catch (err) {
+    console.error("[import-website] Error:", err);
+    res.status(500).json({ error: "Failed to crawl website: " + err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.post("/chat", async (req, res) => {
   try {
     const { userId, conversationId, message, voiceMode } = req.body;

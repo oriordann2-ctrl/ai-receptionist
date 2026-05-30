@@ -1157,6 +1157,33 @@
   </button>
 
 </div>
+
+  <!-- Import from website -->
+  <div style="margin-top:24px; border-top:1px solid #e5e7eb; padding-top:20px;">
+    <h3 style="margin-bottom:6px;">Import from Website</h3>
+    <p class="meta" style="margin-bottom:14px;">Crawl a website and add all pages to the knowledge base automatically.</p>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <input
+        id="websiteImportUrl"
+        type="url"
+        placeholder="https://atoncemortgages.com"
+        style="flex:1;min-width:220px;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-family:Arial,sans-serif;outline:none;"
+        onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'"
+      />
+      <button
+        id="websiteImportBtn"
+        onclick="importWebsite()"
+        class="btn-primary"
+        style="white-space:nowrap;"
+      >
+        Import Website
+      </button>
+    </div>
+
+    <div id="websiteImportStatus" style="margin-top:12px;font-size:14px;font-family:Arial,sans-serif;"></div>
+  </div>
+
 </section>
 
 <!-- Junior staff: semantic document finder -->
@@ -1687,6 +1714,46 @@
       } catch (err) {
         console.error("Delete document error:", err);
         alert("Delete failed. Please try again.");
+      }
+    }
+
+    // ── Import from website ───────────────────────────────────────────────
+    async function importWebsite() {
+      const urlInput = document.getElementById("websiteImportUrl");
+      const status   = document.getElementById("websiteImportStatus");
+      const btn      = document.getElementById("websiteImportBtn");
+      const url      = urlInput.value.trim();
+
+      if (!url) {
+        status.innerHTML = "<span style='color:#dc2626;'>Please enter a URL.</span>";
+        return;
+      }
+
+      btn.disabled = true;
+      status.innerHTML = "<span style='color:#6b7280;font-style:italic;'>Crawling website — this may take a minute...</span>";
+
+      try {
+        const res = await fetch("/api/import-website", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          status.innerHTML = `<span style='color:#16a34a;font-weight:600;'>✓ Done — ${result.imported} page${result.imported !== 1 ? "s" : ""} imported.</span>` +
+            (result.errors && result.errors.length ? `<br><span style='color:#92400e;font-size:12px;'>${result.errors.length} page(s) skipped.</span>` : "");
+          await loadKnowledgeDocuments();
+        } else {
+          status.innerHTML = `<span style='color:#dc2626;'>Error: ${result.error || "Import failed."}</span>`;
+        }
+      } catch (err) {
+        console.error("Import website error:", err);
+        status.innerHTML = "<span style='color:#dc2626;'>Import failed — please try again.</span>";
+      } finally {
+        btn.disabled = false;
       }
     }
 

@@ -1647,7 +1647,13 @@ async function generateMaeveReply(message) {
         {
           role: "system",
           content: `
-You are Maeve, a friendly Irish mortgage assistant.
+You are Maeve, a friendly Irish mortgage assistant working for At Once Mortgages in Cork, Ireland.
+
+Company facts you know:
+- At Once Mortgages is a mortgage broker based in Cork, Ireland
+- The mortgage brokers are Cormac Collins and David O'Mahony
+- Direct phone: 021 4315 815
+- Customers can book a free consultation by saying "book an appointment"
 
 Reply naturally to the customer.
 Keep it short: 1-3 sentences.
@@ -2243,6 +2249,189 @@ app.get("/upload", (req, res) => {
 });
 
 
+// ── Website import helpers ────────────────────────────────────────────────
+
+function extractTextFromHtml(html) {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, " ")
+    .replace(/<\/?(p|div|h[1-6]|li|br|tr|td|th)[^>]*>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ").replace(/&[a-z]+;/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractPageTitle(html) {
+  const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return m ? m[1].trim() : "Page";
+}
+
+function extractInternalLinks(html, baseUrl) {
+  const base = new URL(baseUrl);
+  const links = new Set();
+  const re = /href=["']([^"'#][^"']*)["']/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    try {
+      const href = m[1];
+      if (href.startsWith("mailto:") || href.startsWith("tel:")) continue;
+      const resolved = new URL(href, base.href);
+      if (resolved.hostname !== base.hostname) continue;
+      if (!["http:", "https:"].includes(resolved.protocol)) continue;
+      if (/\.(pdf|jpg|jpeg|png|gif|svg|ico|css|js|woff|woff2|ttf|zip|xml|json)$/i.test(resolved.pathname)) continue;
+      resolved.hash = "";
+      links.add(resolved.href.replace(/\/$/, ""));
+    } catch { /* skip invalid URLs */ }
+  }
+  return [...links];
+}
+
+async function crawlWebsite(rootUrl, maxPages = 40) {
+  const visited = new Set();
+  const queue   = [rootUrl.replace(/\/$/, "")];
+  const pages   = [];
+
+  while (queue.length > 0 && pages.length < maxPages) {
+    const url = queue.shift();
+    if (visited.has(url)) continue;
+    visited.add(url);
+
+    try {
+      console.log(`[crawler] Fetching: ${url}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(url, {
+        headers: { "User-Agent": "Sprimal-Bot/1.0 (knowledge import)" },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) continue;
+      const ct = response.headers.get("content-type") || "";
+      if (!ct.includes("text/html")) continue;
+
+      const html  = await response.text();
+      const title = extractPageTitle(html);
+      const text  = extractTextFromHtml(html);
+
+      if (text.length < 80) continue; // skip near-empty pages
+
+      pages.push({ url, title, text });
+
+      const links = extractInternalLinks(html, url);
+      for (const link of links) {
+        if (!visited.has(link) && !queue.includes(link)) queue.push(link);
+      }
+    } catch (err) {
+      console.error(`[crawler] Error fetching ${url}:`, err.message);
+    }
+  }
+
+  return pages;
+}
+
+// ── POST /api/import-website ──────────────────────────────────────────────
+
+app.post("/api/import-website", requireSenior, async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: "URL is required" });
+
+  let rootUrl;
+  try { rootUrl = new URL(url).href; }
+  catch { return res.status(400).json({ error: "Invalid URL" }); }
+
+  try {
+    console.log(`[import-website] Starting crawl of ${rootUrl}`);
+    const pages = await crawlWebsite(rootUrl, 40);
+    console.log(`[import-website] Crawled ${pages.length} pages`);
+
+    let imported = 0;
+    const errors = [];
+
+    for (const page of pages) {
+      try {
+        const { data: doc, error: insertError } = await supabase
+          .from("documents")
+          .insert({
+            original_filename: page.title,
+            stored_filename:   page.url,
+            mimetype:          "text/html",
+            lender:            null,
+            document_type:     "Website Content",
+            effective_date:    null,
+            tags:              ["website"],
+            metadata_complete: true,
+            junior_accessible: true,
+            storage_path:      page.url
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          errors.push(`${page.url}: ${insertError.message}`);
+          continue;
+        }
+
+        await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null);
+        imported++;
+        console.log(`[import-website] Imported page ${imported}: ${page.title}`);
+      } catch (err) {
+        errors.push(`${page.url}: ${err.message}`);
+      }
+    }
+
+    res.json({ success: true, pagesFound: pages.length, imported, errors: errors.length ? errors : undefined });
+
+  } catch (err) {
+    console.error("[import-website] Error:", err);
+    res.status(500).json({ error: "Failed to crawl website: " + err.message });
+  }
+});
+
+// ── DELETE /api/import-website — remove all pages from a domain ──────────────
+
+app.delete("/api/import-website", requireSenior, async (req, res) => {
+  const { domain } = req.body;
+  if (!domain) return res.status(400).json({ error: "Domain is required" });
+
+  try {
+    // Find all website documents matching this domain
+    const { data: docs, error: fetchError } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("document_type", "Website Content")
+      .ilike("stored_filename", `%${domain}%`);
+
+    if (fetchError) return res.status(500).json({ error: fetchError.message });
+    if (!docs || docs.length === 0) return res.json({ success: true, deleted: 0 });
+
+    const ids = docs.map(d => d.id);
+
+    // Delete documents (knowledge_chunks cascade automatically)
+    const { error: deleteError } = await supabase
+      .from("documents")
+      .delete()
+      .in("id", ids);
+
+    if (deleteError) return res.status(500).json({ error: deleteError.message });
+
+    console.log(`[remove-website] Deleted ${ids.length} pages from ${domain}`);
+    res.json({ success: true, deleted: ids.length });
+
+  } catch (err) {
+    console.error("[remove-website] Error:", err);
+    res.status(500).json({ error: "Failed to remove website: " + err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.post("/chat", async (req, res) => {
   try {
     const { userId, conversationId, message, voiceMode } = req.body;
@@ -2708,6 +2897,9 @@ Use plain numbers where possible.
       ) {
         result.reply =
           "No problem — you can upload documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
+
+      } else if (/who.*broker|who.*work|who.*team|who.*staff|who.*advisor|broker.*name|who.*cormac|who.*david|who.*mahony|about the company|about at once mortgages|who.*maeve/i.test(lowerMessage)) {
+        result.reply = "At Once Mortgages has two mortgage brokers — Cormac Collins and David O'Mahony. You can reach them on 📞 021 4315 815, or I can book you an appointment — just say 'book an appointment'! 😊";
 
       } else if (
         lowerMessage.includes("mortgage") ||

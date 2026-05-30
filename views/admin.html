@@ -1157,6 +1157,33 @@
   </button>
 
 </div>
+
+  <!-- Import from website -->
+  <div style="margin-top:24px; border-top:1px solid #e5e7eb; padding-top:20px;">
+    <h3 style="margin-bottom:6px;">Import from Website</h3>
+    <p class="meta" style="margin-bottom:14px;">Crawl a website and add all pages to the knowledge base automatically.</p>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <input
+        id="websiteImportUrl"
+        type="url"
+        placeholder="https://atoncemortgages.com"
+        style="flex:1;min-width:220px;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-family:Arial,sans-serif;outline:none;"
+        onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'"
+      />
+      <button
+        id="websiteImportBtn"
+        onclick="importWebsite()"
+        class="btn-primary"
+        style="white-space:nowrap;"
+      >
+        Import Website
+      </button>
+    </div>
+
+    <div id="websiteImportStatus" style="margin-top:12px;font-size:14px;font-family:Arial,sans-serif;"></div>
+  </div>
+
 </section>
 
 <!-- Junior staff: semantic document finder -->
@@ -1499,6 +1526,10 @@
     const lenderOptions  = LENDERS.map(l   => `<option value="${l}">${l}</option>`).join("");
     const docTypeOptions = DOC_TYPES.map(t  => `<option value="${t}">${t}</option>`).join("");
 
+    function getDomain(url) {
+      try { return new URL(url).hostname; } catch { return url; }
+    }
+
     async function loadKnowledgeDocuments() {
       const list   = document.getElementById("knowledgeDocsList");
       const banner = document.getElementById("metadataBanner");
@@ -1513,8 +1544,12 @@
 
         const docs = await res.json();
 
-        // Update warning banner
-        const incomplete = docs.filter(d => !d.metadataComplete);
+        // Split website imports from regular docs
+        const websiteDocs = docs.filter(d => d.mimetype === "text/html");
+        const regularDocs = docs.filter(d => d.mimetype !== "text/html");
+
+        // Update warning banner (regular docs only)
+        const incomplete = regularDocs.filter(d => !d.metadataComplete);
         if (banner) {
           if (incomplete.length > 0) {
             banner.style.display = "block";
@@ -1524,12 +1559,55 @@
           }
         }
 
-        if (!docs.length) {
+        // ── Render website imports grouped by domain ─────────────────────
+        let websiteHtml = "";
+        if (websiteDocs.length > 0) {
+          const byDomain = {};
+          for (const doc of websiteDocs) {
+            const domain = getDomain(doc.storedFilename);
+            if (!byDomain[domain]) byDomain[domain] = { docs: [], importedAt: doc.uploadedAt };
+            byDomain[domain].docs.push(doc);
+            // use the earliest import date
+            if (new Date(doc.uploadedAt) < new Date(byDomain[domain].importedAt)) {
+              byDomain[domain].importedAt = doc.uploadedAt;
+            }
+          }
+
+          websiteHtml = `
+            <div style="margin-bottom:16px;">
+              <h4 style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Imported Websites</h4>
+              ${Object.entries(byDomain).map(([domain, info]) => {
+                const date = new Date(info.importedAt).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" });
+                const count = info.docs.length;
+                return `
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 16px;margin-bottom:8px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                      <span style="font-size:20px;">🌐</span>
+                      <div>
+                        <div style="font-weight:700;font-size:15px;color:#111827;">${domain}</div>
+                        <div style="font-size:12px;color:#6b7280;margin-top:2px;">${count} page${count !== 1 ? "s" : ""} · Imported ${date}</div>
+                      </div>
+                    </div>
+                    <button
+                      onclick="removeWebsite('${domain}')"
+                      style="padding:7px 14px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                      Remove Website
+                    </button>
+                  </div>`;
+              }).join("")}
+            </div>`;
+        }
+
+        if (!regularDocs.length && !websiteDocs.length) {
           list.innerHTML = "<p class='meta' style='font-style:italic;'>No documents uploaded yet.</p>";
           return;
         }
 
-        list.innerHTML = docs.map(doc => {
+        const regularHeader = regularDocs.length > 0
+          ? `<h4 style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;${websiteDocs.length ? 'margin-top:20px;border-top:1px solid #e5e7eb;padding-top:16px;' : ''}">Uploaded Documents</h4>`
+          : "";
+
+        list.innerHTML = websiteHtml + regularHeader + regularDocs.map(doc => {
           const date = new Date(doc.uploadedAt).toLocaleDateString("en-IE", {
             day: "numeric", month: "short", year: "numeric"
           });
@@ -1624,6 +1702,31 @@
       }
     }
 
+    // ── Remove imported website ───────────────────────────────────────────
+    async function removeWebsite(domain) {
+      if (!confirm(`Remove all pages from ${domain}?\n\nThis will delete all imported content from this website from the knowledge base.`)) return;
+
+      try {
+        const res = await fetch("/api/import-website", {
+          method: "DELETE",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain })
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          await loadKnowledgeDocuments();
+        } else {
+          alert(result.error || "Remove failed. Please try again.");
+        }
+      } catch (err) {
+        console.error("Remove website error:", err);
+        alert("Remove failed. Please try again.");
+      }
+    }
+
     async function saveDocumentMetadata(id) {
       const lender      = document.getElementById(`lender-${id}`)?.value.trim();
       const docType     = document.getElementById(`doctype-${id}`)?.value.trim();
@@ -1687,6 +1790,46 @@
       } catch (err) {
         console.error("Delete document error:", err);
         alert("Delete failed. Please try again.");
+      }
+    }
+
+    // ── Import from website ───────────────────────────────────────────────
+    async function importWebsite() {
+      const urlInput = document.getElementById("websiteImportUrl");
+      const status   = document.getElementById("websiteImportStatus");
+      const btn      = document.getElementById("websiteImportBtn");
+      const url      = urlInput.value.trim();
+
+      if (!url) {
+        status.innerHTML = "<span style='color:#dc2626;'>Please enter a URL.</span>";
+        return;
+      }
+
+      btn.disabled = true;
+      status.innerHTML = "<span style='color:#6b7280;font-style:italic;'>Crawling website — this may take a minute...</span>";
+
+      try {
+        const res = await fetch("/api/import-website", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          status.innerHTML = `<span style='color:#16a34a;font-weight:600;'>✓ Done — ${result.imported} page${result.imported !== 1 ? "s" : ""} imported.</span>` +
+            (result.errors && result.errors.length ? `<br><span style='color:#92400e;font-size:12px;'>${result.errors.length} page(s) skipped.</span>` : "");
+          await loadKnowledgeDocuments();
+        } else {
+          status.innerHTML = `<span style='color:#dc2626;'>Error: ${result.error || "Import failed."}</span>`;
+        }
+      } catch (err) {
+        console.error("Import website error:", err);
+        status.innerHTML = "<span style='color:#dc2626;'>Import failed — please try again.</span>";
+      } finally {
+        btn.disabled = false;
       }
     }
 

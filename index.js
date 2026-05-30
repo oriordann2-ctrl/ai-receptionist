@@ -2394,6 +2394,42 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
   }
 });
 
+// ── DELETE /api/import-website — remove all pages from a domain ──────────────
+
+app.delete("/api/import-website", requireSenior, async (req, res) => {
+  const { domain } = req.body;
+  if (!domain) return res.status(400).json({ error: "Domain is required" });
+
+  try {
+    // Find all website documents matching this domain
+    const { data: docs, error: fetchError } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("document_type", "Website Content")
+      .ilike("stored_filename", `%${domain}%`);
+
+    if (fetchError) return res.status(500).json({ error: fetchError.message });
+    if (!docs || docs.length === 0) return res.json({ success: true, deleted: 0 });
+
+    const ids = docs.map(d => d.id);
+
+    // Delete documents (knowledge_chunks cascade automatically)
+    const { error: deleteError } = await supabase
+      .from("documents")
+      .delete()
+      .in("id", ids);
+
+    if (deleteError) return res.status(500).json({ error: deleteError.message });
+
+    console.log(`[remove-website] Deleted ${ids.length} pages from ${domain}`);
+    res.json({ success: true, deleted: ids.length });
+
+  } catch (err) {
+    console.error("[remove-website] Error:", err);
+    res.status(500).json({ error: "Failed to remove website: " + err.message });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.post("/chat", async (req, res) => {

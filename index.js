@@ -2269,7 +2269,7 @@ app.post("/chat", async (req, res) => {
     // 🔒 GDPR Consent check
     if (!convo.consentGiven) {
 
-      const consentWords = /\byes\b|\bok\b|\bokay\b|\byeah\b|\bsure\b|\byep\b|\bfine\b|\balright\b|\babsolutely\b|\bof course\b|\bgo ahead\b|\bhappy\b|\bno problem\b|\bsounds good\b|\bgrand\b/i;
+      const consentWords = /\byes\b|\bok\b|\bokay\b|\byeah\b|\bsure\b|\byep\b|\bfine\b|\balright\b|\babsolutely\b|\bof course\b|\bgo ahead\b|\bno problem\b|\bsounds good\b|\bgrand\b/i;
 
       if (consentWords.test(lowerMessage)) {
         convo.consentGiven = true;

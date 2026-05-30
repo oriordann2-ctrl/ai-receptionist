@@ -2898,6 +2898,9 @@ Use plain numbers where possible.
         result.reply =
           "No problem — you can upload documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
 
+      } else if (/who.*broker|who.*work|who.*team|who.*staff|who.*advisor|broker.*name|who.*cormac|who.*david|who.*mahony|about the company|about at once mortgages|who.*maeve/i.test(lowerMessage)) {
+        result.reply = "At Once Mortgages has two mortgage brokers — Cormac Collins and David O'Mahony. You can reach them on 📞 021 4315 815, or I can book you an appointment — just say 'book an appointment'! 😊";
+
       } else if (
         lowerMessage.includes("mortgage") ||
         lowerMessage.includes("buy a house") ||

@@ -2850,7 +2850,7 @@ Use plain numbers where possible.
         temperature: 0.2
       });
 
-      result.reply = completion.choices[0].message.content;
+      result.reply = stripHtml(completion.choices[0].message.content);
 
     } catch (err) {
       console.error("Knowledge base OpenAI error:", err.message);
@@ -3343,6 +3343,11 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
 const leadCriteria = JSON.parse(
   fs.readFileSync(path.join(__dirname, "data", "leadCriteria.json"), "utf8")
 );
+
+function stripHtml(str) {
+  if (!str) return str;
+  return str.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim();
+}
 
 function parseMoneyValue(value) {
   if (!value && value !== 0) return 0;
@@ -3931,16 +3936,21 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
 // Keywords that trigger lead qualification (vs general mortgage questions)
 function isMortgageApplicationIntent(message, intent) {
   const lower = message.toLowerCase();
+
+  // If the message looks like a question, treat it as a general FAQ — never start qual flow
+  const isQuestion = /^(what|how|when|where|why|do i|can i|could i|is it|are there|will i|should i|do you|does it|who)/i.test(lower) || lower.includes("?");
+  if (isQuestion) return false;
+
   const triggerPhrases = [
     "apply", "application", "get a mortgage", "take out a mortgage",
     "buying a house", "buying a home", "buying a property",
     "first time buyer", "first-time buyer", "looking for a mortgage",
-    "interested in a mortgage", "mortgage enquiry",
-    "afford a mortgage", "start the process",
+    "interested in a mortgage", "afford a mortgage", "start the process",
     "moving home", "second time buyer", "start my application",
-    "apply for a mortgage", "get started with a mortgage"
+    "apply for a mortgage", "get started with a mortgage", "get started"
   ];
-  const triggerIntents = ["mortgage application", "apply for mortgage", "mortgage enquiry"];
+  // Only trigger on very explicit application intents — not generic "mortgage enquiry"
+  const triggerIntents = ["mortgage application", "apply for mortgage"];
 
   return triggerPhrases.some(p => lower.includes(p)) ||
          triggerIntents.some(i => (intent || "").includes(i));

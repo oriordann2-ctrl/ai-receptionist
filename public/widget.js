@@ -68,7 +68,7 @@
   panel.innerHTML = [
     '<div id="sprimal-header">',
     '  <div id="sprimal-header-left">',
-    '    <div id="sprimal-avatar"><img src="https://app.sprimal.com/sprimal_icon_192.png" alt="Sprimal" /></div>',
+    '    <div id="sprimal-avatar"><img src="https://app.sprimal.com/aom-logo.png" alt="At Once Mortgages" /></div>',
     '    <div id="sprimal-header-info">',
     '      <span id="sprimal-header-name">Maeve</span>',
     '      <span id="sprimal-header-sub">At Once Mortgages</span>',

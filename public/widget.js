@@ -26,7 +26,8 @@
     "#sprimal-panel.sprimal-hidden{opacity:0;transform:translateY(12px);pointer-events:none;}",
     "#sprimal-header{background:#111827;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}",
     "#sprimal-header-left{display:flex;align-items:center;gap:10px;}",
-    "#sprimal-avatar{width:34px;height:34px;border-radius:50%;background:#374151;display:flex;align-items:center;justify-content:center;font-size:16px;}",
+    "#sprimal-avatar{width:34px;height:34px;border-radius:50%;background:#374151;overflow:hidden;display:flex;align-items:center;justify-content:center;}",
+    "#sprimal-avatar img{width:100%;height:100%;object-fit:cover;}",
     "#sprimal-header-info{display:flex;flex-direction:column;}",
     "#sprimal-header-name{font-size:14px;font-weight:600;font-family:Arial,sans-serif;}",
     "#sprimal-header-sub{font-size:11px;color:#9ca3af;font-family:Arial,sans-serif;}",
@@ -67,7 +68,7 @@
   panel.innerHTML = [
     '<div id="sprimal-header">',
     '  <div id="sprimal-header-left">',
-    '    <div id="sprimal-avatar">👋</div>',
+    '    <div id="sprimal-avatar"><img src="https://app.sprimal.com/sprimal_icon_192.png" alt="Sprimal" /></div>',
     '    <div id="sprimal-header-info">',
     '      <span id="sprimal-header-name">Maeve</span>',
     '      <span id="sprimal-header-sub">At Once Mortgages</span>',

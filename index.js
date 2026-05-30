@@ -2850,7 +2850,16 @@ Use plain numbers where possible.
         temperature: 0.2
       });
 
-      result.reply = stripHtml(completion.choices[0].message.content);
+      const kbReply = stripHtml(completion.choices[0].message.content);
+      const kbUnsure = /i do not know|don’t know|not in the|no information|cannot find|not sure/i.test(kbReply);
+
+      if (!kbUnsure) {
+        result.reply = kbReply;
+      } else {
+        // KB couldn’t answer — fall through to Maeve’s general reply
+        const maeveReply = await generateMaeveReply(trimmedMessage);
+        result.reply = maeveReply || "No problem at all — I can help with mortgages, bookings, or any questions. What would you like to do?";
+      }
 
     } catch (err) {
       console.error("Knowledge base OpenAI error:", err.message);
@@ -2858,7 +2867,7 @@ Use plain numbers where possible.
     }
 
   } else {
-    // fallback to normal Maeve reply
+    // No KB docs — use Maeve’s general conversational reply
     const maeveReply = await generateMaeveReply(trimmedMessage);
     result.reply =
       maeveReply ||

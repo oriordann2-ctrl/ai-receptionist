@@ -2473,6 +2473,9 @@ Use plain numbers where possible.
           result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
         }
 
+      } else if (/speak.*human|talk.*human|human.*agent|speak.*person|talk.*person|speak.*someone|talk.*someone|speak.*cormac|talk.*cormac|speak.*broker|call.*someone|call.*you|phone.*number|contact.*you|real person/i.test(lowerMessage) && !bookingInProgress) {
+        result.reply = "Of course! You can call Cormac Collins directly on 📞 021 4315 815, or I can book an appointment for you — just say 'book an appointment' and I'll get that sorted. 😊";
+
       } else if (isMortgageApplicationIntent(trimmedMessage, intent) && !bookingInProgress) {
         convo.qualMode = true;
         try {

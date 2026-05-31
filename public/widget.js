@@ -7,12 +7,14 @@
   if (window.__sprimalWidget) return;
   window.__sprimalWidget = true;
 
-  // ── Tenant ID — read data-club-id from the <script> tag ─────────────────
+  // ── Tenant config — read data-* attributes from the <script> tag ────────
   var scriptTag = document.currentScript || (function () {
     var scripts = document.getElementsByTagName("script");
     return scripts[scripts.length - 1];
   })();
-  var clubId = (scriptTag && scriptTag.getAttribute("data-club-id")) || "aom";
+  var clubId   = (scriptTag && scriptTag.getAttribute("data-club-id"))   || "aom";
+  var botName  = (scriptTag && scriptTag.getAttribute("data-bot-name"))  || "Maeve";
+  var clubName = (scriptTag && scriptTag.getAttribute("data-club-name")) || "At Once Mortgages";
 
   // ── Session IDs ──────────────────────────────────────────────────────────
   var userId = "user-" + Math.random().toString(36).slice(2, 10);
@@ -72,13 +74,17 @@
   var panel = document.createElement("div");
   panel.id = "sprimal-panel";
   panel.className = "sprimal-hidden";
+  var avatarHtml = clubId === "aom"
+    ? '<img src="https://app.sprimal.com/aom-logo.png" alt="' + clubName + '" />'
+    : '<svg viewBox="0 0 48 48" fill="none" style="width:100%;height:100%;"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>';
+
   panel.innerHTML = [
     '<div id="sprimal-header">',
     '  <div id="sprimal-header-left">',
-    '    <div id="sprimal-avatar"><img src="https://app.sprimal.com/aom-logo.png" alt="At Once Mortgages" /></div>',
+    '    <div id="sprimal-avatar">' + avatarHtml + '</div>',
     '    <div id="sprimal-header-info">',
-    '      <span id="sprimal-header-name">Maeve</span>',
-    '      <span id="sprimal-header-sub">At Once Mortgages</span>',
+    '      <span id="sprimal-header-name">' + botName + '</span>',
+    '      <span id="sprimal-header-sub">' + clubName + '</span>',
     '    </div>',
     '  </div>',
     '  <button id="sprimal-close" aria-label="Close chat">&times;</button>',

@@ -2533,7 +2533,7 @@ app.post("/api/signup", async (req, res) => {
 
       // Send embed code email via Resend
       if (process.env.RESEND_API_KEY) {
-        const embedCode = `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}"></script>`;
+        const embedCode = `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}" data-club-name="${name}"></script>`;
         const websiteNote = imported > 0
           ? `<p>We've trained your assistant on <strong>${imported} pages</strong> from <strong>${website}</strong>.</p>`
           : "<p>Your assistant is ready — you can add your website content from the dashboard.</p>";

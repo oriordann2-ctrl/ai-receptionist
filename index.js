@@ -2623,16 +2623,61 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
     return res.json({ id: tenantId, name: null, logo_url: null });
   }
 
-  // Use stored logo_url, or fall back to icon.horse (reliable, CORS-friendly favicon service)
-  let logoUrl = data.logo_url || null;
-  if (!logoUrl && data.website) {
+  res.json({ id: data.id, name: data.name, logo_url: data.logo_url || null });
+});
+
+// ── Favicon proxy — serves tenant logo through our own domain ─────────────────
+// Avoids hotlinking blocks and CORS issues entirely.
+const faviconCache = new Map(); // tenantId → { buffer, contentType, ts }
+
+app.get("/api/tenant-favicon/:tenantId", async (req, res) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Cache-Control", "public, max-age=3600");
+  const { tenantId } = req.params;
+
+  // Serve from memory cache for 1 hour
+  const cached = faviconCache.get(tenantId);
+  if (cached && Date.now() - cached.ts < 3600000) {
+    res.setHeader("Content-Type", cached.contentType);
+    return res.send(cached.buffer);
+  }
+
+  // Get tenant's stored logo_url or derive from website
+  const { data } = await supabase
+    .from("tenants")
+    .select("logo_url, website")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (!data) return res.status(404).end();
+
+  let imgUrl = data.logo_url || null;
+  if (!imgUrl && data.website) {
     try {
       const domain = new URL(data.website).hostname.replace(/^www\./, "");
-      logoUrl = `https://icon.horse/icon/${domain}`;
+      imgUrl = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
     } catch {}
   }
 
-  res.json({ id: data.id, name: data.name, logo_url: logoUrl });
+  if (!imgUrl) return res.status(404).end();
+
+  try {
+    const imgRes = await fetch(imgUrl, {
+      headers: { "User-Agent": "Sprimal-Bot/1.0" },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!imgRes.ok) return res.status(404).end();
+
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const contentType = imgRes.headers.get("content-type") || "image/png";
+
+    faviconCache.set(tenantId, { buffer, contentType, ts: Date.now() });
+    res.setHeader("Content-Type", contentType);
+    res.send(buffer);
+  } catch (err) {
+    console.error(`[favicon-proxy] Error for ${tenantId}:`, err.message);
+    res.status(404).end();
+  }
 });
 
 // ── CORS for the public chat endpoint (widget embeds on external sites) ───────

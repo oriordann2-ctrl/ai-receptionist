@@ -118,17 +118,16 @@
           var sub = document.getElementById("sprimal-header-sub");
           if (sub) sub.textContent = config.name;
         }
-        if (config.logo_url) {
-          var avatar = document.getElementById("sprimal-avatar");
-          if (avatar) {
-            var img = document.createElement("img");
-            img.src = config.logo_url;
-            img.alt = config.name || clubName;
-            img.style.cssText = "width:100%;height:100%;object-fit:cover;";
-            img.onerror = function () { avatar.innerHTML = defaultAvatarSvg; };
-            avatar.innerHTML = "";
-            avatar.appendChild(img);
-          }
+        // Always try the favicon proxy — comes from our own domain, no hotlinking issues
+        var avatar = document.getElementById("sprimal-avatar");
+        if (avatar) {
+          var img = document.createElement("img");
+          img.src = BACKEND + "/api/tenant-favicon/" + clubId;
+          img.alt = config.name || clubName;
+          img.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:50%;";
+          img.onerror = function () { avatar.innerHTML = defaultAvatarSvg; };
+          avatar.innerHTML = "";
+          avatar.appendChild(img);
         }
       })
       .catch(function () { /* silently keep defaults */ });

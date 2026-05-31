@@ -2570,6 +2570,14 @@ app.post("/api/signup", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── CORS for the public chat endpoint (widget embeds on external sites) ───────
+app.use("/chat", (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
 app.post("/chat", async (req, res) => {
   try {

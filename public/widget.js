@@ -182,7 +182,7 @@
       hasOpened = true;
       var greeting = clubId === "aom"
         ? "Hi there 👋 I'm Maeve.\n\nI can help you get started with a mortgage or answer any questions.\n\nBefore we begin — I'll ask a few questions and may collect personal information to help with your enquiry. This information will only be used for that purpose.\n\nIs that okay?"
-        : "Hi there 👋 I'm your " + clubName + " assistant.\n\nI can answer questions about the club — memberships, facilities, schedules, and more.\n\nWhat would you like to know?";
+        : "Hi there 👋 I'm Maeve, your " + clubName + " assistant.\n\nI can answer questions about the club — memberships, facilities, schedules, and more.\n\nWhat would you like to know?";
       addMsg(greeting, "bot");
     }
 

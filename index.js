@@ -2902,14 +2902,17 @@ Use plain numbers where possible.
         result.reply = "At Once Mortgages has two mortgage brokers — Cormac Collins and David O'Mahony. You can reach them on 📞 021 4315 815, or I can book you an appointment — just say 'book an appointment'! 😊";
 
       } else if (
-        lowerMessage.includes("mortgage") ||
-        lowerMessage.includes("buy a house") ||
-        lowerMessage.includes("buying a house") ||
-        lowerMessage.includes("buy my first home") ||
-        lowerMessage.includes("first home") ||
-        lowerMessage.includes("first-time buyer") ||
-        lowerMessage.includes("first time buyer") ||
-        intent === "mortgage application"
+        !(/^(what|how|when|where|why|tell me|explain|do i|can i|could i|is it|are there|will i|should i|do you|does it|who)/i.test(lowerMessage) || lowerMessage.includes("?")) &&
+        (
+          lowerMessage.includes("mortgage") ||
+          lowerMessage.includes("buy a house") ||
+          lowerMessage.includes("buying a house") ||
+          lowerMessage.includes("buy my first home") ||
+          lowerMessage.includes("first home") ||
+          lowerMessage.includes("first-time buyer") ||
+          lowerMessage.includes("first time buyer") ||
+          intent === "mortgage application"
+        )
       ) {
         const lead = createMortgageLeadFromChat({
           userId,

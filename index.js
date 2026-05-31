@@ -2615,7 +2615,7 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
 
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name, logo_url")
+    .select("id, name, logo_url, website")
     .eq("id", tenantId)
     .maybeSingle();
 
@@ -2623,7 +2623,16 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
     return res.json({ id: tenantId, name: null, logo_url: null });
   }
 
-  res.json({ id: data.id, name: data.name, logo_url: data.logo_url });
+  // Use stored logo_url, or fall back to Google favicon service from the website domain
+  let logoUrl = data.logo_url || null;
+  if (!logoUrl && data.website) {
+    try {
+      const domain = new URL(data.website).hostname;
+      logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+    } catch {}
+  }
+
+  res.json({ id: data.id, name: data.name, logo_url: logoUrl });
 });
 
 // ── CORS for the public chat endpoint (widget embeds on external sites) ───────

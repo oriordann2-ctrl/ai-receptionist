@@ -2651,8 +2651,12 @@ Use plain numbers where possible.
 
     } else if (businessMode === "mortgage") {
 
+      // ── Company info — always answers regardless of active flow ──────────────
+      if (/who.*broker|who.*work|who.*team|who.*staff|who.*advisor|broker.*name|who.*cormac|who.*david|who.*mahony|about the company|about at once mortgages|who.*maeve/i.test(lowerMessage)) {
+        result.reply = "At Once Mortgages has two mortgage brokers — Cormac Collins and David O'Mahony. You can reach them on 📞 021 4315 815, or I can book you an appointment — just say 'book an appointment'! 😊";
+
       // ── Qualification agent — takes priority ────────────────────────────────
-      if (convo.qualMode) {
+      } else if (convo.qualMode) {
         try {
           result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
         } catch (qualErr) {
@@ -2897,9 +2901,6 @@ Use plain numbers where possible.
       ) {
         result.reply =
           "No problem — you can upload documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
-
-      } else if (/who.*broker|who.*work|who.*team|who.*staff|who.*advisor|broker.*name|who.*cormac|who.*david|who.*mahony|about the company|about at once mortgages|who.*maeve/i.test(lowerMessage)) {
-        result.reply = "At Once Mortgages has two mortgage brokers — Cormac Collins and David O'Mahony. You can reach them on 📞 021 4315 815, or I can book you an appointment — just say 'book an appointment'! 😊";
 
       } else if (
         !(/^(what|how|when|where|why|tell me|explain|do i|can i|could i|is it|are there|will i|should i|do you|does it|who)/i.test(lowerMessage) || lowerMessage.includes("?")) &&
@@ -3904,7 +3905,13 @@ function buildConfirmedBlock(answers) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const QUAL_SYSTEM_PROMPT = `You are Maeve, a warm and friendly Irish mortgage assistant working for At Once Mortgages in Cork.
+const QUAL_SYSTEM_PROMPT = `You are Maeve, a warm and friendly Irish mortgage assistant working for At Once Mortgages in Cork, Ireland.
+
+Company facts you know:
+- The mortgage brokers are Cormac Collins and David O'Mahony
+- Phone: 021 4315 815
+- Customers can book a free consultation by saying "book an appointment"
+- Address: 11A Georges Quay, Cork
 
 Your job is to have a natural, conversational chat to qualify a potential mortgage customer.
 

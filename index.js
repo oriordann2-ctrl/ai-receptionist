@@ -2623,12 +2623,12 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
     return res.json({ id: tenantId, name: null, logo_url: null });
   }
 
-  // Use stored logo_url, or fall back to Google favicon service from the website domain
+  // Use stored logo_url, or fall back to icon.horse (reliable, CORS-friendly favicon service)
   let logoUrl = data.logo_url || null;
   if (!logoUrl && data.website) {
     try {
-      const domain = new URL(data.website).hostname;
-      logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+      const domain = new URL(data.website).hostname.replace(/^www\./, "");
+      logoUrl = `https://icon.horse/icon/${domain}`;
     } catch {}
   }
 

@@ -7,12 +7,19 @@
   if (window.__sprimalWidget) return;
   window.__sprimalWidget = true;
 
+  // ── Tenant ID — read data-club-id from the <script> tag ─────────────────
+  var scriptTag = document.currentScript || (function () {
+    var scripts = document.getElementsByTagName("script");
+    return scripts[scripts.length - 1];
+  })();
+  var clubId = (scriptTag && scriptTag.getAttribute("data-club-id")) || "aom";
+
   // ── Session IDs ──────────────────────────────────────────────────────────
   var userId = "user-" + Math.random().toString(36).slice(2, 10);
-  var conversationId = sessionStorage.getItem("sprimal_conv");
+  var conversationId = sessionStorage.getItem("sprimal_conv_" + clubId);
   if (!conversationId) {
     conversationId = "conv-" + Date.now();
-    sessionStorage.setItem("sprimal_conv", conversationId);
+    sessionStorage.setItem("sprimal_conv_" + clubId, conversationId);
   }
 
   // ── Styles ───────────────────────────────────────────────────────────────
@@ -143,7 +150,7 @@
     fetch(BACKEND + "/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: userId, conversationId: conversationId, message: text })
+      body: JSON.stringify({ userId: userId, conversationId: conversationId, message: text, clubId: clubId })
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {

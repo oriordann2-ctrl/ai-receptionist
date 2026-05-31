@@ -130,14 +130,14 @@ function chunkText(text, chunkWords = 500, overlapWords = 50) {
 }
 
 // ── Generate embeddings and store in knowledge_chunks ─────────────────────
-async function generateAndStoreChunks(documentId, text, lender, documentType, effectiveDate) {
+async function generateAndStoreChunks(documentId, text, lender, documentType, effectiveDate, tenantId = "aom") {
   const chunks = chunkText(text);
   if (chunks.length === 0) {
     console.log(`[embeddings] No text to embed for document ${documentId} — skipping`);
     return;
   }
 
-  console.log(`[embeddings] Generating embeddings for ${chunks.length} chunk(s) — document ${documentId}`);
+  console.log(`[embeddings] Generating embeddings for ${chunks.length} chunk(s) — document ${documentId} (tenant: ${tenantId})`);
 
   // Single batched API call for all chunks
   const embeddingResponse = await openai.embeddings.create({
@@ -152,7 +152,8 @@ async function generateAndStoreChunks(documentId, text, lender, documentType, ef
     embedding:     item.embedding,
     lender,
     document_type: documentType,
-    effective_date: effectiveDate ? `${effectiveDate}-01` : null
+    effective_date: effectiveDate ? `${effectiveDate}-01` : null,
+    tenant_id:     tenantId
   }));
 
   const { error } = await supabase.from("knowledge_chunks").insert(rows);
@@ -536,7 +537,8 @@ app.post(
           expiry_date:       expiryDate  ? `${expiryDate}-01`  : null,
           tags:              tagsArray,
           metadata_complete: true,
-          junior_accessible: juniorAccessible === "true" || juniorAccessible === true
+          junior_accessible: juniorAccessible === "true" || juniorAccessible === true,
+          tenant_id:         "aom"
         })
         .select()
         .single();
@@ -548,7 +550,7 @@ app.post(
 
       // ── Generate embeddings and store chunks ──────────────────────────────
       try {
-        await generateAndStoreChunks(docData.id, extractedText, lender, documentType, effectiveDate);
+        await generateAndStoreChunks(docData.id, extractedText, lender, documentType, effectiveDate, "aom");
       } catch (embedErr) {
         console.error("[embeddings] Failed (non-fatal, upload still succeeded):", embedErr.message);
       }
@@ -2066,7 +2068,7 @@ function getBestKnowledgeSnippet(text, message) {
   return fullText.slice(bestIndex, bestIndex + 4000);
 }
 
-async function findRelevantKnowledgeChunks(message, matchCount = 5) {
+async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom") {
   try {
     // 1. Embed the query
     const embeddingResponse = await openai.embeddings.create({
@@ -2080,7 +2082,8 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5) {
       query_embedding: queryEmbedding,
       match_count: matchCount,
       filter_lender: null,
-      filter_document_type: null
+      filter_document_type: null,
+      p_tenant_id: tenantId
     });
 
     if (error) {
@@ -2368,7 +2371,8 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
             tags:              ["website"],
             metadata_complete: true,
             junior_accessible: true,
-            storage_path:      page.url
+            storage_path:      page.url,
+            tenant_id:         "aom"
           })
           .select()
           .single();
@@ -2378,7 +2382,7 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
           continue;
         }
 
-        await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null);
+        await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, "aom");
         imported++;
         console.log(`[import-website] Imported page ${imported}: ${page.title}`);
       } catch (err) {
@@ -2431,10 +2435,146 @@ app.delete("/api/import-website", requireSenior, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Tenant self-serve signup ──────────────────────────────────────────────────
+
+app.get("/signup", (req, res) => {
+  res.sendFile(path.join(__dirname, "views", "signup.html"));
+});
+
+app.post("/api/signup", async (req, res) => {
+  const { name, website, email } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ error: "Business name and email are required" });
+  }
+
+  // Generate URL-safe tenant slug from business name
+  const tenantId = name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 40);
+
+  if (!tenantId) {
+    return res.status(400).json({ error: "Could not generate a valid tenant ID from the business name" });
+  }
+
+  // Check for duplicate
+  const { data: existing } = await supabase
+    .from("tenants")
+    .select("id")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (existing) {
+    return res.status(409).json({ error: "A business with a similar name already exists. Please contact us." });
+  }
+
+  // Create tenant record
+  const { error: tenantError } = await supabase
+    .from("tenants")
+    .insert({ id: tenantId, name, email, website: website || null, plan: "trial" });
+
+  if (tenantError) {
+    console.error("[signup] Tenant insert error:", tenantError);
+    return res.status(500).json({ error: "Failed to create account. Please try again." });
+  }
+
+  console.log(`[signup] Created tenant: ${tenantId} (${name})`);
+
+  // Respond immediately — don't make the user wait for the crawl
+  res.json({ success: true, tenantId });
+
+  // ── Fire-and-forget: crawl website + store chunks + send email ────────────
+  (async () => {
+    try {
+      let imported = 0;
+
+      if (website) {
+        console.log(`[signup] Starting background crawl for ${tenantId}: ${website}`);
+        const pages = await crawlWebsite(website, 40);
+        console.log(`[signup] Crawled ${pages.length} pages for ${tenantId}`);
+
+        for (const page of pages) {
+          try {
+            const { data: doc, error: insertError } = await supabase
+              .from("documents")
+              .insert({
+                original_filename: page.title,
+                stored_filename:   page.url,
+                mimetype:          "text/html",
+                lender:            null,
+                document_type:     "Website Content",
+                effective_date:    null,
+                tags:              ["website"],
+                metadata_complete: true,
+                junior_accessible: true,
+                storage_path:      page.url,
+                tenant_id:         tenantId
+              })
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error(`[signup] Doc insert error for ${tenantId}:`, insertError.message);
+              continue;
+            }
+
+            await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId);
+            imported++;
+          } catch (err) {
+            console.error(`[signup] Page import error for ${tenantId}:`, err.message);
+          }
+        }
+
+        console.log(`[signup] Imported ${imported} pages for ${tenantId}`);
+      }
+
+      // Send embed code email via Resend
+      if (process.env.RESEND_API_KEY) {
+        const embedCode = `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}"></script>`;
+        const websiteNote = imported > 0
+          ? `<p>We've trained your assistant on <strong>${imported} pages</strong> from <strong>${website}</strong>.</p>`
+          : "<p>Your assistant is ready — you can add your website content from the dashboard.</p>";
+
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            from: "Sprimal <hello@sprimal.com>",
+            to: email,
+            subject: `Your Sprimal assistant is ready 🎉`,
+            html: `
+              <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;">
+                <h1 style="font-size:24px;margin-bottom:8px;">Welcome to Sprimal, ${name}! 👋</h1>
+                ${websiteNote}
+                <p style="margin-top:20px;">Here is your embed code — paste it before the <code>&lt;/body&gt;</code> tag on your website:</p>
+                <pre style="background:#f3f4f6;border-radius:8px;padding:16px;font-size:13px;overflow-x:auto;">${embedCode.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+                <p style="margin-top:20px;color:#6b7280;font-size:14px;">Need help? Just reply to this email.</p>
+                <p style="color:#6b7280;font-size:14px;">— The Sprimal team</p>
+              </div>
+            `
+          })
+        }).catch(err => console.error("[signup] Email send error:", err.message));
+
+        console.log(`[signup] Embed code email sent to ${email}`);
+      }
+    } catch (err) {
+      console.error(`[signup] Background task error for ${tenantId}:`, err.message);
+    }
+  })();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.post("/chat", async (req, res) => {
   try {
-    const { userId, conversationId, message, voiceMode } = req.body;
+    const { userId, conversationId, message, voiceMode, clubId } = req.body;
+    const tenantId = clubId || "aom";
 
     if (!userId || !message) {
       return res.status(400).json({ error: "userId and message are required" });
@@ -3019,7 +3159,7 @@ Use plain numbers where possible.
 } else {
 
   // 🔥 NEW: Check knowledge base documents FIRST
-  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage);
+  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId);
 
   console.log("Relevant knowledge docs:", relevantDocs);
 

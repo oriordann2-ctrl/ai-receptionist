@@ -74,14 +74,15 @@
   var panel = document.createElement("div");
   panel.id = "sprimal-panel";
   panel.className = "sprimal-hidden";
-  var avatarHtml = clubId === "aom"
+  var defaultAvatarSvg = '<svg viewBox="0 0 48 48" fill="none" style="width:100%;height:100%;"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>';
+  var initialAvatarHtml = clubId === "aom"
     ? '<img src="https://app.sprimal.com/aom-logo.png" alt="' + clubName + '" />'
-    : '<svg viewBox="0 0 48 48" fill="none" style="width:100%;height:100%;"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>';
+    : defaultAvatarSvg;
 
   panel.innerHTML = [
     '<div id="sprimal-header">',
     '  <div id="sprimal-header-left">',
-    '    <div id="sprimal-avatar">' + avatarHtml + '</div>',
+    '    <div id="sprimal-avatar">' + initialAvatarHtml + '</div>',
     '    <div id="sprimal-header-info">',
     '      <span id="sprimal-header-name">' + botName + '</span>',
     '      <span id="sprimal-header-sub">' + clubName + '</span>',
@@ -106,6 +107,32 @@
 
   var isOpen    = false;
   var hasOpened = false;
+
+  // ── Fetch tenant config and update branding ───────────────────────────────
+  if (clubId !== "aom") {
+    fetch(BACKEND + "/api/tenant-config/" + clubId)
+      .then(function (r) { return r.json(); })
+      .then(function (config) {
+        if (config.name) {
+          clubName = config.name;
+          var sub = document.getElementById("sprimal-header-sub");
+          if (sub) sub.textContent = config.name;
+        }
+        if (config.logo_url) {
+          var avatar = document.getElementById("sprimal-avatar");
+          if (avatar) {
+            var img = document.createElement("img");
+            img.src = config.logo_url;
+            img.alt = config.name || clubName;
+            img.style.cssText = "width:100%;height:100%;object-fit:cover;";
+            img.onerror = function () { avatar.innerHTML = defaultAvatarSvg; };
+            avatar.innerHTML = "";
+            avatar.appendChild(img);
+          }
+        }
+      })
+      .catch(function () { /* silently keep defaults */ });
+  }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function stripHtml(str) {

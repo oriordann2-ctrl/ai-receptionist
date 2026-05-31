@@ -2275,6 +2275,25 @@ function extractPageTitle(html) {
   return m ? m[1].trim() : "Page";
 }
 
+function extractFaviconUrl(html, baseUrl) {
+  // 1. Prefer apple-touch-icon — highest quality (usually 180x180)
+  const appleMatch = html.match(/<link[^>]+rel=["']apple-touch-icon(?:-precomposed)?["'][^>]*href=["']([^"']+)["']/i)
+    || html.match(/<link[^>]+href=["']([^"']+)["'][^>]*rel=["']apple-touch-icon(?:-precomposed)?["']/i);
+  if (appleMatch) {
+    try { return new URL(appleMatch[1], baseUrl).href; } catch {}
+  }
+
+  // 2. <link rel="icon"> with a size hint — pick largest
+  const iconMatches = [...html.matchAll(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/gi)];
+  if (iconMatches.length) {
+    try { return new URL(iconMatches[iconMatches.length - 1][1], baseUrl).href; } catch {}
+  }
+
+  // 3. Fallback: /favicon.ico
+  try { return new URL("/favicon.ico", baseUrl).href; } catch {}
+  return null;
+}
+
 function extractInternalLinks(html, baseUrl) {
   const base = new URL(baseUrl);
   const links = new Set();
@@ -2493,6 +2512,25 @@ app.post("/api/signup", async (req, res) => {
 
       if (website) {
         console.log(`[signup] Starting background crawl for ${tenantId}: ${website}`);
+
+        // Extract favicon from homepage before full crawl
+        try {
+          const homepageRes = await fetch(website, {
+            headers: { "User-Agent": "Sprimal-Bot/1.0" },
+            signal: AbortSignal.timeout(8000)
+          });
+          if (homepageRes.ok) {
+            const homepageHtml = await homepageRes.text();
+            const logoUrl = extractFaviconUrl(homepageHtml, website);
+            if (logoUrl) {
+              await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
+              console.log(`[signup] Stored logo for ${tenantId}: ${logoUrl}`);
+            }
+          }
+        } catch (err) {
+          console.error(`[signup] Logo extraction error for ${tenantId}:`, err.message);
+        }
+
         const pages = await crawlWebsite(website, 40);
         console.log(`[signup] Crawled ${pages.length} pages for ${tenantId}`);
 
@@ -2570,6 +2608,24 @@ app.post("/api/signup", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Public tenant config — widget fetches this on load ───────────────────────
+app.get("/api/tenant-config/:tenantId", async (req, res) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  const { tenantId } = req.params;
+
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("id, name, logo_url")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return res.json({ id: tenantId, name: null, logo_url: null });
+  }
+
+  res.json({ id: data.id, name: data.name, logo_url: data.logo_url });
+});
+
 // ── CORS for the public chat endpoint (widget embeds on external sites) ───────
 app.use("/chat", (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");

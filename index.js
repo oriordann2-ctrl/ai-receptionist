@@ -115,7 +115,9 @@ const EBO_CONFIG = {
 };
 
 // In-memory token cache: { [tenantId]: { token, expiresAt } }
-const eboTokenCache = {};
+// Inflight map prevents parallel requests both triggering a refresh simultaneously
+const eboTokenCache    = {};
+const eboTokenInflight = {};
 
 async function getEboToken(tenantId) {
   const cfg = EBO_CONFIG[tenantId];
@@ -124,22 +126,27 @@ async function getEboToken(tenantId) {
   const cached = eboTokenCache[tenantId];
   if (cached && cached.expiresAt > Date.now() + 60000) return cached.token; // valid with 1-min buffer
 
+  // If a refresh is already in-flight, wait for it rather than firing a second one
+  if (eboTokenInflight[tenantId]) return eboTokenInflight[tenantId];
+
   const form = new URLSearchParams();
   form.append("username", cfg.username);
   form.append("password", cfg.password);
 
-  const resp = await fetch(`${EBO_BASE}/${cfg.clubId}/user/getToken`, {
+  eboTokenInflight[tenantId] = fetch(`${EBO_BASE}/${cfg.clubId}/user/getToken`, {
     method: "POST",
     body: form
-  });
-  if (!resp.ok) throw new Error(`EBO getToken HTTP ${resp.status}`);
+  })
+    .then(r => { if (!r.ok) throw new Error(`EBO getToken HTTP ${r.status}`); return r.json(); })
+    .then(data => {
+      if (!data.token) throw new Error("EBO getToken: no token in response");
+      eboTokenCache[tenantId] = { token: data.token, expiresAt: Date.now() + 2.5 * 60 * 60 * 1000 };
+      console.log(`[EBO] Token refreshed for ${tenantId}`);
+      return data.token;
+    })
+    .finally(() => { delete eboTokenInflight[tenantId]; });
 
-  const data = await resp.json();
-  if (!data.token) throw new Error("EBO getToken: no token in response");
-
-  eboTokenCache[tenantId] = { token: data.token, expiresAt: Date.now() + 2.5 * 60 * 60 * 1000 };
-  console.log(`[EBO] Token refreshed for ${tenantId}`);
-  return data.token;
+  return eboTokenInflight[tenantId];
 }
 
 async function fetchEboBookings(tenantId, date, endDate) {
@@ -183,10 +190,7 @@ function buildEboAvailabilitySummary(bookings, dateLabel) {
 const EBO_TRIGGER = /\b(court|book|available|availab|free slot|session|tennis|reserve|tonight|today|tomorrow|when|slot|time|play)\b/i;
 
 async function maybeGetEboContext(tenantId, message) {
-  const hasConfig  = !!EBO_CONFIG[tenantId];
-  const hasKeyword = EBO_TRIGGER.test(message);
-  console.log(`[EBO] maybeGetEboContext tenantId="${tenantId}" hasConfig=${hasConfig} hasKeyword=${hasKeyword}`);
-  if (!hasConfig || !hasKeyword) return null;
+  if (!EBO_CONFIG[tenantId] || !EBO_TRIGGER.test(message)) return null;
 
   try {
     const now = new Date();

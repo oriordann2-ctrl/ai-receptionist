@@ -170,13 +170,14 @@ function buildEboAvailabilitySummary(bookings, dateLabel) {
   }
 
   // Group booked times by court
+  // Extract HH:MM directly from the API string ("2025-06-11 14:00:00") to avoid
+  // timezone conversion — EBO returns Irish local time, Render servers run UTC.
   const courts = {};
   bookings.forEach(b => {
     const id = b.court_id;
     if (!courts[id]) courts[id] = [];
-    const t = new Date(b.time);
-    const hhmm = t.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit", hour12: false });
-    courts[id].push(hhmm);
+    const hhmm = String(b.time || "").slice(11, 16); // "14:00" — no Date() conversion
+    if (hhmm) courts[id].push(hhmm);
   });
 
   const lines = Object.entries(courts)

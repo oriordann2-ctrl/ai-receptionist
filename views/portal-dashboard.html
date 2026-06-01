@@ -234,6 +234,7 @@
 </nav>
 
 <noscript><div style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;padding:14px 20px;font-size:14px;font-weight:600;text-align:center;">JavaScript is disabled or failed to load — please enable JavaScript and refresh.</div></noscript>
+<div id="jsError" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;padding:14px 20px;font-size:14px;font-weight:600;"></div>
 
 <div class="page">
 
@@ -288,6 +289,11 @@
 </div>
 
 <script>
+  window.onerror = function(msg, src, line) {
+    document.getElementById("jsError").textContent = "JS error (line " + line + "): " + msg;
+    document.getElementById("jsError").style.display = "block";
+  };
+
   // Tenant data injected server-side — no async fetch needed
   var tenantId   = "TENANT_ID_PLACEHOLDER";
   var tenantName = "TENANT_NAME_PLACEHOLDER";

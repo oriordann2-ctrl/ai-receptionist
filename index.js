@@ -736,34 +736,81 @@ const urgentKeywords = [
 
 let conversations = {};
 
-const mortgageLeadsFile = path.join(__dirname, "data", "mortgageLeads.json");
+// ── Mortgage leads — Supabase-backed ─────────────────────────────────────────
 
-function loadMortgageLeads() {
-  try {
-    console.log("[loadMortgageLeads] file path:", mortgageLeadsFile);
-    if (!fs.existsSync(mortgageLeadsFile)) {
-      console.log("[loadMortgageLeads] file not found — creating empty file");
-      fs.writeFileSync(mortgageLeadsFile, JSON.stringify([], null, 2));
-    }
+// Maps JS camelCase fields ↔ Supabase snake_case columns
+const LEAD_COL_MAP = {
+  id:                      "id",
+  createdAt:               "created_at",
+  status:                  "status",
+  userId:                  "user_id",
+  conversationId:          "conversation_id",
+  name:                    "name",
+  phone:                   "phone",
+  email:                   "email",
+  buyerType:               "buyer_type",
+  propertyPrice:           "property_price",
+  deposit:                 "deposit",
+  income:                  "income",
+  employmentType:          "employment_type",
+  existingDebts:           "existing_debts",
+  creditHistory:           "credit_history",
+  referralSource:          "referral_source",
+  notes:                   "notes",
+  lead_score:              "lead_score",
+  ltvPct:                  "ltv_pct",
+  ltiX:                    "lti_x",
+  qualificationStrengths:  "qualification_strengths",
+  qualificationIssues:     "qualification_issues",
+  emailSent:               "email_sent",
+  payslipUploadLinkSent:   "payslip_upload_link_sent",
+  leadTemperature:         "lead_temperature",
+  subject:                 "subject",
+  timeline:                "timeline"
+};
 
-    const data = fs.readFileSync(mortgageLeadsFile, "utf8");
-    const leads = JSON.parse(data || "[]");
-    console.log("[loadMortgageLeads] loaded", leads.length, "leads");
-    return leads;
-  } catch (error) {
-    console.error("[loadMortgageLeads] error:", error);
-    return [];
+function leadToRow(lead) {
+  const row = {};
+  for (const [key, col] of Object.entries(LEAD_COL_MAP)) {
+    if (lead[key] !== undefined) row[col] = lead[key];
   }
+  return row;
 }
 
-function saveMortgageLeads(leads) {
-  try {
-    console.log("[saveMortgageLeads] writing", leads.length, "leads to:", mortgageLeadsFile);
-    fs.writeFileSync(mortgageLeadsFile, JSON.stringify(leads, null, 2));
-    console.log("[saveMortgageLeads] write complete");
-  } catch (error) {
-    console.error("[saveMortgageLeads] error:", error);
+function rowToLead(row) {
+  const lead = {};
+  for (const [key, col] of Object.entries(LEAD_COL_MAP)) {
+    if (row[col] !== undefined) lead[key] = row[col];
   }
+  return lead;
+}
+
+async function insertMortgageLead(lead) {
+  const { error } = await supabase.from("mortgage_leads").insert(leadToRow(lead));
+  if (error) console.error("[mortgage-leads] insert failed:", error.message);
+}
+
+async function updateMortgageLead(id, updates) {
+  const patch = leadToRow(updates);
+  delete patch.id; // never patch the PK
+  if (!Object.keys(patch).length) return;
+  const { error } = await supabase.from("mortgage_leads").update(patch).eq("id", id);
+  if (error) console.error("[mortgage-leads] update failed:", error.message);
+}
+
+async function fetchMortgageLead(id) {
+  const { data, error } = await supabase
+    .from("mortgage_leads").select("*").eq("id", id).maybeSingle();
+  if (error) { console.error("[mortgage-leads] fetch failed:", error.message); return null; }
+  return data ? rowToLead(data) : null;
+}
+
+async function fetchAllMortgageLeads({ zapierOnly = false } = {}) {
+  let q = supabase.from("mortgage_leads").select("*").order("created_at", { ascending: false });
+  if (zapierOnly) q = q.not("subject", "is", null);
+  const { data, error } = await q;
+  if (error) { console.error("[mortgage-leads] fetch all failed:", error.message); return []; }
+  return (data || []).map(rowToLead);
 }
 
 function isUrgentMessage(message) {
@@ -930,41 +977,25 @@ function requireAdminPage(req, res, next) {
   next();
 }
 
-function createMortgageLeadFromChat({ userId, conversationId }) {
-  const leads = loadMortgageLeads();
-
+async function createMortgageLeadFromChat({ userId, conversationId }) {
   const newLead = {
-    id: "ML-" + Date.now(),
-    createdAt: new Date().toISOString(),
-    status: "New lead",
+    id:             "ML-" + Date.now(),
+    createdAt:      new Date().toISOString(),
+    status:         "New lead",
     userId,
     conversationId,
-    name: "",
-    phone: "",
-    email: "",
-    buyerType: "",
-    propertyPrice: "",
-    deposit: "",
-    income: "",
+    name:           "",
+    phone:          "",
+    email:          "",
+    buyerType:      "",
+    propertyPrice:  "",
+    deposit:        "",
+    income:         "",
     employmentType: "",
-    notes: "Started from chat"
+    notes:          "Started from chat"
   };
-
-  leads.push(newLead);
-  saveMortgageLeads(leads);
-
+  await insertMortgageLead(newLead);
   return newLead;
-}
-
-function updateMortgageLead(leadId, updates) {
-  const leads = loadMortgageLeads();
-
-  const lead = leads.find(l => l.id === leadId);
-  if (!lead) return;
-
-  Object.assign(lead, updates);
-
-  saveMortgageLeads(leads);
 }
 
 async function handleBookingFlow({ userId, conversationId, message, bookingType, confirmationLabel }) {
@@ -1099,14 +1130,9 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
   };
 }
 
-app.get("/admin/mortgage-leads", requireAdmin, (req, res) => {
-  const leads = loadMortgageLeads();
-
-  const sortedLeads = [...leads].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
-
-  res.json(sortedLeads);
+app.get("/admin/mortgage-leads", requireAdmin, async (req, res) => {
+  const leads = await fetchAllMortgageLeads();
+  res.json(leads);
 });
 
 app.post("/api/email-reply", requireLogin, async (req, res) => {
@@ -1218,82 +1244,69 @@ ${documentContext || "None"}
   }
 });
 
-app.get("/api/mortgage-leads", requireAdmin, (req, res) => {
-  console.log("[/api/mortgage-leads] file path:", mortgageLeadsFile);
+app.get("/api/mortgage-leads", requireAdmin, async (req, res) => {
   const scorePriority = { hot: 3, warm: 2, cold: 1 };
-  const all = loadMortgageLeads();
-  console.log("[/api/mortgage-leads] total leads in file:", all.length);
-  const leads = all
-    .filter(l => l.subject !== undefined)
-    .sort((a, b) => {
-      const pa = scorePriority[(a.lead_score || "").toLowerCase()] || 0;
-      const pb = scorePriority[(b.lead_score || "").toLowerCase()] || 0;
-      if (pb !== pa) return pb - pa;
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
+  const all = await fetchAllMortgageLeads({ zapierOnly: true });
+  const leads = all.sort((a, b) => {
+    const pa = scorePriority[(a.lead_score || "").toLowerCase()] || 0;
+    const pb = scorePriority[(b.lead_score || "").toLowerCase()] || 0;
+    if (pb !== pa) return pb - pa;
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
   console.log("[/api/mortgage-leads] returning", leads.length, "zapier leads");
   res.json(leads);
 });
 
-app.post("/mortgage-leads", (req, res) => {
-  const leads = loadMortgageLeads();
-
+app.post("/mortgage-leads", async (req, res) => {
   const newLead = {
-    id: "ML-" + Date.now(),
-    createdAt: new Date().toISOString(),
-    status: "New lead",
-    name: req.body.name || "",
-    phone: req.body.phone || "",
-    email: req.body.email || "",
-    buyerType: req.body.buyerType || "",
-    propertyPrice: req.body.propertyPrice || "",
-    deposit: req.body.deposit || "",
-    income: req.body.income || "",
+    id:             "ML-" + Date.now(),
+    createdAt:      new Date().toISOString(),
+    status:         "New lead",
+    name:           req.body.name || "",
+    phone:          req.body.phone || "",
+    email:          req.body.email || "",
+    buyerType:      req.body.buyerType || "",
+    propertyPrice:  req.body.propertyPrice || "",
+    deposit:        req.body.deposit || "",
+    income:         req.body.income || "",
     employmentType: req.body.employmentType || "",
-    notes: req.body.notes || ""
+    notes:          req.body.notes || ""
   };
-
-  leads.push(newLead);
-  saveMortgageLeads(leads);
-
-  res.json({
-    success: true,
-    lead: newLead
-  });
+  await insertMortgageLead(newLead);
+  res.json({ success: true, lead: newLead });
 });
 
-app.post("/zapier/email-lead", (req, res) => {
+app.post("/zapier/email-lead", async (req, res) => {
   console.log("[/zapier/email-lead] payload:", JSON.stringify(req.body));
   const { email, income, deposit, timeline, lead_score, subject } = req.body;
 
-  const leads = loadMortgageLeads();
-  console.log("[/zapier/email-lead] leads before save:", leads.length);
+  // Duplicate check directly in Supabase
+  const { data: existing } = await supabase
+    .from("mortgage_leads")
+    .select("id")
+    .eq("email", email || "")
+    .eq("subject", subject || "")
+    .maybeSingle();
 
-  const isDuplicate = leads.some(
-    (l) => l.email === email && l.subject === subject
-  );
-
-  if (isDuplicate) {
+  if (existing) {
     console.log("[/zapier/email-lead] duplicate detected — skipping");
     return res.json({ success: true, duplicate: true });
   }
 
   const newLead = {
-    id: "ML-" + Date.now(),
+    id:        "ML-" + Date.now(),
     createdAt: new Date().toISOString(),
-    status: "New lead",
-    email: email || "",
-    income: income || "",
-    deposit: deposit || "",
-    timeline: timeline || "",
+    status:    "New lead",
+    email:     email    || "",
+    income:    income   || "",
+    deposit:   deposit  || "",
+    timeline:  timeline || "",
     lead_score: lead_score || "",
-    subject: subject || ""
+    subject:   subject  || ""
   };
 
-  leads.push(newLead);
-  saveMortgageLeads(leads);
-  console.log("[/zapier/email-lead] leads after save:", leads.length);
-
+  await insertMortgageLead(newLead);
+  console.log("[/zapier/email-lead] lead saved to Supabase");
   res.json({ success: true });
 });
 
@@ -1594,22 +1607,11 @@ app.post("/appointments", requireAdmin, async (req, res) => {
   });
 });
 
-app.put("/admin/mortgage-leads/:id", requireAdmin, (req, res) => {
+app.put("/admin/mortgage-leads/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-
-  const leads = loadMortgageLeads();
-  const lead = leads.find(l => l.id === id);
-
-  if (!lead) {
-    return res.status(404).json({ error: "Lead not found" });
-  }
-
-  lead.status = status;
-
-  saveMortgageLeads(leads);
-
-  res.json({ success: true, lead });
+  await updateMortgageLead(id, { status });
+  res.json({ success: true });
 });
 
 app.put("/appointments/:id", requireAdmin, (req, res) => {
@@ -3436,13 +3438,11 @@ Use plain numbers where possible.
             lowerMessage.includes("text") ||
             lowerMessage.includes("whatsapp")
           ) {
-            updateMortgageLead(convo.mortgageLeadId, {
+            await updateMortgageLead(convo.mortgageLeadId, {
               payslipUploadLinkSent: true
             });
 
-          const completedLead = loadMortgageLeads().find(
-            (l) => l.id === convo.mortgageLeadId
-          );
+          const completedLead = await fetchMortgageLead(convo.mortgageLeadId);
 
           function parseMoney(value) {
             if (!value) return 0;
@@ -3458,13 +3458,13 @@ Use plain numbers where possible.
 
           console.log("[uploadPayslip] lead check:", { income, deposit, isHot });
 
-          updateMortgageLead(convo.mortgageLeadId, {
+          await updateMortgageLead(convo.mortgageLeadId, {
             status: "New lead - contact details captured",
             leadTemperature: isHot ? "Hot" : "Cold"
           });
 
           if (isHot) {
-            updateMortgageLead(convo.mortgageLeadId, {
+            await updateMortgageLead(convo.mortgageLeadId, {
               emailSent: true
             });
 
@@ -3530,7 +3530,7 @@ Use plain numbers where possible.
         if (convo.mortgageStep === "phone") {
           leadUpdates.phone = extracted.phone || trimmedMessage;
 
-          updateMortgageLead(convo.mortgageLeadId, leadUpdates);
+          await updateMortgageLead(convo.mortgageLeadId, leadUpdates);
 
           convo.mortgageStep = "email";
 
@@ -3550,7 +3550,7 @@ Use plain numbers where possible.
         if (convo.mortgageStep === "email") {
           leadUpdates.email = extracted.email || trimmedMessage;
 
-          updateMortgageLead(convo.mortgageLeadId, leadUpdates);
+          await updateMortgageLead(convo.mortgageLeadId, leadUpdates);
 
           convo.mortgageStep = "uploadPayslip";
 
@@ -3576,12 +3576,9 @@ Use plain numbers where possible.
           }
         });
 
-        updateMortgageLead(convo.mortgageLeadId, leadUpdates);
+        await updateMortgageLead(convo.mortgageLeadId, leadUpdates);
 
-        const leads = loadMortgageLeads();
-        const currentLead = leads.find(
-          (l) => l.id === convo.mortgageLeadId
-        );
+        const currentLead = await fetchMortgageLead(convo.mortgageLeadId);
 
         if (!currentLead) {
           console.error("Lead not found:", convo.mortgageLeadId);
@@ -3593,9 +3590,7 @@ Use plain numbers where possible.
 
         if (nextStep === "complete") {
 
-          const completedLead = loadMortgageLeads().find(
-            (l) => l.id === convo.mortgageLeadId
-          );
+          const completedLead = currentLead;
 
           function parseMoney(value) {
           if (!value) return 0;
@@ -3616,7 +3611,7 @@ Use plain numbers where possible.
           console.log("Lead check:", { income, deposit, isHot });
 
           if (isHot) {
-            updateMortgageLead(completedLead.id, { emailSent: true });
+            await updateMortgageLead(completedLead.id, { emailSent: true });
             console.log("🔥 HOT lead flagged");
           } else {
             console.log("❌ NOT HOT");
@@ -3657,7 +3652,7 @@ Use plain numbers where possible.
           intent === "mortgage application"
         )
       ) {
-        const lead = createMortgageLeadFromChat({
+        const lead = await createMortgageLeadFromChat({
           userId,
           conversationId
         });
@@ -3674,10 +3669,9 @@ Use plain numbers where possible.
           }
         });
 
-        updateMortgageLead(lead.id, leadUpdates);
+        await updateMortgageLead(lead.id, leadUpdates);
 
-        const leads = loadMortgageLeads();
-        const currentLead = leads.find((l) => l.id === lead.id);
+        const currentLead = await fetchMortgageLead(lead.id);
 
         if (!currentLead) {
           console.error("Lead not found:", lead.id);
@@ -3688,9 +3682,7 @@ Use plain numbers where possible.
         const nextStep = getNextMissingMortgageStep(currentLead);
 
     if (nextStep === "complete") {
-      const completedLead = loadMortgageLeads().find(
-        (l) => l.id === convo.mortgageLeadId
-      );
+      const completedLead = currentLead;
 
       function parseMoney(value) {
         if (!value) return 0;
@@ -3710,13 +3702,13 @@ Use plain numbers where possible.
 
       console.log("Lead check:", { income, deposit, isHot });
 
-      updateMortgageLead(convo.mortgageLeadId, {
+      await updateMortgageLead(convo.mortgageLeadId, {
         status: "New lead - contact details captured",
         leadTemperature: isHot ? "Hot" : "Cold"
       });
 
       if (isHot) {
-        updateMortgageLead(convo.mortgageLeadId, { emailSent: true });
+        await updateMortgageLead(convo.mortgageLeadId, { emailSent: true });
       }
 
       convo.completed = true;
@@ -4862,31 +4854,30 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
       const scoring = calculateLeadScore(answers);
       console.log(`[qual-agent] Score: ${scoring.score.toUpperCase()} — ${answers.customerName}`);
 
-      // Save lead (non-fatal if it fails)
+      // Save lead to Supabase (non-fatal if it fails)
       try {
-      const leads   = loadMortgageLeads();
-      const newLead = {
-        id:                     "ML-" + Date.now(),
-        createdAt:              new Date().toISOString(),
-        status:                 `New lead — ${scoring.score}`,
-        name:                   answers.customerName,
-        phone:                  answers.customerPhone,
-        email:                  answers.customerEmail,
-        buyerType:              answers.buyerType,
-        propertyPrice:          answers.propertyPrice,
-        deposit:                answers.deposit,
-        income:                 answers.annualIncome,
-        employmentType:         answers.employmentType,
-        existingDebts:          answers.existingDebts,
-        creditHistory:          answers.creditHistory,
-        lead_score:             scoring.score,
-        ltvPct:                 scoring.ltv,
-        ltiX:                   scoring.lti,
-        qualificationStrengths: scoring.strengths,
-        qualificationIssues:    scoring.issues
-      };
-      leads.push(newLead);
-      saveMortgageLeads(leads);
+        await insertMortgageLead({
+          id:                     "ML-" + Date.now(),
+          createdAt:              new Date().toISOString(),
+          status:                 `New lead — ${scoring.score}`,
+          name:                   answers.customerName,
+          phone:                  answers.customerPhone,
+          email:                  answers.customerEmail,
+          buyerType:              answers.buyerType,
+          propertyPrice:          answers.propertyPrice,
+          deposit:                answers.deposit,
+          income:                 answers.annualIncome,
+          employmentType:         answers.employmentType,
+          existingDebts:          answers.existingDebts,
+          creditHistory:          answers.creditHistory,
+          referralSource:         answers.referralSource,
+          lead_score:             scoring.score,
+          ltvPct:                 scoring.ltv   || null,
+          ltiX:                   scoring.lti   || null,
+          qualificationStrengths: scoring.strengths || [],
+          qualificationIssues:    scoring.issues    || []
+        });
+        console.log("[qual-agent] Lead saved to Supabase");
       } catch (saveErr) {
         console.error("[qual-agent] Lead save failed:", saveErr.message);
       }

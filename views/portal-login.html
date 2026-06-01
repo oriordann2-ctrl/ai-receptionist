@@ -91,8 +91,11 @@
 
     @media (max-width: 800px) {
       .brand-panel { display: none; }
-      .form-panel { width: 100%; min-height: 100vh; background: white; padding: 48px 28px; align-items: flex-start; padding-top: 80px; }
+      .form-panel { width: 100%; min-height: 100vh; background: white; padding: 48px 24px; align-items: flex-start; padding-top: 56px; }
       body { background: white; }
+    }
+    @media (max-width: 600px) {
+      .form-group input { font-size: 16px; } /* prevents iOS/Android auto-zoom on focus */
     }
   </style>
 </head>

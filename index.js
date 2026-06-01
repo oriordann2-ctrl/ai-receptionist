@@ -1684,6 +1684,29 @@ Do not ask more than one question at a time.
   }
 }
 
+async function generateGenericReply(message, tenantName) {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a helpful assistant for ${tenantName || "this organisation"}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't know the answer, say so politely and suggest they contact the organisation directly. Do not mention mortgages, brokers, or financial products.`
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      temperature: 0.7
+    });
+    return completion.choices[0].message.content || "";
+  } catch (err) {
+    console.error("Generic reply failed:", err.message);
+    return "";
+  }
+}
+
 async function getIntentFromOpenAI(message) {
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -3376,16 +3399,16 @@ Use plain numbers where possible.
           if (!kbUnsure) {
             result.reply = kbReply;
           } else {
-            const maeveReply = await generateMaeveReply(trimmedMessage);
-            result.reply = maeveReply || "I'm not sure about that — could you try rephrasing, or contact us directly for more help?";
+            const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName);
+            result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
           }
         } catch (err) {
           console.error("Knowledge base OpenAI error (general mode):", err.message);
           result.reply = "Sorry — I couldn't access the knowledge base right now.";
         }
       } else {
-        const maeveReply = await generateMaeveReply(trimmedMessage);
-        result.reply = maeveReply || "I'm not sure about that — could you try rephrasing, or contact us directly for more help?";
+        const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName);
+        result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
       }
 
     } else {

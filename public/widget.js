@@ -57,7 +57,7 @@
     "#sprimal-send{background:#111827;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;font-family:Arial,sans-serif;white-space:nowrap;}",
     "#sprimal-send:hover{background:#1f2937;}",
     "#sprimal-send:disabled{background:#9ca3af;cursor:not-allowed;}",
-    "@media(max-width:640px){#sprimal-panel{width:100vw;max-width:100vw;right:0;left:0;bottom:0;height:75vh;max-height:75vh;border-radius:20px 20px 0 0;}#sprimal-panel.sprimal-hidden{transform:translateY(100%);}#sprimal-btn{bottom:24px;right:auto;left:16px;}}",
+    "@media(max-width:640px){#sprimal-panel{width:100vw;max-width:100vw;right:0;left:0;bottom:0;height:75vh;max-height:75vh;border-radius:20px 20px 0 0;}#sprimal-panel.sprimal-hidden{transform:translateY(100%);}#sprimal-btn{bottom:88px;right:16px;}}",
   ].join("");
   document.head.appendChild(style);
 
@@ -200,10 +200,13 @@
   }
 
   // ── Open / close ──────────────────────────────────────────────────────────
+  function isMobile() { return window.innerWidth <= 640; }
+
   function openPanel() {
     isOpen = true;
     panel.classList.remove("sprimal-hidden");
     hideBadge();
+    if (isMobile()) btn.style.display = "none"; // hide launcher — use × to close
 
     if (!hasOpened) {
       hasOpened = true;
@@ -219,6 +222,7 @@
   function closePanel() {
     isOpen = false;
     panel.classList.add("sprimal-hidden");
+    btn.style.display = "flex"; // always restore button on close
   }
 
   // ── Events ────────────────────────────────────────────────────────────────

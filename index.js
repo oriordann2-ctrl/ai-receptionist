@@ -2601,6 +2601,10 @@ app.post("/api/signup", async (req, res) => {
 
   console.log(`[signup] Created tenant: ${tenantId} (${name})`);
 
+  // Generate a portal password and store it
+  const portalPassword = crypto.randomBytes(5).toString("hex"); // 10-char e.g. "a3f9b2c1d4"
+  await supabase.from("tenants").update({ portal_password: portalPassword }).eq("id", tenantId);
+
   // Auto-login: create a tenant session so they land straight in the portal
   const signupSessionId = crypto.randomBytes(32).toString("hex");
   tenantSessions.set(signupSessionId, {
@@ -2705,7 +2709,12 @@ app.post("/api/signup", async (req, res) => {
                 ${websiteNote}
                 <p style="margin-top:20px;">Here is your embed code — paste it before the <code>&lt;/body&gt;</code> tag on your website:</p>
                 <pre style="background:#f3f4f6;border-radius:8px;padding:16px;font-size:13px;overflow-x:auto;">${embedCode.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
-                <p style="margin-top:20px;">You can also <a href="https://app.sprimal.com/portal" style="color:#1e40af;font-weight:600;">log in to your portal</a> to upload additional documents and manage your assistant.</p>
+                <div style="margin-top:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;">
+                  <p style="font-weight:700;color:#0f172a;margin-bottom:10px;">🔐 Your portal login</p>
+                  <p style="font-size:14px;color:#374151;margin-bottom:4px;"><strong>URL:</strong> <a href="https://app.sprimal.com/portal" style="color:#1e40af;">https://app.sprimal.com/portal</a></p>
+                  <p style="font-size:14px;color:#374151;margin-bottom:4px;"><strong>Email:</strong> ${email}</p>
+                  <p style="font-size:14px;color:#374151;"><strong>Password:</strong> ${portalPassword}</p>
+                </div>
                 <p style="margin-top:20px;color:#6b7280;font-size:14px;">Need help? Just reply to this email.</p>
                 <p style="color:#6b7280;font-size:14px;">— The Sprimal team</p>
               </div>
@@ -2748,16 +2757,18 @@ app.get("/portal", (req, res) => {
 });
 
 app.post("/portal/login", async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.json({ success: false, error: "Please enter your email address." });
+  const { email, password } = req.body;
+  if (!email || !password) return res.json({ success: false, error: "Please enter your email and password." });
 
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("id, name, email, website")
+    .select("id, name, email, website, portal_password")
     .eq("email", email.toLowerCase().trim())
     .maybeSingle();
 
-  if (!tenant) return res.json({ success: false, error: "No account found with that email address." });
+  if (!tenant || tenant.portal_password !== password) {
+    return res.json({ success: false, error: "Incorrect email or password." });
+  }
 
   const sessionId = crypto.randomBytes(32).toString("hex");
   tenantSessions.set(sessionId, {
@@ -2884,6 +2895,50 @@ app.post(
     }
   }
 );
+
+// DELETE /api/portal/documents/:id — delete a single uploaded document + chunks
+app.delete("/api/portal/documents/:id", requireTenant, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Verify it belongs to this tenant
+    const { data: doc } = await supabase.from("documents").select("id, storage_path, tenant_id").eq("id", id).maybeSingle();
+    if (!doc || doc.tenant_id !== req.tenant.tenantId) return res.status(404).json({ error: "Document not found." });
+
+    await supabase.from("knowledge_chunks").delete().eq("document_id", id);
+    if (doc.storage_path) await supabase.storage.from(SUPABASE_BUCKET).remove([doc.storage_path]).catch(() => {});
+    await supabase.from("documents").delete().eq("id", id);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[portal-delete] Error:", err.message);
+    res.status(500).json({ error: "Failed to delete document." });
+  }
+});
+
+// DELETE /api/portal/website — delete all pages crawled from a given domain
+app.delete("/api/portal/website", requireTenant, async (req, res) => {
+  try {
+    const { domain } = req.body;
+    if (!domain) return res.status(400).json({ error: "domain required" });
+
+    const { data: docs } = await supabase.from("documents")
+      .select("id, storage_path")
+      .eq("tenant_id", req.tenant.tenantId)
+      .eq("document_type", "Website Content")
+      .ilike("storage_path", `%${domain}%`);
+
+    if (!docs || !docs.length) return res.json({ success: true, removed: 0 });
+
+    const ids = docs.map(d => d.id);
+    await supabase.from("knowledge_chunks").delete().in("document_id", ids);
+    await supabase.from("documents").delete().in("id", ids);
+
+    res.json({ success: true, removed: ids.length });
+  } catch (err) {
+    console.error("[portal-delete-website] Error:", err.message);
+    res.status(500).json({ error: "Failed to remove website." });
+  }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Public tenant config — widget fetches this on load ───────────────────────

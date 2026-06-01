@@ -2667,6 +2667,7 @@ app.post("/api/signup", async (req, res) => {
                 ${websiteNote}
                 <p style="margin-top:20px;">Here is your embed code — paste it before the <code>&lt;/body&gt;</code> tag on your website:</p>
                 <pre style="background:#f3f4f6;border-radius:8px;padding:16px;font-size:13px;overflow-x:auto;">${embedCode.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+                <p style="margin-top:20px;">You can also <a href="https://app.sprimal.com/portal" style="color:#1e40af;font-weight:600;">log in to your portal</a> to upload additional documents and manage your assistant.</p>
                 <p style="margin-top:20px;color:#6b7280;font-size:14px;">Need help? Just reply to this email.</p>
                 <p style="color:#6b7280;font-size:14px;">— The Sprimal team</p>
               </div>
@@ -2681,6 +2682,170 @@ app.post("/api/signup", async (req, res) => {
     }
   })();
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Tenant portal ─────────────────────────────────────────────────────────────
+
+const tenantSessions = new Map();
+
+function getTenantSession(req) {
+  const sessionId = req.cookies.tenant_session;
+  if (!sessionId) return null;
+  return tenantSessions.get(sessionId);
+}
+
+function requireTenant(req, res, next) {
+  const session = getTenantSession(req);
+  if (!session) {
+    if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Unauthorized" });
+    return res.redirect("/portal");
+  }
+  req.tenant = session;
+  next();
+}
+
+app.get("/portal", (req, res) => {
+  if (getTenantSession(req)) return res.redirect("/portal/dashboard");
+  res.sendFile(path.join(__dirname, "views", "portal-login.html"));
+});
+
+app.post("/portal/login", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.json({ success: false, error: "Please enter your email address." });
+
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("id, name, email, website")
+    .eq("email", email.toLowerCase().trim())
+    .maybeSingle();
+
+  if (!tenant) return res.json({ success: false, error: "No account found with that email address." });
+
+  const sessionId = crypto.randomBytes(32).toString("hex");
+  tenantSessions.set(sessionId, {
+    tenantId: tenant.id,
+    tenantName: tenant.name || tenant.id,
+    email: tenant.email,
+    website: tenant.website
+  });
+
+  res.cookie("tenant_session", sessionId, {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+
+  res.json({ success: true });
+});
+
+app.get("/portal/dashboard", requireTenant, (req, res) => {
+  res.sendFile(path.join(__dirname, "views", "portal-dashboard.html"));
+});
+
+app.post("/portal/logout", (req, res) => {
+  const sessionId = req.cookies.tenant_session;
+  if (sessionId) tenantSessions.delete(sessionId);
+  res.clearCookie("tenant_session");
+  res.redirect("/portal");
+});
+
+app.get("/api/portal/me", requireTenant, (req, res) => {
+  res.json({
+    tenantId:   req.tenant.tenantId,
+    tenantName: req.tenant.tenantName,
+    email:      req.tenant.email,
+    website:    req.tenant.website
+  });
+});
+
+app.get("/api/portal/documents", requireTenant, async (req, res) => {
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, original_filename, stored_filename, mimetype, document_type, uploaded_at")
+    .eq("tenant_id", req.tenant.tenantId)
+    .order("uploaded_at", { ascending: false });
+
+  if (error) return res.status(500).json({ error: "Failed to load documents" });
+  res.json(data || []);
+});
+
+app.post(
+  "/api/portal/upload",
+  requireTenant,
+  upload.single("document"),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      const tenantId = req.tenant.tenantId;
+      let extractedText = "";
+
+      if (req.file.mimetype === "application/pdf") {
+        extractedText = await extractPdfText(req.file.path);
+      } else if (req.file.mimetype === "text/plain") {
+        extractedText = fs.readFileSync(req.file.path, "utf8");
+      } else if (req.file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+        const result = await mammoth.extractRawText({ path: req.file.path });
+        extractedText = result.value;
+      } else {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: "Only PDF, Word (.docx), and plain text files are supported." });
+      }
+
+      if (!extractedText || extractedText.trim().length < 20) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: "Could not extract text from this file. Please check it is not empty or image-only." });
+      }
+
+      const storagePath = `tenant-docs/${tenantId}/${Date.now()}-${req.file.originalname}`;
+      const fileBuffer = fs.readFileSync(req.file.path);
+
+      const { error: uploadError } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(storagePath, fileBuffer, { contentType: req.file.mimetype, upsert: false });
+
+      if (uploadError) {
+        console.error("[portal-upload] Storage error:", uploadError);
+        // Continue anyway — store record without storage path
+      }
+
+      const { data: doc, error: docError } = await supabase
+        .from("documents")
+        .insert({
+          original_filename: req.file.originalname,
+          stored_filename:   req.file.originalname,
+          storage_path:      uploadError ? null : storagePath,
+          mimetype:          req.file.mimetype,
+          lender:            null,
+          document_type:     "Club Document",
+          description:       req.body.description || req.file.originalname,
+          effective_date:    null,
+          expiry_date:       null,
+          tags:              ["portal-upload"],
+          metadata_complete: true,
+          junior_accessible: true,
+          tenant_id:         tenantId
+        })
+        .select()
+        .single();
+
+      fs.unlink(req.file.path, () => {});
+
+      if (docError) {
+        console.error("[portal-upload] Doc insert error:", docError);
+        return res.status(500).json({ error: "Failed to save document record." });
+      }
+
+      await generateAndStoreChunks(doc.id, extractedText, null, "Club Document", null, tenantId);
+
+      res.json({ success: true, document: { id: doc.id, name: req.file.originalname } });
+    } catch (err) {
+      console.error("[portal-upload] Error:", err.message);
+      if (req.file) fs.unlink(req.file.path, () => {});
+      res.status(500).json({ error: "Upload failed. Please try again." });
+    }
+  }
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Public tenant config — widget fetches this on load ───────────────────────

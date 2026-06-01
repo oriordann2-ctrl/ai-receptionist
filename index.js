@@ -105,12 +105,15 @@ function saveKnowledgeDocs(docs) {
 // ── EBO (ebookingonline.net) Court Booking Integration ────────────────────────
 const EBO_BASE = "https://ebookingonline.net/api";
 
-// Map Sprimal tenant ID → EBO credentials
+// Map Sprimal tenant ID → EBO credentials + court schedule config
 const EBO_CONFIG = {
   "monkstown-lawn-tennis-club": {
-    clubId:   process.env.EBO_MONKSTOWN_CLUB_ID   || "304",
-    username: process.env.EBO_MONKSTOWN_USERNAME,
-    password: process.env.EBO_MONKSTOWN_PASSWORD
+    clubId:      process.env.EBO_MONKSTOWN_CLUB_ID || "304",
+    username:    process.env.EBO_MONKSTOWN_USERNAME,
+    password:    process.env.EBO_MONKSTOWN_PASSWORD,
+    openTime:    "08:00",  // first bookable slot start
+    closeTime:   "23:00",  // courts close (last slot must end by this)
+    slotMinutes: 75        // each booking slot is 75 minutes
   }
 };
 
@@ -164,27 +167,45 @@ async function fetchEboBookings(tenantId, date, endDate) {
   return Array.isArray(data) ? data : [];
 }
 
-function buildEboAvailabilitySummary(bookings, dateLabel) {
+function buildEboAvailabilitySummary(bookings, dateLabel, cfg) {
+  const openTime    = (cfg && cfg.openTime)    || "07:00";
+  const closeTime   = (cfg && cfg.closeTime)   || "22:00";
+  const slotMins    = (cfg && cfg.slotMinutes) || 60;
+
+  function toMins(hhmm) { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; }
+  function toHHMM(mins) { return String(Math.floor(mins / 60)).padStart(2, "0") + ":" + String(mins % 60).padStart(2, "0"); }
+
+  // Generate every valid slot start time for this venue
+  const openMins  = toMins(openTime);
+  const closeMins = toMins(closeTime);
+  const allSlots  = [];
+  for (let t = openMins; t + slotMins <= closeMins; t += slotMins) allSlots.push(toHHMM(t));
+
   if (!bookings.length) {
-    return `${dateLabel}: No bookings found — courts appear to be free all day.`;
+    // No bookings at all — all slots on all courts are free (we don't know court count, so say generally)
+    return `${dateLabel}: No bookings found — all courts are free. Available slots: ${allSlots.map(s => s + "–" + toHHMM(toMins(s) + slotMins)).join(", ")}`;
   }
 
-  // Group booked times by court
-  // Extract HH:MM directly from the API string ("2025-06-11 14:00:00") to avoid
-  // timezone conversion — EBO returns Irish local time, Render servers run UTC.
-  const courts = {};
+  // Build set of booked slot start times per court
+  const bookedByCourt = {};
   bookings.forEach(b => {
-    const id = b.court_id;
-    if (!courts[id]) courts[id] = [];
-    const hhmm = String(b.time || "").slice(11, 16); // "14:00" — no Date() conversion
-    if (hhmm) courts[id].push(hhmm);
+    const id = String(b.court_id);
+    if (!bookedByCourt[id]) bookedByCourt[id] = new Set();
+    const hhmm = String(b.time || "").slice(11, 16); // extract "HH:MM" — no timezone conversion
+    if (hhmm) bookedByCourt[id].add(hhmm);
   });
 
-  const lines = Object.entries(courts)
+  // Compute free slots per court
+  const lines = Object.entries(bookedByCourt)
     .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([id, times]) => `  Court ${id}: booked at ${times.sort().join(", ")}`);
+    .map(([id, bookedSet]) => {
+      const free = allSlots.filter(s => !bookedSet.has(s));
+      if (!free.length) return `  Court ${id}: fully booked`;
+      const slots = free.map(s => `${s}–${toHHMM(toMins(s) + slotMins)}`).join(", ");
+      return `  Court ${id}: free at ${slots}`;
+    });
 
-  return `${dateLabel}:\n${lines.join("\n")}\n  (Any slot not listed above is available — courts run 07:00–22:00 in 1-hour slots)`;
+  return `${dateLabel}:\n${lines.join("\n")}`;
 }
 
 // Keywords that trigger a live EBO lookup
@@ -206,6 +227,7 @@ async function maybeGetEboContext(tenantId, message) {
       fetchEboBookings(tenantId, tomorrowDate)
     ]);
 
+    const cfg           = EBO_CONFIG[tenantId];
     const todayLabel    = `Today (${irishDate})`;
     const tomorrowLabel = `Tomorrow (${tomorrowDate})`;
 
@@ -214,10 +236,10 @@ async function maybeGetEboContext(tenantId, message) {
       timeZone: "Europe/Dublin", weekday: "long", day: "numeric", month: "long", year: "numeric"
     });
 
-    return `CURRENT DATE: ${humanDate}\n\nLIVE COURT BOOKINGS (use this to answer availability questions):\n`
-      + buildEboAvailabilitySummary(todayBookings, todayLabel)
+    return `CURRENT DATE: ${humanDate}\n\nLIVE COURT AVAILABILITY (free slots only — already computed, do not recalculate):\n`
+      + buildEboAvailabilitySummary(todayBookings, todayLabel, cfg)
       + "\n\n"
-      + buildEboAvailabilitySummary(tomorrowBookings, tomorrowLabel);
+      + buildEboAvailabilitySummary(tomorrowBookings, tomorrowLabel, cfg);
 
   } catch (err) {
     console.error("[EBO] Context fetch error:", err.message);

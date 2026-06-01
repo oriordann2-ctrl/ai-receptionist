@@ -199,11 +199,17 @@
 
     .error-msg {
       color: #dc2626;
-      font-size: 13px;
+      font-size: 14px;
       margin-top: 14px;
       min-height: 18px;
-      font-weight: 500;
+      font-weight: 600;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: none;
     }
+    .error-msg:not(:empty) { display: block; }
 
     /* ── Success state ──────────────────────────────────────── */
     .success-state {
@@ -394,11 +400,16 @@
       submitBtn.textContent = "Setting up your assistant…";
 
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000); // 20s max
+
         const res = await fetch("/api/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, website, email })
+          body: JSON.stringify({ name, website, email }),
+          signal: controller.signal
         });
+        clearTimeout(timeout);
 
         const data = await res.json();
 
@@ -410,7 +421,10 @@
           submitBtn.textContent = "Get my free assistant →";
         }
       } catch (err) {
-        errorDiv.textContent = "Could not connect. Please try again.";
+        const msg = err.name === "AbortError"
+          ? "The server took too long to respond. Please try again."
+          : "Could not connect. Please try again.";
+        errorDiv.textContent = msg;
         submitBtn.disabled = false;
         submitBtn.textContent = "Get my free assistant →";
       }

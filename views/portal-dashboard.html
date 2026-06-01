@@ -6,338 +6,463 @@
   <title>Sprimal Portal</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; min-height: 100vh; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; min-height: 100vh; }
 
-    /* ── Header ── */
-    .header {
-      background: #0f172a;
+    /* ── Top nav ── */
+    nav {
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
       padding: 0 32px;
-      height: 60px;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    .header-left { display: flex; align-items: center; gap: 12px; }
-    .header-logo { display: flex; align-items: center; gap: 8px; }
-    .header-logo-text { font-size: 18px; font-weight: 800; color: white; letter-spacing: -0.3px; }
-    .header-divider { width: 1px; height: 20px; background: #334155; }
-    .header-club { font-size: 14px; color: #94a3b8; }
-    .btn-logout {
-      background: none; border: 1px solid #334155; color: #94a3b8;
-      padding: 6px 14px; border-radius: 7px; font-size: 13px; cursor: pointer;
-      font-family: inherit; transition: border-color 0.15s, color 0.15s;
+    .nav-logo { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: -0.3px; text-decoration: none; }
+    .nav-right { display: flex; align-items: center; gap: 16px; }
+    .nav-club { font-size: 14px; color: #64748b; }
+    .btn-signout {
+      background: none; border: none; cursor: pointer; font-size: 14px;
+      color: #64748b; font-family: inherit; padding: 6px 12px;
+      border-radius: 7px; transition: background 0.15s, color 0.15s;
     }
-    .btn-logout:hover { border-color: #64748b; color: #cbd5e1; }
+    .btn-signout:hover { background: #f1f5f9; color: #0f172a; }
 
     /* ── Page ── */
-    .page { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+    .page { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }
 
-    /* ── Status banner ── */
-    .status-banner {
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
+    /* ── New signup banner ── */
+    .new-banner {
+      display: none;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
       border-radius: 12px;
       padding: 16px 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 32px;
+      margin-bottom: 24px;
     }
-    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #16a34a; flex-shrink: 0; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
-    .status-text { font-size: 14px; color: #166534; font-weight: 500; }
+    .new-banner-title { font-size: 15px; font-weight: 700; color: #1e40af; margin-bottom: 4px; }
+    .new-banner-sub { font-size: 13px; color: #3b82f6; line-height: 1.5; }
 
     /* ── Cards ── */
     .card {
       background: white;
-      border: 1px solid #e2e8f0;
       border-radius: 14px;
-      padding: 28px;
+      padding: 28px 32px;
       margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
-    .card-title {
-      font-size: 16px; font-weight: 700; color: #0f172a;
-      margin-bottom: 6px; letter-spacing: -0.2px;
-    }
-    .card-subtitle { font-size: 13px; color: #64748b; margin-bottom: 20px; line-height: 1.5; }
+    .card-title { font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+    .card-sub { font-size: 14px; color: #6b7280; margin-bottom: 24px; line-height: 1.5; }
 
     /* ── Embed code ── */
-    .embed-wrap { position: relative; }
-    .embed-code {
-      background: #0f172a;
-      color: #e2e8f0;
-      padding: 16px 60px 16px 18px;
-      border-radius: 10px;
+    .embed-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
+    .embed-code-box {
+      flex: 1;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 16px;
       font-family: 'Courier New', monospace;
-      font-size: 13px;
-      line-height: 1.6;
+      font-size: 12px;
+      color: #374151;
       word-break: break-all;
-      white-space: pre-wrap;
+      line-height: 1.6;
+      min-width: 0;
     }
     .btn-copy {
-      position: absolute; top: 10px; right: 10px;
-      background: #1e40af; color: white; border: none;
-      border-radius: 6px; padding: 5px 12px; font-size: 12px;
-      cursor: pointer; font-family: inherit; font-weight: 600;
-      transition: background 0.15s;
+      flex-shrink: 0;
+      background: #1e40af; color: white; border: none; border-radius: 8px;
+      padding: 0 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background 0.15s; white-space: nowrap;
     }
     .btn-copy:hover { background: #1d3a9e; }
-    .embed-instructions {
-      margin-top: 12px; font-size: 13px; color: #64748b; line-height: 1.6;
-    }
-    .embed-instructions code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+    .embed-hint { font-size: 13px; color: #9ca3af; margin-top: 10px; }
+    .embed-hint code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
 
-    /* ── Upload zone ── */
-    .upload-zone {
-      border: 2px dashed #cbd5e1;
-      border-radius: 12px;
-      padding: 32px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
-      position: relative;
+    /* ── File upload ── */
+    .file-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+    .file-label {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: white; border: 1.5px solid #d1d5db; border-radius: 8px;
+      padding: 9px 16px; font-size: 14px; color: #374151; cursor: pointer;
+      font-family: inherit; font-weight: 500; transition: border-color 0.15s;
     }
-    .upload-zone:hover, .upload-zone.drag-over {
-      border-color: #2563eb; background: #eff6ff;
-    }
-    .upload-zone input[type=file] {
-      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
-    }
-    .upload-icon { font-size: 28px; margin-bottom: 8px; }
-    .upload-label { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 4px; }
-    .upload-hint { font-size: 13px; color: #64748b; }
-    .upload-progress {
-      display: none; margin-top: 16px;
-      background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
-      padding: 12px 16px; font-size: 13px; color: #1e40af; font-weight: 500;
-    }
-    .upload-success {
-      display: none; margin-top: 12px;
-      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
-      padding: 12px 16px; font-size: 13px; color: #166534; font-weight: 500;
-    }
-    .upload-error {
-      display: none; margin-top: 12px;
-      background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
-      padding: 12px 16px; font-size: 13px; color: #dc2626; font-weight: 500;
-    }
+    .file-label:hover { border-color: #6b7280; }
+    .file-label input { display: none; }
+    .file-hint { font-size: 13px; color: #9ca3af; }
+    .upload-status { font-size: 13px; font-weight: 500; margin-top: 10px; display: none; }
+    .upload-status.loading { color: #2563eb; }
+    .upload-status.success { color: #16a34a; }
+    .upload-status.error   { color: #dc2626; }
 
-    /* ── Document list ── */
-    .doc-list { margin-top: 20px; }
-    .doc-item {
+    /* ── Section labels ── */
+    .section-label {
+      font-size: 11px; font-weight: 700; color: #9ca3af;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin: 24px 0 12px;
+    }
+    .section-label:first-of-type { margin-top: 0; }
+
+    /* ── Website rows ── */
+    .website-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 0; border-bottom: 1px solid #f1f5f9; gap: 12px;
+      background: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; gap: 12px;
     }
-    .doc-item:last-child { border-bottom: none; }
-    .doc-icon { font-size: 20px; flex-shrink: 0; }
+    .website-row-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .globe-icon { font-size: 20px; flex-shrink: 0; }
+    .website-domain { font-size: 14px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .website-meta { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .btn-remove-website {
+      flex-shrink: 0; background: white; border: 1.5px solid #fca5a5;
+      color: #dc2626; border-radius: 8px; padding: 7px 14px;
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: background 0.15s;
+    }
+    .btn-remove-website:hover { background: #fef2f2; }
+
+    /* ── Document rows ── */
+    .doc-row {
+      display: flex; align-items: center; border-bottom: 1px solid #f3f4f6;
+      padding: 14px 0; gap: 12px;
+    }
+    .doc-row:last-child { border-bottom: none; }
+    .doc-type-badge {
+      flex-shrink: 0; font-size: 11px; font-weight: 700;
+      padding: 3px 8px; border-radius: 5px; font-family: monospace;
+    }
+    .badge-pdf  { background: #fee2e2; color: #dc2626; }
+    .badge-docx { background: #dbeafe; color: #1d4ed8; }
+    .badge-txt  { background: #f3f4f6; color: #6b7280; }
     .doc-info { flex: 1; min-width: 0; }
-    .doc-name { font-size: 14px; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .doc-meta { font-size: 12px; color: #94a3b8; margin-top: 2px; }
-    .doc-type { font-size: 11px; background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 4px; font-weight: 600; flex-shrink: 0; }
-    .empty-state { text-align: center; padding: 32px 0; color: #94a3b8; font-size: 14px; }
-    .loading { text-align: center; padding: 20px; color: #94a3b8; font-size: 14px; }
+    .doc-name { font-size: 14px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-meta { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+    .btn-delete {
+      flex-shrink: 0; background: #dc2626; color: white; border: none;
+      border-radius: 7px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-delete:hover { background: #b91c1c; }
+
+    .empty-state { text-align: center; padding: 24px 0; font-size: 14px; color: #9ca3af; }
+
+    /* ── Test assistant ── */
+    .test-area { display: flex; gap: 10px; margin-bottom: 16px; }
+    .test-input {
+      flex: 1; border: 1.5px solid #e2e8f0; border-radius: 8px;
+      padding: 11px 14px; font-size: 14px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .test-input:focus { border-color: #1e40af; }
+    .btn-ask {
+      background: #111827; color: white; border: none; border-radius: 8px;
+      padding: 11px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background 0.15s; white-space: nowrap;
+    }
+    .btn-ask:hover { background: #1f2937; }
+    .btn-ask:disabled { background: #9ca3af; cursor: not-allowed; }
+    .test-response {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+      padding: 16px; font-size: 14px; color: #374151; line-height: 1.6;
+      display: none; white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <div class="header-left">
-      <div class="header-logo">
-        <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-          <rect width="48" height="48" rx="11" fill="#4f76f6"/>
-          <line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
-          <line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
-          <line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/>
-          <circle cx="24" cy="11" r="4.5" fill="white"/>
-          <circle cx="38.5" cy="36" r="4.5" fill="white"/>
-          <circle cx="9.5" cy="36" r="4.5" fill="white"/>
-        </svg>
-        <span class="header-logo-text">Sprimal</span>
-      </div>
-      <div class="header-divider"></div>
-      <span class="header-club" id="headerClub">Loading…</span>
-    </div>
-    <button class="btn-logout" onclick="logout()">Sign out</button>
+<nav>
+  <a class="nav-logo" href="/portal/dashboard">
+    <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+      <rect width="48" height="48" rx="11" fill="#4f76f6"/>
+      <line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="24" cy="11" r="4.5" fill="white"/>
+      <circle cx="38.5" cy="36" r="4.5" fill="white"/>
+      <circle cx="9.5" cy="36" r="4.5" fill="white"/>
+    </svg>
+    Sprimal
+  </a>
+  <div class="nav-right">
+    <span class="nav-club" id="navClub"></span>
+    <button class="btn-signout" onclick="logout()">Sign out</button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- New signup banner -->
+  <div class="new-banner" id="newBanner">
+    <div class="new-banner-title">🎉 Welcome! Your assistant is being set up.</div>
+    <div class="new-banner-sub">We're training it on your website right now — this takes 2–3 minutes. Your embed code is ready below. Refresh this page in a few minutes to see your pages listed.</div>
   </div>
 
-  <div class="page">
-
-    <div id="newBanner" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
-      <div style="font-size:15px;font-weight:700;color:#1e40af;margin-bottom:4px;">🎉 Welcome! Your assistant is being set up.</div>
-      <div style="font-size:13px;color:#3b82f6;line-height:1.5;">We're training it on your website right now — this takes 2–3 minutes. Your embed code is below and a copy has been sent to your email. Refresh this page in a few minutes to see your pages listed.</div>
+  <!-- Embed Code -->
+  <div class="card">
+    <div class="card-title">Embed on your website</div>
+    <div class="card-sub">Paste this one line of code just before the <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px;">&lt;/body&gt;</code> tag on your website.</div>
+    <div class="embed-row">
+      <div class="embed-code-box" id="embedCode">Loading…</div>
+      <button class="btn-copy" onclick="copyEmbed()">Copy</button>
     </div>
+    <p class="embed-hint">Works with Wix, WordPress, Squarespace, or any custom site. Paste once — appears on every page.</p>
+  </div>
 
-    <div class="status-banner">
-      <div class="status-dot"></div>
-      <div class="status-text" id="statusText">Your assistant is live and answering questions.</div>
-    </div>
+  <!-- Knowledge Base Documents -->
+  <div class="card">
+    <div class="card-title">Knowledge Base Documents</div>
+    <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers.</div>
 
-    <!-- Embed Code -->
-    <div class="card">
-      <div class="card-title">Embed on your website</div>
-      <div class="card-subtitle">Paste this one line of code just before the <code>&lt;/body&gt;</code> tag on any page of your website.</div>
-      <div class="embed-wrap">
-        <pre class="embed-code" id="embedCode">Loading…</pre>
-        <button class="btn-copy" onclick="copyEmbed()">Copy</button>
-      </div>
-      <p class="embed-instructions">
-        Works with any website — Wix, WordPress, Squarespace, or custom HTML. Just paste it once and it appears on every page.
-      </p>
-    </div>
-
-    <!-- Knowledge Base -->
-    <div class="card">
-      <div class="card-title">Knowledge base</div>
-      <div class="card-subtitle">Your assistant was trained on your website automatically. Upload additional documents — like membership prices, coaching programmes, or FAQs — to improve its answers.</div>
-
-      <div class="upload-zone" id="uploadZone">
+    <!-- Upload -->
+    <div class="file-row">
+      <label class="file-label">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Select Document
         <input type="file" id="fileInput" accept=".pdf,.docx,.txt" onchange="uploadFile(this.files[0])" />
-        <div class="upload-icon">📄</div>
-        <div class="upload-label">Drop a file here or click to browse</div>
-        <div class="upload-hint">PDF, Word (.docx), or plain text — max 10MB</div>
-      </div>
-      <div class="upload-progress" id="uploadProgress">⏳ Uploading and processing your document…</div>
-      <div class="upload-success" id="uploadSuccess"></div>
-      <div class="upload-error" id="uploadError"></div>
-
-      <div class="doc-list" id="docList">
-        <div class="loading">Loading your documents…</div>
-      </div>
+      </label>
+      <span class="file-hint">PDF, TXT or Word DOCX — you can upload multiple files.</span>
     </div>
+    <div class="upload-status" id="uploadStatus"></div>
 
+    <!-- Document list -->
+    <div id="docList"><div class="empty-state" style="margin-top:24px;">Loading your documents…</div></div>
   </div>
 
-  <script>
-    let tenantId = "";
-    let tenantName = "";
+  <!-- Test your assistant -->
+  <div class="card">
+    <div class="card-title">Test Your Assistant ⭐</div>
+    <div class="card-sub">Ask your assistant a question to see how it responds — exactly as a member would experience it on your website.</div>
+    <div class="test-area">
+      <input class="test-input" id="testInput" type="text" placeholder="e.g. How do I become a member?" />
+      <button class="btn-ask" id="askBtn" onclick="askAssistant()">Ask</button>
+    </div>
+    <div class="test-response" id="testResponse"></div>
+  </div>
 
-    // ── Load tenant info ───────────────────────────────────────────────────
-    async function init() {
-      // Show welcome banner for new signups
-      if (new URLSearchParams(location.search).get("new") === "1") {
-        document.getElementById("newBanner").style.display = "block";
-        // Clean URL without reloading
-        history.replaceState({}, "", "/portal/dashboard");
-      }
+</div>
 
-      try {
-        const res = await fetch("/api/portal/me");
-        if (!res.ok) { window.location.href = "/portal"; return; }
-        const data = await res.json();
-        tenantId = data.tenantId;
-        tenantName = data.tenantName || tenantId;
-        document.getElementById("headerClub").textContent = tenantName;
-        document.title = tenantName + " — Sprimal Portal";
-        document.getElementById("embedCode").textContent =
-          `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}" data-club-name="${tenantName}"><\/script>`;
-        loadDocuments();
-      } catch {
-        window.location.href = "/portal";
-      }
+<script>
+  let tenantId = "";
+  let tenantName = "";
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  async function init() {
+    if (new URLSearchParams(location.search).get("new") === "1") {
+      document.getElementById("newBanner").style.display = "block";
+      history.replaceState({}, "", "/portal/dashboard");
     }
 
-    // ── Load documents ─────────────────────────────────────────────────────
-    async function loadDocuments() {
-      try {
-        const res = await fetch("/api/portal/documents");
-        const docs = await res.json();
-        const list = document.getElementById("docList");
-
-        if (!docs.length) {
-          list.innerHTML = '<div class="empty-state">No documents yet. Your website content was imported automatically at signup.</div>';
-          return;
-        }
-
-        list.innerHTML = docs.map(doc => {
-          const icon = doc.mimetype === "application/pdf" ? "📕" :
-                       doc.mimetype?.includes("word") ? "📘" :
-                       doc.document_type === "Website Content" ? "🌐" : "📄";
-          const date = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
-          return `
-            <div class="doc-item">
-              <div class="doc-icon">${icon}</div>
-              <div class="doc-info">
-                <div class="doc-name">${escHtml(doc.original_filename || doc.stored_filename || "Untitled")}</div>
-                <div class="doc-meta">${date}</div>
-              </div>
-              <div class="doc-type">${escHtml(doc.document_type || "Document")}</div>
-            </div>`;
-        }).join("");
-      } catch {
-        document.getElementById("docList").innerHTML = '<div class="empty-state">Could not load documents.</div>';
-      }
-    }
-
-    // ── Upload ─────────────────────────────────────────────────────────────
-    async function uploadFile(file) {
-      if (!file) return;
-      const zone = document.getElementById("uploadZone");
-      const progress = document.getElementById("uploadProgress");
-      const success = document.getElementById("uploadSuccess");
-      const error = document.getElementById("uploadError");
-
-      success.style.display = "none";
-      error.style.display = "none";
-      progress.style.display = "block";
-      zone.style.pointerEvents = "none";
-
-      const fd = new FormData();
-      fd.append("document", file);
-      fd.append("description", file.name);
-
-      try {
-        const res = await fetch("/api/portal/upload", { method: "POST", body: fd });
-        const data = await res.json();
-        progress.style.display = "none";
-        if (data.success) {
-          success.textContent = "✅ " + file.name + " uploaded and added to your knowledge base.";
-          success.style.display = "block";
-          document.getElementById("fileInput").value = "";
-          loadDocuments();
-        } else {
-          error.textContent = "❌ " + (data.error || "Upload failed.");
-          error.style.display = "block";
-        }
-      } catch {
-        progress.style.display = "none";
-        error.textContent = "❌ Upload failed. Please try again.";
-        error.style.display = "block";
-      }
-      zone.style.pointerEvents = "";
-    }
-
-    // ── Drag and drop ──────────────────────────────────────────────────────
-    const zone = document.getElementById("uploadZone");
-    zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("drag-over"); });
-    zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-    zone.addEventListener("drop", e => {
-      e.preventDefault();
-      zone.classList.remove("drag-over");
-      const file = e.dataTransfer.files[0];
-      if (file) uploadFile(file);
-    });
-
-    // ── Copy embed ─────────────────────────────────────────────────────────
-    function copyEmbed() {
-      const code = document.getElementById("embedCode").textContent;
-      navigator.clipboard.writeText(code).then(() => {
-        const btn = document.querySelector(".btn-copy");
-        btn.textContent = "Copied!";
-        setTimeout(() => btn.textContent = "Copy", 2000);
-      });
-    }
-
-    // ── Logout ─────────────────────────────────────────────────────────────
-    async function logout() {
-      await fetch("/portal/logout", { method: "POST" });
+    try {
+      const res = await fetch("/api/portal/me");
+      if (!res.ok) { window.location.href = "/portal"; return; }
+      const data = await res.json();
+      tenantId   = data.tenantId;
+      tenantName = data.tenantName || tenantId;
+      document.getElementById("navClub").textContent = tenantName;
+      document.title = tenantName + " — Sprimal Portal";
+      document.getElementById("embedCode").textContent =
+        `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}" data-club-name="${tenantName}"><\/script>`;
+      loadDocuments();
+    } catch {
       window.location.href = "/portal";
     }
+  }
 
-    function escHtml(str) {
-      return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  // ── Load & render documents ─────────────────────────────────────────────────
+  async function loadDocuments() {
+    try {
+      const res  = await fetch("/api/portal/documents");
+      const docs = await res.json();
+
+      const websites  = docs.filter(d => d.document_type === "Website Content");
+      const uploaded  = docs.filter(d => d.document_type !== "Website Content");
+
+      // Group website pages by domain
+      const domainMap = {};
+      websites.forEach(d => {
+        try {
+          const domain = new URL(d.stored_filename || d.storage_path || "").hostname;
+          if (!domainMap[domain]) domainMap[domain] = { domain, pages: 0, date: d.uploaded_at };
+          domainMap[domain].pages++;
+        } catch {}
+      });
+
+      let html = "";
+
+      // Imported websites
+      const domains = Object.values(domainMap);
+      if (domains.length) {
+        html += '<div class="section-label">Imported Websites</div>';
+        html += domains.map(site => {
+          const date = site.date ? new Date(site.date).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
+          return `
+            <div class="website-row">
+              <div class="website-row-left">
+                <div class="globe-icon">🌐</div>
+                <div>
+                  <div class="website-domain">${escHtml(site.domain)}</div>
+                  <div class="website-meta">${site.pages} page${site.pages !== 1 ? "s" : ""} · Imported ${date}</div>
+                </div>
+              </div>
+              <button class="btn-remove-website" onclick="removeWebsite('${escHtml(site.domain)}')">Remove Website</button>
+            </div>`;
+        }).join("");
+      }
+
+      // Uploaded documents
+      if (uploaded.length) {
+        html += '<div class="section-label" style="margin-top:' + (domains.length ? "24px" : "0") + '">Uploaded Documents</div>';
+        html += uploaded.map(doc => {
+          const ext  = (doc.original_filename || "").split(".").pop().toLowerCase();
+          const badge = ext === "pdf"  ? '<span class="doc-type-badge badge-pdf">PDF</span>'
+                      : ext === "docx" ? '<span class="doc-type-badge badge-docx">DOCX</span>'
+                      : '<span class="doc-type-badge badge-txt">TXT</span>';
+          const date = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
+          return `
+            <div class="doc-row" id="doc-${doc.id}">
+              ${badge}
+              <div class="doc-info">
+                <div class="doc-name">${escHtml(doc.original_filename || "Untitled")}</div>
+                <div class="doc-meta">Uploaded ${date}</div>
+              </div>
+              <button class="btn-delete" onclick="deleteDoc('${doc.id}', '${escHtml(doc.original_filename || "")}')">Delete</button>
+            </div>`;
+        }).join("");
+      }
+
+      if (!domains.length && !uploaded.length) {
+        html = '<div class="empty-state" style="margin-top:24px;">No documents yet — your website content will appear here after import.</div>';
+      }
+
+      document.getElementById("docList").innerHTML = html;
+    } catch {
+      document.getElementById("docList").innerHTML = '<div class="empty-state" style="margin-top:24px;">Could not load documents.</div>';
+    }
+  }
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  async function uploadFile(file) {
+    if (!file) return;
+    const status = document.getElementById("uploadStatus");
+    status.className = "upload-status loading";
+    status.textContent = "⏳ Uploading and processing…";
+    status.style.display = "block";
+
+    const fd = new FormData();
+    fd.append("document", file);
+
+    try {
+      const res  = await fetch("/api/portal/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success) {
+        status.className = "upload-status success";
+        status.textContent = "✅ " + file.name + " added to your knowledge base.";
+        document.getElementById("fileInput").value = "";
+        loadDocuments();
+      } else {
+        status.className = "upload-status error";
+        status.textContent = "❌ " + (data.error || "Upload failed.");
+      }
+    } catch {
+      status.className = "upload-status error";
+      status.textContent = "❌ Upload failed. Please try again.";
+    }
+  }
+
+  // ── Delete uploaded doc ─────────────────────────────────────────────────────
+  async function deleteDoc(id, name) {
+    if (!confirm("Delete "" + name + ""? This cannot be undone.")) return;
+    const row = document.getElementById("doc-" + id);
+    if (row) row.style.opacity = "0.4";
+
+    const res  = await fetch("/api/portal/documents/" + id, { method: "DELETE" });
+    const data = await res.json();
+    if (data.success) {
+      loadDocuments();
+    } else {
+      if (row) row.style.opacity = "";
+      alert("Failed to delete: " + (data.error || "unknown error"));
+    }
+  }
+
+  // ── Remove website ──────────────────────────────────────────────────────────
+  async function removeWebsite(domain) {
+    if (!confirm("Remove all pages from " + domain + "? This cannot be undone.")) return;
+    const res  = await fetch("/api/portal/website", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain })
+    });
+    const data = await res.json();
+    if (data.success) {
+      loadDocuments();
+    } else {
+      alert("Failed to remove website: " + (data.error || "unknown error"));
+    }
+  }
+
+  // ── Test assistant ──────────────────────────────────────────────────────────
+  async function askAssistant() {
+    const input = document.getElementById("testInput");
+    const btn   = document.getElementById("askBtn");
+    const resp  = document.getElementById("testResponse");
+    const msg   = input.value.trim();
+    if (!msg) return;
+
+    btn.disabled = true;
+    btn.textContent = "Asking…";
+    resp.style.display = "none";
+
+    try {
+      const res  = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "portal-test-" + tenantId,
+          conversationId: "portal-conv-" + tenantId,
+          message: msg,
+          clubId: tenantId
+        })
+      });
+      const data = await res.json();
+      resp.textContent = data.reply || "No response.";
+      resp.style.display = "block";
+    } catch {
+      resp.textContent = "Could not connect to your assistant.";
+      resp.style.display = "block";
     }
 
-    init();
-  </script>
+    btn.disabled = false;
+    btn.textContent = "Ask";
+  }
+
+  document.getElementById("testInput").addEventListener("keypress", e => {
+    if (e.key === "Enter") askAssistant();
+  });
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function copyEmbed() {
+    const code = document.getElementById("embedCode").textContent;
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.querySelector(".btn-copy");
+      btn.textContent = "Copied!";
+      setTimeout(() => btn.textContent = "Copy", 2000);
+    });
+  }
+
+  async function logout() {
+    await fetch("/portal/logout", { method: "POST" });
+    window.location.href = "/portal";
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+
+  init();
+</script>
 </body>
 </html>

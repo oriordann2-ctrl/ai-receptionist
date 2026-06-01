@@ -2299,22 +2299,46 @@ function extractPageTitle(html) {
   return m ? m[1].trim() : "Page";
 }
 
+// Known generic/placeholder favicons to skip
+const GENERIC_FAVICON_PATTERNS = [
+  "parastorage.com/client/pfavico",
+  "parastorage.com/services",
+  "/favicon.ico"
+];
+function isGenericFavicon(url) {
+  return GENERIC_FAVICON_PATTERNS.some(p => url.includes(p));
+}
+
 function extractFaviconUrl(html, baseUrl) {
   // 1. Prefer apple-touch-icon — highest quality (usually 180x180)
   const appleMatch = html.match(/<link[^>]+rel=["']apple-touch-icon(?:-precomposed)?["'][^>]*href=["']([^"']+)["']/i)
     || html.match(/<link[^>]+href=["']([^"']+)["'][^>]*rel=["']apple-touch-icon(?:-precomposed)?["']/i);
   if (appleMatch) {
-    try { return new URL(appleMatch[1], baseUrl).href; } catch {}
+    try {
+      const url = new URL(appleMatch[1], baseUrl).href;
+      if (!isGenericFavicon(url)) return url;
+    } catch {}
   }
 
-  // 2. <link rel="icon"> with a size hint — pick largest
+  // 2. <link rel="icon"> — skip generic platform placeholders
   const iconMatches = [...html.matchAll(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/gi)];
-  if (iconMatches.length) {
-    try { return new URL(iconMatches[iconMatches.length - 1][1], baseUrl).href; } catch {}
+  for (const m of iconMatches.reverse()) {
+    try {
+      const url = new URL(m[1], baseUrl).href;
+      if (!isGenericFavicon(url)) return url;
+    } catch {}
   }
 
-  // 3. Fallback: /favicon.ico
-  try { return new URL("/favicon.ico", baseUrl).href; } catch {}
+  // 3. og:image — Wix/Squarespace sites often set their club logo here
+  const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  if (ogMatch) {
+    try {
+      const url = new URL(ogMatch[1], baseUrl).href;
+      if (url.startsWith("http")) return url;
+    } catch {}
+  }
+
   return null;
 }
 

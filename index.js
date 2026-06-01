@@ -2804,6 +2804,31 @@ app.post("/portal/login", async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Public tenant chat page (QR code destination) ────────────────────────────
+app.get("/chat/:tenantId", async (req, res) => {
+  const tenantId = req.params.tenantId;
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("id, name, logo_url")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (!tenant) return res.status(404).send("Not found");
+
+  const name = (tenant.name || tenantId).replace(/"/g, "&quot;");
+  const avatarHtml = tenant.logo_url
+    ? `<img src="${tenant.logo_url}" alt="${name}" />`
+    : `<svg viewBox="0 0 48 48" fill="none" style="width:100%;height:100%;"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>`;
+
+  const html = fs.readFileSync(path.join(__dirname, "views", "chat-tenant.html"), "utf8")
+    .replace(/TENANT_ID_PLACEHOLDER/g,   tenantId)
+    .replace(/TENANT_NAME_PLACEHOLDER/g, name)
+    .replace("AVATAR_PLACEHOLDER",       avatarHtml);
+
+  res.setHeader("Cache-Control", "no-store");
+  res.send(html);
+});
+
 app.get("/portal/dashboard", requireTenant, async (req, res) => {
   try {
     const tid   = req.tenant.tenantId   || "";

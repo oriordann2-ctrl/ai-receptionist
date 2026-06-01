@@ -183,7 +183,10 @@ function buildEboAvailabilitySummary(bookings, dateLabel) {
 const EBO_TRIGGER = /\b(court|book|available|availab|free slot|session|tennis|reserve|tonight|today|tomorrow|when|slot|time|play)\b/i;
 
 async function maybeGetEboContext(tenantId, message) {
-  if (!EBO_CONFIG[tenantId] || !EBO_TRIGGER.test(message)) return null;
+  const hasConfig  = !!EBO_CONFIG[tenantId];
+  const hasKeyword = EBO_TRIGGER.test(message);
+  console.log(`[EBO] maybeGetEboContext tenantId="${tenantId}" hasConfig=${hasConfig} hasKeyword=${hasKeyword}`);
+  if (!hasConfig || !hasKeyword) return null;
 
   try {
     const now = new Date();

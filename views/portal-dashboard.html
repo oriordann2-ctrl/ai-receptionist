@@ -162,6 +162,11 @@
 
   <div class="page">
 
+    <div id="newBanner" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+      <div style="font-size:15px;font-weight:700;color:#1e40af;margin-bottom:4px;">🎉 Welcome! Your assistant is being set up.</div>
+      <div style="font-size:13px;color:#3b82f6;line-height:1.5;">We're training it on your website right now — this takes 2–3 minutes. Your embed code is below and a copy has been sent to your email. Refresh this page in a few minutes to see your pages listed.</div>
+    </div>
+
     <div class="status-banner">
       <div class="status-dot"></div>
       <div class="status-text" id="statusText">Your assistant is live and answering questions.</div>
@@ -208,6 +213,13 @@
 
     // ── Load tenant info ───────────────────────────────────────────────────
     async function init() {
+      // Show welcome banner for new signups
+      if (new URLSearchParams(location.search).get("new") === "1") {
+        document.getElementById("newBanner").style.display = "block";
+        // Clean URL without reloading
+        history.replaceState({}, "", "/portal/dashboard");
+      }
+
       try {
         const res = await fetch("/api/portal/me");
         if (!res.ok) { window.location.href = "/portal"; return; }

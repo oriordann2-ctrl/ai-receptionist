@@ -403,9 +403,7 @@
         const data = await res.json();
 
         if (data.success) {
-          document.getElementById("successEmail").textContent = email;
-          document.getElementById("formState").style.display = "none";
-          document.getElementById("successState").style.display = "block";
+          window.location.href = "/portal/dashboard?new=1";
         } else {
           errorDiv.textContent = data.error || "Something went wrong. Please try again.";
           submitBtn.disabled = false;

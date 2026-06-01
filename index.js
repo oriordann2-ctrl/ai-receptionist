@@ -2731,6 +2731,12 @@ app.post("/chat", async (req, res) => {
       if (tenantData?.name) tenantDisplayName = tenantData.name;
     } catch {}
 
+    // General mode tenants don't collect personal data — skip consent gate
+    if (effectiveMode === "general") {
+      const convo = ensureConversation(userId);
+      convo.consentGiven = true;
+    }
+
     if (!userId || !message) {
       return res.status(400).json({ error: "userId and message are required" });
     }

@@ -2804,9 +2804,17 @@ app.post("/portal/login", async (req, res) => {
 
 app.get("/portal/dashboard", requireTenant, (req, res) => {
   try {
+    const tid   = req.tenant.tenantId   || "";
+    const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
+    const embedCode = `&lt;script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${tname}"&gt;&lt;/script&gt;`;
+
     const html = fs.readFileSync(path.join(__dirname, "views", "portal-dashboard.html"), "utf8")
-      .replace(/\bTENANT_ID_PLACEHOLDER\b/g,   req.tenant.tenantId   || "")
-      .replace(/\bTENANT_NAME_PLACEHOLDER\b/g, (req.tenant.tenantName || req.tenant.tenantId || "").replace(/`/g, "\\`"));
+      .replace(/TENANT_ID_PLACEHOLDER/g,   tid)
+      .replace(/TENANT_NAME_PLACEHOLDER/g, tname)
+      .replace(/EMBED_CODE_PLACEHOLDER/g,  embedCode);
+
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.send(html);
   } catch (err) {
     console.error("[portal-dashboard] Failed to render:", err.message);

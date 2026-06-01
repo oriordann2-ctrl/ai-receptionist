@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sprimal Portal</title>
+  <title>TENANT_NAME_PLACEHOLDER — Sprimal Portal</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; min-height: 100vh; }
@@ -225,7 +225,7 @@
     Sprimal
   </a>
   <div class="nav-right">
-    <span class="nav-club" id="navClub"></span>
+    <span class="nav-club" id="navClub">TENANT_NAME_PLACEHOLDER</span>
     <form action="/portal/logout" method="POST" style="margin:0;padding:0;">
       <button type="submit" class="btn-signout">Sign out</button>
     </form>
@@ -247,7 +247,7 @@
     <div class="card-title">Embed on your website</div>
     <div class="card-sub">Paste this one line of code just before the <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px;">&lt;/body&gt;</code> tag on your website.</div>
     <div class="embed-row">
-      <div class="embed-code-box" id="embedCode">Loading…</div>
+      <div class="embed-code-box" id="embedCode">EMBED_CODE_PLACEHOLDER</div>
       <button class="btn-copy" onclick="copyEmbed()">Copy</button>
     </div>
     <p class="embed-hint">Works with Wix, WordPress, Squarespace, or any custom site. Paste once — appears on every page.</p>
@@ -296,24 +296,18 @@
 
   // ── Init ────────────────────────────────────────────────────────────────────
   function init() {
-    isNewSignup = new URLSearchParams(location.search).get("new") === "1";
-    if (isNewSignup) {
-      document.getElementById("newBanner").style.display = "block";
-      history.replaceState({}, "", "/portal/dashboard");
-    }
-
-    document.getElementById("navClub").textContent = tenantName;
-    document.title = tenantName + " — Sprimal Portal";
-    document.getElementById("embedCode").textContent =
-      '<script src="https://app.sprimal.com/widget.js"'
-      + ' data-club-id="' + tenantId + '"'
-      + ' data-club-name="' + tenantName + '"><' + '/script>';
-
-    if (isNewSignup) {
-      showProgressUI(0, 0);
-      schedulePoll();
-    } else {
-      loadDocuments();
+    try {
+      isNewSignup = new URLSearchParams(location.search).get("new") === "1";
+      if (isNewSignup) {
+        document.getElementById("newBanner").style.display = "block";
+        history.replaceState({}, "", "/portal/dashboard");
+        showProgressUI(0, 0);
+        schedulePoll();
+      } else {
+        loadDocuments();
+      }
+    } catch(e) {
+      console.error("init error:", e);
     }
   }
 

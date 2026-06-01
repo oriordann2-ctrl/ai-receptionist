@@ -102,6 +102,113 @@ function saveKnowledgeDocs(docs) {
   fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");
 }
 
+// ── EBO (ebookingonline.net) Court Booking Integration ────────────────────────
+const EBO_BASE = "https://ebookingonline.net/api";
+
+// Map Sprimal tenant ID → EBO credentials
+const EBO_CONFIG = {
+  "monkstown-tennis-club": {
+    clubId:   process.env.EBO_MONKSTOWN_CLUB_ID   || "304",
+    username: process.env.EBO_MONKSTOWN_USERNAME,
+    password: process.env.EBO_MONKSTOWN_PASSWORD
+  }
+};
+
+// In-memory token cache: { [tenantId]: { token, expiresAt } }
+const eboTokenCache = {};
+
+async function getEboToken(tenantId) {
+  const cfg = EBO_CONFIG[tenantId];
+  if (!cfg || !cfg.username || !cfg.password) return null;
+
+  const cached = eboTokenCache[tenantId];
+  if (cached && cached.expiresAt > Date.now() + 60000) return cached.token; // valid with 1-min buffer
+
+  const form = new URLSearchParams();
+  form.append("username", cfg.username);
+  form.append("password", cfg.password);
+
+  const resp = await fetch(`${EBO_BASE}/${cfg.clubId}/user/getToken`, {
+    method: "POST",
+    body: form
+  });
+  if (!resp.ok) throw new Error(`EBO getToken HTTP ${resp.status}`);
+
+  const data = await resp.json();
+  if (!data.token) throw new Error("EBO getToken: no token in response");
+
+  eboTokenCache[tenantId] = { token: data.token, expiresAt: Date.now() + 2.5 * 60 * 60 * 1000 };
+  console.log(`[EBO] Token refreshed for ${tenantId}`);
+  return data.token;
+}
+
+async function fetchEboBookings(tenantId, date, endDate) {
+  const cfg = EBO_CONFIG[tenantId];
+  if (!cfg) return [];
+  const token = await getEboToken(tenantId);
+  if (!token) return [];
+
+  const params = new URLSearchParams({ date, end_date: endDate || date, confirmed: "1", limit: "200" });
+  const resp = await fetch(`${EBO_BASE}/${cfg.clubId}/user/getBookings?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!resp.ok) throw new Error(`EBO getBookings HTTP ${resp.status}`);
+  const data = await resp.json();
+  return Array.isArray(data) ? data : [];
+}
+
+function buildEboAvailabilitySummary(bookings, dateLabel) {
+  if (!bookings.length) {
+    return `${dateLabel}: No bookings found — courts appear to be free all day.`;
+  }
+
+  // Group booked times by court
+  const courts = {};
+  bookings.forEach(b => {
+    const id = b.court_id;
+    if (!courts[id]) courts[id] = [];
+    const t = new Date(b.time);
+    const hhmm = t.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit", hour12: false });
+    courts[id].push(hhmm);
+  });
+
+  const lines = Object.entries(courts)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([id, times]) => `  Court ${id}: booked at ${times.sort().join(", ")}`);
+
+  return `${dateLabel}:\n${lines.join("\n")}\n  (Any slot not listed above is available — courts run 07:00–22:00 in 1-hour slots)`;
+}
+
+// Keywords that trigger a live EBO lookup
+const EBO_TRIGGER = /\b(court|book|available|availab|free slot|session|tennis|reserve|tonight|today|tomorrow|when|slot|time|play)\b/i;
+
+async function maybeGetEboContext(tenantId, message) {
+  if (!EBO_CONFIG[tenantId] || !EBO_TRIGGER.test(message)) return null;
+
+  try {
+    const now = new Date();
+    const todayStr    = now.toISOString().slice(0, 10);
+    const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+
+    const [todayBookings, tomorrowBookings] = await Promise.all([
+      fetchEboBookings(tenantId, todayStr),
+      fetchEboBookings(tenantId, tomorrowStr)
+    ]);
+
+    const todayLabel    = `Today (${todayStr})`;
+    const tomorrowLabel = `Tomorrow (${tomorrowStr})`;
+
+    return "LIVE COURT BOOKINGS (use this to answer availability questions):\n"
+      + buildEboAvailabilitySummary(todayBookings, todayLabel)
+      + "\n\n"
+      + buildEboAvailabilitySummary(tomorrowBookings, tomorrowLabel);
+
+  } catch (err) {
+    console.error("[EBO] Context fetch error:", err.message);
+    return null; // fail silently — chatbot answers from KB only
+  }
+}
+
 // ── Helper: generate standardised stored filename from metadata ──────────────
 function generateStoredFilename(lender, documentType, effectiveDate, description, originalFilename) {
   const ext = path.extname(originalFilename) || "";
@@ -3886,33 +3993,39 @@ Use plain numbers where possible.
 
     } else if (effectiveMode === "general") {
 
-      // ── General mode: KB search first, Maeve reply as fallback ──────────────
-      const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId);
+      // ── General mode: KB search + optional live EBO court data (in parallel) ─
+      const [relevantDocs, eboContext] = await Promise.all([
+        findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId),
+        maybeGetEboContext(tenantId, trimmedMessage)
+      ]);
 
+      // Build combined context: live EBO data first, then KB docs
+      const contextParts = [];
+      if (eboContext) contextParts.push(eboContext);
       if (relevantDocs.length > 0) {
-        const context = relevantDocs
-          .map(doc => `Source: ${doc.filename}\n${doc.text}`)
-          .join("\n\n");
+        contextParts.push("KNOWLEDGE BASE:\n" + relevantDocs.map(doc => `Source: ${doc.filename}\n${doc.text}`).join("\n\n"));
+      }
+
+      if (contextParts.length > 0) {
+        const context = contextParts.join("\n\n---\n\n");
 
         try {
+          const sysPrompt = eboContext
+            ? "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE. Keep answers friendly and concise."
+            : "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". Answer ONLY using the provided knowledge base context. If the answer is not clearly in the context, say you do not know. Keep answers friendly and concise.";
+
           const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
-              {
-                role: "system",
-                content:
-                  "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". Answer ONLY using the provided knowledge base context. If the answer is not clearly in the context, say you do not know. Keep answers friendly and concise."
-              },
-              {
-                role: "user",
-                content: `Knowledge base:\n${context}\n\nQuestion:\n${trimmedMessage}`
-              }
+              { role: "system", content: sysPrompt },
+              { role: "user",   content: `Context:\n${context}\n\nQuestion:\n${trimmedMessage}` }
             ],
             temperature: 0.2
           });
 
           const kbReply = stripHtml(completion.choices[0].message.content);
-          const kbUnsure = /i do not know|don't know|not in the|no information|cannot find|not sure/i.test(kbReply);
+          // Only treat as "unsure" if we don't have live EBO data driving the answer
+          const kbUnsure = !eboContext && /i do not know|don't know|not in the|no information|cannot find|not sure/i.test(kbReply);
 
           if (!kbUnsure) {
             result.reply = kbReply;

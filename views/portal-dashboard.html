@@ -224,6 +224,7 @@
     </svg>
     Sprimal
   </a>
+  <span style="font-size:10px;color:#cbd5e1;margin-left:6px;">v6</span>
   <div class="nav-right">
     <span class="nav-club" id="navClub">TENANT_NAME_PLACEHOLDER</span>
     <form action="/portal/logout" method="POST" style="margin:0;padding:0;">
@@ -392,7 +393,9 @@
     document.getElementById("docList").innerHTML =
       '<div class="empty-state" style="margin-top:24px;">Loading your documents…</div>';
     try {
-      const res  = await fetch("/api/portal/documents");
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 10000);
+      const res  = await fetch("/api/portal/documents", { signal: controller.signal });
       const docs = await res.json();
 
       const websites  = docs.filter(d => d.document_type === "Website Content");
@@ -456,8 +459,9 @@
       }
 
       document.getElementById("docList").innerHTML = html;
-    } catch {
-      document.getElementById("docList").innerHTML = '<div class="empty-state" style="margin-top:24px;">Could not load documents.</div>';
+    } catch(e) {
+      const msg = e.name === "AbortError" ? "Timed out loading documents — please refresh." : "Could not load documents.";
+      document.getElementById("docList").innerHTML = '<div class="empty-state" style="margin-top:24px;">' + msg + '</div>';
     }
   }
 

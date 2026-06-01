@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprimal — Portal Login</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      background: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+    .logo-text {
+      font-size: 22px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.3px;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: #64748b;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 7px;
+    }
+    input {
+      width: 100%;
+      padding: 13px 15px;
+      font-size: 15px;
+      font-family: inherit;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      background: white;
+      color: #0f172a;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      margin-bottom: 20px;
+    }
+    input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    input::placeholder { color: #94a3b8; }
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      border: none;
+      border-radius: 10px;
+      background: #1e40af;
+      color: white;
+      cursor: pointer;
+      letter-spacing: 0.2px;
+      transition: background 0.15s;
+      box-shadow: 0 2px 8px rgba(30,64,175,0.25);
+    }
+    button:hover { background: #1d3a9e; }
+    button:disabled { background: #93c5fd; cursor: not-allowed; }
+    .error {
+      color: #dc2626;
+      font-size: 13px;
+      margin-top: 14px;
+      font-weight: 500;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+        <rect width="48" height="48" rx="11" fill="#4f76f6"/>
+        <line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="24" cy="11" r="4.5" fill="white"/>
+        <circle cx="38.5" cy="36" r="4.5" fill="white"/>
+        <circle cx="9.5" cy="36" r="4.5" fill="white"/>
+      </svg>
+      <span class="logo-text">Sprimal</span>
+    </div>
+
+    <h1>Welcome back</h1>
+    <p class="subtitle">Enter the email you signed up with to access your portal.</p>
+
+    <label for="email">Email address</label>
+    <input id="email" type="email" placeholder="you@yourclub.com" autofocus />
+
+    <button id="btn" onclick="login()">Continue →</button>
+    <div id="error" class="error"></div>
+  </div>
+
+  <script>
+    // Show error from URL param
+    const params = new URLSearchParams(location.search);
+    if (params.get("error") === "notfound") {
+      document.getElementById("error").textContent = "No account found with that email. Please check and try again.";
+    }
+
+    async function login() {
+      const email = document.getElementById("email").value.trim();
+      const errorDiv = document.getElementById("error");
+      const btn = document.getElementById("btn");
+      errorDiv.textContent = "";
+
+      if (!email) { errorDiv.textContent = "Please enter your email address."; return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errorDiv.textContent = "Please enter a valid email address."; return; }
+
+      btn.disabled = true;
+      btn.textContent = "Checking…";
+
+      try {
+        const res = await fetch("/portal/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = "/portal/dashboard";
+        } else {
+          errorDiv.textContent = data.error || "No account found with that email.";
+          btn.disabled = false;
+          btn.textContent = "Continue →";
+        }
+      } catch {
+        errorDiv.textContent = "Something went wrong. Please try again.";
+        btn.disabled = false;
+        btn.textContent = "Continue →";
+      }
+    }
+
+    document.getElementById("email").addEventListener("keypress", e => {
+      if (e.key === "Enter") login();
+    });
+  </script>
+</body>
+</html>

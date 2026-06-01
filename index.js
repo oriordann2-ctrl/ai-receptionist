@@ -194,19 +194,27 @@ async function maybeGetEboContext(tenantId, message) {
   if (!EBO_CONFIG[tenantId] || !EBO_TRIGGER.test(message)) return null;
 
   try {
+    // Use Irish time (Europe/Dublin) for date calculation so midnight doesn't
+    // roll us onto the wrong day when the Render server is in UTC.
     const now = new Date();
-    const todayStr    = now.toISOString().slice(0, 10);
-    const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+    const irishDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(now); // "YYYY-MM-DD"
+    const tomorrowDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" })
+      .format(new Date(now.getTime() + 86400000));
 
     const [todayBookings, tomorrowBookings] = await Promise.all([
-      fetchEboBookings(tenantId, todayStr),
-      fetchEboBookings(tenantId, tomorrowStr)
+      fetchEboBookings(tenantId, irishDate),
+      fetchEboBookings(tenantId, tomorrowDate)
     ]);
 
-    const todayLabel    = `Today (${todayStr})`;
-    const tomorrowLabel = `Tomorrow (${tomorrowStr})`;
+    const todayLabel    = `Today (${irishDate})`;
+    const tomorrowLabel = `Tomorrow (${tomorrowDate})`;
 
-    return "LIVE COURT BOOKINGS (use this to answer availability questions):\n"
+    // Prepend the real date so the AI can't use a stale assumption
+    const humanDate = now.toLocaleDateString("en-IE", {
+      timeZone: "Europe/Dublin", weekday: "long", day: "numeric", month: "long", year: "numeric"
+    });
+
+    return `CURRENT DATE: ${humanDate}\n\nLIVE COURT BOOKINGS (use this to answer availability questions):\n`
       + buildEboAvailabilitySummary(todayBookings, todayLabel)
       + "\n\n"
       + buildEboAvailabilitySummary(tomorrowBookings, tomorrowLabel);

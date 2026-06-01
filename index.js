@@ -2816,7 +2816,7 @@ app.get("/portal/dashboard", requireTenant, (req, res) => {
 
 app.post("/portal/logout", (req, res) => {
   res.clearCookie("tenant_session");
-  res.json({ success: true });
+  res.redirect("/portal");
 });
 
 app.get("/api/portal/me", requireTenant, (req, res) => {

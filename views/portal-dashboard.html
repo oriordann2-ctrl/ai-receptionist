@@ -226,9 +226,13 @@
   </a>
   <div class="nav-right">
     <span class="nav-club" id="navClub"></span>
-    <button class="btn-signout" onclick="logout()">Sign out</button>
+    <form action="/portal/logout" method="POST" style="margin:0;padding:0;">
+      <button type="submit" class="btn-signout">Sign out</button>
+    </form>
   </div>
 </nav>
+
+<noscript><div style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;padding:14px 20px;font-size:14px;font-weight:600;text-align:center;">JavaScript is disabled or failed to load — please enable JavaScript and refresh.</div></noscript>
 
 <div class="page">
 
@@ -571,11 +575,6 @@
       btn.textContent = "Copied!";
       setTimeout(() => btn.textContent = "Copy", 2000);
     });
-  }
-
-  function logout() {
-    fetch("/portal/logout", { method: "POST" }).catch(() => {});
-    window.location.href = "/portal";
   }
 
   function escHtml(str) {

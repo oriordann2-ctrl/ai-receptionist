@@ -2802,16 +2802,26 @@ app.post("/portal/login", async (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/portal/dashboard", requireTenant, (req, res) => {
+app.get("/portal/dashboard", requireTenant, async (req, res) => {
   try {
     const tid   = req.tenant.tenantId   || "";
     const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
     const embedCode = `&lt;script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${tname}"&gt;&lt;/script&gt;`;
 
+    // ── Fetch documents server-side so the list renders without JS ────────────
+    const { data: docs } = await supabase
+      .from("documents")
+      .select("id, original_filename, stored_filename, storage_path, document_type, uploaded_at")
+      .eq("tenant_id", tid)
+      .order("uploaded_at", { ascending: false });
+
+    const docListHtml = buildDocListHtml(docs || [], tid);
+
     const html = fs.readFileSync(path.join(__dirname, "views", "portal-dashboard.html"), "utf8")
       .replace(/TENANT_ID_PLACEHOLDER/g,   tid)
       .replace(/TENANT_NAME_PLACEHOLDER/g, tname)
-      .replace(/EMBED_CODE_PLACEHOLDER/g,  embedCode);
+      .replace(/EMBED_CODE_PLACEHOLDER/g,  embedCode)
+      .replace("DOC_LIST_PLACEHOLDER",     docListHtml);
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
@@ -2821,6 +2831,65 @@ app.get("/portal/dashboard", requireTenant, (req, res) => {
     res.redirect("/portal");
   }
 });
+
+function buildDocListHtml(docs, tid) {
+  function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  const websites = docs.filter(d => d.document_type === "Website Content");
+  const uploaded = docs.filter(d => d.document_type !== "Website Content");
+
+  // Group website pages by domain
+  const domainMap = {};
+  websites.forEach(d => {
+    try {
+      const domain = new URL(d.stored_filename || d.storage_path || "").hostname;
+      if (!domainMap[domain]) domainMap[domain] = { domain, pages: 0, date: d.uploaded_at };
+      domainMap[domain].pages++;
+    } catch(e) {}
+  });
+
+  if (!websites.length && !uploaded.length) {
+    return '<div class="empty-state" style="margin-top:24px;color:#f59e0b;font-weight:500;">&#9203; Your assistant is still being set up &mdash; your website pages will appear here in a few minutes. Refresh this page to check.</div>';
+  }
+
+  let html = "";
+
+  // Imported websites
+  const domains = Object.values(domainMap);
+  if (domains.length) {
+    html += '<div class="section-label">Imported Websites</div>';
+    html += domains.map(site => {
+      const date = site.date ? new Date(site.date).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
+      return '<div class="website-row">'
+        + '<div class="website-row-left"><div class="globe-icon">&#127760;</div><div>'
+        + '<div class="website-domain">' + esc(site.domain) + '</div>'
+        + '<div class="website-meta">' + site.pages + ' page' + (site.pages !== 1 ? 's' : '') + ' &middot; Imported ' + date + '</div>'
+        + '</div></div>'
+        + '<button class="btn-remove-website" onclick="removeWebsite(\'' + esc(site.domain) + '\')">Remove Website</button>'
+        + '</div>';
+    }).join("");
+  }
+
+  // Uploaded documents
+  if (uploaded.length) {
+    html += '<div class="section-label" style="margin-top:' + (domains.length ? "24px" : "0") + '">Uploaded Documents</div>';
+    html += uploaded.map(doc => {
+      const ext = (doc.original_filename || "").split(".").pop().toLowerCase();
+      const badge = ext === "pdf"  ? '<span class="doc-type-badge badge-pdf">PDF</span>'
+                  : ext === "docx" ? '<span class="doc-type-badge badge-docx">DOCX</span>'
+                  : '<span class="doc-type-badge badge-txt">TXT</span>';
+      const date = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
+      return '<div class="doc-row" id="doc-' + esc(doc.id) + '">'
+        + badge
+        + '<div class="doc-info"><div class="doc-name">' + esc(doc.original_filename || "Untitled") + '</div>'
+        + '<div class="doc-meta">Uploaded ' + date + '</div></div>'
+        + '<button class="btn-delete" onclick="deleteDoc(\'' + esc(doc.id) + '\',\'' + esc(doc.original_filename||"") + '\')">Delete</button>'
+        + '</div>';
+    }).join("");
+  }
+
+  return html;
+}
 
 app.post("/portal/logout", (req, res) => {
   res.clearCookie("tenant_session");

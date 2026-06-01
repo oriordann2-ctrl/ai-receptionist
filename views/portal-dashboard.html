@@ -271,8 +271,8 @@
     </div>
     <div class="upload-status" id="uploadStatus"></div>
 
-    <!-- Document list / progress -->
-    <div id="docList"></div>
+    <!-- Document list — pre-rendered server-side, refreshed by JS after upload/delete -->
+    <div id="docList">DOC_LIST_PLACEHOLDER</div>
   </div>
 
   <!-- Test your assistant -->
@@ -308,11 +308,10 @@
       if (isNewSignup) {
         document.getElementById("newBanner").style.display = "block";
         history.replaceState({}, "", "/portal/dashboard");
-        showProgressUI(0, 0);
+        // Start polling — when docs arrive the server-rendered list will be replaced
         schedulePoll();
-      } else {
-        loadDocuments();
       }
+      // Document list is already server-rendered — no fetch needed on page load
     } catch(e) {
       document.getElementById("jsError").textContent = "Init error: " + e.message;
       document.getElementById("jsError").style.display = "block";

@@ -63,8 +63,9 @@
         var domainMap = {};
         websites.forEach(function(d) {
           try {
-            var domain = new URL(d.stored_filename || d.storage_path || "").hostname;
-            if (!domainMap[domain]) domainMap[domain] = { domain: domain, pages: 0, date: d.uploaded_at };
+            var pageUrl = d.stored_filename || d.storage_path || "";
+            var domain = new URL(pageUrl).hostname;
+            if (!domainMap[domain]) domainMap[domain] = { domain: domain, pages: 0, date: d.uploaded_at, sampleUrl: pageUrl };
             domainMap[domain].pages++;
           } catch(e) {}
         });
@@ -81,7 +82,8 @@
               + '<div class="website-domain">' + esc(site.domain) + '</div>'
               + '<div class="website-meta">' + site.pages + " page" + (site.pages !== 1 ? "s" : "") + " · Imported " + date + "</div>"
               + '</div></div>'
-              + '<button class="btn-remove-website" onclick="portalRemoveWebsite(\'' + esc(site.domain) + '\')">Remove Website</button>'
+              + '<button class="btn-reimport-website" onclick="portalReimportWebsite(\'' + esc(site.domain) + '\',\'' + esc(site.sampleUrl || ("https://" + site.domain)) + '\')">Re-import</button>'
+              + '<button class="btn-remove-website" onclick="portalRemoveWebsite(\'' + esc(site.domain) + '\')">Remove</button>'
               + '</div>';
           });
         }
@@ -154,6 +156,41 @@
       .then(function(data) {
         if (data.success) { loadDocuments(); }
         else { if (row) row.style.opacity = ""; alert("Failed to delete: " + (data.error || "unknown error")); }
+      });
+  };
+
+  // ── Re-import website ─────────────────────────────────────────────────────
+  window.portalReimportWebsite = function(domain, sampleUrl) {
+    if (!confirm("Re-import all pages from " + domain + "? This will add any new pages and may take 2–3 minutes.")) return;
+
+    // Derive root URL from sampleUrl
+    var rootUrl;
+    try { rootUrl = new URL(sampleUrl).origin; } catch(e) { rootUrl = "https://" + domain; }
+
+    var status = document.getElementById("uploadStatus");
+    status.className = "upload-status loading";
+    status.textContent = "⏳ Re-importing " + domain + "… this takes 2–3 minutes. You can leave this page.";
+    status.style.display = "block";
+
+    fetch("/api/portal/import-website", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: rootUrl })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.success) {
+          status.className = "upload-status success";
+          status.textContent = "✅ Re-import started — refreshing in 30 seconds…";
+          setTimeout(function() { loadDocuments(); status.style.display = "none"; }, 30000);
+        } else {
+          status.className = "upload-status error";
+          status.textContent = "❌ " + (data.error || "Re-import failed.");
+        }
+      })
+      .catch(function() {
+        status.className = "upload-status error";
+        status.textContent = "❌ Re-import failed. Please try again.";
       });
   };
 

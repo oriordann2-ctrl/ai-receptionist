@@ -2403,7 +2403,7 @@ async function fetchSitemapUrls(rootUrl) {
   return urls;
 }
 
-async function crawlWebsite(rootUrl, maxPages = 40) {
+async function crawlWebsite(rootUrl, maxPages = 100) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
 
@@ -2471,7 +2471,7 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
 
   try {
     console.log(`[import-website] Starting crawl of ${rootUrl}`);
-    const pages = await crawlWebsite(rootUrl, 40);
+    const pages = await crawlWebsite(rootUrl, 100);
     console.log(`[import-website] Crawled ${pages.length} pages`);
 
     let imported = 0;
@@ -2644,7 +2644,7 @@ app.post("/api/signup", async (req, res) => {
           console.error(`[signup] Logo extraction error for ${tenantId}:`, err.message);
         }
 
-        const pages = await crawlWebsite(website, 40);
+        const pages = await crawlWebsite(website, 100);
         console.log(`[signup] Crawled ${pages.length} pages for ${tenantId}`);
 
         for (const page of pages) {
@@ -3050,6 +3050,55 @@ app.delete("/api/portal/website", requireTenant, async (req, res) => {
     console.error("[portal-delete-website] Error:", err.message);
     res.status(500).json({ error: "Failed to remove website." });
   }
+});
+
+// POST /api/portal/import-website — re-crawl a website URL for this tenant
+app.post("/api/portal/import-website", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: "url required" });
+
+  let rootUrl;
+  try { rootUrl = new URL(url).href.replace(/\/$/, ""); }
+  catch { return res.status(400).json({ error: "Invalid URL" }); }
+
+  // Respond immediately — crawl runs in background
+  res.json({ success: true, message: "Import started — this takes 2–3 minutes." });
+
+  (async () => {
+    try {
+      console.log(`[portal-import] Starting crawl for ${tenantId}: ${rootUrl}`);
+      const pages = await crawlWebsite(rootUrl, 100);
+      console.log(`[portal-import] Crawled ${pages.length} pages for ${tenantId}`);
+      let imported = 0;
+      for (const page of pages) {
+        try {
+          const { data: doc, error: insertError } = await supabase
+            .from("documents")
+            .insert({
+              original_filename: page.title,
+              stored_filename:   page.url,
+              mimetype:          "text/html",
+              document_type:     "Website Content",
+              tags:              ["website"],
+              metadata_complete: true,
+              junior_accessible: true,
+              storage_path:      page.url,
+              tenant_id:         tenantId
+            })
+            .select().single();
+          if (insertError) { console.error(`[portal-import] Insert error:`, insertError.message); continue; }
+          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId);
+          imported++;
+        } catch (err) {
+          console.error(`[portal-import] Page error:`, err.message);
+        }
+      }
+      console.log(`[portal-import] Done — imported ${imported} pages for ${tenantId}`);
+    } catch (err) {
+      console.error(`[portal-import] Crawl failed for ${tenantId}:`, err.message);
+    }
+  })();
 });
 
 // GET /api/portal/status — returns doc + chunk counts for the tenant (used by dashboard progress UI)

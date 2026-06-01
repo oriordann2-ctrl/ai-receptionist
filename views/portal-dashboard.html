@@ -149,6 +149,44 @@
 
     .empty-state { text-align: center; padding: 24px 0; font-size: 14px; color: #9ca3af; }
 
+    /* ── Setup progress ── */
+    .setup-progress {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 12px;
+      padding: 24px 24px 20px;
+      margin-top: 24px;
+    }
+    .setup-title {
+      font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .setup-steps { display: flex; flex-direction: column; gap: 10px; }
+    .setup-step {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 13px; color: #475569;
+    }
+    .step-icon {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .step-icon.waiting   { background: #e2e8f0; color: #94a3b8; }
+    .step-icon.active    { background: #dbeafe; }
+    .step-icon.done      { background: #dcfce7; }
+    .step-label { flex: 1; }
+    .step-label.active   { color: #1e40af; font-weight: 600; }
+    .step-label.done     { color: #15803d; font-weight: 600; }
+    .step-label.waiting  { color: #94a3b8; }
+
+    /* spinning animation for active step */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin-ring {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid #93c5fd; border-top-color: #2563eb;
+      animation: spin 0.9s linear infinite; display: inline-block;
+    }
+
     /* ── Test assistant ── */
     .test-area { display: flex; gap: 10px; margin-bottom: 16px; }
     .test-input {
@@ -227,8 +265,8 @@
     </div>
     <div class="upload-status" id="uploadStatus"></div>
 
-    <!-- Document list -->
-    <div id="docList"><div class="empty-state" style="margin-top:24px;">Loading your documents…</div></div>
+    <!-- Document list / progress -->
+    <div id="docList"></div>
   </div>
 
   <!-- Test your assistant -->
@@ -247,10 +285,14 @@
 <script>
   let tenantId = "";
   let tenantName = "";
+  let isNewSignup = false;
+  let pollTimer   = null;
+  let pollCount   = 0;
 
   // ── Init ────────────────────────────────────────────────────────────────────
   async function init() {
-    if (new URLSearchParams(location.search).get("new") === "1") {
+    isNewSignup = new URLSearchParams(location.search).get("new") === "1";
+    if (isNewSignup) {
       document.getElementById("newBanner").style.display = "block";
       history.replaceState({}, "", "/portal/dashboard");
     }
@@ -265,14 +307,99 @@
       document.title = tenantName + " — Sprimal Portal";
       document.getElementById("embedCode").textContent =
         `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}" data-club-name="${tenantName}"><\/script>`;
-      loadDocuments();
+
+      if (isNewSignup) {
+        // Show progress UI immediately, then start polling
+        showProgressUI(0, 0);
+        schedulePoll();
+      } else {
+        loadDocuments();
+      }
     } catch {
       window.location.href = "/portal";
     }
   }
 
+  // ── Progress UI ─────────────────────────────────────────────────────────────
+  function showProgressUI(docCount, chunkCount) {
+    // Derive step state from counts
+    // Step 1: crawling  — always starts immediately
+    // Step 2: processing pages — once docCount > 0
+    // Step 3: building KB — once chunkCount > 0
+    const s1 = docCount === 0 && chunkCount === 0 ? "active" : "done";
+    const s2 = docCount === 0 ? "waiting" : chunkCount === 0 ? "active" : "done";
+    const s3 = chunkCount === 0 ? "waiting" : "active";
+
+    function stepIcon(state, emoji) {
+      if (state === "done")    return `<div class="step-icon done">✓</div>`;
+      if (state === "active")  return `<div class="step-icon active"><span class="spin-ring"></span></div>`;
+      return `<div class="step-icon waiting">${emoji}</div>`;
+    }
+
+    const html = `
+      <div class="setup-progress">
+        <div class="setup-title">
+          <span class="spin-ring"></span>
+          Setting up your assistant — this takes 2–3 minutes…
+        </div>
+        <div class="setup-steps">
+          <div class="setup-step">
+            ${stepIcon(s1, "🌐")}
+            <span class="step-label ${s1}">Crawling your website &amp; discovering pages</span>
+          </div>
+          <div class="setup-step">
+            ${stepIcon(s2, "📄")}
+            <span class="step-label ${s2}">Reading and processing pages${docCount > 0 ? " (" + docCount + " found)" : ""}</span>
+          </div>
+          <div class="setup-step">
+            ${stepIcon(s3, "🧠")}
+            <span class="step-label ${s3}">Building knowledge base${chunkCount > 0 ? " (" + chunkCount + " chunks ready)" : ""}</span>
+          </div>
+        </div>
+        <p style="font-size:12px;color:#64748b;margin-top:16px;">
+          The page will update automatically when your assistant is ready.
+        </p>
+      </div>`;
+    document.getElementById("docList").innerHTML = html;
+  }
+
+  // ── Polling ─────────────────────────────────────────────────────────────────
+  function schedulePoll() {
+    // Poll quickly at first (8 s), slow down after 2 min (20 s), stop after 8 min
+    const delay = pollCount < 15 ? 8000 : 20000;
+    pollTimer = setTimeout(pollStatus, delay);
+  }
+
+  async function pollStatus() {
+    pollCount++;
+    try {
+      const res  = await fetch("/api/portal/status");
+      const data = await res.json();
+      const { docCount, chunkCount } = data;
+
+      if (docCount > 0 && chunkCount > 0) {
+        // Docs are ready — hide banner, load real doc list
+        document.getElementById("newBanner").style.display = "none";
+        isNewSignup = false;
+        loadDocuments();
+        return; // stop polling
+      }
+
+      // Still in progress — update progress UI and keep polling
+      showProgressUI(docCount, chunkCount);
+
+      // Give up showing progress after ~8 minutes (60 polls)
+      if (pollCount < 60) schedulePoll();
+      else loadDocuments(); // fall back to normal load
+    } catch {
+      if (pollCount < 60) schedulePoll();
+    }
+  }
+
   // ── Load & render documents ─────────────────────────────────────────────────
   async function loadDocuments() {
+    document.getElementById("docList").innerHTML =
+      '<div class="empty-state" style="margin-top:24px;">Loading your documents…</div>';
     try {
       const res  = await fetch("/api/portal/documents");
       const docs = await res.json();

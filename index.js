@@ -2940,6 +2940,28 @@ app.delete("/api/portal/website", requireTenant, async (req, res) => {
   }
 });
 
+// GET /api/portal/status — returns doc + chunk counts for the tenant (used by dashboard progress UI)
+app.get("/api/portal/status", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+
+    const [{ count: docCount }, { count: chunkCount }, { data: tenantRow }] = await Promise.all([
+      supabase.from("documents").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+      supabase.from("knowledge_chunks").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+      supabase.from("tenants").select("status").eq("id", tenantId).maybeSingle()
+    ]);
+
+    res.json({
+      docCount:     docCount   || 0,
+      chunkCount:   chunkCount || 0,
+      tenantStatus: tenantRow?.status || null
+    });
+  } catch (err) {
+    console.error("[portal-status] Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch status." });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Public tenant config — widget fetches this on load ───────────────────────
 app.get("/api/tenant-config/:tenantId", async (req, res) => {

@@ -4469,34 +4469,39 @@ async function emailLeadQualification(answers, scoring) {
 
   const subject = `${emoji} ${label} LEAD — ${answers.customerName || "New enquiry"}`;
 
+  const isUnknown = scoring.score === "unknown";
+  const fmt = (n) => n != null ? `€${Number(n).toLocaleString("en-IE")}` : "Not collected";
+  const fmtPct = (n) => n != null ? `${Number(n).toFixed(1)}%` : "N/A";
+  const fmtX   = (n) => n != null ? `${Number(n).toFixed(2)}x` : "N/A";
+
   const text =
-`${emoji} ${label} LEAD — ${scoring.score === "hot" ? "FOLLOW UP NOW" : "FOLLOW UP RECOMMENDED"}
+`${emoji} ${label} LEAD — ${scoring.score === "hot" ? "FOLLOW UP NOW" : isUnknown ? "INCOMPLETE ENQUIRY" : "FOLLOW UP RECOMMENDED"}
 
 Name:           ${answers.customerName   || "Not provided"}
 Phone:          ${answers.customerPhone  || "Not provided"}
 Referred by:    ${answers.referralSource || "Not provided"}
-Email:          ${answers.customerEmail || "Not provided"}
+Email:          ${answers.customerEmail  || "Not provided"}
 
 MORTGAGE DETAILS
 ──────────────────────────────────────────
-Buyer type:     ${answers.buyerType}
-Property price: €${scoring.propertyPrice?.toLocaleString("en-IE")}
-Deposit:        €${scoring.deposit?.toLocaleString("en-IE")}
-Required loan:  €${scoring.loanRequired?.toLocaleString("en-IE")}
-Annual income:  €${scoring.income?.toLocaleString("en-IE")}
-LTV:            ${scoring.ltv}%  (limit: ${scoring.maxLTV}%)
-LTI:            ${scoring.lti}x  (limit: ${scoring.maxLTI}x)
-Employment:     ${answers.employmentType}
-Credit history: ${answers.creditHistory}
-Existing debts: ${answers.existingDebts || "None"}
+Buyer type:     ${answers.buyerType      || "Not collected"}
+Property price: ${fmt(scoring.propertyPrice)}
+Deposit:        ${fmt(scoring.deposit)}
+Required loan:  ${fmt(scoring.loanRequired)}
+Annual income:  ${fmt(scoring.income)}
+LTV:            ${fmtPct(scoring.ltv)}  (limit: ${fmtPct(scoring.maxLTV)})
+LTI:            ${fmtX(scoring.lti)}  (limit: ${fmtX(scoring.maxLTI)})
+Employment:     ${answers.employmentType || "Not collected"}
+Credit history: ${answers.creditHistory  || "Not collected"}
+Existing debts: ${answers.existingDebts  || "None"}
 
 STRENGTHS
 ──────────────────────────────────────────
-${scoring.strengths.map(s => `• ${s}`).join("\n") || "None identified"}
+${(scoring.strengths || []).map(s => `• ${s}`).join("\n") || "None identified"}
 
 ISSUES
 ──────────────────────────────────────────
-${scoring.issues.map(i => `• ${i}`).join("\n") || "None"}
+${(scoring.issues || []).map(i => `• ${i}`).join("\n") || (isUnknown ? "Insufficient data to fully score" : "None")}
 
 SCORE: ${emoji} ${label}
 ──────────────────────────────────────────

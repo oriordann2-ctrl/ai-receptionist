@@ -2803,7 +2803,15 @@ app.post("/portal/login", async (req, res) => {
 });
 
 app.get("/portal/dashboard", requireTenant, (req, res) => {
-  res.sendFile(path.join(__dirname, "views", "portal-dashboard.html"));
+  try {
+    const html = fs.readFileSync(path.join(__dirname, "views", "portal-dashboard.html"), "utf8")
+      .replace(/\bTENANT_ID_PLACEHOLDER\b/g,   req.tenant.tenantId   || "")
+      .replace(/\bTENANT_NAME_PLACEHOLDER\b/g, (req.tenant.tenantName || req.tenant.tenantId || "").replace(/`/g, "\\`"));
+    res.send(html);
+  } catch (err) {
+    console.error("[portal-dashboard] Failed to render:", err.message);
+    res.redirect("/portal");
+  }
 });
 
 app.post("/portal/logout", (req, res) => {

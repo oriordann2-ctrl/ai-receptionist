@@ -152,13 +152,13 @@ async function getEboToken(tenantId) {
   return eboTokenInflight[tenantId];
 }
 
-async function fetchEboBookings(tenantId, date, endDate) {
+async function fetchEboBookings(tenantId, date, endDate, limit = 200) {
   const cfg = EBO_CONFIG[tenantId];
   if (!cfg) return [];
   const token = await getEboToken(tenantId);
   if (!token) return [];
 
-  const params = new URLSearchParams({ date, end_date: endDate || date, confirmed: "1", limit: "200" });
+  const params = new URLSearchParams({ date, end_date: endDate || date, confirmed: "1", limit: String(limit) });
   const resp = await fetch(`${EBO_BASE}/${cfg.clubId}/user/getBookings?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -245,6 +245,187 @@ async function maybeGetEboContext(tenantId, message) {
     console.error("[EBO] Context fetch error:", err.message);
     return null; // fail silently — chatbot answers from KB only
   }
+}
+
+// ── EBO Personal Bookings — Email OTP verification ───────────────────────────
+const eboOtpStore    = {}; // { [email]: { code, expiresAt, membershipNumber, memberName } }
+const eboMemberCache = {}; // { [tenantId]: { members: [], cachedAt } }
+
+async function getAllEboMembers(tenantId) {
+  const cfg = EBO_CONFIG[tenantId];
+  if (!cfg) return [];
+
+  const cached = eboMemberCache[tenantId];
+  if (cached && Date.now() - cached.cachedAt < 30 * 60 * 1000) return cached.members;
+
+  const token = await getEboToken(tenantId);
+  if (!token) return [];
+
+  const resp = await fetch(`${EBO_BASE}/${cfg.clubId}/user/listMembers?active=true&limit=5000`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!resp.ok) throw new Error(`EBO listMembers HTTP ${resp.status}`);
+  const data = await resp.json();
+  const members = Array.isArray(data) ? data : [];
+  eboMemberCache[tenantId] = { members, cachedAt: Date.now() };
+  console.log(`[EBO] Cached ${members.length} members for ${tenantId}`);
+  return members;
+}
+
+async function lookupEboMemberByEmail(tenantId, email) {
+  const members = await getAllEboMembers(tenantId);
+  const norm = email.toLowerCase().trim();
+  return members.find(m => m.email && m.email.toLowerCase().trim() === norm) || null;
+}
+
+async function sendEboOtp(toEmail, firstName, code, clubName) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EBO OTP] RESEND_API_KEY not set — skipping OTP email");
+    return;
+  }
+  const resp = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from:    "Maeve <maeve@sprimal.com>",
+      to:      [toEmail],
+      subject: `Your ${clubName} verification code`,
+      text:    `Hi ${firstName},\n\nYour verification code is:\n\n${code}\n\nThis code expires in 10 minutes. If you didn't request this, you can ignore this email.\n\nMaeve`
+    })
+  });
+  if (!resp.ok) {
+    const body = await resp.text();
+    console.error(`[EBO OTP] Email failed: ${resp.status} — ${body}`);
+  } else {
+    console.log(`[EBO OTP] Code sent to ${toEmail}`);
+  }
+}
+
+async function fetchMemberPersonalBookings(tenantId, membershipNumber, memberName, clubName) {
+  const cfg = EBO_CONFIG[tenantId];
+  if (!cfg) return "Sorry, the booking system isn't available right now.";
+
+  const now = new Date();
+  const fromDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(now);
+  const toDate   = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" })
+    .format(new Date(now.getTime() + 30 * 86400000));
+
+  const bookings = await fetchEboBookings(tenantId, fromDate, toDate, 1000);
+
+  const mine = bookings.filter(b =>
+    Array.isArray(b.bookedMembers) &&
+    b.bookedMembers.some(m => Number(m.membership_number) === Number(membershipNumber))
+  );
+
+  const firstName = (memberName || "").split(" ")[0] || "there";
+
+  if (!mine.length) {
+    return `Hi ${firstName} — I don't see any upcoming bookings for you in the next 30 days. You can make a booking through the ${clubName} booking page.`;
+  }
+
+  const slotMins = cfg.slotMinutes || 60;
+
+  function toHHMM(totalMins) {
+    return String(Math.floor(totalMins / 60)).padStart(2, "0") + ":" + String(totalMins % 60).padStart(2, "0");
+  }
+  function fmtDate(timeStr) {
+    // "2026-06-05 18:00:00" → "Friday 5 June"
+    const d = new Date(timeStr.slice(0, 10) + "T12:00:00Z");
+    return d.toLocaleDateString("en-IE", { weekday: "long", day: "numeric", month: "long" });
+  }
+
+  const lines = mine.map(b => {
+    const start        = b.time.slice(11, 16); // "18:00"
+    const [hh, mm]     = start.split(":").map(Number);
+    const endTime      = toHHMM(hh * 60 + mm + slotMins);
+    return `• ${fmtDate(b.time)}, Court ${b.court_id}, ${start}–${endTime}`;
+  });
+
+  return `Here are your upcoming bookings, ${firstName}:\n\n${lines.join("\n")}\n\nTo cancel or change a booking please visit the ${clubName} booking page.`;
+}
+
+const EBO_PERSONAL_TRIGGER = /\b(my booking|my reserv|my session|my court|what.*i.*book|i.*book|have.*i.*got a court|do.*i.*have.*court|my upcoming|my schedule|my match|cancel.*my booking)\b/i;
+
+async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
+  if (!EBO_CONFIG[tenantId]) return { handled: false };
+
+  const isPersonalQuery = EBO_PERSONAL_TRIGGER.test(message);
+
+  // ── Mid-flow: waiting for email ──────────────────────────────────
+  if (convo.eboAuthStep === "awaiting_email") {
+    const email = message.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { handled: true, reply: "That doesn't look like a valid email address — could you try again?" };
+    }
+    try {
+      const member = await lookupEboMemberByEmail(tenantId, email);
+      if (!member) {
+        return { handled: true, reply: `I couldn't find a ${clubName} account with that email. Could you double-check it? Try the address you used when you joined the club.` };
+      }
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      eboOtpStore[email.toLowerCase()] = {
+        code,
+        expiresAt:        Date.now() + 10 * 60 * 1000,
+        membershipNumber: member.membership_number,
+        memberName:       `${member.first_name || ""} ${member.last_name || ""}`.trim()
+      };
+      await sendEboOtp(email, member.first_name || "there", code, clubName);
+      convo.eboAuthStep  = "awaiting_code";
+      convo.eboAuthEmail = email.toLowerCase();
+      return { handled: true, reply: `I've sent a 6-digit verification code to ${email} — what is it?` };
+    } catch (err) {
+      console.error("[EBO OTP] Lookup/send error:", err.message);
+      return { handled: true, reply: "Sorry, something went wrong looking up your account. Please try again in a moment." };
+    }
+  }
+
+  // ── Mid-flow: waiting for OTP code ───────────────────────────────
+  if (convo.eboAuthStep === "awaiting_code") {
+    const entered = message.trim().replace(/\s+/g, "");
+    const stored  = convo.eboAuthEmail && eboOtpStore[convo.eboAuthEmail];
+
+    if (!stored || Date.now() > stored.expiresAt) {
+      delete eboOtpStore[convo.eboAuthEmail];
+      convo.eboAuthStep = "awaiting_email";
+      return { handled: true, reply: "That code has expired. What's your email address so I can send a fresh one?" };
+    }
+    if (entered !== stored.code) {
+      return { handled: true, reply: "That code doesn't match — please check the email and try again." };
+    }
+
+    // ✓ Verified
+    convo.eboAuthStep         = "verified";
+    convo.eboMembershipNumber = stored.membershipNumber;
+    convo.eboMemberName       = stored.memberName;
+    delete eboOtpStore[convo.eboAuthEmail];
+    console.log(`[EBO OTP] Verified: ${convo.eboMemberName} (${convo.eboMembershipNumber})`);
+
+    try {
+      const reply = await fetchMemberPersonalBookings(tenantId, stored.membershipNumber, stored.memberName, clubName);
+      return { handled: true, reply };
+    } catch (err) {
+      console.error("[EBO] Personal bookings error:", err.message);
+      return { handled: true, reply: `Verified! But I couldn't load your bookings just now — please try again in a moment.` };
+    }
+  }
+
+  // ── Already verified this session — re-ask for bookings ─────────
+  if (convo.eboAuthStep === "verified" && isPersonalQuery) {
+    try {
+      const reply = await fetchMemberPersonalBookings(tenantId, convo.eboMembershipNumber, convo.eboMemberName, clubName);
+      return { handled: true, reply };
+    } catch (err) {
+      return { handled: true, reply: "Sorry, I couldn't load your bookings right now — please try again." };
+    }
+  }
+
+  // ── New personal query — start the flow ─────────────────────────
+  if (isPersonalQuery) {
+    convo.eboAuthStep = "awaiting_email";
+    return { handled: true, reply: `Sure! To show your bookings I'll need to verify it's you first. What's the email address on your ${clubName} account?` };
+  }
+
+  return { handled: false };
 }
 
 // ── Helper: generate standardised stored filename from metadata ──────────────
@@ -1091,7 +1272,13 @@ function resetConversation(userId) {
     bookingType: null,
 
     mortgageStep: "start",
-    mortgageLeadId: null
+    mortgageLeadId: null,
+
+    // EBO personal booking auth
+    eboAuthStep:         null,  // null | "awaiting_email" | "awaiting_code" | "verified"
+    eboAuthEmail:        null,
+    eboMembershipNumber: null,
+    eboMemberName:       null
   };
 }
 
@@ -4031,7 +4218,13 @@ Use plain numbers where possible.
 
     } else if (effectiveMode === "general") {
 
-      // ── General mode: KB search + optional live EBO court data (in parallel) ─
+      // ── EBO personal booking auth flow (takes priority over KB/availability) ─
+      const eboPersonal = await handleEboPersonalFlow(convo, trimmedMessage, tenantId, tenantDisplayName || "club");
+      if (eboPersonal.handled) {
+        result.reply = eboPersonal.reply;
+      } else {
+
+      // ── KB search + optional live EBO court availability (in parallel) ────────
       const [relevantDocs, eboContext] = await Promise.all([
         findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId),
         maybeGetEboContext(tenantId, trimmedMessage)
@@ -4079,6 +4272,8 @@ Use plain numbers where possible.
         const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName);
         result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
       }
+
+      } // end: eboPersonal not handled
 
     } else {
       result.reply = "Invalid business mode configuration.";

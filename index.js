@@ -2494,7 +2494,7 @@ app.post("/api/signup", async (req, res) => {
   // Create tenant record
   const { error: tenantError } = await supabase
     .from("tenants")
-    .insert({ id: tenantId, name, email, website: website || null, plan: "trial" });
+    .insert({ id: tenantId, name, email, website: website || null, plan: "trial", business_mode: "general" });
 
   if (tenantError) {
     console.error("[signup] Tenant insert error:", tenantError);

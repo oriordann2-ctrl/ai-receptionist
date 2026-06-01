@@ -2605,15 +2605,9 @@ app.post("/api/signup", async (req, res) => {
   const portalPassword = crypto.randomBytes(5).toString("hex"); // 10-char e.g. "a3f9b2c1d4"
   await supabase.from("tenants").update({ portal_password: portalPassword }).eq("id", tenantId);
 
-  // Auto-login: create a tenant session so they land straight in the portal
-  const signupSessionId = crypto.randomBytes(32).toString("hex");
-  tenantSessions.set(signupSessionId, {
-    tenantId,
-    tenantName: name,
-    email,
-    website: website || null
-  });
-  res.cookie("tenant_session", signupSessionId, {
+  // Auto-login: embed tenant data in a signed cookie (survives server restarts)
+  const signupToken = createTenantToken({ tenantId, tenantName: name, email, website: website || null });
+  res.cookie("tenant_session", signupToken, {
     httpOnly: true,
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
@@ -2733,12 +2727,34 @@ app.post("/api/signup", async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Tenant portal ─────────────────────────────────────────────────────────────
 
-const tenantSessions = new Map();
+// ── Signed-cookie sessions (survive server restarts) ─────────────────────────
+// Token format: base64url(JSON) + "." + HMAC-SHA256 signature
+const SESSION_SECRET = process.env.SESSION_SECRET || "sprimal-tenant-session-secret-v1";
+
+function createTenantToken(data) {
+  const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
+  const sig = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+  return payload + "." + sig;
+}
+
+function verifyTenantToken(token) {
+  try {
+    const dot = token.lastIndexOf(".");
+    if (dot < 1) return null;
+    const payload = token.slice(0, dot);
+    const sig     = token.slice(dot + 1);
+    const expected = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+    if (sig !== expected) return null;
+    return JSON.parse(Buffer.from(payload, "base64url").toString());
+  } catch {
+    return null;
+  }
+}
 
 function getTenantSession(req) {
-  const sessionId = req.cookies.tenant_session;
-  if (!sessionId) return null;
-  return tenantSessions.get(sessionId);
+  const token = req.cookies.tenant_session;
+  if (!token) return null;
+  return verifyTenantToken(token);
 }
 
 function requireTenant(req, res, next) {
@@ -2770,15 +2786,14 @@ app.post("/portal/login", async (req, res) => {
     return res.json({ success: false, error: "Incorrect email or password." });
   }
 
-  const sessionId = crypto.randomBytes(32).toString("hex");
-  tenantSessions.set(sessionId, {
-    tenantId: tenant.id,
+  const loginToken = createTenantToken({
+    tenantId:   tenant.id,
     tenantName: tenant.name || tenant.id,
-    email: tenant.email,
-    website: tenant.website
+    email:      tenant.email,
+    website:    tenant.website
   });
 
-  res.cookie("tenant_session", sessionId, {
+  res.cookie("tenant_session", loginToken, {
     httpOnly: true,
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
@@ -2792,10 +2807,8 @@ app.get("/portal/dashboard", requireTenant, (req, res) => {
 });
 
 app.post("/portal/logout", (req, res) => {
-  const sessionId = req.cookies.tenant_session;
-  if (sessionId) tenantSessions.delete(sessionId);
   res.clearCookie("tenant_session");
-  res.redirect("/portal");
+  res.json({ success: true });
 });
 
 app.get("/api/portal/me", requireTenant, (req, res) => {
@@ -2937,6 +2950,28 @@ app.delete("/api/portal/website", requireTenant, async (req, res) => {
   } catch (err) {
     console.error("[portal-delete-website] Error:", err.message);
     res.status(500).json({ error: "Failed to remove website." });
+  }
+});
+
+// GET /api/portal/status — returns doc + chunk counts for the tenant (used by dashboard progress UI)
+app.get("/api/portal/status", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+
+    const [{ count: docCount }, { count: chunkCount }, { data: tenantRow }] = await Promise.all([
+      supabase.from("documents").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+      supabase.from("knowledge_chunks").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+      supabase.from("tenants").select("status").eq("id", tenantId).maybeSingle()
+    ]);
+
+    res.json({
+      docCount:     docCount   || 0,
+      chunkCount:   chunkCount || 0,
+      tenantStatus: tenantRow?.status || null
+    });
+  } catch (err) {
+    console.error("[portal-status] Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch status." });
   }
 });
 

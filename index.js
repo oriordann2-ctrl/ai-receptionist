@@ -2338,9 +2338,60 @@ function extractInternalLinks(html, baseUrl) {
   return [...links];
 }
 
+async function fetchSitemapUrls(rootUrl) {
+  const base = rootUrl.replace(/\/$/, "");
+  const urls = [];
+  try {
+    const res = await fetch(base + "/sitemap.xml", {
+      headers: { "User-Agent": "Sprimal-Bot/1.0" },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!res.ok) return urls;
+    const xml = await res.text();
+
+    // Handle sitemap index (points to child sitemaps)
+    const childSitemaps = [...xml.matchAll(/<loc>\s*(https?:\/\/[^<]+sitemap[^<]*\.xml)\s*<\/loc>/gi)].map(m => m[1]);
+    if (childSitemaps.length > 0) {
+      for (const childUrl of childSitemaps) {
+        try {
+          const childRes = await fetch(childUrl, {
+            headers: { "User-Agent": "Sprimal-Bot/1.0" },
+            signal: AbortSignal.timeout(8000)
+          });
+          if (!childRes.ok) continue;
+          const childXml = await childRes.text();
+          const childUrls = [...childXml.matchAll(/<loc>\s*(https?:\/\/[^<]+)\s*<\/loc>/gi)]
+            .map(m => m[1].trim())
+            .filter(u => !u.endsWith(".xml"));
+          urls.push(...childUrls);
+        } catch {}
+      }
+    } else {
+      // Direct sitemap
+      const directUrls = [...xml.matchAll(/<loc>\s*(https?:\/\/[^<]+)\s*<\/loc>/gi)]
+        .map(m => m[1].trim())
+        .filter(u => !u.endsWith(".xml"));
+      urls.push(...directUrls);
+    }
+  } catch {}
+  return urls;
+}
+
 async function crawlWebsite(rootUrl, maxPages = 40) {
   const visited = new Set();
-  const queue   = [rootUrl.replace(/\/$/, "")];
+  const root    = rootUrl.replace(/\/$/, "");
+
+  // Seed queue from sitemap if available — catches Wix & other JS-nav sites
+  const sitemapUrls = await fetchSitemapUrls(root);
+  const queue = sitemapUrls.length > 0
+    ? sitemapUrls.filter(u => u.startsWith(root) || u.replace(/^https?:\/\/www\./, "https://").startsWith(root.replace(/^https?:\/\/www\./, "https://")))
+    : [root];
+
+  // Always include root
+  if (!queue.includes(root)) queue.unshift(root);
+
+  console.log(`[crawler] Queue seeded with ${queue.length} URLs (sitemap: ${sitemapUrls.length > 0})`);
+
   const pages   = [];
 
   while (queue.length > 0 && pages.length < maxPages) {

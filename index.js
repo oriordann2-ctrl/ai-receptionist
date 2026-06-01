@@ -172,6 +172,7 @@ app.get("/api/knowledge-documents", requireLogin, async (req, res) => {
     const { data, error } = await supabase
       .from("documents")
       .select("id, original_filename, stored_filename, mimetype, lender, document_type, effective_date, tags, uploaded_at, metadata_complete, storage_path, junior_accessible")
+      .eq("tenant_id", "aom")
       .order("uploaded_at", { ascending: false });
 
     if (error) {

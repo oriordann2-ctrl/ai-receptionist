@@ -283,40 +283,33 @@
 </div>
 
 <script>
-  let tenantId = "";
-  let tenantName = "";
-  let isNewSignup = false;
-  let pollTimer   = null;
-  let pollCount   = 0;
+  // Tenant data injected server-side — no async fetch needed
+  var tenantId   = "TENANT_ID_PLACEHOLDER";
+  var tenantName = "TENANT_NAME_PLACEHOLDER";
+  var isNewSignup = false;
+  var pollTimer   = null;
+  var pollCount   = 0;
 
   // ── Init ────────────────────────────────────────────────────────────────────
-  async function init() {
+  function init() {
     isNewSignup = new URLSearchParams(location.search).get("new") === "1";
     if (isNewSignup) {
       document.getElementById("newBanner").style.display = "block";
       history.replaceState({}, "", "/portal/dashboard");
     }
 
-    try {
-      const res = await fetch("/api/portal/me", { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) { window.location.href = "/portal"; return; }
-      const data = await res.json();
-      tenantId   = data.tenantId;
-      tenantName = data.tenantName || tenantId;
-      document.getElementById("navClub").textContent = tenantName;
-      document.title = tenantName + " — Sprimal Portal";
-      document.getElementById("embedCode").textContent =
-        `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}" data-club-name="${tenantName}"><\/script>`;
+    document.getElementById("navClub").textContent = tenantName;
+    document.title = tenantName + " — Sprimal Portal";
+    document.getElementById("embedCode").textContent =
+      '<script src="https://app.sprimal.com/widget.js"'
+      + ' data-club-id="' + tenantId + '"'
+      + ' data-club-name="' + tenantName + '"><' + '/script>';
 
-      if (isNewSignup) {
-        // Show progress UI immediately, then start polling
-        showProgressUI(0, 0);
-        schedulePoll();
-      } else {
-        loadDocuments();
-      }
-    } catch {
-      window.location.href = "/portal";
+    if (isNewSignup) {
+      showProgressUI(0, 0);
+      schedulePoll();
+    } else {
+      loadDocuments();
     }
   }
 

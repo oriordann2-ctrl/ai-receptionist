@@ -2577,6 +2577,20 @@ app.post("/api/signup", async (req, res) => {
 
   console.log(`[signup] Created tenant: ${tenantId} (${name})`);
 
+  // Auto-login: create a tenant session so they land straight in the portal
+  const signupSessionId = crypto.randomBytes(32).toString("hex");
+  tenantSessions.set(signupSessionId, {
+    tenantId,
+    tenantName: name,
+    email,
+    website: website || null
+  });
+  res.cookie("tenant_session", signupSessionId, {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+
   // Respond immediately — don't make the user wait for the crawl
   res.json({ success: true, tenantId });
 

@@ -298,7 +298,7 @@
     }
 
     try {
-      const res = await fetch("/api/portal/me");
+      const res = await fetch("/api/portal/me", { signal: AbortSignal.timeout(8000) });
       if (!res.ok) { window.location.href = "/portal"; return; }
       const data = await res.json();
       tenantId   = data.tenantId;
@@ -580,8 +580,8 @@
     });
   }
 
-  async function logout() {
-    await fetch("/portal/logout", { method: "POST" });
+  function logout() {
+    fetch("/portal/logout", { method: "POST" }).catch(() => {});
     window.location.href = "/portal";
   }
 

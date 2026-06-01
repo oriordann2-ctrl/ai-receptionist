@@ -2695,6 +2695,19 @@ app.post("/chat", async (req, res) => {
     const { userId, conversationId, message, voiceMode, clubId } = req.body;
     const tenantId = clubId || "aom";
 
+    // ── Look up this tenant's business mode and name ─────────────────────────
+    let effectiveMode = businessMode; // global default ('mortgage')
+    let tenantDisplayName = null;
+    try {
+      const { data: tenantData } = await supabase
+        .from("tenants")
+        .select("business_mode, name")
+        .eq("id", tenantId)
+        .maybeSingle();
+      if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
+      if (tenantData?.name) tenantDisplayName = tenantData.name;
+    } catch {}
+
     if (!userId || !message) {
       return res.status(400).json({ error: "userId and message are required" });
     }
@@ -2773,7 +2786,7 @@ app.post("/chat", async (req, res) => {
 
       console.log("Raw intent:", rawIntent);
       console.log("Normalized intent:", intent);
-      console.log("Business mode:", businessMode);
+      console.log("Business mode:", effectiveMode);
       console.log("Message:", trimmedMessage);
     }
 
@@ -2875,7 +2888,7 @@ Use plain numbers where possible.
       result.reply =
         "The AI receptionist is currently turned off. Please contact the business directly.";
 
-    } else if (businessMode === "gp") {
+    } else if (effectiveMode === "gp") {
       if (isUrgentMessage(trimmedMessage)) {
         resetConversation(userId);
 
@@ -2908,7 +2921,7 @@ Use plain numbers where possible.
           "I can help you book an appointment. Type 'book appointment' to begin.";
       }
 
-    } else if (businessMode === "mortgage") {
+    } else if (effectiveMode === "mortgage") {
 
       // ── Company info — always answers regardless of active flow ──────────────
       if (/who.*broker|who.*work|who.*team|who.*staff|who.*advisor|broker.*name|who.*cormac|who.*david|who.*mahony|about the company|about at once mortgages|who.*maeve/i.test(lowerMessage)) {
@@ -3329,6 +3342,51 @@ Use plain numbers where possible.
       "No problem at all — I can help with mortgages, consultations, or documents. What are you looking to do?";
   }
 }
+
+    } else if (effectiveMode === "general") {
+
+      // ── General mode: KB search first, Maeve reply as fallback ──────────────
+      const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId);
+
+      if (relevantDocs.length > 0) {
+        const context = relevantDocs
+          .map(doc => `Source: ${doc.filename}\n${doc.text}`)
+          .join("\n\n");
+
+        try {
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". Answer ONLY using the provided knowledge base context. If the answer is not clearly in the context, say you do not know. Keep answers friendly and concise."
+              },
+              {
+                role: "user",
+                content: `Knowledge base:\n${context}\n\nQuestion:\n${trimmedMessage}`
+              }
+            ],
+            temperature: 0.2
+          });
+
+          const kbReply = stripHtml(completion.choices[0].message.content);
+          const kbUnsure = /i do not know|don't know|not in the|no information|cannot find|not sure/i.test(kbReply);
+
+          if (!kbUnsure) {
+            result.reply = kbReply;
+          } else {
+            const maeveReply = await generateMaeveReply(trimmedMessage);
+            result.reply = maeveReply || "I'm not sure about that — could you try rephrasing, or contact us directly for more help?";
+          }
+        } catch (err) {
+          console.error("Knowledge base OpenAI error (general mode):", err.message);
+          result.reply = "Sorry — I couldn't access the knowledge base right now.";
+        }
+      } else {
+        const maeveReply = await generateMaeveReply(trimmedMessage);
+        result.reply = maeveReply || "I'm not sure about that — could you try rephrasing, or contact us directly for more help?";
+      }
 
     } else {
       result.reply = "Invalid business mode configuration.";

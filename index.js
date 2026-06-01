@@ -2817,11 +2817,17 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
 
     const docListHtml = buildDocListHtml(docs || [], tid);
 
+    // Auto-refresh every 8 s while crawl is still running (no docs yet)
+    const autoRefresh = (!docs || docs.length === 0)
+      ? '<meta http-equiv="refresh" content="8">'
+      : '';
+
     const html = fs.readFileSync(path.join(__dirname, "views", "portal-dashboard.html"), "utf8")
       .replace(/TENANT_ID_PLACEHOLDER/g,   tid)
       .replace(/TENANT_NAME_PLACEHOLDER/g, tname)
       .replace(/EMBED_CODE_PLACEHOLDER/g,  embedCode)
-      .replace("DOC_LIST_PLACEHOLDER",     docListHtml);
+      .replace("DOC_LIST_PLACEHOLDER",     docListHtml)
+      .replace("AUTO_REFRESH_PLACEHOLDER", autoRefresh);
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
@@ -2849,7 +2855,13 @@ function buildDocListHtml(docs, tid) {
   });
 
   if (!websites.length && !uploaded.length) {
-    return '<div class="empty-state" style="margin-top:24px;color:#f59e0b;font-weight:500;">&#9203; Your assistant is still being set up &mdash; your website pages will appear here in a few minutes. Refresh this page to check.</div>';
+    return '<div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">'
+      + '<div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:6px;">&#9203; Setting up your assistant&hellip;</div>'
+      + '<div style="font-size:13px;color:#a16207;line-height:1.6;">We\'re crawling your website and building your knowledge base. This takes 2&ndash;3 minutes.<br>This page refreshes automatically &mdash; no need to do anything.</div>'
+      + '<div style="margin-top:12px;height:4px;background:#fde68a;border-radius:2px;overflow:hidden;">'
+      + '<div style="height:100%;width:40%;background:#f59e0b;border-radius:2px;animation:prog 2s ease-in-out infinite alternate;"></div></div>'
+      + '</div>'
+      + '<style>@keyframes prog{from{width:20%}to{width:80%}}</style>';
   }
 
   let html = "";

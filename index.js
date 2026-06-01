@@ -107,7 +107,7 @@ const EBO_BASE = "https://ebookingonline.net/api";
 
 // Map Sprimal tenant ID → EBO credentials
 const EBO_CONFIG = {
-  "monkstown-tennis-club": {
+  "monkstown-lawn-tennis-club": {
     clubId:   process.env.EBO_MONKSTOWN_CLUB_ID   || "304",
     username: process.env.EBO_MONKSTOWN_USERNAME,
     password: process.env.EBO_MONKSTOWN_PASSWORD

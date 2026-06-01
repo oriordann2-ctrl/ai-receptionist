@@ -2850,8 +2850,9 @@ function buildDocListHtml(docs, tid) {
   const domainMap = {};
   websites.forEach(d => {
     try {
-      const domain = new URL(d.stored_filename || d.storage_path || "").hostname;
-      if (!domainMap[domain]) domainMap[domain] = { domain, pages: 0, date: d.uploaded_at };
+      const pageUrl = d.stored_filename || d.storage_path || "";
+      const domain = new URL(pageUrl).hostname;
+      if (!domainMap[domain]) domainMap[domain] = { domain, pages: 0, date: d.uploaded_at, sampleUrl: pageUrl };
       domainMap[domain].pages++;
     } catch(e) {}
   });
@@ -2874,12 +2875,16 @@ function buildDocListHtml(docs, tid) {
     html += '<div class="section-label">Imported Websites</div>';
     html += domains.map(site => {
       const date = site.date ? new Date(site.date).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
+      const rootUrl = site.sampleUrl ? new URL(site.sampleUrl).origin : ("https://" + site.domain);
       return '<div class="website-row">'
         + '<div class="website-row-left"><div class="globe-icon">&#127760;</div><div>'
         + '<div class="website-domain">' + esc(site.domain) + '</div>'
         + '<div class="website-meta">' + site.pages + ' page' + (site.pages !== 1 ? 's' : '') + ' &middot; Imported ' + date + '</div>'
         + '</div></div>'
-        + '<button class="btn-remove-website" onclick="removeWebsite(\'' + esc(site.domain) + '\')">Remove Website</button>'
+        + '<div style="display:flex;gap:8px;flex-shrink:0;">'
+        + '<button class="btn-reimport-website" onclick="portalReimportWebsite(\'' + esc(site.domain) + '\',\'' + esc(rootUrl) + '\')">Re-import</button>'
+        + '<button class="btn-remove-website" onclick="portalRemoveWebsite(\'' + esc(site.domain) + '\')">Remove</button>'
+        + '</div>'
         + '</div>';
     }).join("");
   }
@@ -2897,7 +2902,7 @@ function buildDocListHtml(docs, tid) {
         + badge
         + '<div class="doc-info"><div class="doc-name">' + esc(doc.original_filename || "Untitled") + '</div>'
         + '<div class="doc-meta">Uploaded ' + date + '</div></div>'
-        + '<button class="btn-delete" onclick="deleteDoc(\'' + esc(doc.id) + '\',\'' + esc(doc.original_filename||"") + '\')">Delete</button>'
+        + '<button class="btn-delete" onclick="portalDeleteDoc(\'' + esc(doc.id) + '\',\'' + esc(doc.original_filename||"") + '\')">Delete</button>'
         + '</div>';
     }).join("");
   }

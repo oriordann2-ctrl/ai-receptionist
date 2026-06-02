@@ -6028,15 +6028,25 @@ async function pollGmailInbox() {
 
   // ── Phase 2: classify + reply — no IMAP connection held ───────────────────
 
-  // Domains whose emails should never trigger a draft reply.
-  // These are internal colleagues — the AI has no business responding on
-  // Cormac's behalf to his own team.
+  // Senders that should never trigger a draft reply.
+  //
+  // INTERNAL_DOMAINS  — whole domains (Cormac's colleagues)
+  // SKIP_ADDRESSES    — specific automated addresses at external organisations
+  //                     (lender batch systems, document portals, etc.)
+  //                     Don't block the whole lender domain — underwriters at
+  //                     the same org may send genuine queries that need replies.
   const INTERNAL_DOMAINS = ["@aom.ie"];
+
+  const SKIP_ADDRESSES = [
+    "imcapplications@ptsb.ie",   // PTSB document collation & acknowledgements
+  ];
 
   function isInternalSender(fromText) {
     const match = fromText.match(/<([^>]+)>/);
     const addr  = (match ? match[1] : fromText).toLowerCase().trim();
-    return INTERNAL_DOMAINS.some(d => addr.endsWith(d));
+    if (INTERNAL_DOMAINS.some(d => addr.endsWith(d))) return true;
+    if (SKIP_ADDRESSES.includes(addr)) return true;
+    return false;
   }
 
   const results = []; // [{ uid, cls }]

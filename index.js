@@ -3011,15 +3011,15 @@ async function crawlWebsite(rootUrl, maxPages = 100) {
       });
       clearTimeout(timeout);
 
-      if (!response.ok) continue;
+      if (!response.ok) { console.log(`[crawler] Skip ${url}: HTTP ${response.status}`); continue; }
       const ct = response.headers.get("content-type") || "";
-      if (!ct.includes("text/html")) continue;
+      if (!ct.includes("text/html")) { console.log(`[crawler] Skip ${url}: content-type "${ct}"`); continue; }
 
       const html  = await response.text();
       const title = extractPageTitle(html);
       const text  = extractTextFromHtml(html);
 
-      if (text.length < 80) continue; // skip near-empty pages
+      if (text.length < 80) { console.log(`[crawler] Skip ${url}: text too short (${text.length} chars)`); continue; } // skip near-empty pages
 
       pages.push({ url, title, text });
 

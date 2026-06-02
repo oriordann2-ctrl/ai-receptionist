@@ -370,7 +370,7 @@ async function fetchMemberPersonalBookings(tenantId, membershipNumber, memberNam
   return `Here are your upcoming bookings, ${firstName}:\n\n${lines.join("\n")}\n\nTo cancel or change a booking please visit the ${clubName} booking page.`;
 }
 
-const EBO_PERSONAL_TRIGGER = /\b(my\s+bookings?|my\s+reserv|my\s+sessions?|my\s+courts?|my\s+upcoming|my\s+schedule|my\s+match|what\s+bookings?|bookings?.*do\s+i|bookings?.*i\s+have|do\s+i\s+have.*book|have\s+i.*book|i\s+have.*booked|i'?ve\s+booked|i\s+booked|courts?.*do\s+i\s+have|what.*courts?.*do\s+i|cancel.*my\s+book|show.*my\s+book|view.*my\s+book)/i;
+const EBO_PERSONAL_TRIGGER = /\b(my\s+bookings?|my\s+reserv|my\s+sessions?|my\s+courts?|my\s+upcoming|my\s+schedule|my\s+match|what\s+bookings?|bookings?.*do\s+i|bookings?.*i\s+have|do\s+i\s+have.*book|have\s+i.*book|i\s+have.*booked|i'?ve\s+booked|i\s+booked|courts?.*do\s+i\s+have|what.*courts?.*do\s+i|cancel.*my\s+book|show.*my\s+book|view.*my\s+book|when.*i'?m?\s+(next\s+)?playing|when\s+(am\s+i|do\s+i)\s+play|my\s+next\s+(game|match|session|court|play)|next\s+time\s+i\s+play|when\s+i\s+play\s+next|i'?d\s+like.*when.*play|when\s+is\s+my\s+next)/i;
 
 async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
   if (!EBO_CONFIG[tenantId]) return { handled: false };
@@ -456,7 +456,7 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
     }
 
     // Co-player / next booking questions
-    if (/\b(who.*playing|playing with|playing partner|doubles partner|next booking|my next|who.*booked with|who.*court with)\b/i.test(message)) {
+    if (/\b(who.*playing|playing with|playing partner|doubles partner|next booking|my next|who.*booked with|who.*court with|when.*i'?m?\s+(next\s+)?playing|when\s+(am\s+i|do\s+i)\s+play|my\s+next\s+(game|match|session)|next\s+time\s+i\s+play|when\s+i\s+play\s+next|when\s+is\s+my\s+next|i'?d\s+like.*when.*play)\b/i.test(message)) {
       try {
         const now = new Date();
         const fromDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(now);

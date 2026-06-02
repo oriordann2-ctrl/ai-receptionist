@@ -5697,6 +5697,18 @@ Rules for the draft:
 - If searches return nothing useful, say the broker will be in touch to confirm
 - Keep it concise and human — 4 to 8 lines
 
+IMPORTANT — New mortgage enquiries:
+If the email is a NEW mortgage enquiry (someone wanting to start the mortgage process,
+asking about applying, asking if they qualify, asking about getting a mortgage — with
+no existing case reference or ongoing application mentioned), do NOT search the knowledge
+base or provide detailed mortgage information. Instead write a short warm reply (3–4 lines)
+that:
+  1. Thanks them for getting in touch
+  2. Directs them to start the process on the At Once Mortgages website chat at
+     https://www.atoncemortgages.com/ by typing "apply for a mortgage"
+  3. Tells them the chat will ask a few quick questions to get them started
+Do NOT do this for existing clients who already have a case in progress.
+
 Style:
 - Friendly and professional
 - Start with "Hi ${firstName || "there"}," — always use the sender's first name if available, never "Hi there" when a name is known

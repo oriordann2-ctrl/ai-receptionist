@@ -19,6 +19,9 @@ const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "knowledge-documents";
 const { OpenAI } = require("openai");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY2 });
 
+const Anthropic = require("@anthropic-ai/sdk");
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 
@@ -5749,36 +5752,119 @@ Style:
   return last?.content || "Unable to generate draft.";
 }
 
-async function classifyInboundEmail(from, subject, body) {
+// ─── Email intent classifier ──────────────────────────────────────────────────
+// Mirrors the Python email_router.py logic.
+// Step 1: header-based pre-filter (free, instant).
+// Step 2: Anthropic LLM classification with prompt caching on the static system prompt.
+// Fails open — on any error, defaults to needs_reply so real enquiries are never silently dropped.
+
+const EMAIL_CLASSIFIER_SYSTEM_PROMPT = `You are an email intent classifier for a mortgage broker's inbox. Your job is to read an incoming email and determine:
+
+1. The primary intent of the sender — choose exactly one:
+   ACTIONABLE (sender expects a personal response):
+   - Question       — asking something that requires an answer
+   - Request        — asking for a document, callback, or action
+   - Scheduling     — proposing or confirming a meeting or call
+   - Problem        — reporting an issue or urgent situation
+   - Mortgage Enquiry — new or ongoing mortgage application enquiry
+
+   PASSIVE (no personal reply needed):
+   - Information/FYI — sharing information with no engagement needed
+   - Transactional  — automated receipt, invoice, or order confirmation
+   - System Alert   — server alert, monitoring notification
+   - Auto-Response  — out-of-office reply, vacation auto-responder
+   - Promotional    — newsletter, marketing, or sales email
+
+2. Whether to reply or suppress:
+   - "needs_reply"  → Question, Request, Scheduling, Problem, Mortgage Enquiry
+   - "no_reply"     → Information/FYI, Transactional, System Alert, Auto-Response, Promotional
+
+3. Your confidence as a decimal from 0.0 to 1.0.
+
+Strict rules:
+- Out-of-office or vacation replies → Auto-Response + no_reply always.
+- Newsletters or marketing → Promotional + no_reply always.
+- Only choose needs_reply if a real human is clearly seeking a personal response.
+- When uncertain, lean toward no_reply to avoid reply loops.
+
+Respond with ONLY valid JSON, no markdown, no extra text:
+{"intent":"<one of the ten intents>","category":"needs_reply|no_reply","confidence":<float>,"type":"short_snake_case_label","reason":"one concise sentence"}`;
+
+// RFC 3834 / RFC 2369 automated-email header rules — same as Python email_router.py
+const SUPPRESS_HEADER_RULES = [
+  // auto-submitted: anything except "no" means automated
+  { header: "auto-submitted",           check: v => v.toLowerCase().trim() !== "no" },
+  { header: "x-auto-response-suppress", check: () => true },
+  { header: "x-autoreply",              check: () => true },
+  { header: "x-autorespond",            check: () => true },
+  // bulk/list mailers
+  { header: "precedence",               check: v => ["bulk","list","junk"].includes(v.toLowerCase().trim()) },
+  { header: "list-unsubscribe",         check: () => true },
+  { header: "list-id",                  check: () => true },
+];
+
+function checkEmailHeaders(headers = {}) {
+  // headers is a plain object with lowercase keys, e.g. { "auto-submitted": "auto-replied" }
+  for (const rule of SUPPRESS_HEADER_RULES) {
+    const value = headers[rule.header];
+    if (value && rule.check(String(value))) {
+      return `Header '${rule.header}: ${value}' marks email as automated`;
+    }
+  }
+  return null; // no suppression headers found — proceed to LLM
+}
+
+async function classifyInboundEmail(from, subject, body, headers = {}) {
+  // Step 1 — header pre-filter (free, no API call needed)
+  const headerReason = checkEmailHeaders(headers);
+  if (headerReason) {
+    console.log(`[email-classify] Suppressed by header: ${headerReason}`);
+    return { category: "no_reply", intent: "Auto-Response", confidence: 1.0, type: "automated_header", reason: headerReason };
+  }
+
+  // Step 2 — Anthropic LLM classification with prompt caching
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",   // fast, cheap classifier; swap to claude-opus-4-7 for max accuracy
+      max_tokens: 256,
+      system: [
         {
-          role: "system",
-          content: `You classify emails arriving at a mortgage broker's inbox.
-
-Respond with JSON only — no markdown, no explanation.
-
-Categories:
-- "needs_reply"  : A real person is asking a question, making a mortgage enquiry, requesting a callback, submitting documents, or otherwise expecting a personal response from the broker.
-- "no_reply"     : Out of office / auto-reply, newsletter, marketing/promotional, social media notification, automated system alert, delivery/read receipt, spam, FYI forwarded message, or any email that does not require a personal response.
-
-Return: {"category":"needs_reply"|"no_reply","type":"e.g. mortgage_enquiry|out_of_office|newsletter|spam|automated_notification","reason":"one sentence"}`
-        },
-        {
-          role: "user",
-          content: `From: ${from}\nSubject: ${subject}\n\n${body.slice(0, 1500)}`
+          type: "text",
+          text: EMAIL_CLASSIFIER_SYSTEM_PROMPT,
+          // Cache the static prompt for 1 hour — ~90% cost reduction on cache hits
+          cache_control: { type: "ephemeral", ttl: "1h" }
         }
       ],
-      temperature: 0,
-      response_format: { type: "json_object" }
+      messages: [
+        {
+          role: "user",
+          content: `From: ${from}\nSubject: ${subject}\n\n${body.slice(0, 2000)}`
+        }
+      ]
     });
-    return JSON.parse(completion.choices[0].message.content);
+
+    // Log cache metrics so we can verify prompt caching is working
+    const usage = response.usage;
+    console.log(
+      `[email-classify] LLM tokens — input: ${usage.input_tokens} | cache_write: ${usage.cache_creation_input_tokens || 0} | cache_read: ${usage.cache_read_input_tokens || 0} | output: ${usage.output_tokens}`
+    );
+
+    const rawText = response.content.find(b => b.type === "text")?.text?.trim() || "{}";
+    const parsed = JSON.parse(rawText);
+
+    const category = parsed.category === "needs_reply" ? "needs_reply" : "no_reply";
+    return {
+      category,
+      intent:     parsed.intent     || "Unknown",
+      confidence: parsed.confidence || 0.5,
+      type:       parsed.type       || category,
+      reason:     parsed.reason     || ""
+    };
+
   } catch (err) {
     console.error("[email-classify] Error:", err.message);
     // Fail open — better to generate an unnecessary draft than miss a real enquiry
-    return { category: "needs_reply", type: "unknown", reason: "Classification failed — defaulting to reply" };
+    return { category: "needs_reply", intent: "Unknown", confidence: 0, type: "unknown", reason: "Classification failed — defaulting to reply" };
   }
 }
 
@@ -5888,13 +5974,23 @@ async function pollGmailInbox() {
           const subject = parsed.subject   || "(no subject)";
           const body    = parsed.text      || parsed.html || "";
 
+          // Extract headers as a plain lowercase object for the header pre-filter
+          const rawHeaders = {};
+          if (parsed.headers) {
+            for (const [key, value] of parsed.headers.entries()) {
+              rawHeaders[key.toLowerCase()] = String(value);
+            }
+          }
+
           // Prevent loop — skip draft notification emails
           if (subject.startsWith("Draft reply:")) {
             console.log(`[email-poll] Skipping loop-guard email: "${subject}"`);
           } else {
             // Classify before generating a draft — skip automated/informational emails
-            const cls = await classifyInboundEmail(from, subject, body);
-            console.log(`[email-poll] Classified "${subject}" → ${cls.type} (${cls.category}): ${cls.reason}`);
+            const cls = await classifyInboundEmail(from, subject, body, rawHeaders);
+            console.log(
+              `[email-poll] Classified "${subject}" → ${cls.intent} (${cls.category}, ${Math.round((cls.confidence||0)*100)}% confidence): ${cls.reason}`
+            );
             if (cls.category === "needs_reply") {
               await processInboundEmail({ from, subject, body });
             } else {

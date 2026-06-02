@@ -344,7 +344,7 @@ async function fetchMemberPersonalBookings(tenantId, membershipNumber, memberNam
   return `Here are your upcoming bookings, ${firstName}:\n\n${lines.join("\n")}\n\nTo cancel or change a booking please visit the ${clubName} booking page.`;
 }
 
-const EBO_PERSONAL_TRIGGER = /\b(my booking|my reserv|my session|my court|what.*i.*book|i.*book|have.*i.*got a court|do.*i.*have.*court|my upcoming|my schedule|my match|cancel.*my booking)\b/i;
+const EBO_PERSONAL_TRIGGER = /\b(my\s+bookings?|my\s+reserv|my\s+sessions?|my\s+courts?|my\s+upcoming|my\s+schedule|my\s+match|what\s+bookings?|bookings?.*do\s+i|bookings?.*i\s+have|do\s+i\s+have.*book|have\s+i.*book|i\s+have.*booked|i'?ve\s+booked|i\s+booked|courts?.*do\s+i\s+have|what.*courts?.*do\s+i|cancel.*my\s+book|show.*my\s+book|view.*my\s+book)/i;
 
 async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
   if (!EBO_CONFIG[tenantId]) return { handled: false };

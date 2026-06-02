@@ -5868,6 +5868,42 @@ async function classifyInboundEmail(from, subject, body, headers = {}) {
   }
 }
 
+// ─── Gmail label tagging ─────────────────────────────────────────────────────
+// Gmail exposes labels as IMAP mailbox folders.
+// Copying a message into a label folder applies that label without moving the
+// email out of INBOX — so Cormac sees both the label and the original inbox view.
+//
+// Labels created under "Sprimal/" so they group neatly in the Gmail sidebar:
+//   Sprimal/Mortgage Enquiry   Sprimal/Question   Sprimal/Request
+//   Sprimal/Scheduling         Sprimal/Problem
+//   Sprimal/Auto-Response      Sprimal/Promotional Sprimal/Transactional
+//   Sprimal/System Alert       Sprimal/Information
+//   Sprimal/Unknown            Sprimal/Reply       Sprimal/Suppressed
+
+const gmailLabelCache = new Set(); // track which labels we've already ensured exist
+
+async function applyGmailLabel(imapClient, uid, labelName) {
+  try {
+    // Create the label (IMAP mailbox) if we haven't seen it yet this session.
+    // mailboxCreate is a no-op on Gmail if the folder already exists.
+    if (!gmailLabelCache.has(labelName)) {
+      try {
+        await imapClient.mailboxCreate(labelName);
+      } catch (_) {
+        // Already exists or server rejected — safe to continue
+      }
+      gmailLabelCache.add(labelName);
+    }
+
+    // COPY adds the Gmail label to the message without moving it from INBOX
+    await imapClient.messageCopy(uid, labelName, { uid: true });
+    console.log(`[email-poll] Gmail label applied: "${labelName}"`);
+  } catch (err) {
+    // Non-fatal — labelling is best-effort, email processing still continues
+    console.warn(`[email-poll] Could not apply Gmail label "${labelName}": ${err.message}`);
+  }
+}
+
 async function processInboundEmail({ from, subject, body }) {
   console.log(`[email-poll] Processing: "${subject}" from ${from}`);
 
@@ -5991,6 +6027,13 @@ async function pollGmailInbox() {
             console.log(
               `[email-poll] Classified "${subject}" → ${cls.intent} (${cls.category}, ${Math.round((cls.confidence||0)*100)}% confidence): ${cls.reason}`
             );
+
+            // Apply a Gmail label so Cormac can see the classification in his inbox.
+            // Header-suppressed emails get intent "Auto-Response"; LLM-classified emails
+            // get their specific intent name (e.g. "Mortgage Enquiry", "Promotional").
+            const gmailLabel = `Sprimal/${cls.intent}`;
+            await applyGmailLabel(client, msg.uid, gmailLabel);
+
             if (cls.category === "needs_reply") {
               await processInboundEmail({ from, subject, body });
             } else {

@@ -1834,6 +1834,28 @@ app.post("/zapier/email-lead", async (req, res) => {
   console.log("[/zapier/email-lead] payload:", JSON.stringify(req.body));
   const { email, income, deposit, timeline, lead_score, subject } = req.body;
 
+  // ── Internal / system address filter ───────────────────────────────────────
+  // These are known non-lead addresses (team, test accounts, monitored inboxes).
+  // Never save them as mortgage leads regardless of what Zapier sends.
+  const EXCLUDE_LEAD_EMAILS = [
+    "oriordann@gmail.com",        // Sprimal founder / test account
+    "hello@sprimal.com",          // Sprimal internal
+    "cormac.sprimal@gmail.com",   // Monitored broker inbox
+    "cormac@aom.ie",              // Broker's own address
+  ];
+
+  const emailNorm = (email || "").toLowerCase().trim();
+  if (!emailNorm || EXCLUDE_LEAD_EMAILS.includes(emailNorm)) {
+    console.log(`[/zapier/email-lead] skipping internal/system address: ${emailNorm || "(empty)"}`);
+    return res.json({ success: true, skipped: true });
+  }
+
+  // Also skip draft-reply loop-back emails (subject starts with "Draft reply:")
+  if ((subject || "").startsWith("Draft reply:")) {
+    console.log(`[/zapier/email-lead] skipping draft loop-back: "${subject}"`);
+    return res.json({ success: true, skipped: true });
+  }
+
   // Duplicate check directly in Supabase
   const { data: existing } = await supabase
     .from("mortgage_leads")

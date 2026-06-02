@@ -5749,6 +5749,39 @@ Style:
   return last?.content || "Unable to generate draft.";
 }
 
+async function classifyInboundEmail(from, subject, body) {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You classify emails arriving at a mortgage broker's inbox.
+
+Respond with JSON only — no markdown, no explanation.
+
+Categories:
+- "needs_reply"  : A real person is asking a question, making a mortgage enquiry, requesting a callback, submitting documents, or otherwise expecting a personal response from the broker.
+- "no_reply"     : Out of office / auto-reply, newsletter, marketing/promotional, social media notification, automated system alert, delivery/read receipt, spam, FYI forwarded message, or any email that does not require a personal response.
+
+Return: {"category":"needs_reply"|"no_reply","type":"e.g. mortgage_enquiry|out_of_office|newsletter|spam|automated_notification","reason":"one sentence"}`
+        },
+        {
+          role: "user",
+          content: `From: ${from}\nSubject: ${subject}\n\n${body.slice(0, 1500)}`
+        }
+      ],
+      temperature: 0,
+      response_format: { type: "json_object" }
+    });
+    return JSON.parse(completion.choices[0].message.content);
+  } catch (err) {
+    console.error("[email-classify] Error:", err.message);
+    // Fail open — better to generate an unnecessary draft than miss a real enquiry
+    return { category: "needs_reply", type: "unknown", reason: "Classification failed — defaulting to reply" };
+  }
+}
+
 async function processInboundEmail({ from, subject, body }) {
   console.log(`[email-poll] Processing: "${subject}" from ${from}`);
 
@@ -5859,7 +5892,14 @@ async function pollGmailInbox() {
           if (subject.startsWith("Draft reply:")) {
             console.log(`[email-poll] Skipping loop-guard email: "${subject}"`);
           } else {
-            await processInboundEmail({ from, subject, body });
+            // Classify before generating a draft — skip automated/informational emails
+            const cls = await classifyInboundEmail(from, subject, body);
+            console.log(`[email-poll] Classified "${subject}" → ${cls.type} (${cls.category}): ${cls.reason}`);
+            if (cls.category === "needs_reply") {
+              await processInboundEmail({ from, subject, body });
+            } else {
+              console.log(`[email-poll] Skipping — no reply needed`);
+            }
           }
 
           // Collect UID — we'll mark all as seen after the loop

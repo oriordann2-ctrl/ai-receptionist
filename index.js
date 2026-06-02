@@ -3425,7 +3425,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
       .eq("tenant_id", tid)
       .order("uploaded_at", { ascending: false });
 
-    const docListHtml = buildDocListHtml(docs || [], tid);
+    const docListHtml = buildDocListHtml(docs || [], tid, req.tenant.website || null);
 
     // Auto-refresh every 8 s while crawl is still running (no docs yet)
     const autoRefresh = (!docs || docs.length === 0)
@@ -3448,7 +3448,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
   }
 });
 
-function buildDocListHtml(docs, tid) {
+function buildDocListHtml(docs, tid, tenantWebsite) {
   function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
   const websites = docs.filter(d => d.document_type === "Website Content");
@@ -3466,11 +3466,26 @@ function buildDocListHtml(docs, tid) {
   });
 
   if (!websites.length && !uploaded.length) {
+    // Build optional "Try again" button if tenant has a website configured
+    let retryBtn = "";
+    if (tenantWebsite) {
+      let normalizedSite = tenantWebsite;
+      if (!/^https?:\/\//i.test(normalizedSite)) normalizedSite = "https://" + normalizedSite;
+      let domain = "";
+      try { domain = new URL(normalizedSite).hostname; } catch(e) {}
+      retryBtn = '<div style="margin-top:14px;">'
+        + '<button onclick="portalReimportWebsite(\'' + domain.replace(/'/g, "\\'") + '\',\'' + normalizedSite.replace(/'/g, "\\'") + '\')" '
+        + 'style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">'
+        + '&#8635; Retry website import</button>'
+        + '<span style="font-size:12px;color:#a16207;margin-left:10px;">Taking too long? Click to re-crawl.</span>'
+        + '</div>';
+    }
     return '<div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">'
       + '<div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:6px;">&#9203; Setting up your assistant&hellip;</div>'
       + '<div style="font-size:13px;color:#a16207;line-height:1.6;">We\'re crawling your website and building your knowledge base. This takes 2&ndash;3 minutes.<br>This page refreshes automatically &mdash; no need to do anything.</div>'
       + '<div style="margin-top:12px;height:4px;background:#fde68a;border-radius:2px;overflow:hidden;">'
       + '<div style="height:100%;width:40%;background:#f59e0b;border-radius:2px;animation:prog 2s ease-in-out infinite alternate;"></div></div>'
+      + retryBtn
       + '</div>'
       + '<style>@keyframes prog{from{width:20%}to{width:80%}}</style>';
   }

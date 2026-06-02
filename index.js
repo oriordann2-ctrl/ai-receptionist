@@ -5706,7 +5706,7 @@ that:
   1. Thanks them for getting in touch
   2. Directs them to start the process on the At Once Mortgages website chat at
      https://www.atoncemortgages.com/ by typing "apply for a mortgage"
-  3. Tells them the chat will ask a few quick questions to get them started
+  3. Tells them the chat will ask a few quick questions to get them started and that a broker will follow up
 Do NOT do this for existing clients who already have a case in progress.
 
 Style:

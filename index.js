@@ -3138,7 +3138,12 @@ app.get("/signup", (req, res) => {
 });
 
 app.post("/api/signup", async (req, res) => {
-  const { name, website, email } = req.body;
+  const { name, email } = req.body;
+  // Normalize website URL: add https:// if no protocol is present
+  let website = (req.body.website || "").trim() || null;
+  if (website && !/^https?:\/\//i.test(website)) {
+    website = "https://" + website;
+  }
 
   if (!name || !email) {
     return res.status(400).json({ error: "Business name and email are required" });
@@ -3663,8 +3668,11 @@ app.delete("/api/portal/website", requireTenant, async (req, res) => {
 // POST /api/portal/import-website — re-crawl a website URL for this tenant
 app.post("/api/portal/import-website", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
-  const { url } = req.body;
+  let { url } = req.body;
   if (!url) return res.status(400).json({ error: "url required" });
+
+  // Normalize: add https:// if no protocol present
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
 
   let rootUrl;
   try { rootUrl = new URL(url).href.replace(/\/$/, ""); }

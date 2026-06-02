@@ -348,11 +348,23 @@ async function fetchMemberPersonalBookings(tenantId, membershipNumber, memberNam
     return d.toLocaleDateString("en-IE", { weekday: "long", day: "numeric", month: "long" });
   }
 
+  function formatCoPlayers(booking) {
+    if (!Array.isArray(booking.bookedMembers)) return "";
+    const others = booking.bookedMembers.filter(m => Number(m.membership_number) !== Number(membershipNumber));
+    if (!others.length) return " (solo / no co-players listed)";
+    const names = others.map(m => {
+      if (Number(m.membership_number) === 1) return m.guest_name || "Guest";
+      return m.name || "Unknown";
+    });
+    return " with " + names.join(" & ");
+  }
+
   const lines = mine.map(b => {
-    const start        = b.time.slice(11, 16); // "18:00"
+    const start        = b.time.slice(11, 16);
     const [hh, mm]     = start.split(":").map(Number);
     const endTime      = toHHMM(hh * 60 + mm + slotMins);
-    return `• ${fmtDate(b.time)}, Court ${b.court_id}, ${start}–${endTime}`;
+    const coPlayers    = formatCoPlayers(b);
+    return `• ${fmtDate(b.time)}, Court ${b.court_id}, ${start}–${endTime}${coPlayers}`;
   });
 
   return `Here are your upcoming bookings, ${firstName}:\n\n${lines.join("\n")}\n\nTo cancel or change a booking please visit the ${clubName} booking page.`;
@@ -441,6 +453,48 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
     // Membership number questions
     if (/\bmy membership\b|\bmember(ship)?\s*number\b|\bmy number\b|\bmy (member|club)\s*id\b/i.test(message)) {
       return { handled: true, reply: `Your membership number is ${convo.eboMembershipNumber}, ${firstName}.` };
+    }
+
+    // Co-player / next booking questions
+    if (/\b(who.*playing|playing with|playing partner|doubles partner|next booking|my next|who.*booked with|who.*court with)\b/i.test(message)) {
+      try {
+        const now = new Date();
+        const fromDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(now);
+        const toDate   = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" })
+          .format(new Date(now.getTime() + 30 * 86400000));
+        const bookings = await fetchEboBookings(tenantId, fromDate, toDate, 1000);
+        const cfg = EBO_CONFIG[tenantId];
+        const slotMins = (cfg && cfg.slotMinutes) || 60;
+
+        const mine = bookings
+          .filter(b => Array.isArray(b.bookedMembers) && b.bookedMembers.some(m => Number(m.membership_number) === Number(convo.eboMembershipNumber)))
+          .sort((a, b) => a.time.localeCompare(b.time));
+
+        if (!mine.length) {
+          return { handled: true, reply: `You don't have any upcoming bookings, ${firstName}.` };
+        }
+
+        const next = mine[0];
+        const start = next.time.slice(11, 16);
+        const [hh, mm] = start.split(":").map(Number);
+        function toHHMM(t) { return String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0"); }
+        const endTime = toHHMM(hh * 60 + mm + slotMins);
+        const d = new Date(next.time.slice(0, 10) + "T12:00:00Z");
+        const dateStr = d.toLocaleDateString("en-IE", { weekday: "long", day: "numeric", month: "long" });
+
+        const others = (next.bookedMembers || []).filter(m => Number(m.membership_number) !== Number(convo.eboMembershipNumber));
+        let coPlayersStr;
+        if (!others.length) {
+          coPlayersStr = "No co-players are listed for this booking yet.";
+        } else {
+          const names = others.map(m => Number(m.membership_number) === 1 ? (m.guest_name || "a Guest") : (m.name || "Unknown"));
+          coPlayersStr = `You're playing with ${names.join(" and ")}.`;
+        }
+
+        return { handled: true, reply: `Your next booking is Court ${next.court_id} on ${dateStr} at ${start}–${endTime}.\n\n${coPlayersStr}` };
+      } catch (err) {
+        return { handled: true, reply: "Sorry, I couldn't check your bookings right now — please try again." };
+      }
     }
 
     // Balance / top-up questions

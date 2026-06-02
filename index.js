@@ -5970,100 +5970,127 @@ Review the draft above and send it from your own email if it looks good.`;
   }
 }
 
-async function pollGmailInbox() {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
-
-  const client = new ImapFlow({
+// Helper — create a fresh ImapFlow client each time so there's no shared socket state
+function makeImapClient() {
+  const c = new ImapFlow({
     host: "imap.gmail.com",
     port: 993,
     secure: true,
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD
-    },
+    auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
     logger: false
   });
+  c.on("error", (err) => console.error("[email-poll] ImapFlow error event:", err.message));
+  return c;
+}
 
-  // Prevent unhandled 'error' events from crashing the process
-  client.on("error", (err) => {
-    console.error("[email-poll] ImapFlow error event:", err.message);
-  });
+async function pollGmailInbox() {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
+
+  // ── Phase 1: open IMAP, grab raw sources, close immediately ───────────────
+  // We hold the connection only long enough to download the message bytes —
+  // no LLM calls here, so the socket never has time to time out.
+  const rawMessages = []; // [{ uid, source }]
 
   try {
-    await client.connect();
-    const lock = await client.getMailboxLock("INBOX");
+    const fetchClient = makeImapClient();
+    await fetchClient.connect();
+    const lock = await fetchClient.getMailboxLock("INBOX");
 
     try {
-      // Search for unseen messages by UID
-      const uids = await client.search({ seen: false }, { uid: true });
+      const uids = await fetchClient.search({ seen: false }, { uid: true });
 
       if (!uids || uids.length === 0) {
         console.log("[email-poll] No new messages");
         return;
       }
 
-      console.log(`[email-poll] ${uids.length} unseen message(s)`);
+      console.log(`[email-poll] ${uids.length} unseen message(s) — fetching sources`);
 
-      const processedUids = [];
-
-      for await (const msg of client.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
-        try {
-          const parsed = await simpleParser(msg.source);
-          const from    = parsed.from?.text || "Unknown";
-          const subject = parsed.subject   || "(no subject)";
-          const body    = parsed.text      || parsed.html || "";
-
-          // Extract headers as a plain lowercase object for the header pre-filter
-          const rawHeaders = {};
-          if (parsed.headers) {
-            for (const [key, value] of parsed.headers.entries()) {
-              rawHeaders[key.toLowerCase()] = String(value);
-            }
-          }
-
-          // Prevent loop — skip draft notification emails
-          if (subject.startsWith("Draft reply:")) {
-            console.log(`[email-poll] Skipping loop-guard email: "${subject}"`);
-          } else {
-            // Classify before generating a draft — skip automated/informational emails
-            const cls = await classifyInboundEmail(from, subject, body, rawHeaders);
-            console.log(
-              `[email-poll] Classified "${subject}" → ${cls.intent} (${cls.category}, ${Math.round((cls.confidence||0)*100)}% confidence): ${cls.reason}`
-            );
-
-            // Apply a Gmail label so Cormac can see the classification in his inbox.
-            // Header-suppressed emails get intent "Auto-Response"; LLM-classified emails
-            // get their specific intent name (e.g. "Mortgage Enquiry", "Promotional").
-            const gmailLabel = `Sprimal/${cls.intent}`;
-            await applyGmailLabel(client, msg.uid, gmailLabel);
-
-            if (cls.category === "needs_reply") {
-              await processInboundEmail({ from, subject, body });
-            } else {
-              console.log(`[email-poll] Skipping — no reply needed`);
-            }
-          }
-
-          // Collect UID — we'll mark all as seen after the loop
-          processedUids.push(msg.uid);
-        } catch (msgErr) {
-          console.error("[email-poll] Error on individual message:", msgErr.message);
-        }
-      }
-
-      // Batch mark all processed messages as read
-      if (processedUids.length > 0) {
-        await client.messageFlagsAdd(processedUids.join(","), ["\\Seen"], { uid: true });
-        console.log(`[email-poll] Marked ${processedUids.length} message(s) as read`);
+      for await (const msg of fetchClient.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
+        // Buffer the raw source in memory — we close the connection after this loop
+        rawMessages.push({ uid: msg.uid, source: Buffer.from(msg.source) });
       }
     } finally {
       lock.release();
     }
+
+    try { await fetchClient.logout(); } catch (_) {}
   } catch (err) {
-    console.error("[email-poll] IMAP connection error:", err.message);
-  } finally {
-    // Always close the connection — prevents socket leaks that cause ETIMEOUT crashes
-    try { await client.logout(); } catch (_) {}
+    console.error("[email-poll] IMAP fetch error:", err.message);
+    return;
+  }
+
+  // ── Phase 2: classify + reply — no IMAP connection held ───────────────────
+  // All the slow work (LLM calls, email generation) happens here while no
+  // socket is open, so there is nothing to time out.
+  const results = []; // [{ uid, cls }]
+
+  for (const { uid, source } of rawMessages) {
+    try {
+      const parsed  = await simpleParser(source);
+      const from    = parsed.from?.text || "Unknown";
+      const subject = parsed.subject   || "(no subject)";
+      const body    = parsed.text      || parsed.html || "";
+
+      // Extract headers as a plain lowercase object for the header pre-filter
+      const rawHeaders = {};
+      if (parsed.headers) {
+        for (const [key, value] of parsed.headers.entries()) {
+          rawHeaders[key.toLowerCase()] = String(value);
+        }
+      }
+
+      if (subject.startsWith("Draft reply:")) {
+        console.log(`[email-poll] Skipping loop-guard email: "${subject}"`);
+        results.push({ uid, cls: { intent: "Transactional" } });
+        continue;
+      }
+
+      const cls = await classifyInboundEmail(from, subject, body, rawHeaders);
+      console.log(
+        `[email-poll] Classified "${subject}" → ${cls.intent} (${cls.category}, ${Math.round((cls.confidence||0)*100)}% confidence): ${cls.reason}`
+      );
+
+      if (cls.category === "needs_reply") {
+        await processInboundEmail({ from, subject, body });
+      } else {
+        console.log(`[email-poll] Skipping — no reply needed`);
+      }
+
+      results.push({ uid, cls });
+    } catch (msgErr) {
+      console.error("[email-poll] Error processing message:", msgErr.message);
+      results.push({ uid, cls: { intent: "Unknown" } });
+    }
+  }
+
+  if (results.length === 0) return;
+
+  // ── Phase 3: fresh IMAP connection — apply labels + mark as seen ───────────
+  // By opening a brand-new connection here we guarantee no stale socket state
+  // from phase 1 affects the label/flag operations.
+  try {
+    const updateClient = makeImapClient();
+    await updateClient.connect();
+    const lock = await updateClient.getMailboxLock("INBOX");
+
+    try {
+      for (const { uid, cls } of results) {
+        if (cls?.intent) {
+          await applyGmailLabel(updateClient, uid, `Sprimal/${cls.intent}`);
+        }
+      }
+
+      const allUids = results.map(r => r.uid);
+      await updateClient.messageFlagsAdd(allUids.join(","), ["\\Seen"], { uid: true });
+      console.log(`[email-poll] Marked ${allUids.length} message(s) as read`);
+    } finally {
+      lock.release();
+    }
+
+    try { await updateClient.logout(); } catch (_) {}
+  } catch (err) {
+    console.error("[email-poll] IMAP update error:", err.message);
   }
 }
 

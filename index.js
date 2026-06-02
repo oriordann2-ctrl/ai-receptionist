@@ -5986,9 +5986,10 @@ function makeImapClient() {
 async function pollGmailInbox() {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
 
-  // ── Phase 1: open IMAP, grab raw sources, close immediately ───────────────
-  // We hold the connection only long enough to download the message bytes —
-  // no LLM calls here, so the socket never has time to time out.
+  // ── Phase 1: fetch sources + mark as seen immediately ────────────────────
+  // Mark emails as seen RIGHT HERE while the connection is fresh, before any
+  // slow LLM work. This guarantees no email is ever reprocessed even if the
+  // later phases fail. Labels are applied afterwards as best-effort only.
   const rawMessages = []; // [{ uid, source }]
 
   try {
@@ -6007,9 +6008,14 @@ async function pollGmailInbox() {
       console.log(`[email-poll] ${uids.length} unseen message(s) — fetching sources`);
 
       for await (const msg of fetchClient.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
-        // Buffer the raw source in memory — we close the connection after this loop
         rawMessages.push({ uid: msg.uid, source: Buffer.from(msg.source) });
       }
+
+      // Mark as seen now — before any LLM calls — so a crash in Phase 2
+      // never causes the same email to be processed twice.
+      const fetchedUids = rawMessages.map(m => m.uid);
+      await fetchClient.messageFlagsAdd(fetchedUids.join(","), ["\\Seen"], { uid: true });
+      console.log(`[email-poll] Marked ${fetchedUids.length} message(s) as read`);
     } finally {
       lock.release();
     }
@@ -6021,8 +6027,6 @@ async function pollGmailInbox() {
   }
 
   // ── Phase 2: classify + reply — no IMAP connection held ───────────────────
-  // All the slow work (LLM calls, email generation) happens here while no
-  // socket is open, so there is nothing to time out.
   const results = []; // [{ uid, cls }]
 
   for (const { uid, source } of rawMessages) {
@@ -6032,7 +6036,6 @@ async function pollGmailInbox() {
       const subject = parsed.subject   || "(no subject)";
       const body    = parsed.text      || parsed.html || "";
 
-      // Extract headers as a plain lowercase object for the header pre-filter
       const rawHeaders = {};
       if (parsed.headers) {
         for (const [key, value] of parsed.headers.entries()) {
@@ -6066,31 +6069,27 @@ async function pollGmailInbox() {
 
   if (results.length === 0) return;
 
-  // ── Phase 3: fresh IMAP connection — apply labels + mark as seen ───────────
-  // By opening a brand-new connection here we guarantee no stale socket state
-  // from phase 1 affects the label/flag operations.
+  // ── Phase 3: apply Gmail labels (best-effort) ─────────────────────────────
+  // Emails are already marked as seen above, so a failure here is cosmetic only.
   try {
-    const updateClient = makeImapClient();
-    await updateClient.connect();
-    const lock = await updateClient.getMailboxLock("INBOX");
+    const labelClient = makeImapClient();
+    await labelClient.connect();
+    const lock = await labelClient.getMailboxLock("INBOX");
 
     try {
       for (const { uid, cls } of results) {
         if (cls?.intent) {
-          await applyGmailLabel(updateClient, uid, `Sprimal/${cls.intent}`);
+          await applyGmailLabel(labelClient, uid, `Sprimal/${cls.intent}`);
         }
       }
-
-      const allUids = results.map(r => r.uid);
-      await updateClient.messageFlagsAdd(allUids.join(","), ["\\Seen"], { uid: true });
-      console.log(`[email-poll] Marked ${allUids.length} message(s) as read`);
     } finally {
       lock.release();
     }
 
-    try { await updateClient.logout(); } catch (_) {}
+    try { await labelClient.logout(); } catch (_) {}
   } catch (err) {
-    console.error("[email-poll] IMAP update error:", err.message);
+    // Non-fatal — labels are cosmetic, core processing already completed
+    console.warn(`[email-poll] Gmail label phase skipped: ${err.message}`);
   }
 }
 

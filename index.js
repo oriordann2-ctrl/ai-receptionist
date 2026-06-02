@@ -6132,6 +6132,7 @@ async function pollGmailInbox() {
 
   const SKIP_ADDRESSES = [
     "imcapplications@ptsb.ie",   // PTSB document collation & acknowledgements
+    "adobesign@adobesign.com",   // Adobe Sign — document signing requests & completion notifications
   ];
 
   function isInternalSender(fromText) {

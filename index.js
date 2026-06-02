@@ -3187,6 +3187,7 @@ app.post("/api/signup", async (req, res) => {
   const signupToken = createTenantToken({ tenantId, tenantName: name, email, website: website || null });
   res.cookie("tenant_session", signupToken, {
     httpOnly: true,
+    secure:   true,   // required for HTTPS (Render) — without this Chrome discards the cookie
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
@@ -3373,6 +3374,7 @@ app.post("/portal/login", async (req, res) => {
 
   res.cookie("tenant_session", loginToken, {
     httpOnly: true,
+    secure:   true,   // required for HTTPS (Render)
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
   });

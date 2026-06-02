@@ -278,6 +278,20 @@ async function lookupEboMemberByEmail(tenantId, email) {
   return members.find(m => m.email && m.email.toLowerCase().trim() === norm) || null;
 }
 
+async function fetchEboMemberDetails(tenantId, membershipNumber) {
+  const cfg = EBO_CONFIG[tenantId];
+  if (!cfg) return null;
+  const token = await getEboToken(tenantId);
+  if (!token) return null;
+  const resp = await fetch(`${EBO_BASE}/${cfg.clubId}/user/listMembers/${membershipNumber}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  // Endpoint returns an array even for single members
+  return Array.isArray(data) && data.length ? data[0] : (data || null);
+}
+
 async function sendEboOtp(toEmail, firstName, code, clubName) {
   if (!process.env.RESEND_API_KEY) {
     console.warn("[EBO OTP] RESEND_API_KEY not set — skipping OTP email");
@@ -400,6 +414,11 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
     delete eboOtpStore[convo.eboAuthEmail];
     console.log(`[EBO OTP] Verified: ${convo.eboMemberName} (${convo.eboMembershipNumber})`);
 
+    // Fetch full member record in background to capture any extra fields (e.g. balance)
+    fetchEboMemberDetails(tenantId, stored.membershipNumber)
+      .then(details => { if (details) convo.eboMemberDetails = details; })
+      .catch(() => {});
+
     try {
       const reply = await fetchMemberPersonalBookings(tenantId, stored.membershipNumber, stored.memberName, clubName);
       return { handled: true, reply };
@@ -422,6 +441,19 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
     // Membership number questions
     if (/\bmy membership\b|\bmember(ship)?\s*number\b|\bmy number\b|\bmy (member|club)\s*id\b/i.test(message)) {
       return { handled: true, reply: `Your membership number is ${convo.eboMembershipNumber}, ${firstName}.` };
+    }
+
+    // Balance / top-up questions
+    if (/\b(balance|top.?up|credit|wallet|account.*balance|how much.*have i|what.*i.*have.*left)\b/i.test(message)) {
+      const d = convo.eboMemberDetails || {};
+      // Look for any balance-related field EBO might return
+      const bal = d.balance ?? d.topup ?? d.credit ?? d.credits ?? d.wallet ?? d.account_balance ?? d.top_up ?? null;
+      if (bal !== null && bal !== undefined) {
+        return { handled: true, reply: `Your current top-up balance is €${Number(bal).toFixed(2)}, ${firstName}.` };
+      }
+      // Field not in API response — log the actual keys so we can see what's available
+      console.log(`[EBO] Member details fields for ${convo.eboMembershipNumber}:`, Object.keys(d));
+      return { handled: true, reply: `I can see your account details but the balance field isn't available through the current API. The club may need to enable that — or you can check your balance by logging into the ${clubName} booking portal directly.` };
     }
 
     // Booking queries

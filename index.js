@@ -3482,7 +3482,8 @@ function buildDocListHtml(docs, tid, tenantWebsite) {
   websites.forEach(d => {
     try {
       const pageUrl = d.stored_filename || d.storage_path || "";
-      const domain = new URL(pageUrl).hostname;
+      // Normalise www.example.com and example.com to the same group
+      const domain = new URL(pageUrl).hostname.replace(/^www\./, "");
       if (!domainMap[domain]) domainMap[domain] = { domain, pages: 0, date: d.uploaded_at, sampleUrl: pageUrl };
       domainMap[domain].pages++;
     } catch(e) {}

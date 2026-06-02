@@ -5658,7 +5658,21 @@ const EMAIL_AGENT_TOOLS = [
   }
 ];
 
-async function runEmailResponseAgent(emailContent) {
+async function runEmailResponseAgent(emailContent, senderName = "") {
+  // Extract first name from sender, e.g. "Alan Donelan <alan@x.com>" → "Alan"
+  // Falls back to "" (renders as "Hi there,") if no clean name is found
+  let firstName = "";
+  if (senderName) {
+    // Strip the email address portion if present: "Name <email>" → "Name"
+    const displayName = senderName.replace(/<[^>]+>/, "").trim();
+    // If what's left still looks like a raw email address, discard it
+    if (displayName && !displayName.includes("@")) {
+      const raw = displayName.split(/\s+/)[0].replace(/[^a-zA-Z'-]/g, "");
+      if (raw.length >= 2 && raw.toLowerCase() !== "unknown") {
+        firstName = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+      }
+    }
+  }
   const messages = [
     {
       role: "system",
@@ -5685,7 +5699,7 @@ Rules for the draft:
 
 Style:
 - Friendly and professional
-- Start with "Hi there," unless a name is clear from the email
+- Start with "Hi ${firstName || "there"}," — always use the sender's first name if available, never "Hi there" when a name is known
 - Do NOT add a sign-off or "Kind regards" — the signature is added automatically`
     },
     {
@@ -5911,7 +5925,7 @@ async function processInboundEmail({ from, subject, body }) {
   console.log(`[email-poll] Processing: "${subject}" from ${from}`);
 
   try {
-    const rawDraft = await runEmailResponseAgent(body);
+    const rawDraft = await runEmailResponseAgent(body, from);
 
     // Strip any trailing sign-off the AI added (e.g. "Kind regards,") — the real signature provides it
     const draftBody = rawDraft.trim().replace(/\n*kind regards,?\s*$/i, "").trim();

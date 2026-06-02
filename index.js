@@ -497,6 +497,52 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
       }
     }
 
+    // Membership type / Stripe subscription questions
+    if (/\b(membership type|my membership|what (membership|plan|subscription)|my (plan|subscription)|what am i (paying|a member)|when.*renew|renew|expire|expir|membership status|am i (a member|active)|membership fee|how much.*membership|manage.*membership|update.*membership|change.*membership|cancel.*membership)\b/i.test(message)) {
+      const email = convo.eboAuthEmail;
+      if (!email) return { handled: true, reply: "I don't have your email on file for this session — please refresh and verify again." };
+      try {
+        const stripe = await fetchStripeMembership(email);
+        if (!stripe || !stripe.found) {
+          return { handled: true, reply: `I couldn't find a Stripe account linked to ${email}. The club may process your membership separately — please contact the secretary.` };
+        }
+
+        // Handle manage/cancel/update → send portal link
+        if (/\b(manage|update|change|cancel|renew)\b/i.test(message)) {
+          const portalUrl = await generateStripePortalLink(email);
+          if (portalUrl) {
+            return { handled: true, reply: `Here's your membership management link, ${firstName}. It's single-use and expires shortly:\n\n${portalUrl}` };
+          }
+          return { handled: true, reply: "Sorry, I couldn't generate a management link right now — please contact the club secretary." };
+        }
+
+        if (stripe.noActiveSub || !stripe.subscriptions.length) {
+          return { handled: true, reply: `${firstName}, I don't see an active membership subscription in Stripe for your account. Please contact the club secretary to check your membership status.` };
+        }
+
+        const lines = stripe.subscriptions.map(sub => {
+          const item  = sub.items && sub.items.data && sub.items.data[0];
+          const price = item && item.price;
+          const product = price && price.product;
+          const name    = (product && (product.name || product.id)) || "Membership";
+          const amount  = price && price.unit_amount != null ? "€" + (price.unit_amount / 100).toFixed(2) : null;
+          const interval = price && price.recurring ? price.recurring.interval : null;
+          const renewsOn = sub.current_period_end ? formatStripeDate(sub.current_period_end) : null;
+          const status   = sub.status === "active" ? "Active" : sub.status;
+
+          let line = `${name} — ${status}`;
+          if (amount && interval) line += ` (${amount}/${interval})`;
+          if (renewsOn) line += `. Renews ${renewsOn}.`;
+          return line;
+        });
+
+        return { handled: true, reply: `Here's your membership info, ${firstName}:\n\n${lines.join("\n")}\n\nTo manage or update your membership, just ask me for a management link.` };
+      } catch (err) {
+        console.error("[Stripe] Membership query error:", err.message);
+        return { handled: true, reply: "Sorry, I couldn't retrieve your membership details right now — please try again in a moment." };
+      }
+    }
+
     // Balance / top-up questions
     if (/\b(balance|top.?up|credit|wallet|account.*balance|how much.*have i|what.*i.*have.*left)\b/i.test(message)) {
       const d = convo.eboMemberDetails || {};
@@ -528,6 +574,77 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
   }
 
   return { handled: false };
+}
+
+// ── Stripe Membership Integration ────────────────────────────────────────────
+const STRIPE_BASE = "https://api.stripe.com/v1";
+
+function stripeAuthHeader() {
+  return "Basic " + Buffer.from((process.env.STRIPE_SECRET_KEY || "") + ":").toString("base64");
+}
+
+async function stripeGet(path) {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  const resp = await fetch(STRIPE_BASE + path, { headers: { Authorization: stripeAuthHeader() } });
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({}));
+    throw new Error("Stripe " + resp.status + ": " + (e.error && e.error.message || resp.statusText));
+  }
+  return resp.json();
+}
+
+async function stripePost(path, body) {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  const resp = await fetch(STRIPE_BASE + path, {
+    method: "POST",
+    headers: { Authorization: stripeAuthHeader(), "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(body).toString()
+  });
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({}));
+    throw new Error("Stripe " + resp.status + ": " + (e.error && e.error.message || resp.statusText));
+  }
+  return resp.json();
+}
+
+async function fetchStripeMembership(email) {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+
+  // Find Stripe customer by email
+  const customers = await stripeGet("/customers?email=" + encodeURIComponent(email) + "&limit=1");
+  if (!customers || !customers.data || !customers.data.length) return { found: false };
+
+  const customer = customers.data[0];
+
+  // Fetch active subscriptions, expanding to get product name in one call
+  const subs = await stripeGet(
+    "/subscriptions?customer=" + customer.id +
+    "&status=active&limit=5" +
+    "&expand[]=data.items.data.price.product"
+  );
+
+  if (!subs || !subs.data || !subs.data.length) {
+    // No active sub — check all statuses so we can report accurately
+    const allSubs = await stripeGet("/subscriptions?customer=" + customer.id + "&limit=5");
+    return { found: true, customer, subscriptions: (allSubs && allSubs.data) || [], noActiveSub: true };
+  }
+
+  return { found: true, customer, subscriptions: subs.data, noActiveSub: false };
+}
+
+async function generateStripePortalLink(email) {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  const customers = await stripeGet("/customers?email=" + encodeURIComponent(email) + "&limit=1");
+  if (!customers || !customers.data || !customers.data.length) return null;
+  const session = await stripePost("/billing_portal/sessions", {
+    customer: customers.data[0].id,
+    return_url: "https://monkstowntennisclub.com"
+  });
+  return session && session.url ? session.url : null;
+}
+
+function formatStripeDate(unixTs) {
+  return new Date(unixTs * 1000).toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
 }
 
 // ── Helper: generate standardised stored filename from metadata ──────────────

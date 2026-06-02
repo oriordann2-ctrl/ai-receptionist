@@ -3019,7 +3019,30 @@ async function crawlWebsite(rootUrl, maxPages = 100) {
       const title = extractPageTitle(html);
       const text  = extractTextFromHtml(html);
 
-      if (text.length < 80) { console.log(`[crawler] Skip ${url}: text too short (${text.length} chars)`); continue; } // skip near-empty pages
+      if (text.length < 80) {
+        // Fallback: use Jina Reader to render JS-heavy pages (Wix, Squarespace, etc.)
+        let jinaText = null;
+        try {
+          console.log(`[crawler] JS-rendered page detected — trying Jina Reader for ${url}`);
+          const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
+            headers: { "Accept": "text/plain", "User-Agent": "Sprimal-Bot/1.0" },
+            signal: AbortSignal.timeout(20000)
+          });
+          if (jinaRes.ok) {
+            const raw = (await jinaRes.text()).trim();
+            if (raw.length >= 80) jinaText = raw;
+          }
+        } catch (jinaErr) {
+          console.log(`[crawler] Jina Reader failed for ${url}: ${jinaErr.message}`);
+        }
+        if (jinaText) {
+          console.log(`[crawler] Jina Reader: imported ${url} (${jinaText.length} chars)`);
+          pages.push({ url, title, text: jinaText });
+        } else {
+          console.log(`[crawler] Skip ${url}: text too short even after Jina (${text.length} chars)`);
+        }
+        continue;
+      } // skip near-empty pages
 
       pages.push({ url, title, text });
 

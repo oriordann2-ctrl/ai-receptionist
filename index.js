@@ -409,13 +409,29 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
     }
   }
 
-  // ── Already verified this session — re-ask for bookings ─────────
-  if (convo.eboAuthStep === "verified" && isPersonalQuery) {
-    try {
-      const reply = await fetchMemberPersonalBookings(tenantId, convo.eboMembershipNumber, convo.eboMemberName, clubName);
-      return { handled: true, reply };
-    } catch (err) {
-      return { handled: true, reply: "Sorry, I couldn't load your bookings right now — please try again." };
+  // ── Already verified — answer personal detail questions ────────
+  if (convo.eboAuthStep === "verified") {
+    const firstName = (convo.eboMemberName || "").split(" ")[0];
+    const lc = message.toLowerCase();
+
+    // Name questions
+    if (/\bmy name\b|what.*(am i|is my name)|who am i/i.test(message)) {
+      return { handled: true, reply: `You're logged in as ${convo.eboMemberName}.` };
+    }
+
+    // Membership number questions
+    if (/\bmy membership\b|\bmember(ship)?\s*number\b|\bmy number\b|\bmy (member|club)\s*id\b/i.test(message)) {
+      return { handled: true, reply: `Your membership number is ${convo.eboMembershipNumber}, ${firstName}.` };
+    }
+
+    // Booking queries
+    if (isPersonalQuery) {
+      try {
+        const reply = await fetchMemberPersonalBookings(tenantId, convo.eboMembershipNumber, convo.eboMemberName, clubName);
+        return { handled: true, reply };
+      } catch (err) {
+        return { handled: true, reply: "Sorry, I couldn't load your bookings right now — please try again." };
+      }
     }
   }
 

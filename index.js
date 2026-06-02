@@ -6131,8 +6131,9 @@ async function pollGmailInbox() {
   const INTERNAL_DOMAINS = ["@aom.ie"];
 
   const SKIP_ADDRESSES = [
-    "imcapplications@ptsb.ie",   // PTSB document collation & acknowledgements
-    "adobesign@adobesign.com",   // Adobe Sign — document signing requests & completion notifications
+    "imcapplications@ptsb.ie",        // PTSB document collation & acknowledgements
+    "electronicvaluations@ptsb.ie",   // PTSB electronic valuations — bulk/automated
+    "adobesign@adobesign.com",        // Adobe Sign — document signing requests & completion notifications
   ];
 
   function isInternalSender(fromText) {

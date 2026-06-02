@@ -5831,8 +5831,9 @@ async function classifyInboundEmail(from, subject, body, headers = {}) {
         {
           type: "text",
           text: EMAIL_CLASSIFIER_SYSTEM_PROMPT,
-          // Cache the static prompt for 1 hour — ~90% cost reduction on cache hits
-          cache_control: { type: "ephemeral", ttl: "1h" }
+          // cache_control marker — caching only activates when prefix >= 4096 tokens (haiku-4-5 minimum)
+          // Left here so it kicks in automatically if the prompt is ever expanded
+          cache_control: { type: "ephemeral" }
         }
       ],
       messages: [
@@ -5849,7 +5850,9 @@ async function classifyInboundEmail(from, subject, body, headers = {}) {
       `[email-classify] LLM tokens — input: ${usage.input_tokens} | cache_write: ${usage.cache_creation_input_tokens || 0} | cache_read: ${usage.cache_read_input_tokens || 0} | output: ${usage.output_tokens}`
     );
 
-    const rawText = response.content.find(b => b.type === "text")?.text?.trim() || "{}";
+    let rawText = response.content.find(b => b.type === "text")?.text?.trim() || "{}";
+    // Strip markdown code fences — model sometimes wraps JSON in ```json...``` despite instructions
+    rawText = rawText.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
     const parsed = JSON.parse(rawText);
 
     const category = parsed.category === "needs_reply" ? "needs_reply" : "no_reply";

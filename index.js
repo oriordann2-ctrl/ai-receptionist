@@ -6027,6 +6027,18 @@ async function pollGmailInbox() {
   }
 
   // ── Phase 2: classify + reply — no IMAP connection held ───────────────────
+
+  // Domains whose emails should never trigger a draft reply.
+  // These are internal colleagues — the AI has no business responding on
+  // Cormac's behalf to his own team.
+  const INTERNAL_DOMAINS = ["@aom.ie"];
+
+  function isInternalSender(fromText) {
+    const match = fromText.match(/<([^>]+)>/);
+    const addr  = (match ? match[1] : fromText).toLowerCase().trim();
+    return INTERNAL_DOMAINS.some(d => addr.endsWith(d));
+  }
+
   const results = []; // [{ uid, cls }]
 
   for (const { uid, source } of rawMessages) {
@@ -6041,6 +6053,13 @@ async function pollGmailInbox() {
         for (const [key, value] of parsed.headers.entries()) {
           rawHeaders[key.toLowerCase()] = String(value);
         }
+      }
+
+      // Skip internal team emails — colleagues asking Cormac queries
+      if (isInternalSender(from)) {
+        console.log(`[email-poll] Skipping internal email from ${from}: "${subject}"`);
+        results.push({ uid, cls: { intent: "Internal" } });
+        continue;
       }
 
       if (subject.startsWith("Draft reply:")) {

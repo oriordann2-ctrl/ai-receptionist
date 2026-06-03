@@ -2099,6 +2099,77 @@ app.get("/chat-logs", requireAdmin, (req, res) => {
   res.json(chatLogs);
 });
 
+// ── Admin: Supabase-backed chat logs (all tenants, optional filter) ───────────
+app.get("/api/admin/chat-logs", requireAdmin, async (req, res) => {
+  try {
+    const { tenantId } = req.query; // optional filter
+
+    let query = supabase
+      .from("chat_logs")
+      .select("id, tenant_id, conversation_id, sender, message, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (tenantId) query = query.eq("tenant_id", tenantId);
+
+    const { data: rows, error } = await query;
+    if (error) throw error;
+
+    // Fetch tenant names for the IDs present
+    const tenantIds = [...new Set((rows || []).map(r => r.tenant_id))];
+    const { data: tenantRows } = await supabase
+      .from("tenants")
+      .select("id, name")
+      .in("id", tenantIds.length ? tenantIds : ["__none__"]);
+    const tenantNames = {};
+    (tenantRows || []).forEach(t => { tenantNames[t.id] = t.name || t.id; });
+
+    // Group into conversations
+    const convMap = {};
+    (rows || []).forEach(row => {
+      const key = (row.tenant_id || "") + "|" + (row.conversation_id || ("msg-" + row.id));
+      if (!convMap[key]) {
+        convMap[key] = {
+          tenantId:       row.tenant_id,
+          tenantName:     tenantNames[row.tenant_id] || row.tenant_id,
+          conversationId: row.conversation_id || key,
+          messages:       [],
+          startedAt:      row.created_at
+        };
+      }
+      convMap[key].messages.push(row);
+      if (row.created_at < convMap[key].startedAt) convMap[key].startedAt = row.created_at;
+    });
+
+    const conversations = Object.values(convMap)
+      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
+      .slice(0, 50)
+      .map(c => ({
+        tenantId:       c.tenantId,
+        tenantName:     c.tenantName,
+        conversationId: c.conversationId,
+        startedAt:      c.startedAt,
+        messageCount:   c.messages.length,
+        messages:       c.messages.slice().reverse().map(m => ({
+          sender:    m.sender,
+          message:   m.message,
+          createdAt: m.created_at
+        }))
+      }));
+
+    // Also return unique tenant list for the filter dropdown
+    const { data: allTenants } = await supabase
+      .from("tenants")
+      .select("id, name")
+      .order("name", { ascending: true });
+
+    res.json({ conversations, tenants: allTenants || [] });
+  } catch (err) {
+    console.error("[admin-chat-logs] Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch chat logs." });
+  }
+});
+
 app.get("/status", requireAdmin, (req, res) => {
   res.json({ aiEnabled, businessMode, features });
 });

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TENANT_NAME_PLACEHOLDER — Staff Assistant</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; min-height: 100vh; }
+
+    /* ── Nav ── */
+    nav {
+      background: white; border-bottom: 1px solid #e2e8f0;
+      padding: 0 32px; height: 56px; display: flex; align-items: center;
+      justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: -0.3px; text-decoration: none; }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-club { font-size: 14px; color: #64748b; }
+    .nav-badge { background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+    .btn-signout { background: none; border: none; cursor: pointer; font-size: 14px; color: #64748b; font-family: inherit; padding: 6px 12px; border-radius: 7px; transition: background 0.15s; }
+    .btn-signout:hover { background: #f1f5f9; color: #0f172a; }
+
+    /* ── Page ── */
+    .page { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    /* ── Cards ── */
+    .card { background: white; border-radius: 14px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .card-title { font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+    .card-sub { font-size: 14px; color: #6b7280; margin-bottom: 20px; line-height: 1.5; }
+
+    /* ── Chat messages ── */
+    .chat-messages { display: flex; flex-direction: column; gap: 14px; min-height: 100px; margin-bottom: 20px; }
+    .msg-user {
+      background: #eff6ff; border-radius: 12px; padding: 12px 16px;
+      align-self: flex-end; max-width: 80%;
+    }
+    .msg-user-label { font-size: 10px; font-weight: 700; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .msg-user-text { font-size: 14px; color: #111827; line-height: 1.5; }
+
+    .msg-bot { background: #f0fdf4; border-radius: 12px; padding: 12px 16px; max-width: 90%; }
+    .msg-bot-label { font-size: 10px; font-weight: 700; color: #15803d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .msg-bot-text { font-size: 14px; color: #111827; line-height: 1.5; white-space: pre-wrap; }
+    .msg-bot-actions { margin-top: 10px; display: flex; gap: 8px; }
+
+    .btn-flag {
+      background: none; border: 1px solid #fca5a5; color: #dc2626;
+      font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px;
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-flag:hover { background: #fef2f2; }
+    .btn-flag:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Flag form */
+    .flag-form {
+      background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px;
+      padding: 12px 14px; margin-top: 10px;
+    }
+    .flag-form-title { font-size: 13px; font-weight: 600; color: #dc2626; margin-bottom: 8px; }
+    .flag-form textarea {
+      width: 100%; border: 1px solid #fca5a5; border-radius: 6px; padding: 8px 10px;
+      font-size: 13px; font-family: inherit; resize: vertical; min-height: 60px; outline: none;
+      margin-bottom: 8px;
+    }
+    .flag-form-btns { display: flex; gap: 8px; }
+    .btn-flag-send {
+      background: #dc2626; color: white; border: none; border-radius: 6px;
+      padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .btn-flag-cancel {
+      background: white; border: 1px solid #e2e8f0; border-radius: 6px;
+      padding: 7px 14px; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+
+    /* Input row */
+    .chat-input-row { display: flex; gap: 10px; }
+    .chat-input {
+      flex: 1; border: 1.5px solid #d1d5db; border-radius: 10px; padding: 12px 16px;
+      font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.15s;
+    }
+    .chat-input:focus { border-color: #3b82f6; }
+    .btn-ask {
+      background: #1e40af; color: white; border: none; border-radius: 10px;
+      padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background 0.15s; white-space: nowrap;
+    }
+    .btn-ask:hover { background: #1d3a9e; }
+    .btn-ask:disabled { background: #93c5fd; cursor: not-allowed; }
+
+    .chat-empty { text-align: center; padding: 32px 0; font-size: 14px; color: #9ca3af; }
+
+    /* ── Mobile ── */
+    @media (max-width: 600px) {
+      nav { padding: 0 16px; }
+      .nav-club { display: none; }
+      .page { padding: 20px 12px 48px; }
+      .card { padding: 20px 16px; }
+      .chat-input-row { flex-direction: column; }
+      .btn-ask { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="/portal/dashboard">
+    <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+      <rect width="48" height="48" rx="11" fill="#4f76f6"/>
+      <line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="24" cy="11" r="4.5" fill="white"/>
+      <circle cx="38.5" cy="36" r="4.5" fill="white"/>
+      <circle cx="9.5" cy="36" r="4.5" fill="white"/>
+    </svg>
+    Sprimal
+  </a>
+  <span style="font-size:10px;color:#cbd5e1;margin-left:6px;">v6</span>
+  <div class="nav-right">
+    <span class="nav-badge">Staff: USER_NAME_PLACEHOLDER</span>
+    <span class="nav-club">TENANT_NAME_PLACEHOLDER</span>
+    <form action="/portal/logout" method="POST" style="margin:0;padding:0;">
+      <button type="submit" class="btn-signout">Sign out</button>
+    </form>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- Knowledge Base Assistant -->
+  <div class="card">
+    <div class="card-title">📚 Knowledge Base Assistant</div>
+    <div class="card-sub">Ask any question to search your organisation's knowledge base. If an answer looks wrong, use the <strong>Flag</strong> button to report it for your manager to review.</div>
+
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-empty" id="chatEmpty">Type a question below to get started.</div>
+    </div>
+
+    <div class="chat-input-row">
+      <input
+        type="text"
+        class="chat-input"
+        id="chatInput"
+        placeholder="Ask a question about your organisation…"
+        autocomplete="off"
+      />
+      <button class="btn-ask" id="chatBtn" onclick="sendQuestion()">Ask</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  "use strict";
+
+  var tenantId = "TENANT_ID_PLACEHOLDER";
+  var convId   = "jr-" + Math.random().toString(36).slice(2, 10);
+  var msgCount = 0;
+  var flagStore = {};
+
+  document.getElementById("chatInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
+  });
+
+  function sendQuestion() {
+    var input = document.getElementById("chatInput");
+    var btn   = document.getElementById("chatBtn");
+    var msg   = input.value.trim();
+    if (!msg) return;
+
+    addMessage("user", msg);
+    input.value = "";
+    btn.disabled  = true;
+    btn.textContent = "…";
+
+    // Show typing indicator
+    var typingEl = addMessage("bot", null, true);
+
+    fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: "jr-" + tenantId, conversationId: convId, message: msg, clubId: tenantId })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        typingEl.parentNode.removeChild(typingEl);
+        addMessage("bot", data.reply || "No response.", false, msg, data.reply || "");
+        btn.disabled  = false;
+        btn.textContent = "Ask";
+      })
+      .catch(function() {
+        typingEl.parentNode.removeChild(typingEl);
+        addMessage("bot", "Could not reach the knowledge base. Please try again.");
+        btn.disabled  = false;
+        btn.textContent = "Ask";
+      });
+  }
+
+  function addMessage(role, text, isTyping, question, answer) {
+    var empty = document.getElementById("chatEmpty");
+    if (empty) empty.style.display = "none";
+
+    var wrap = document.createElement("div");
+    var id   = "m" + (++msgCount);
+
+    if (role === "user") {
+      wrap.className = "msg-user";
+      wrap.innerHTML = '<div class="msg-user-label">You</div>'
+        + '<div class="msg-user-text">' + esc(text) + '</div>';
+    } else if (isTyping) {
+      wrap.className = "msg-bot";
+      wrap.innerHTML = '<div class="msg-bot-label">Assistant</div>'
+        + '<div class="msg-bot-text" style="color:#9ca3af;">Searching…</div>';
+    } else {
+      flagStore[id] = { question: question || "", answer: answer || text || "" };
+      wrap.className = "msg-bot";
+      wrap.innerHTML = '<div class="msg-bot-label">Assistant</div>'
+        + '<div class="msg-bot-text">' + esc(text) + '</div>'
+        + '<div class="msg-bot-actions">'
+        + '<button class="btn-flag" id="fb-' + id + '" onclick="showFlag(\'' + id + '\')">⚑ Flag as incorrect</button>'
+        + '</div>'
+        + '<div id="ff-' + id + '"></div>';
+    }
+
+    document.getElementById("chatMessages").appendChild(wrap);
+    wrap.scrollIntoView({ behavior: "smooth", block: "end" });
+    return wrap;
+  }
+
+  function showFlag(id) {
+    var btn = document.getElementById("fb-" + id);
+    var container = document.getElementById("ff-" + id);
+    if (!container) return;
+    btn.disabled = true;
+    container.innerHTML = '<div class="flag-form">'
+      + '<div class="flag-form-title">Flag this answer</div>'
+      + '<textarea id="fbt-' + id + '" placeholder="What\'s wrong? (optional)"></textarea>'
+      + '<div class="flag-form-btns">'
+      + '<button class="btn-flag-send" onclick="submitFlag(\'' + id + '\')">Submit flag</button>'
+      + '<button class="btn-flag-cancel" onclick="cancelFlag(\'' + id + '\')">Cancel</button>'
+      + '</div></div>';
+  }
+
+  function cancelFlag(id) {
+    var container = document.getElementById("ff-" + id);
+    var btn = document.getElementById("fb-" + id);
+    if (container) container.innerHTML = "";
+    if (btn) btn.disabled = false;
+  }
+
+  function submitFlag(id) {
+    var fbEl = document.getElementById("fbt-" + id);
+    var feedback = fbEl ? fbEl.value.trim() : "";
+    var container = document.getElementById("ff-" + id);
+    var data = flagStore[id] || {};
+
+    fetch("/api/portal/flag-answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: data.question, answer: data.answer, feedback: feedback })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (container) {
+          if (resp.success) {
+            container.innerHTML = '<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d;font-weight:600;margin-top:8px;">✅ Flagged — your manager will review this.</div>';
+          } else {
+            container.innerHTML = '<div style="color:#dc2626;font-size:13px;margin-top:6px;">Failed: ' + esc(resp.error || "unknown error") + '</div>';
+          }
+        }
+      })
+      .catch(function() {
+        if (container) container.innerHTML = '<div style="color:#dc2626;font-size:13px;margin-top:6px;">Request failed — please try again.</div>';
+      });
+  }
+
+  function esc(s) {
+    return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+</script>
+
+</body>
+</html>

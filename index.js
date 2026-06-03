@@ -3456,6 +3456,22 @@ function requireTenant(req, res, next) {
   next();
 }
 
+// requireSeniorTenant — portal routes only accessible to account owners (role=senior)
+// Existing sessions without a role field are treated as senior (pre-dated the role field)
+function requireSeniorTenant(req, res, next) {
+  const session = getTenantSession(req);
+  if (!session) {
+    if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Unauthorized" });
+    return res.redirect("/portal");
+  }
+  if (session.role === "junior") {
+    if (req.path.startsWith("/api/")) return res.status(403).json({ error: "Forbidden" });
+    return res.redirect("/portal/dashboard");
+  }
+  req.tenant = session;
+  next();
+}
+
 app.get("/portal", (req, res) => {
   if (getTenantSession(req)) return res.redirect("/portal/dashboard");
   res.sendFile(path.join(__dirname, "views", "portal-login.html"));
@@ -3465,13 +3481,51 @@ app.post("/portal/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.json({ success: false, error: "Please enter your email and password." });
 
+  const normEmail    = email.toLowerCase().trim();
+  const normPassword = password.trim();
+
+  // ── 1. Check portal_users (junior staff) first ────────────────────────────
+  const { data: portalUsers } = await supabase
+    .from("portal_users")
+    .select("id, tenant_id, name, email, password, role")
+    .eq("email", normEmail)
+    .eq("password", normPassword)
+    .limit(1);
+
+  if (portalUsers?.[0]) {
+    const pu = portalUsers[0];
+    // Fetch the parent tenant name
+    const { data: parentTenant } = await supabase
+      .from("tenants")
+      .select("name, website")
+      .eq("id", pu.tenant_id)
+      .maybeSingle();
+
+    const juniorToken = createTenantToken({
+      tenantId:   pu.tenant_id,
+      tenantName: parentTenant?.name || pu.tenant_id,
+      email:      pu.email,
+      role:       pu.role || "junior",
+      userName:   pu.name
+    });
+
+    res.cookie("tenant_session", juniorToken, {
+      httpOnly: true,
+      secure:   true,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+    return res.json({ success: true });
+  }
+
+  // ── 2. Fall back to tenant owner login ────────────────────────────────────
   // Match on both email AND password — handles the case where multiple tenants
   // share the same email address (e.g. an agency managing several clients)
   const { data: tenants } = await supabase
     .from("tenants")
     .select("id, name, email, website, portal_password")
-    .eq("email", email.toLowerCase().trim())
-    .eq("portal_password", password.trim())
+    .eq("email", normEmail)
+    .eq("portal_password", normPassword)
     .limit(1);
 
   const tenant = tenants?.[0] || null;
@@ -3484,7 +3538,8 @@ app.post("/portal/login", async (req, res) => {
     tenantId:   tenant.id,
     tenantName: tenant.name || tenant.id,
     email:      tenant.email,
-    website:    tenant.website
+    website:    tenant.website,
+    role:       "senior"
   });
 
   res.cookie("tenant_session", loginToken, {
@@ -3524,6 +3579,19 @@ app.get("/chat/:tenantId", async (req, res) => {
 
 app.get("/portal/dashboard", requireTenant, async (req, res) => {
   try {
+    // ── Junior users get a simplified staff view ──────────────────────────
+    if (req.tenant.role === "junior") {
+      const tid   = req.tenant.tenantId   || "";
+      const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
+      const uname = (req.tenant.userName  || req.tenant.email || "Staff").replace(/"/g, "&quot;");
+      const html  = fs.readFileSync(path.join(__dirname, "views", "portal-junior.html"), "utf8")
+        .replace(/TENANT_ID_PLACEHOLDER/g,   tid)
+        .replace(/TENANT_NAME_PLACEHOLDER/g, tname)
+        .replace(/USER_NAME_PLACEHOLDER/g,   uname);
+      res.setHeader("Cache-Control", "no-store");
+      return res.send(html);
+    }
+
     const tid   = req.tenant.tenantId   || "";
     const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
     const embedCode = `&lt;script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${tname}"&gt;&lt;/script&gt;`;
@@ -4162,6 +4230,141 @@ app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Portal: feature settings ──────────────────────────────────────────────────
+
+app.get("/api/portal/settings", requireTenant, async (req, res) => {
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("ai_enabled, train_staff_enabled")
+    .eq("id", req.tenant.tenantId)
+    .maybeSingle();
+  if (error) return res.status(500).json({ error: "Failed to fetch settings" });
+  res.json({
+    ai_enabled:           data?.ai_enabled           ?? true,
+    train_staff_enabled:  data?.train_staff_enabled  ?? false
+  });
+});
+
+app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
+  const updates = {};
+  if (typeof req.body.ai_enabled          === "boolean") updates.ai_enabled          = req.body.ai_enabled;
+  if (typeof req.body.train_staff_enabled === "boolean") updates.train_staff_enabled = req.body.train_staff_enabled;
+  if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
+  const { error } = await supabase.from("tenants").update(updates).eq("id", req.tenant.tenantId);
+  if (error) return res.status(500).json({ error: "Failed to save settings" });
+  res.json({ success: true });
+});
+
+// ── Portal: staff management ──────────────────────────────────────────────────
+
+app.get("/api/portal/staff", requireSeniorTenant, async (req, res) => {
+  const { data, error } = await supabase
+    .from("portal_users")
+    .select("id, name, email, role, created_at")
+    .eq("tenant_id", req.tenant.tenantId)
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: "Failed to load staff" });
+  res.json(data || []);
+});
+
+app.post("/api/portal/staff", requireSeniorTenant, async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password)
+    return res.status(400).json({ error: "Name, email and password are required" });
+  const { error } = await supabase.from("portal_users").insert({
+    tenant_id: req.tenant.tenantId,
+    name:      name.trim(),
+    email:     email.toLowerCase().trim(),
+    password:  password.trim(),
+    role:      "junior"
+  });
+  if (error) {
+    if (error.code === "23505") return res.status(409).json({ error: "A user with this email already exists" });
+    return res.status(500).json({ error: "Failed to create staff member" });
+  }
+  res.json({ success: true });
+});
+
+app.delete("/api/portal/staff/:id", requireSeniorTenant, async (req, res) => {
+  const { error } = await supabase
+    .from("portal_users")
+    .delete()
+    .eq("id", req.params.id)
+    .eq("tenant_id", req.tenant.tenantId);  // safety: can't delete other tenants' staff
+  if (error) return res.status(500).json({ error: "Failed to remove staff member" });
+  res.json({ success: true });
+});
+
+// ── Portal: flagged answers ────────────────────────────────────────────────────
+
+// Junior users can flag an answer from their KB session
+app.post("/api/portal/flag-answer", requireTenant, async (req, res) => {
+  const { question, answer, feedback } = req.body;
+  if (!question || !answer) return res.status(400).json({ error: "Question and answer are required" });
+  const { error } = await supabase.from("flagged_answers").insert({
+    tenant_id:  req.tenant.tenantId,
+    question,
+    answer,
+    feedback:   feedback || "",
+    flagged_by: req.tenant.userName || req.tenant.email || "portal user"
+  });
+  if (error) return res.status(500).json({ error: "Failed to flag answer" });
+  res.json({ success: true });
+});
+
+app.get("/api/portal/flagged-answers", requireSeniorTenant, async (req, res) => {
+  const { data, error } = await supabase
+    .from("flagged_answers")
+    .select("*")
+    .eq("tenant_id", req.tenant.tenantId)
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: "Failed to load flagged answers" });
+  res.json((data || []).map(r => ({
+    id: r.id, question: r.question, answer: r.answer,
+    feedback: r.feedback, createdAt: r.created_at
+  })));
+});
+
+app.delete("/api/portal/flagged-answers/:id", requireSeniorTenant, async (req, res) => {
+  await supabase.from("flagged_answers").delete()
+    .eq("id", req.params.id).eq("tenant_id", req.tenant.tenantId);
+  res.json({ success: true });
+});
+
+// ── Portal: approved answers ───────────────────────────────────────────────────
+
+app.get("/api/portal/approved-answers", requireSeniorTenant, async (req, res) => {
+  const { data, error } = await supabase
+    .from("approved_answers")
+    .select("*")
+    .eq("tenant_id", req.tenant.tenantId)
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: "Failed to load approved answers" });
+  res.json((data || []).map(r => ({
+    id: r.id, question: r.question, answer: r.answer,
+    category: r.category, createdAt: r.created_at
+  })));
+});
+
+app.post("/api/portal/approved-answers", requireSeniorTenant, async (req, res) => {
+  const { question, answer, category } = req.body;
+  if (!question || !answer) return res.status(400).json({ error: "Question and answer are required" });
+  const { error } = await supabase.from("approved_answers").insert({
+    tenant_id: req.tenant.tenantId,
+    question, answer,
+    category: category || "General"
+  });
+  if (error) return res.status(500).json({ error: "Failed to save approved answer" });
+  res.json({ success: true });
+});
+
+app.delete("/api/portal/approved-answers/:id", requireSeniorTenant, async (req, res) => {
+  await supabase.from("approved_answers").delete()
+    .eq("id", req.params.id).eq("tenant_id", req.tenant.tenantId);
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── Public tenant config — widget fetches this on load ───────────────────────
 app.get("/api/tenant-config/:tenantId", async (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -4248,17 +4451,21 @@ app.post("/chat", async (req, res) => {
     const { userId, conversationId, message, voiceMode, clubId } = req.body;
     const tenantId = clubId || "aom";
 
-    // ── Look up this tenant's business mode and name ─────────────────────────
+    // ── Look up this tenant's business mode, name and feature flags ──────────
     let effectiveMode = businessMode; // global default ('mortgage')
     let tenantDisplayName = null;
     try {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name")
+        .select("business_mode, name, ai_enabled")
         .eq("id", tenantId)
         .maybeSingle();
       if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
       if (tenantData?.name) tenantDisplayName = tenantData.name;
+      // Respect AI Receptionist on/off toggle (null/undefined = enabled by default)
+      if (tenantData?.ai_enabled === false) {
+        return res.json({ reply: "The AI assistant is currently unavailable. Please contact us directly." });
+      }
     } catch {}
 
     // General mode tenants don't collect personal data — skip consent gate

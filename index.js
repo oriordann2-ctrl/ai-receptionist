@@ -3316,19 +3316,45 @@ app.post("/api/signup", async (req, res) => {
       if (website) {
         console.log(`[signup] Starting background crawl for ${tenantId}: ${website}`);
 
-        // Extract favicon from homepage before full crawl
+        // Extract logo from homepage before full crawl
         try {
-          const homepageRes = await fetch(website, {
-            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-            signal: AbortSignal.timeout(8000)
-          });
-          if (homepageRes.ok) {
-            const homepageHtml = await homepageRes.text();
-            const logoUrl = extractFaviconUrl(homepageHtml, website);
-            if (logoUrl) {
-              await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
-              console.log(`[signup] Stored logo for ${tenantId}: ${logoUrl}`);
+          let logoUrl = null;
+
+          // Step 1: try fetching the homepage and extracting logo from HTML
+          try {
+            const homepageRes = await fetch(website, {
+              headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+              signal: AbortSignal.timeout(8000)
+            });
+            if (homepageRes.ok) {
+              const homepageHtml = await homepageRes.text();
+              logoUrl = extractFaviconUrl(homepageHtml, website);
+              if (logoUrl) console.log(`[signup] Logo found in HTML for ${tenantId}: ${logoUrl}`);
             }
+          } catch (fetchErr) {
+            console.log(`[signup] Homepage fetch failed for ${tenantId} (${fetchErr.message}) — will try Clearbit`);
+          }
+
+          // Step 2: fallback to Clearbit Logo API if homepage blocked or returned no logo
+          if (!logoUrl) {
+            try {
+              const domain = new URL(website).hostname.replace(/^www\./, "");
+              const clearbitUrl = `https://logo.clearbit.com/${domain}`;
+              const clearbitRes = await fetch(clearbitUrl, { signal: AbortSignal.timeout(6000) });
+              if (clearbitRes.ok && (clearbitRes.headers.get("content-type") || "").startsWith("image/")) {
+                logoUrl = clearbitUrl;
+                console.log(`[signup] Logo found via Clearbit for ${tenantId}: ${logoUrl}`);
+              }
+            } catch (clearbitErr) {
+              console.log(`[signup] Clearbit logo lookup failed for ${tenantId}: ${clearbitErr.message}`);
+            }
+          }
+
+          if (logoUrl) {
+            await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
+            console.log(`[signup] Stored logo for ${tenantId}: ${logoUrl}`);
+          } else {
+            console.log(`[signup] No logo found for ${tenantId} — chat will use default Sprimal icon`);
           }
         } catch (err) {
           console.error(`[signup] Logo extraction error for ${tenantId}:`, err.message);

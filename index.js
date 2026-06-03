@@ -3369,12 +3369,13 @@ app.post("/api/signup", async (req, res) => {
         console.log(`[signup] Imported ${imported} pages for ${tenantId}`);
       }
 
-      // Send embed code email via Resend
+      // Send welcome email via Resend
       if (process.env.RESEND_API_KEY) {
         const embedCode = `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}" data-club-name="${name}"></script>`;
-        const websiteNote = imported > 0
-          ? `<p>We've trained your assistant on <strong>${imported} pages</strong> from <strong>${website}</strong>.</p>`
-          : "<p>Your assistant is ready — you can add your website content from the dashboard.</p>";
+        const embedCodeEscaped = embedCode.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const trainingNote = imported > 0
+          ? `We&#39;ve trained your assistant on <strong style="color:#0f1f3d;">${imported} pages</strong> from <a href="${website}" style="color:#1e40af;text-decoration:none;">${website}</a>. It&#39;s ready to answer questions right now.`
+          : `Your assistant is set up and ready. You can add your website content from your portal dashboard.`;
 
         await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -3385,27 +3386,161 @@ app.post("/api/signup", async (req, res) => {
           body: JSON.stringify({
             from: "Sprimal <hello@sprimal.com>",
             to: email,
-            subject: `Your Sprimal assistant is ready 🎉`,
+            subject: `Your Sprimal assistant is ready &#127881;`,
             html: `
-              <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;">
-                <h1 style="font-size:24px;margin-bottom:8px;">Welcome to Sprimal, ${name}! 👋</h1>
-                ${websiteNote}
-                <p style="margin-top:20px;">Here is your embed code — paste it before the <code>&lt;/body&gt;</code> tag on your website:</p>
-                <pre style="background:#f3f4f6;border-radius:8px;padding:16px;font-size:13px;overflow-x:auto;">${embedCode.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
-                <div style="margin-top:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;">
-                  <p style="font-weight:700;color:#0f172a;margin-bottom:10px;">🔐 Your portal login</p>
-                  <p style="font-size:14px;color:#374151;margin-bottom:4px;"><strong>URL:</strong> <a href="https://app.sprimal.com/portal" style="color:#1e40af;">https://app.sprimal.com/portal</a></p>
-                  <p style="font-size:14px;color:#374151;margin-bottom:4px;"><strong>Email:</strong> ${email}</p>
-                  <p style="font-size:14px;color:#374151;"><strong>Password:</strong> ${portalPassword}</p>
-                </div>
-                <p style="margin-top:20px;color:#6b7280;font-size:14px;">Need help? Just reply to this email.</p>
-                <p style="color:#6b7280;font-size:14px;">— The Sprimal team</p>
-              </div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f1f5f9;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- HEADER -->
+        <tr>
+          <td align="center" bgcolor="#0f1f3d" style="background-color:#0f1f3d;border-radius:10px 10px 0 0;padding:22px 32px;">
+            <span style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;letter-spacing:-0.5px;">Sprimal</span>
+          </td>
+        </tr>
+
+        <!-- BODY -->
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:36px 40px;border-radius:0 0 10px 10px;">
+
+            <!-- Headline -->
+            <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#0f1f3d;margin:0 0 10px 0;line-height:1.3;">Your AI assistant is live, ${name}! &#127881;</h1>
+
+            <!-- Training note -->
+            <p style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#374151;margin:0 0 28px 0;line-height:1.65;">${trainingNote}</p>
+
+            <!-- Divider -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;"><tr><td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td></tr></table>
+
+            <!-- Steps label -->
+            <p style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 16px 0;">Get started in 3 steps</p>
+
+            <!-- Step 1 -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:14px;">
+              <tr>
+                <td width="32" valign="top">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                    <td align="center" bgcolor="#2563eb" style="background-color:#2563eb;border-radius:50%;width:26px;height:26px;">
+                      <span style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;color:#ffffff;display:block;width:26px;height:26px;line-height:26px;text-align:center;">1</span>
+                    </td>
+                  </tr></table>
+                </td>
+                <td style="padding-left:12px;">
+                  <p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#0f1f3d;margin:0 0 2px 0;">Log in to your portal</p>
+                  <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;margin:0;line-height:1.5;">View analytics, manage your knowledge base, and control your assistant settings.</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Step 2 -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:14px;">
+              <tr>
+                <td width="32" valign="top">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                    <td align="center" bgcolor="#2563eb" style="background-color:#2563eb;border-radius:50%;width:26px;height:26px;">
+                      <span style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;color:#ffffff;display:block;width:26px;height:26px;line-height:26px;text-align:center;">2</span>
+                    </td>
+                  </tr></table>
+                </td>
+                <td style="padding-left:12px;">
+                  <p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#0f1f3d;margin:0 0 2px 0;">Test your assistant</p>
+                  <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;margin:0;line-height:1.5;">Use the Preview Chat link in your portal to see how it responds before going live.</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Step 3 -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
+              <tr>
+                <td width="32" valign="top">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                    <td align="center" bgcolor="#2563eb" style="background-color:#2563eb;border-radius:50%;width:26px;height:26px;">
+                      <span style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;color:#ffffff;display:block;width:26px;height:26px;line-height:26px;text-align:center;">3</span>
+                    </td>
+                  </tr></table>
+                </td>
+                <td style="padding-left:12px;">
+                  <p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#0f1f3d;margin:0 0 2px 0;">Add it to your website</p>
+                  <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;margin:0;line-height:1.5;">Paste the embed code at the bottom of this email just before the &lt;/body&gt; tag. It appears on every page automatically.</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- CTA Button -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
+              <tr>
+                <td align="center">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td align="center" bgcolor="#2563eb" style="background-color:#2563eb;border-radius:8px;">
+                        <a href="https://app.sprimal.com/portal" style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;padding:14px 36px;">Go to your portal &rarr;</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Divider -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;"><tr><td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td></tr></table>
+
+            <!-- Login credentials box -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
+              <tr>
+                <td bgcolor="#f8fafc" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:18px 20px;">
+                  <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#0f1f3d;margin:0 0 12px 0;">&#128274; Your login details</p>
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr><td style="padding-bottom:7px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;"><strong>URL:</strong>&nbsp;&nbsp;<a href="https://app.sprimal.com/portal" style="color:#1e40af;text-decoration:none;">https://app.sprimal.com/portal</a></td></tr>
+                    <tr><td style="padding-bottom:7px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;"><strong>Email:</strong>&nbsp;&nbsp;${email}</td></tr>
+                    <tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;"><strong>Password:</strong>&nbsp;&nbsp;${portalPassword}</td></tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Embed code box -->
+            <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#0f1f3d;margin:0 0 8px 0;">Your embed code</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
+              <tr>
+                <td bgcolor="#f3f4f6" style="background-color:#f3f4f6;border-radius:8px;padding:14px 16px;">
+                  <p style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#1e293b;margin:0;line-height:1.6;word-break:break-all;">${embedCodeEscaped}</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Sign-off -->
+            <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;margin:0 0 4px 0;line-height:1.5;">Questions? Just reply to this email &mdash; we typically respond within a few hours.</p>
+            <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;margin:0;">&#8212; The Sprimal team</p>
+
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td align="center" style="padding:20px 0;">
+            <p style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;margin:0;">&#169; 2025 Sprimal &middot; Monkstown, Ireland</p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
             `
           })
         }).catch(err => console.error("[signup] Email send error:", err.message));
 
-        console.log(`[signup] Embed code email sent to ${email}`);
+        console.log(`[signup] Welcome email sent to ${email}`);
       }
     } catch (err) {
       console.error(`[signup] Background task error for ${tenantId}:`, err.message);

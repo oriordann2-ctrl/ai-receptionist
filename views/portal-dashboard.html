@@ -551,6 +551,23 @@
         </select>
       </div>
 
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Effective Date <span style="color:#dc2626;">*</span></label>
+          <input id="uploadEffectiveDate" type="month"
+            style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;"
+            onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'" />
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Month this document came into effect.</div>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Expiry Date <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+          <input id="uploadExpiryDate" type="month"
+            style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;"
+            onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'" />
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Leave blank if it does not expire.</div>
+        </div>
+      </div>
+
       <div style="margin-bottom:14px;">
         <label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Tags <span style="font-weight:400;color:#9ca3af;">(optional, comma-separated)</span></label>
         <input id="uploadTags" type="text" placeholder="e.g. self-employed, high-ltv, switcher"

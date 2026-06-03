@@ -4339,11 +4339,13 @@ app.post("/api/portal/documents/search", requireTenant, async (req, res) => {
       .slice(0, 5)
       .map(c => c.document_id);
 
+    // Exclude website-crawled pages — only uploaded files (PDF, DOCX, TXT) make sense to download
     const { data: docs } = await supabase
       .from("documents")
       .select("id, original_filename, stored_filename, storage_path, mimetype, document_type")
       .in("id", topDocIds)
-      .eq("tenant_id", tenantId);
+      .eq("tenant_id", tenantId)
+      .neq("document_type", "Website Content");
 
     const idToSim = {};
     Object.values(docMap).forEach(c => { idToSim[c.document_id] = c.similarity; });

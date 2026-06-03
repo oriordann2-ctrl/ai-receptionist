@@ -162,7 +162,7 @@
   <!-- ── Find a Document ── -->
   <div class="card">
     <h2>Find a Document</h2>
-    <p class="subtitle">Describe what you're looking for and Sprimal will find the most relevant document from your knowledge base.</p>
+    <p class="subtitle">Search for uploaded documents (PDFs, Word docs, text files) by describing what you need. Website content is searched by the Knowledge Base Assistant above.</p>
 
     <input type="text" id="doc-search"
       placeholder="e.g. onboarding checklist, pricing guide, service agreement…"
@@ -297,7 +297,7 @@
         btn.disabled = false; btn.textContent = "Find Document";
 
         if (!docs.length) {
-          results.innerHTML = "<p style='font-size:13px;color:#6b7280;'>No matching documents found. Try different keywords.</p>";
+          results.innerHTML = "<p style='font-size:13px;color:#6b7280;'>No uploaded documents matched. This search finds PDFs, Word docs and text files your organisation has uploaded — website content is searched automatically by the Knowledge Base Assistant above.</p>";
           return;
         }
 

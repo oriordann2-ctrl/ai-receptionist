@@ -7900,6 +7900,7 @@ async function pollGmailInbox() {
     "imcapplications@ptsb.ie",        // PTSB — document acknowledgements & application status updates
     "electronicvaluations@ptsb.ie",   // PTSB — valuation confirmations & milestones
     "noreply@mail.nuamoney.com",      // NUA Money — automated application notifications
+    "maeve@sprimal.com",              // Sprimal AI — context only, never reply to self
   ];
 
   const CONTEXT_ONLY_DOMAINS = [

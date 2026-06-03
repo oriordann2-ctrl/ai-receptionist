@@ -3387,7 +3387,7 @@ app.post("/api/signup", async (req, res) => {
           body: JSON.stringify({
             from: "Sprimal <hello@sprimal.com>",
             to: email,
-            subject: `Your Sprimal assistant is ready &#127881;`,
+            subject: `Your Sprimal assistant is ready 🎉`,
             html: `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -3413,7 +3413,7 @@ app.post("/api/signup", async (req, res) => {
           <td bgcolor="#ffffff" style="background-color:#ffffff;padding:36px 40px;border-radius:0 0 10px 10px;">
 
             <!-- Headline -->
-            <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#0f1f3d;margin:0 0 10px 0;line-height:1.3;">Your AI assistant is live, ${name}! &#127881;</h1>
+            <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#0f1f3d;margin:0 0 10px 0;line-height:1.3;">Your AI assistant is live, ${name}! 🎉</h1>
 
             <!-- Training note -->
             <p style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#374151;margin:0 0 28px 0;line-height:1.65;">${trainingNote}</p>

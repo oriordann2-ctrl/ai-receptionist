@@ -3614,41 +3614,18 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
     const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
     const embedCode = `&lt;script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${tname}"&gt;&lt;/script&gt;`;
 
-    // ── Fetch documents + chat logs in parallel ───────────────────────────────
-    const [{ data: docs }, { data: rawLogs }] = await Promise.all([
-      supabase
-        .from("documents")
-        .select("id, original_filename, stored_filename, storage_path, document_type, uploaded_at")
-        .eq("tenant_id", tid)
-        .order("uploaded_at", { ascending: false }),
-      supabase
-        .from("chat_logs")
-        .select("id, conversation_id, sender, message, created_at")
-        .eq("tenant_id", tid)
-        .order("created_at", { ascending: false })
-        .limit(100)
-    ]);
+    // ── Fetch documents only — chat logs are lazy-loaded client-side ─────────
+    const { data: docs } = await supabase
+      .from("documents")
+      .select("id, original_filename, stored_filename, storage_path, document_type, uploaded_at")
+      .eq("tenant_id", tid)
+      .order("uploaded_at", { ascending: false });
 
     const docListHtml = buildDocListHtml(docs || [], tid, req.tenant.website || null);
 
-    // Group raw log rows into conversations for display
-    const convMap = {};
-    (rawLogs || []).forEach(row => {
-      const key = row.conversation_id || ("msg-" + row.id);
-      if (!convMap[key]) convMap[key] = { conversationId: key, messages: [], startedAt: row.created_at };
-      convMap[key].messages.push(row);
-      if (row.created_at < convMap[key].startedAt) convMap[key].startedAt = row.created_at;
-    });
-    const conversations = Object.values(convMap)
-      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
-      .slice(0, 20)
-      .map(c => ({
-        conversationId: c.conversationId,
-        startedAt: c.startedAt,
-        messageCount: c.messages.length,
-        messages: c.messages.slice().reverse().map(m => ({ sender: m.sender, message: m.message, createdAt: m.created_at }))
-      }));
-    const chatLogsHtml = buildChatLogsHtml(conversations);
+    // Chat logs are lazy-loaded via /api/portal/chat-logs when the section is opened,
+    // preventing large HTML blobs from being embedded in the page and freezing the browser.
+    const chatLogsHtml = "";
 
     // Auto-refresh every 8 s while crawl is still running (no docs yet)
     const autoRefresh = (!docs || docs.length === 0)

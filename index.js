@@ -2959,11 +2959,12 @@ function extractPageTitle(html) {
   return m ? m[1].trim() : "Page";
 }
 
-// Known generic/placeholder favicons to skip
+// Known generic/placeholder favicons to skip (Wix platform icons only)
 const GENERIC_FAVICON_PATTERNS = [
   "parastorage.com/client/pfavico",
-  "parastorage.com/services",
-  "/favicon.ico"
+  "parastorage.com/services"
+  // Note: /favicon.ico is intentionally NOT blocked — non-Wix sites serve
+  // their real club/business logo there. Only Wix uses the parastorage paths.
 ];
 function isGenericFavicon(url) {
   return GENERIC_FAVICON_PATTERNS.some(p => url.includes(p));
@@ -3027,7 +3028,7 @@ async function fetchSitemapUrls(rootUrl) {
   const urls = [];
   try {
     const res = await fetch(base + "/sitemap.xml", {
-      headers: { "User-Agent": "Sprimal-Bot/1.0" },
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
       signal: AbortSignal.timeout(8000)
     });
     if (!res.ok) return urls;
@@ -3039,7 +3040,7 @@ async function fetchSitemapUrls(rootUrl) {
       for (const childUrl of childSitemaps) {
         try {
           const childRes = await fetch(childUrl, {
-            headers: { "User-Agent": "Sprimal-Bot/1.0" },
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
             signal: AbortSignal.timeout(8000)
           });
           if (!childRes.ok) continue;
@@ -3088,7 +3089,7 @@ async function crawlWebsite(rootUrl, maxPages = 100) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
       const response = await fetch(url, {
-        headers: { "User-Agent": "Sprimal-Bot/1.0 (knowledge import)" },
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
         signal: controller.signal
       });
       clearTimeout(timeout);
@@ -3107,7 +3108,7 @@ async function crawlWebsite(rootUrl, maxPages = 100) {
         try {
           console.log(`[crawler] JS-rendered page detected — trying Jina Reader for ${url}`);
           const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
-            headers: { "Accept": "text/plain", "User-Agent": "Sprimal-Bot/1.0" },
+            headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
             signal: AbortSignal.timeout(20000)
           });
           if (jinaRes.ok) {
@@ -3316,7 +3317,7 @@ app.post("/api/signup", async (req, res) => {
         // Extract favicon from homepage before full crawl
         try {
           const homepageRes = await fetch(website, {
-            headers: { "User-Agent": "Sprimal-Bot/1.0" },
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
             signal: AbortSignal.timeout(8000)
           });
           if (homepageRes.ok) {
@@ -4945,7 +4946,7 @@ app.get("/api/tenant-favicon/:tenantId", async (req, res) => {
 
   try {
     const imgRes = await fetch(imgUrl, {
-      headers: { "User-Agent": "Sprimal-Bot/1.0" },
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
       signal: AbortSignal.timeout(6000)
     });
     if (!imgRes.ok) return res.status(404).end();

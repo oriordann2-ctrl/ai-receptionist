@@ -3465,13 +3465,18 @@ app.post("/portal/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.json({ success: false, error: "Please enter your email and password." });
 
-  const { data: tenant } = await supabase
+  // Match on both email AND password — handles the case where multiple tenants
+  // share the same email address (e.g. an agency managing several clients)
+  const { data: tenants } = await supabase
     .from("tenants")
     .select("id, name, email, website, portal_password")
     .eq("email", email.toLowerCase().trim())
-    .maybeSingle();
+    .eq("portal_password", password.trim())
+    .limit(1);
 
-  if (!tenant || tenant.portal_password !== password) {
+  const tenant = tenants?.[0] || null;
+
+  if (!tenant) {
     return res.json({ success: false, error: "Incorrect email or password." });
   }
 

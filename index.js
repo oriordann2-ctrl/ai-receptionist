@@ -2981,22 +2981,24 @@ function extractFaviconUrl(html, baseUrl) {
     } catch {}
   }
 
-  // 2. <link rel="icon"> — skip generic platform placeholders
-  const iconMatches = [...html.matchAll(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/gi)];
-  for (const m of iconMatches.reverse()) {
-    try {
-      const url = new URL(m[1], baseUrl).href;
-      if (!isGenericFavicon(url)) return url;
-    } catch {}
-  }
-
-  // 3. og:image — Wix/Squarespace sites often set their club logo here
+  // 2. og:image — usually the full brand/club logo used for social sharing
+  //    Checked before <link rel="icon"> because favicons are often tiny (16px)
+  //    while og:image is typically the proper high-resolution logo
   const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
     || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
   if (ogMatch) {
     try {
       const url = new URL(ogMatch[1], baseUrl).href;
       if (url.startsWith("http")) return url;
+    } catch {}
+  }
+
+  // 3. <link rel="icon"> — last resort, often only a tiny 16px favicon
+  const iconMatches = [...html.matchAll(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/gi)];
+  for (const m of iconMatches.reverse()) {
+    try {
+      const url = new URL(m[1], baseUrl).href;
+      if (!isGenericFavicon(url)) return url;
     } catch {}
   }
 

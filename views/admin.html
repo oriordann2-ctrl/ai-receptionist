@@ -3364,11 +3364,20 @@ async function loadAdminTenants() {
         ? `<span class="tenant-pw-badge">${escT(t.portal_password)}</span>`
         : `<span class="tenant-pw-badge null-pw">no password set</span>`;
       const meta = [t.email, t.website].filter(Boolean).join(" · ");
+      const kbOk = t.chunkCount > 0;
+      const kbBadge = kbOk
+        ? `<span style="font-size:12px;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;border-radius:6px;padding:3px 8px;flex-shrink:0;">
+            ✓ ${t.docCount} doc${t.docCount !== 1 ? "s" : ""} · ${t.chunkCount} chunks
+           </span>`
+        : `<span style="font-size:12px;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:3px 8px;flex-shrink:0;">
+            ⚠ No KB data
+           </span>`;
       return `<div class="tenant-row" id="tenant-row-${escT(t.id)}">
         <div class="tenant-info">
           <div class="tenant-info-name">${escT(t.name || t.id)}</div>
           <div class="tenant-info-meta">${escT(meta)}</div>
         </div>
+        ${kbBadge}
         ${pwBadge}
         <button class="btn-reset-pw" onclick="resetTenantPassword('${escT(t.id)}', '${escT(t.name || t.id)}')">
           🔑 Reset password

@@ -5699,7 +5699,8 @@ app.post("/api/knowledge-answer/save", requireSenior, async (req, res) => {
       .insert({
         question,
         answer,
-        category: category || "General"
+        category: category || "General",
+        tenant_id: "aom"
       });
 
     if (error) {
@@ -5729,8 +5730,9 @@ app.post("/api/knowledge-answer/flag", requireLogin, async (req, res) => {
       .insert({
         question,
         answer,
-        feedback: feedback || "",
-        flagged_by: req.user?.role || "unknown"
+        feedback:   feedback || "",
+        flagged_by: req.user?.role || "unknown",
+        tenant_id:  "aom"
       });
 
     if (error) {

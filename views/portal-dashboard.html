@@ -195,27 +195,6 @@
       animation: spin 0.9s linear infinite; display: inline-block;
     }
 
-    /* ── Test assistant ── */
-    .test-area { display: flex; gap: 10px; margin-bottom: 16px; }
-    .test-input {
-      flex: 1; border: 1.5px solid #e2e8f0; border-radius: 8px;
-      padding: 11px 14px; font-size: 14px; font-family: inherit; outline: none;
-      transition: border-color 0.15s;
-    }
-    .test-input:focus { border-color: #1e40af; }
-    .btn-ask {
-      background: #111827; color: white; border: none; border-radius: 8px;
-      padding: 11px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
-      font-family: inherit; transition: background 0.15s; white-space: nowrap;
-    }
-    .btn-ask:hover { background: #1f2937; }
-    .btn-ask:disabled { background: #9ca3af; cursor: not-allowed; }
-    .test-response {
-      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
-      padding: 16px; font-size: 14px; color: #374151; line-height: 1.6;
-      display: none; white-space: pre-wrap;
-    }
-
     /* ── Chat logs ── */
     .conv-details {
       border: 1px solid #e2e8f0; border-radius: 10px;
@@ -256,9 +235,7 @@
       .embed-row { flex-direction: column; }
       .btn-copy { width: 100%; padding: 12px; text-align: center; }
       .file-row { flex-direction: column; align-items: flex-start; }
-      .test-area { flex-direction: column; }
-      .btn-ask { width: 100%; padding: 12px; }
-      .website-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+.website-row { flex-direction: column; align-items: flex-start; gap: 10px; }
       .btn-reimport-website, .btn-remove-website { width: 100%; text-align: center; }
       .doc-row { flex-wrap: wrap; }
       .btn-delete { margin-left: auto; }
@@ -358,17 +335,6 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- Test your assistant -->
-  <div class="card">
-    <div class="card-title">Test Your Assistant ⭐</div>
-    <div class="card-sub">Ask your assistant a question to see how it responds — exactly as a member would experience it on your website.</div>
-    <div class="test-area">
-      <input class="test-input" id="testInput" type="text" placeholder="e.g. How do I become a member?" />
-      <button class="btn-ask" id="askBtn" onclick="askAssistant()">Ask</button>
-    </div>
-    <div class="test-response" id="testResponse"></div>
   </div>
 
   <!-- Recent Conversations -->

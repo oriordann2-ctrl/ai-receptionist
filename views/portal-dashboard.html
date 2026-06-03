@@ -500,7 +500,9 @@
         <span class="analytics-chevron">▾</span>
       </summary>
       <div class="analytics-body">
-        <div id="chatLogs">CHAT_LOGS_PLACEHOLDER</div>
+        <div id="chatLogs">
+          <div id="chatLogsSpinner" style="text-align:center;padding:28px 0;font-size:14px;color:#9ca3af;">Loading conversations…</div>
+        </div>
       </div>
     </details>
   </div>
@@ -609,7 +611,7 @@
       <input id="pasteKbTitle" type="text" placeholder="Title (e.g. Refund Policy)"
         style="width:100%;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;margin-bottom:10px;"
         onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'" />
-      <textarea id="pasteKbText" placeholder="Paste email, FAQ answer, lender clarification, process note…"
+      <textarea id="pasteKbText" placeholder="Paste email, FAQ answer, policy note, process update…"
         style="width:100%;min-height:140px;padding:12px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;resize:vertical;outline:none;line-height:1.55;"
         onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
       <div style="display:flex;align-items:center;gap:14px;margin-top:10px;flex-wrap:wrap;">
@@ -706,5 +708,72 @@
   window.tenantName = "TENANT_NAME_PLACEHOLDER";
 </script>
 <script src="/portal.js"></script>
+<script>
+  // ── Lazy-load Recent Conversations ───────────────────────────────────────────
+  // Conversations are fetched from the API only when the section is opened.
+  // This prevents embedding potentially large HTML into the page at load time,
+  // which was causing the browser tab to freeze.
+  (function () {
+    var details  = document.getElementById("chatLogsDetails");
+    var container = document.getElementById("chatLogs");
+    var loaded   = false;
+
+    if (!details) return;
+
+    details.addEventListener("toggle", function () {
+      if (!details.open || loaded) return;
+      loaded = true;
+
+      fetch("/api/portal/chat-logs")
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var convs = (data && data.conversations) || [];
+          if (convs.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#9ca3af;">No conversations yet — they\'ll appear here once visitors start chatting.</div>';
+            return;
+          }
+
+          function esc(s) {
+            return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+          }
+          function fmtDate(ts) {
+            if (!ts) return "";
+            return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+          }
+
+          var html = convs.map(function (conv) {
+            var firstCustomer = (conv.messages || []).find(function (m) { return m.sender === "customer"; });
+            var preview = firstCustomer ? firstCustomer.message : ((conv.messages[0] || {}).message || "");
+            var previewText = esc(preview.length > 90 ? preview.slice(0, 90) + "…" : preview);
+            var date  = esc(fmtDate(conv.startedAt));
+            var count = conv.messageCount;
+
+            var msgHtml = (conv.messages || []).map(function (m) {
+              var cls   = m.sender === "bot" ? "conv-msg-bot" : m.sender === "system" ? "conv-msg-system" : "conv-msg-user";
+              var label = m.sender === "bot" ? "Assistant" : m.sender === "system" ? "System" : "Visitor";
+              return '<div class="conv-msg ' + cls + '">'
+                + '<span class="conv-msg-label">' + label + '</span>'
+                + '<div class="conv-msg-text">' + esc(m.message) + '</div>'
+                + '</div>';
+            }).join("");
+
+            return '<details class="conv-details">'
+              + '<summary class="conv-summary">'
+              + '<div class="conv-header"><span class="conv-date">' + date + '</span>'
+              + '<span class="conv-count">' + count + ' message' + (count !== 1 ? 's' : '') + '</span></div>'
+              + '<div class="conv-preview">' + (previewText || '<em style="color:#d1d5db;">—</em>') + '</div>'
+              + '</summary>'
+              + '<div class="conv-messages">' + msgHtml + '</div>'
+              + '</details>';
+          }).join("");
+
+          container.innerHTML = html;
+        })
+        .catch(function () {
+          container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#ef4444;">Failed to load conversations. Please refresh and try again.</div>';
+        });
+    });
+  })();
+</script>
 </body>
 </html>

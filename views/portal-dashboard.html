@@ -195,6 +195,14 @@
       animation: spin 0.9s linear infinite; display: inline-block;
     }
 
+    /* ── Section group labels ── */
+    .section-group-label {
+      font-size: 13px; font-weight: 700; color: #6b7280;
+      text-transform: uppercase; letter-spacing: 0.7px;
+      margin: 28px 0 12px; padding-left: 2px;
+    }
+    .section-group-label:first-of-type { margin-top: 0; }
+
     /* ── Analytics ── */
     .analytics-summary {
       cursor: pointer; list-style: none; display: flex; align-items: center;
@@ -322,6 +330,9 @@
     <div class="new-banner-sub">We're training it on your website right now — this takes 2–3 minutes. Your embed code is ready below. Refresh this page in a few minutes to see your pages listed.</div>
   </div>
 
+  <!-- ── Section: AI Receptionist ── -->
+  <div class="section-group-label">🤖 AI Receptionist</div>
+
   <!-- Embed Code -->
   <div class="card">
     <div class="card-title">Embed on your website</div>
@@ -333,9 +344,41 @@
     <p class="embed-hint">Works with Wix, WordPress, Squarespace, or any custom site. Paste once — appears on every page.</p>
   </div>
 
+  <!-- QR Code -->
+  <div class="card">
+    <div class="card-title">QR Code</div>
+    <div class="card-sub">Print this and put it on your noticeboard, reception desk, or anywhere members gather. They scan it and chat with your assistant instantly.</div>
+    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+      <div id="qrImage" style="flex-shrink:0;">
+        <img id="qrImg"
+          src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=8&data=https%3A%2F%2Fapp.sprimal.com%2Fchat%2FTENANT_ID_PLACEHOLDER"
+          alt="QR Code" width="160" height="160"
+          style="border-radius:10px;border:1px solid #e2e8f0;display:block;" />
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:6px;">app.sprimal.com/chat/TENANT_ID_PLACEHOLDER</div>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:14px;line-height:1.5;">Members scan this with their phone camera — no app needed. Opens instantly in their browser.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <a href="https://api.qrserver.com/v1/create-qr-code/?size=800x800&margin=20&data=https%3A%2F%2Fapp.sprimal.com%2Fchat%2FTENANT_ID_PLACEHOLDER"
+            download="sprimal-qr-code.png"
+            style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;">
+            ⬇ Download PNG
+          </a>
+          <a href="https://app.sprimal.com/chat/TENANT_ID_PLACEHOLDER" target="_blank"
+            style="display:inline-block;background:white;color:#111827;border:1.5px solid #e2e8f0;text-decoration:none;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;">
+            Preview chat →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Section: Knowledge & Insights ── -->
+  <div class="section-group-label">📚 Knowledge &amp; Insights</div>
+
   <!-- Knowledge Base Documents -->
   <div class="card">
-    <div class="card-title">Knowledge Base Documents</div>
+    <div class="card-title">Knowledge Base</div>
     <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers.</div>
 
     <!-- Upload -->
@@ -370,35 +413,6 @@
         <div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading analytics…</div>
       </div>
     </details>
-  </div>
-
-  <!-- QR Code -->
-  <div class="card">
-    <div class="card-title">QR Code</div>
-    <div class="card-sub">Print this and put it on your noticeboard, reception desk, or anywhere members gather. They scan it and chat with your assistant instantly.</div>
-    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
-      <div id="qrImage" style="flex-shrink:0;">
-        <img id="qrImg"
-          src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=8&data=https%3A%2F%2Fapp.sprimal.com%2Fchat%2FTENANT_ID_PLACEHOLDER"
-          alt="QR Code" width="160" height="160"
-          style="border-radius:10px;border:1px solid #e2e8f0;display:block;" />
-      </div>
-      <div>
-        <div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:6px;">app.sprimal.com/chat/TENANT_ID_PLACEHOLDER</div>
-        <div style="font-size:13px;color:#6b7280;margin-bottom:14px;line-height:1.5;">Members scan this with their phone camera — no app needed. Opens instantly in their browser.</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <a href="https://api.qrserver.com/v1/create-qr-code/?size=800x800&margin=20&data=https%3A%2F%2Fapp.sprimal.com%2Fchat%2FTENANT_ID_PLACEHOLDER"
-            download="sprimal-qr-code.png"
-            style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;">
-            ⬇ Download PNG
-          </a>
-          <a href="https://app.sprimal.com/chat/TENANT_ID_PLACEHOLDER" target="_blank"
-            style="display:inline-block;background:white;color:#111827;border:1.5px solid #e2e8f0;text-decoration:none;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;">
-            Preview chat →
-          </a>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- Recent Conversations -->

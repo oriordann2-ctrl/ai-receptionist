@@ -3427,6 +3427,12 @@ async function loadAdminAnalytics() {
     const res  = await fetch(url, { credentials: "include" });
     const d    = await res.json();
 
+    // Surface server-side errors clearly
+    if (!res.ok || d.error) {
+      el.innerHTML = `<p style="color:#dc2626;font-size:13px;">Error: ${d.error || res.statusText}</p>`;
+      return;
+    }
+
     // Populate filter dropdown once
     if (filter && d.tenants && filter.options.length <= 1) {
       d.tenants.forEach(t => {
@@ -3439,9 +3445,16 @@ async function loadAdminAnalytics() {
 
     function escA(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
-    const maxBar = Math.max(...(d.trend || []).map(t => t.count), 1);
+    // Null-safe values in case of partial response
+    const todayCount        = d.todayCount        ?? 0;
+    const totalConversations = d.totalConversations ?? 0;
+    const avgMessages       = d.avgMessages       ?? 0;
+    const trend             = d.trend             || [];
+    const topTopics         = d.topTopics         || [];
+
+    const maxBar = Math.max(...trend.map(t => t.count), 1);
     const sparkHtml = '<div class="adm-sparkline">'
-      + (d.trend || []).map((t, i) => {
+      + trend.map((t, i) => {
           const h   = Math.round((t.count / maxBar) * 60);
           const cls = i === 6 ? "adm-spark-bar adm-today" : "adm-spark-bar";
           return `<div class="adm-spark-col">
@@ -3452,9 +3465,9 @@ async function loadAdminAnalytics() {
         }).join("")
       + '</div>';
 
-    const maxTopic = d.topTopics && d.topTopics.length ? d.topTopics[0].count : 1;
-    const topicsHtml = d.topTopics && d.topTopics.length
-      ? d.topTopics.map(t => {
+    const maxTopic = topTopics.length ? topTopics[0].count : 1;
+    const topicsHtml = topTopics.length
+      ? topTopics.map(t => {
           const pct = Math.round((t.count / maxTopic) * 100);
           return `<div class="adm-topic-row">
             <div class="adm-topic-name">${escA(t.topic)}</div>
@@ -3470,7 +3483,7 @@ async function loadAdminAnalytics() {
         + d.byTenant.map(t =>
             `<div class="adm-tenant-row">
               <div class="adm-tenant-name">${escA(t.tenantName)}</div>
-              <div class="adm-tenant-stats">${t.totalConversations} convs · ${t.todayCount} today · ${t.avgMessages} avg msgs</div>
+              <div class="adm-tenant-stats">${t.totalConversations ?? 0} convs · ${t.todayCount ?? 0} today · ${t.avgMessages ?? 0} avg msgs</div>
             </div>`
           ).join("")
         + '</div>'
@@ -3478,9 +3491,9 @@ async function loadAdminAnalytics() {
 
     el.innerHTML = `
       <div class="adm-stat-tiles">
-        <div class="adm-stat-tile"><div class="adm-stat-value">${d.todayCount}</div><div class="adm-stat-label">Today</div></div>
-        <div class="adm-stat-tile"><div class="adm-stat-value">${d.totalConversations}</div><div class="adm-stat-label">Last 30 days</div></div>
-        <div class="adm-stat-tile"><div class="adm-stat-value">${d.avgMessages}</div><div class="adm-stat-label">Avg messages</div></div>
+        <div class="adm-stat-tile"><div class="adm-stat-value">${todayCount}</div><div class="adm-stat-label">Today</div></div>
+        <div class="adm-stat-tile"><div class="adm-stat-value">${totalConversations}</div><div class="adm-stat-label">Last 30 days</div></div>
+        <div class="adm-stat-tile"><div class="adm-stat-value">${avgMessages}</div><div class="adm-stat-label">Avg messages</div></div>
       </div>
       <div style="margin-bottom:24px;"><p class="adm-section-title">Conversations — last 7 days</p>${sparkHtml}</div>
       <div><p class="adm-section-title">Top topics</p>${topicsHtml}</div>

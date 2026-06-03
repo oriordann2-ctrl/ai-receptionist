@@ -6166,29 +6166,31 @@ async function pollGmailInbox() {
 
       if (!uids || uids.length === 0) {
         console.log("[email-poll] No new messages");
-        return;
+        // fall through to finally — do NOT return here, logout must always run
+      } else {
+        console.log(`[email-poll] ${uids.length} unseen message(s) — fetching sources`);
+
+        for await (const msg of fetchClient.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
+          rawMessages.push({ uid: msg.uid, source: Buffer.from(msg.source) });
+        }
+
+        // Mark as seen now — before any LLM calls — so a crash in Phase 2
+        // never causes the same email to be processed twice.
+        const fetchedUids = rawMessages.map(m => m.uid);
+        await fetchClient.messageFlagsAdd(fetchedUids.join(","), ["\\Seen"], { uid: true });
+        console.log(`[email-poll] Marked ${fetchedUids.length} message(s) as read`);
       }
-
-      console.log(`[email-poll] ${uids.length} unseen message(s) — fetching sources`);
-
-      for await (const msg of fetchClient.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
-        rawMessages.push({ uid: msg.uid, source: Buffer.from(msg.source) });
-      }
-
-      // Mark as seen now — before any LLM calls — so a crash in Phase 2
-      // never causes the same email to be processed twice.
-      const fetchedUids = rawMessages.map(m => m.uid);
-      await fetchClient.messageFlagsAdd(fetchedUids.join(","), ["\\Seen"], { uid: true });
-      console.log(`[email-poll] Marked ${fetchedUids.length} message(s) as read`);
     } finally {
       lock.release();
+      try { await fetchClient.logout(); } catch (_) {} // always close — prevents socket timeout on idle polls
     }
-
-    try { await fetchClient.logout(); } catch (_) {}
   } catch (err) {
     console.error("[email-poll] IMAP fetch error:", err.message);
     return;
   }
+
+  // Nothing to process — exit cleanly
+  if (rawMessages.length === 0) return;
 
   // ── Phase 2: classify + reply — no IMAP connection held ───────────────────
 

@@ -7891,15 +7891,14 @@ async function pollGmailInbox() {
   //                     the same org may send genuine queries that need replies.
   const INTERNAL_DOMAINS = ["@aom.ie"];
 
-  const SKIP_ADDRESSES = [
-    "electronicvaluations@ptsb.ie",   // PTSB electronic valuations — bulk/automated
-  ];
+  const SKIP_ADDRESSES = [];
 
   // Context-only senders — no reply generated, but email IS run through the
   // context pipeline so document events update the application state.
   const CONTEXT_ONLY_ADDRESSES = [
     "adobesign@adobesign.com",        // Adobe Sign — gift letters, declarations, consent forms
     "imcapplications@ptsb.ie",        // PTSB — document acknowledgements & application status updates
+    "electronicvaluations@ptsb.ie",   // PTSB — valuation confirmations & milestones
   ];
 
   function isInternalSender(fromText) {

@@ -4511,13 +4511,83 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
   });
 });
 
+// ── Shared: send a portal staff email via Resend ─────────────────────────────
+function sendStaffEmail(to, subject, html) {
+  if (!process.env.RESEND_API_KEY) return;
+  fetch("https://api.resend.com/emails", {
+    method:  "POST",
+    headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: "Sprimal <hello@sprimal.com>", to, subject, html })
+  }).catch(err => console.error("[staff-email] Send error:", err.message));
+}
+
 app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   const updates = {};
   if (typeof req.body.ai_enabled          === "boolean") updates.ai_enabled          = req.body.ai_enabled;
   if (typeof req.body.train_staff_enabled === "boolean") updates.train_staff_enabled = req.body.train_staff_enabled;
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
-  const { error } = await supabase.from("tenants").update(updates).eq("id", req.tenant.tenantId);
+
+  const tenantId   = req.tenant.tenantId;
+  const tenantName = req.tenant.tenantName || "your organisation";
+
+  // If train_staff_enabled is changing, fetch current value so we know if it's actually toggling
+  let previousTrainStaff = null;
+  if (typeof updates.train_staff_enabled === "boolean") {
+    const { data: current } = await supabase
+      .from("tenants")
+      .select("train_staff_enabled")
+      .eq("id", tenantId)
+      .maybeSingle();
+    previousTrainStaff = current?.train_staff_enabled ?? false;
+  }
+
+  const { error } = await supabase.from("tenants").update(updates).eq("id", tenantId);
   if (error) return res.status(500).json({ error: "Failed to save settings" });
+
+  // Send emails if train_staff_enabled actually changed
+  if (typeof updates.train_staff_enabled === "boolean" && updates.train_staff_enabled !== previousTrainStaff) {
+    // Fetch all junior users for this tenant (fire-and-forget emails)
+    supabase
+      .from("portal_users")
+      .select("name, email")
+      .eq("tenant_id", tenantId)
+      .then(({ data: staff }) => {
+        if (!staff?.length) return;
+        staff.forEach(user => {
+          if (updates.train_staff_enabled) {
+            // Access restored
+            sendStaffEmail(
+              user.email,
+              `Your ${tenantName} staff access has been restored`,
+              `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+                <h2 style="font-size:20px;color:#111827;margin-bottom:12px;">Hi ${user.name},</h2>
+                <p style="font-size:15px;color:#374151;line-height:1.6;">Your staff access to the <strong>${tenantName}</strong> knowledge base on Sprimal has been <strong style="color:#15803d;">restored</strong>.</p>
+                <p style="font-size:15px;color:#374151;line-height:1.6;margin-top:12px;">You can log in at any time using your existing credentials:</p>
+                <div style="margin-top:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:16px 20px;">
+                  <p style="font-size:14px;color:#374151;margin-bottom:6px;"><strong>URL:</strong> <a href="https://app.sprimal.com/portal" style="color:#1e40af;">https://app.sprimal.com/portal</a></p>
+                  <p style="font-size:14px;color:#374151;margin-bottom:0;"><strong>Email:</strong> ${user.email}</p>
+                </div>
+                <p style="margin-top:20px;font-size:13px;color:#6b7280;">— The Sprimal team</p>
+              </div>`
+            );
+          } else {
+            // Access suspended
+            sendStaffEmail(
+              user.email,
+              `Your ${tenantName} staff access has been suspended`,
+              `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+                <h2 style="font-size:20px;color:#111827;margin-bottom:12px;">Hi ${user.name},</h2>
+                <p style="font-size:15px;color:#374151;line-height:1.6;">Your staff access to the <strong>${tenantName}</strong> knowledge base on Sprimal has been <strong style="color:#dc2626;">temporarily suspended</strong> by your manager.</p>
+                <p style="font-size:15px;color:#374151;line-height:1.6;margin-top:12px;">You will not be able to log in until access is restored. Please contact your manager if you have any questions.</p>
+                <p style="margin-top:20px;font-size:13px;color:#6b7280;">— The Sprimal team</p>
+              </div>`
+            );
+          }
+        });
+      })
+      .catch(err => console.error("[staff-email] Fetch staff error:", err.message));
+  }
+
   res.json({ success: true });
 });
 
@@ -4549,6 +4619,30 @@ app.post("/api/portal/staff", requireSeniorTenant, async (req, res) => {
     return res.status(500).json({ error: "Failed to create staff member" });
   }
   res.json({ success: true });
+
+  // Send welcome email (fire-and-forget)
+  const tenantName = req.tenant.tenantName || "your organisation";
+  const cleanEmail = email.toLowerCase().trim();
+  const cleanName  = name.trim();
+  const cleanPass  = password.trim();
+  sendStaffEmail(
+    cleanEmail,
+    `You've been added to ${tenantName} on Sprimal`,
+    `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+      <h2 style="font-size:20px;color:#111827;margin-bottom:12px;">Hi ${cleanName},</h2>
+      <p style="font-size:15px;color:#374151;line-height:1.6;">
+        You've been added as a staff member for <strong>${tenantName}</strong> on Sprimal.
+        You can now log in to access the knowledge base assistant, find documents, and generate email replies.
+      </p>
+      <div style="background:#f1f5f9;border-radius:10px;padding:20px 24px;margin:24px 0;">
+        <p style="font-size:13px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.6px;margin:0 0 12px;">Your login details</p>
+        <p style="font-size:15px;color:#111827;margin:0 0 6px;"><strong>Email:</strong> ${cleanEmail}</p>
+        <p style="font-size:15px;color:#111827;margin:0 0 6px;"><strong>Password:</strong> ${cleanPass}</p>
+        <p style="font-size:15px;color:#111827;margin:0;"><strong>Login URL:</strong> <a href="https://app.sprimal.com/portal" style="color:#2563eb;">app.sprimal.com/portal</a></p>
+      </div>
+      <p style="font-size:13px;color:#6b7280;line-height:1.6;">If you have any questions, please contact your manager.</p>
+    </div>`
+  );
 });
 
 app.delete("/api/portal/staff/:id", requireSeniorTenant, async (req, res) => {

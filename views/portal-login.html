@@ -207,6 +207,12 @@
         if (e.key === "Enter") login();
       });
     });
+
+    // Show message if redirected because staff access was disabled
+    if (new URLSearchParams(location.search).get("disabled") === "1") {
+      document.getElementById("error").textContent = "Staff access has been disabled for your organisation. Please contact your manager.";
+      history.replaceState({}, "", "/portal");
+    }
   </script>
 
 </body>

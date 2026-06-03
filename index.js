@@ -3494,12 +3494,18 @@ app.post("/portal/login", async (req, res) => {
 
   if (portalUsers?.[0]) {
     const pu = portalUsers[0];
-    // Fetch the parent tenant name
+
+    // Fetch parent tenant — also check train_staff_enabled
     const { data: parentTenant } = await supabase
       .from("tenants")
-      .select("name, website")
+      .select("name, website, train_staff_enabled")
       .eq("id", pu.tenant_id)
       .maybeSingle();
+
+    // Block login if the account owner has disabled staff training
+    if (!parentTenant?.train_staff_enabled) {
+      return res.json({ success: false, error: "Staff access is currently disabled for this organisation. Please contact your manager." });
+    }
 
     const juniorToken = createTenantToken({
       tenantId:   pu.tenant_id,
@@ -3579,8 +3585,20 @@ app.get("/chat/:tenantId", async (req, res) => {
 
 app.get("/portal/dashboard", requireTenant, async (req, res) => {
   try {
-    // ── Junior users get a simplified staff view ──────────────────────────
+    // ── Junior users: verify train_staff_enabled is still on ─────────────
     if (req.tenant.role === "junior") {
+      const { data: tenantCheck } = await supabase
+        .from("tenants")
+        .select("train_staff_enabled")
+        .eq("id", req.tenant.tenantId)
+        .maybeSingle();
+
+      if (!tenantCheck?.train_staff_enabled) {
+        // Feature has been disabled — clear session and redirect to login with message
+        res.clearCookie("tenant_session");
+        return res.redirect("/portal?disabled=1");
+      }
+
       const tid   = req.tenant.tenantId   || "";
       const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
       const uname = (req.tenant.userName  || req.tenant.email || "Staff").replace(/"/g, "&quot;");

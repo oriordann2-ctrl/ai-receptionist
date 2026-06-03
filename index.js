@@ -4059,12 +4059,34 @@ app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
 // ── Admin: list all tenants ───────────────────────────────────────────────────
 app.get("/api/admin/tenants", requireAdmin, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from("tenants")
-      .select("id, name, email, website, status, portal_password, created_at")
-      .order("created_at", { ascending: false });
+    const [{ data: tenants, error }, { data: docCounts }, { data: chunkCounts }] = await Promise.all([
+      supabase
+        .from("tenants")
+        .select("id, name, email, website, status, portal_password, created_at")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("documents")
+        .select("tenant_id, id", { count: "exact" }),
+      supabase
+        .from("knowledge_chunks")
+        .select("tenant_id, id", { count: "exact" })
+    ]);
+
     if (error) throw error;
-    res.json(data || []);
+
+    // Build lookup maps: tenantId → count
+    const docMap   = {};
+    const chunkMap = {};
+    (docCounts   || []).forEach(r => { docMap[r.tenant_id]   = (docMap[r.tenant_id]   || 0) + 1; });
+    (chunkCounts || []).forEach(r => { chunkMap[r.tenant_id] = (chunkMap[r.tenant_id] || 0) + 1; });
+
+    const result = (tenants || []).map(t => ({
+      ...t,
+      docCount:   docMap[t.id]   || 0,
+      chunkCount: chunkMap[t.id] || 0
+    }));
+
+    res.json(result);
   } catch (err) {
     console.error("[admin-tenants]", err.message);
     res.status(500).json({ error: "Failed to fetch tenants." });

@@ -7899,6 +7899,7 @@ async function pollGmailInbox() {
     "adobesign@adobesign.com",        // Adobe Sign — gift letters, declarations, consent forms
     "imcapplications@ptsb.ie",        // PTSB — document acknowledgements & application status updates
     "electronicvaluations@ptsb.ie",   // PTSB — valuation confirmations & milestones
+    "noreply@mail.nuamoney.com",      // NUA Money — automated application notifications
   ];
 
   function isInternalSender(fromText) {

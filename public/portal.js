@@ -121,14 +121,18 @@
     var label = document.getElementById("fileChosenLabel");
     if (label) label.textContent = file.name;
     // Reset and reveal metadata form
-    var desc = document.getElementById("uploadDescription");
-    var type = document.getElementById("uploadDocType");
-    var tags = document.getElementById("uploadTags");
-    var jr   = document.getElementById("uploadJuniorAccess");
-    if (desc) desc.value = "";
-    if (type) type.value = "";
-    if (tags) tags.value = "";
-    if (jr)   jr.checked = true;
+    var desc    = document.getElementById("uploadDescription");
+    var type    = document.getElementById("uploadDocType");
+    var effDate = document.getElementById("uploadEffectiveDate");
+    var expDate = document.getElementById("uploadExpiryDate");
+    var tags    = document.getElementById("uploadTags");
+    var jr      = document.getElementById("uploadJuniorAccess");
+    if (desc)    desc.value    = "";
+    if (type)    type.value    = "";
+    if (effDate) effDate.value = "";
+    if (expDate) expDate.value = "";
+    if (tags)    tags.value    = "";
+    if (jr)      jr.checked    = true;
     var form = document.getElementById("uploadMetadataForm");
     if (form) form.style.display = "";
     var status = document.getElementById("uploadStatus");
@@ -161,6 +165,12 @@
     if (fileInput) fileInput.value = "";
     var label = document.getElementById("fileChosenLabel");
     if (label) label.textContent = "Select Document";
+    ["uploadDescription","uploadDocType","uploadEffectiveDate","uploadExpiryDate","uploadTags"].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    var jr = document.getElementById("uploadJuniorAccess");
+    if (jr) jr.checked = true;
     var form = document.getElementById("uploadMetadataForm");
     if (form) form.style.display = "none";
     var status = document.getElementById("uploadStatus");
@@ -170,14 +180,17 @@
   window.portalSubmitUpload = function() {
     var file = _pendingUploadFile;
     if (!file) return;
-    var desc   = ((document.getElementById("uploadDescription")  || {}).value || "").trim();
-    var type   = ((document.getElementById("uploadDocType")      || {}).value || "").trim();
-    var tags   = ((document.getElementById("uploadTags")         || {}).value || "").trim();
-    var junior = !!((document.getElementById("uploadJuniorAccess") || {}).checked);
-    var btn    = document.getElementById("uploadSubmitBtn");
+    var desc    = ((document.getElementById("uploadDescription")    || {}).value || "").trim();
+    var type    = ((document.getElementById("uploadDocType")        || {}).value || "").trim();
+    var effDate = ((document.getElementById("uploadEffectiveDate")  || {}).value || "").trim();
+    var expDate = ((document.getElementById("uploadExpiryDate")     || {}).value || "").trim();
+    var tags    = ((document.getElementById("uploadTags")           || {}).value || "").trim();
+    var junior  = !!((document.getElementById("uploadJuniorAccess") || {}).checked);
+    var btn     = document.getElementById("uploadSubmitBtn");
 
-    if (!desc) { alert("Please enter a description."); return; }
-    if (!type) { alert("Please select a document type."); return; }
+    if (!desc)    { alert("Please enter a description."); return; }
+    if (!type)    { alert("Please select a document type."); return; }
+    if (!effDate) { alert("Please enter an effective date."); return; }
 
     var status = document.getElementById("uploadStatus");
     status.className = "upload-status loading";
@@ -189,6 +202,8 @@
     fd.append("document",          file);
     fd.append("description",       desc);
     fd.append("document_type",     type);
+    fd.append("effective_date",    effDate);
+    fd.append("expiry_date",       expDate);
     fd.append("tags",              tags);
     fd.append("junior_accessible", junior ? "true" : "false");
 

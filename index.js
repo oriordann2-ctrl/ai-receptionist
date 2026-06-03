@@ -3852,6 +3852,8 @@ app.post(
       // Build structured filename: "Document Type - Description.ext"
       const description    = (req.body.description    || "").trim();
       const document_type  = (req.body.document_type  || "Other").trim();
+      const effective_date = (req.body.effective_date || null) || null;
+      const expiry_date    = (req.body.expiry_date    || null) || null;
       const tagsRaw        = (req.body.tags            || "").trim();
       const juniorAccess   = req.body.junior_accessible !== "false";
       const ext            = req.file.originalname.split(".").pop().toLowerCase();
@@ -3885,8 +3887,8 @@ app.post(
           lender:            null,
           document_type:     document_type,
           description:       description || structuredName,
-          effective_date:    null,
-          expiry_date:       null,
+          effective_date:    effective_date,
+          expiry_date:       expiry_date,
           tags:              tags,
           metadata_complete: true,
           junior_accessible: juniorAccess,

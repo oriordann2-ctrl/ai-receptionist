@@ -277,6 +277,99 @@
     .conv-msg-bot .conv-msg-text { background: #f0fdf4; border-radius: 8px; padding: 8px 12px; }
     .conv-msg-system .conv-msg-text { background: #fffbeb; border-radius: 8px; padding: 6px 12px; font-style: italic; font-size: 12px; }
 
+    /* ── Feature toggles ── */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 0; border-bottom: 1px solid #f3f4f6;
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-info { flex: 1; min-width: 0; padding-right: 16px; }
+    .toggle-label { font-size: 14px; font-weight: 600; color: #111827; }
+    .toggle-sub { font-size: 13px; color: #6b7280; margin-top: 2px; line-height: 1.4; }
+    .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background: #d1d5db; border-radius: 24px; transition: background 0.2s;
+    }
+    .toggle-track:before {
+      content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px;
+      background: white; border-radius: 50%; transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle-switch input:checked + .toggle-track { background: #1e40af; }
+    .toggle-switch input:checked + .toggle-track:before { transform: translateX(20px); }
+    .toggle-switch input:disabled + .toggle-track { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Staff management ── */
+    .staff-section { margin-top: 24px; border-top: 1px solid #f3f4f6; padding-top: 24px; }
+    .staff-section-title { font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 14px; }
+    .staff-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid #f9fafb;
+    }
+    .staff-row:last-of-type { border-bottom: none; }
+    .staff-avatar {
+      width: 34px; height: 34px; border-radius: 50%; background: #dbeafe;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      font-size: 14px; font-weight: 700; color: #1d4ed8;
+    }
+    .staff-info { flex: 1; min-width: 0; }
+    .staff-name { font-size: 14px; font-weight: 600; color: #111827; }
+    .staff-email { font-size: 12px; color: #6b7280; }
+    .btn-remove-staff {
+      flex-shrink: 0; background: white; border: 1.5px solid #fca5a5;
+      color: #dc2626; border-radius: 7px; padding: 6px 12px; font-size: 13px;
+      font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-remove-staff:hover { background: #fef2f2; }
+
+    .staff-add-form { margin-top: 16px; }
+    .staff-add-title { font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+    .staff-add-fields { display: flex; gap: 8px; flex-wrap: wrap; }
+    .staff-input {
+      border: 1.5px solid #d1d5db; border-radius: 8px; padding: 9px 12px;
+      font-size: 13px; font-family: inherit; outline: none; transition: border-color 0.15s; flex: 1; min-width: 140px;
+    }
+    .staff-input:focus { border-color: #3b82f6; }
+    .btn-add-staff {
+      background: #1e40af; color: white; border: none; border-radius: 8px;
+      padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background 0.15s; white-space: nowrap;
+    }
+    .btn-add-staff:hover { background: #1d3a9e; }
+    .staff-status { font-size: 13px; font-weight: 500; margin-top: 8px; display: none; }
+    .staff-status.success { color: #16a34a; }
+    .staff-status.error   { color: #dc2626; }
+
+    /* ── Answers sections ── */
+    .answers-section { margin-top: 0; }
+    .answer-row {
+      border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px;
+    }
+    .answer-q { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 6px; }
+    .answer-a { font-size: 13px; color: #374151; line-height: 1.5; margin-bottom: 8px; }
+    .answer-feedback { font-size: 12px; color: #9ca3af; font-style: italic; margin-bottom: 8px; }
+    .answer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-approve {
+      background: #dcfce7; border: 1px solid #86efac; color: #15803d;
+      border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-approve:hover { background: #bbf7d0; }
+    .btn-dismiss {
+      background: white; border: 1px solid #e5e7eb; color: #6b7280;
+      border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-dismiss:hover { background: #f9fafb; }
+    .btn-delete-answer {
+      background: white; border: 1.5px solid #fca5a5; color: #dc2626;
+      border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.15s; margin-left: auto;
+    }
+    .btn-delete-answer:hover { background: #fef2f2; }
+
     /* ── Mobile ── */
     @media (max-width: 600px) {
       nav { padding: 0 16px; }
@@ -292,6 +385,7 @@
       .btn-reimport-website, .btn-remove-website { width: 100%; text-align: center; }
       .doc-row { flex-wrap: wrap; }
       .btn-delete { margin-left: auto; }
+      .staff-add-fields { flex-direction: column; }
     }
   </style>
 </head>
@@ -430,6 +524,66 @@
       </summary>
       <div class="analytics-body">
         <div id="chatLogs">CHAT_LOGS_PLACEHOLDER</div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── Section: Settings ── -->
+  <div class="section-group-label">⚙️ Settings</div>
+
+  <!-- Feature Settings -->
+  <div class="card" style="padding:0;">
+    <details id="settingsDetails">
+      <summary class="analytics-summary">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🔧</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Feature Settings</div>
+            <div style="font-size:13px;color:#6b7280;">Control AI Receptionist, staff training &amp; knowledge tools</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="settingsBody">
+        <div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">Loading settings…</div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Flagged Answers (shown when train_staff is on) -->
+  <div id="flaggedCard" style="display:none;" class="card" style="padding:0;">
+    <details id="flaggedDetails">
+      <summary class="analytics-summary" style="padding:20px 24px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">⚑</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Flagged Answers</div>
+            <div style="font-size:13px;color:#6b7280;">Answers your staff marked as incorrect — review &amp; approve</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="flaggedBody">
+        <div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">Loading…</div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Approved Answers (shown when train_staff is on) -->
+  <div id="approvedCard" style="display:none;" class="card" style="padding:0;">
+    <details id="approvedDetails">
+      <summary class="analytics-summary" style="padding:20px 24px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">✅</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Approved Answers</div>
+            <div style="font-size:13px;color:#6b7280;">Verified Q&amp;A pairs saved by your team</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="approvedBody">
+        <div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">Loading…</div>
       </div>
     </details>
   </div>

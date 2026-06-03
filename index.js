@@ -4051,6 +4051,39 @@ app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
   }
 });
 
+// ── Admin: list all tenants ───────────────────────────────────────────────────
+app.get("/api/admin/tenants", requireAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("tenants")
+      .select("id, name, email, website, status, portal_password, created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error("[admin-tenants]", err.message);
+    res.status(500).json({ error: "Failed to fetch tenants." });
+  }
+});
+
+// ── Admin: reset a tenant's portal password ───────────────────────────────────
+app.post("/api/admin/tenants/:id/reset-password", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const newPassword = crypto.randomBytes(5).toString("hex"); // 10-char hex
+    const { error } = await supabase
+      .from("tenants")
+      .update({ portal_password: newPassword })
+      .eq("id", id);
+    if (error) throw error;
+    console.log(`[admin] Portal password reset for tenant: ${id}`);
+    res.json({ success: true, password: newPassword });
+  } catch (err) {
+    console.error("[admin-reset-password]", err.message);
+    res.status(500).json({ error: "Failed to reset password." });
+  }
+});
+
 // ── Portal: recent chat logs ──────────────────────────────────────────────────
 app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
   try {

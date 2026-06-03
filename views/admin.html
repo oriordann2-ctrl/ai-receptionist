@@ -1208,6 +1208,42 @@
   <div id="juniorDocResults" style="margin-top:20px;"></div>
 </section>
 
+  <!-- ── Tenants ──────────────────────────────────────────────── -->
+  <div class="card senior-only" id="adminTenantsCard" style="padding:0;">
+    <details id="adminTenantsDetails">
+      <summary class="adm-analytics-summary">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🏢</span>
+          <div>
+            <h2 style="margin:0 0 2px;">Tenants</h2>
+            <p class="muted" style="margin:0;font-size:13px;">All clients — view details &amp; reset portal passwords</p>
+          </div>
+        </div>
+        <span class="adm-analytics-chevron">▾</span>
+      </summary>
+      <div style="padding:20px 24px 24px;">
+        <div id="adminTenantsContent">
+          <p class="muted" style="text-align:center;padding:20px 0;">Loading tenants…</p>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <style>
+    .tenant-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+      border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; margin-bottom:10px; background:#fafafa; }
+    .tenant-row:hover { background:#f1f5f9; }
+    .tenant-info { min-width:0; flex:1; }
+    .tenant-info-name { font-size:14px; font-weight:700; color:#111827; }
+    .tenant-info-meta { font-size:12px; color:#6b7280; margin-top:2px; }
+    .tenant-pw-badge { font-family:monospace; font-size:12px; background:#f1f5f9; border:1px solid #e2e8f0;
+      border-radius:6px; padding:3px 8px; color:#374151; flex-shrink:0; }
+    .tenant-pw-badge.null-pw { background:#fef2f2; border-color:#fca5a5; color:#dc2626; }
+    .btn-reset-pw { background:white; border:1.5px solid #d1d5db; border-radius:8px; padding:7px 14px;
+      font-size:13px; font-weight:600; color:#374151; cursor:pointer; font-family:inherit; transition:background 0.15s; flex-shrink:0; }
+    .btn-reset-pw:hover { background:#f1f5f9; border-color:#6b7280; }
+  </style>
+
   <!-- ── Analytics ────────────────────────────────────────────── -->
   <div class="card senior-only" id="adminAnalyticsCard" style="padding:0;">
     <details id="adminAnalyticsDetails">
@@ -3310,6 +3346,63 @@ if (status) {
 
   await loadData();
 }
+
+// ── Admin Tenants ─────────────────────────────────────────────────────────────
+async function loadAdminTenants() {
+  const el = document.getElementById("adminTenantsContent");
+  if (!el) return;
+  try {
+    const res  = await fetch("/api/admin/tenants", { credentials: "include" });
+    const data = await res.json();
+
+    if (!data.length) { el.innerHTML = '<p class="muted">No tenants found.</p>'; return; }
+
+    function escT(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+    el.innerHTML = data.map(t => {
+      const pwBadge = t.portal_password
+        ? `<span class="tenant-pw-badge">${escT(t.portal_password)}</span>`
+        : `<span class="tenant-pw-badge null-pw">no password set</span>`;
+      const meta = [t.email, t.website].filter(Boolean).join(" · ");
+      return `<div class="tenant-row" id="tenant-row-${escT(t.id)}">
+        <div class="tenant-info">
+          <div class="tenant-info-name">${escT(t.name || t.id)}</div>
+          <div class="tenant-info-meta">${escT(meta)}</div>
+        </div>
+        ${pwBadge}
+        <button class="btn-reset-pw" onclick="resetTenantPassword('${escT(t.id)}', '${escT(t.name || t.id)}')">
+          🔑 Reset password
+        </button>
+      </div>`;
+    }).join("");
+  } catch(err) {
+    console.error("[admin-tenants]", err);
+    if (el) el.innerHTML = '<p style="color:#dc2626;font-size:13px;">Failed to load tenants.</p>';
+  }
+}
+
+async function resetTenantPassword(tenantId, tenantName) {
+  if (!confirm(`Reset portal password for ${tenantName}?\n\nA new password will be generated and shown to you.`)) return;
+  try {
+    const res  = await fetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/reset-password`, {
+      method: "POST", credentials: "include"
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    // Update the badge in place
+    const row = document.getElementById(`tenant-row-${tenantId}`);
+    if (row) {
+      const badge = row.querySelector(".tenant-pw-badge");
+      if (badge) { badge.textContent = data.password; badge.className = "tenant-pw-badge"; }
+    }
+    alert(`✅ New password for ${tenantName}:\n\n${data.password}\n\nShare this with the tenant to log into their portal.`);
+  } catch(err) {
+    alert("Failed to reset password. Please try again.");
+  }
+}
+
+loadAdminTenants();
 
 // ── Admin Analytics ───────────────────────────────────────────────────────────
 async function loadAdminAnalytics() {

@@ -3849,7 +3849,21 @@ app.post(
         return res.status(400).json({ error: "Could not extract text from this file. Please check it is not empty or image-only." });
       }
 
-      const storagePath = `tenant-docs/${tenantId}/${Date.now()}-${req.file.originalname}`;
+      // Build structured filename: "Document Type - Description.ext"
+      const description    = (req.body.description    || "").trim();
+      const document_type  = (req.body.document_type  || "Other").trim();
+      const tagsRaw        = (req.body.tags            || "").trim();
+      const juniorAccess   = req.body.junior_accessible !== "false";
+      const ext            = req.file.originalname.split(".").pop().toLowerCase();
+      const safePart       = (s) => s.replace(/[\/\\:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
+      const structuredName = description
+        ? `${safePart(document_type)} - ${safePart(description)}.${ext}`
+        : req.file.originalname;
+      const tags           = tagsRaw
+        ? tagsRaw.split(",").map(t => t.trim()).filter(Boolean).concat(["portal-upload"])
+        : ["portal-upload"];
+
+      const storagePath = `tenant-docs/${tenantId}/${Date.now()}-${structuredName}`;
       const fileBuffer = fs.readFileSync(req.file.path);
 
       const { error: uploadError } = await supabase.storage
@@ -3864,18 +3878,18 @@ app.post(
       const { data: doc, error: docError } = await supabase
         .from("documents")
         .insert({
-          original_filename: req.file.originalname,
-          stored_filename:   req.file.originalname,
+          original_filename: structuredName,
+          stored_filename:   structuredName,
           storage_path:      uploadError ? null : storagePath,
           mimetype:          req.file.mimetype,
           lender:            null,
-          document_type:     "Club Document",
-          description:       req.body.description || req.file.originalname,
+          document_type:     document_type,
+          description:       description || structuredName,
           effective_date:    null,
           expiry_date:       null,
-          tags:              ["portal-upload"],
+          tags:              tags,
           metadata_complete: true,
-          junior_accessible: true,
+          junior_accessible: juniorAccess,
           tenant_id:         tenantId
         })
         .select()
@@ -3888,9 +3902,9 @@ app.post(
         return res.status(500).json({ error: "Failed to save document record." });
       }
 
-      await generateAndStoreChunks(doc.id, extractedText, null, "Club Document", null, tenantId);
+      await generateAndStoreChunks(doc.id, extractedText, null, document_type, null, tenantId);
 
-      res.json({ success: true, document: { id: doc.id, name: req.file.originalname } });
+      res.json({ success: true, document: { id: doc.id, name: structuredName } });
     } catch (err) {
       console.error("[portal-upload] Error:", err.message);
       if (req.file) fs.unlink(req.file.path, () => {});

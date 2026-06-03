@@ -112,24 +112,94 @@
       });
   }
 
-  // ── Upload ────────────────────────────────────────────────────────────────
-  window.uploadFile = function(file) {
+  // ── Upload — two-step flow ────────────────────────────────────────────────
+  var _pendingUploadFile = null;
+
+  window.portalFileChosen = function(file) {
     if (!file) return;
+    _pendingUploadFile = file;
+    var label = document.getElementById("fileChosenLabel");
+    if (label) label.textContent = file.name;
+    // Reset and reveal metadata form
+    var desc = document.getElementById("uploadDescription");
+    var type = document.getElementById("uploadDocType");
+    var tags = document.getElementById("uploadTags");
+    var jr   = document.getElementById("uploadJuniorAccess");
+    if (desc) desc.value = "";
+    if (type) type.value = "";
+    if (tags) tags.value = "";
+    if (jr)   jr.checked = true;
+    var form = document.getElementById("uploadMetadataForm");
+    if (form) form.style.display = "";
+    var status = document.getElementById("uploadStatus");
+    if (status) { status.style.display = "none"; status.textContent = ""; }
+    portalUpdateFilenamePreview();
+    if (desc) desc.focus();
+  };
+
+  window.portalUpdateFilenamePreview = function() {
+    var file = _pendingUploadFile;
+    if (!file) return;
+    var desc    = ((document.getElementById("uploadDescription") || {}).value || "").trim();
+    var type    = ((document.getElementById("uploadDocType")     || {}).value || "").trim();
+    var preview = document.getElementById("uploadFilenamePreview");
+    var previewText = document.getElementById("uploadFilenameText");
+    if (!preview || !previewText) return;
+    var ext  = file.name.split(".").pop().toLowerCase();
+    var safe = function(s) { return s.replace(/[\/\\:*?"<>|]/g, "").replace(/\s+/g, " ").trim(); };
+    if (type && desc) {
+      previewText.textContent = safe(type) + " - " + safe(desc) + "." + ext;
+      preview.style.display = "";
+    } else {
+      preview.style.display = "none";
+    }
+  };
+
+  window.portalClearUpload = function() {
+    _pendingUploadFile = null;
+    var fileInput = document.getElementById("fileInput");
+    if (fileInput) fileInput.value = "";
+    var label = document.getElementById("fileChosenLabel");
+    if (label) label.textContent = "Select Document";
+    var form = document.getElementById("uploadMetadataForm");
+    if (form) form.style.display = "none";
+    var status = document.getElementById("uploadStatus");
+    if (status) { status.style.display = "none"; status.textContent = ""; }
+  };
+
+  window.portalSubmitUpload = function() {
+    var file = _pendingUploadFile;
+    if (!file) return;
+    var desc   = ((document.getElementById("uploadDescription")  || {}).value || "").trim();
+    var type   = ((document.getElementById("uploadDocType")      || {}).value || "").trim();
+    var tags   = ((document.getElementById("uploadTags")         || {}).value || "").trim();
+    var junior = !!((document.getElementById("uploadJuniorAccess") || {}).checked);
+    var btn    = document.getElementById("uploadSubmitBtn");
+
+    if (!desc) { alert("Please enter a description."); return; }
+    if (!type) { alert("Please select a document type."); return; }
+
     var status = document.getElementById("uploadStatus");
     status.className = "upload-status loading";
     status.textContent = "Uploading and processing…";
     status.style.display = "block";
+    if (btn) btn.disabled = true;
 
     var fd = new FormData();
-    fd.append("document", file);
+    fd.append("document",          file);
+    fd.append("description",       desc);
+    fd.append("document_type",     type);
+    fd.append("tags",              tags);
+    fd.append("junior_accessible", junior ? "true" : "false");
 
     fetch("/api/portal/upload", { method: "POST", body: fd })
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        if (btn) btn.disabled = false;
         if (data.success) {
           status.className = "upload-status success";
-          status.textContent = "✅ " + file.name + " added to your knowledge base.";
-          document.getElementById("fileInput").value = "";
+          status.textContent = "✅ " + (data.document.name || file.name) + " added to your knowledge base.";
+          portalClearUpload();
           loadDocuments();
         } else {
           status.className = "upload-status error";
@@ -137,6 +207,7 @@
         }
       })
       .catch(function() {
+        if (btn) btn.disabled = false;
         status.className = "upload-status error";
         status.textContent = "❌ Upload failed. Please try again.";
       });

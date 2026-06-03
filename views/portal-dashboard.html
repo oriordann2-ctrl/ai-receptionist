@@ -513,15 +513,73 @@
     <div class="card-title">Knowledge Base</div>
     <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers.</div>
 
-    <!-- Upload -->
+    <!-- Upload: Step 1 — Choose file -->
     <div class="file-row">
       <label class="file-label">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Select Document
-        <input type="file" id="fileInput" accept=".pdf,.docx,.txt" onchange="uploadFile(this.files[0])" />
+        <span id="fileChosenLabel">Select Document</span>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.txt" onchange="portalFileChosen(this.files[0])" />
       </label>
-      <span class="file-hint">PDF, TXT or Word DOCX — you can upload multiple files.</span>
+      <span class="file-hint">PDF, TXT or Word DOCX</span>
     </div>
+
+    <!-- Upload: Step 2 — Metadata (revealed after file chosen) -->
+    <div id="uploadMetadataForm" style="display:none;margin-top:18px;border-top:1px solid #e5e7eb;padding-top:18px;">
+      <p style="font-size:13px;color:#6b7280;margin-bottom:16px;line-height:1.5;">Complete the details below so Sprimal can categorise this document correctly.</p>
+
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Description <span style="color:#dc2626;">*</span></label>
+        <input id="uploadDescription" type="text" placeholder="e.g. Variable rate criteria for high LTV borrowers" maxlength="120"
+          oninput="portalUpdateFilenamePreview()"
+          style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;"
+          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'" />
+        <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Brief description — used in the filename and AI search.</div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Document Type <span style="color:#dc2626;">*</span></label>
+        <select id="uploadDocType" onchange="portalUpdateFilenamePreview()"
+          style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;background:white;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22><path fill=%22%236b7280%22 d=%22M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z%22/></svg>');background-repeat:no-repeat;background-position:right 12px center;background-size:18px;"
+          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'">
+          <option value="">— Select type —</option>
+          <option value="Policy">Policy</option>
+          <option value="Process Guide">Process Guide</option>
+          <option value="FAQ / Q&A">FAQ / Q&amp;A</option>
+          <option value="Product Info">Product Info</option>
+          <option value="Staff Document">Staff Document</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Tags <span style="font-weight:400;color:#9ca3af;">(optional, comma-separated)</span></label>
+        <input id="uploadTags" type="text" placeholder="e.g. self-employed, high-ltv, switcher"
+          style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;"
+          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'" />
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <input type="checkbox" id="uploadJuniorAccess" checked style="width:17px;height:17px;cursor:pointer;accent-color:#2563eb;flex-shrink:0;" />
+        <label for="uploadJuniorAccess" style="font-size:14px;font-weight:500;color:#374151;cursor:pointer;margin:0;">Make available to junior staff</label>
+      </div>
+
+      <!-- Filename preview -->
+      <div id="uploadFilenamePreview" style="display:none;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:13px;color:#166534;margin-bottom:16px;">
+        <strong>Will be stored as:</strong> <span id="uploadFilenameText" style="font-family:monospace;margin-left:4px;"></span>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="uploadSubmitBtn" onclick="portalSubmitUpload()"
+          style="background:#1e40af;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;">
+          Upload to Knowledge Base
+        </button>
+        <button onclick="portalClearUpload()"
+          style="background:white;color:#374151;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;">
+          ← Clear
+        </button>
+      </div>
+    </div>
+
     <div class="upload-status" id="uploadStatus"></div>
 
     <!-- Document list — pre-rendered server-side, refreshed by JS after upload/delete -->

@@ -4230,6 +4230,222 @@ app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Portal: junior staff tools ────────────────────────────────────────────────
+
+// POST /api/portal/knowledge-answer — tenant-scoped KB query for junior staff
+app.post("/api/portal/knowledge-answer", requireTenant, async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ error: "question is required" });
+
+  const tenantId   = req.tenant.tenantId;
+  const tenantName = req.tenant.tenantName || "your organisation";
+
+  try {
+    // 1. Check tenant-scoped approved answers first
+    const { data: approvedAnswers } = await supabase
+      .from("approved_answers")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false });
+
+    // 2. Semantic match against approved answers
+    let match = null;
+    if ((approvedAnswers || []).length > 0) {
+      const semanticMatch = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a semantic matching assistant. Given a question and a list of stored questions, return the INDEX of the best matching stored question if semantically equivalent. Return -1 if no good match. Return ONLY a single integer." },
+          { role: "user", content: `Asked: "${question}"\n\nStored:\n${approvedAnswers.map((a, i) => `${i}: ${a.question}`).join("\n")}` }
+        ],
+        temperature: 0
+      });
+      const idx = parseInt(semanticMatch.choices[0].message.content.trim());
+      if (!isNaN(idx) && idx >= 0 && idx < approvedAnswers.length) match = approvedAnswers[idx];
+    }
+
+    if (match) {
+      return res.json({ answer: match.answer, source: "Approved Answer", confidence: "High", sourceDetail: match.category || "Team approved" });
+    }
+
+    // 3. Fall back to KB chunk search
+    const relevantDocs = await findRelevantKnowledgeChunks(question, 5, tenantId);
+    const documentContext = relevantDocs.map(doc => `Source: ${doc.filename}\n${doc.text}`).join("\n\n");
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are an internal knowledge base assistant for ${tenantName} staff.
+Answer questions using ONLY the knowledge base provided below.
+If the answer is not in the knowledge base, say: "I don't have that in the knowledge base yet."
+Do NOT guess or invent information.
+Format using clear plain text — no markdown symbols, but you may use short paragraphs.
+
+KNOWLEDGE BASE:
+${documentContext || "No documents loaded yet."}`
+        },
+        { role: "user", content: question }
+      ],
+      temperature: 0
+    });
+
+    const answer = completion.choices[0].message.content || "No answer returned.";
+    const source       = relevantDocs.length > 0 ? "Knowledge Document" : "AI Generated";
+    const confidence   = relevantDocs.length > 0 ? "Medium" : "Low";
+    const sourceDetail = relevantDocs.length > 0 ? [...new Set(relevantDocs.map(d => d.filename))].join(", ") : "";
+
+    res.json({ answer, source, confidence, sourceDetail });
+  } catch (err) {
+    console.error("[portal-knowledge-answer]", err.message);
+    res.status(500).json({ error: "Failed to search knowledge base" });
+  }
+});
+
+// POST /api/portal/documents/search — tenant-scoped semantic document search
+app.post("/api/portal/documents/search", requireTenant, async (req, res) => {
+  const { query } = req.body;
+  if (!query) return res.status(400).json({ error: "Query is required" });
+
+  const tenantId = req.tenant.tenantId;
+
+  try {
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query
+    });
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+
+    const { data: chunks, error: rpcErr } = await supabase.rpc("match_chunks", {
+      query_embedding:     queryEmbedding,
+      match_count:         15,
+      filter_lender:       null,
+      filter_document_type: null,
+      p_tenant_id:         tenantId
+    });
+
+    if (rpcErr || !chunks?.length) return res.json([]);
+
+    // Group by document_id, keep best similarity score
+    const docMap = {};
+    for (const chunk of chunks) {
+      if (!docMap[chunk.document_id] || chunk.similarity > docMap[chunk.document_id].similarity) {
+        docMap[chunk.document_id] = chunk;
+      }
+    }
+
+    const topDocIds = Object.values(docMap)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 5)
+      .map(c => c.document_id);
+
+    const { data: docs } = await supabase
+      .from("documents")
+      .select("id, original_filename, stored_filename, storage_path, mimetype, document_type")
+      .in("id", topDocIds)
+      .eq("tenant_id", tenantId);
+
+    const idToSim = {};
+    Object.values(docMap).forEach(c => { idToSim[c.document_id] = c.similarity; });
+
+    const results = (docs || [])
+      .sort((a, b) => (idToSim[b.id] || 0) - (idToSim[a.id] || 0))
+      .map(doc => ({
+        id:           doc.id,
+        filename:     doc.original_filename || "Untitled",
+        mimetype:     doc.mimetype,
+        documentType: doc.document_type,
+        confidence:   (idToSim[doc.id] || 0) > 0.75 ? "Strong match"
+                    : (idToSim[doc.id] || 0) > 0.55 ? "Good match"
+                    : "Possible match"
+      }));
+
+    res.json(results);
+  } catch (err) {
+    console.error("[portal-doc-search]", err.message);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
+// GET /api/portal/documents/:id/download — stream a portal document to the browser
+app.get("/api/portal/documents/:id/download", requireTenant, async (req, res) => {
+  try {
+    const { data: doc, error } = await supabase
+      .from("documents")
+      .select("id, original_filename, stored_filename, mimetype, storage_path, tenant_id")
+      .eq("id", req.params.id)
+      .eq("tenant_id", req.tenant.tenantId)  // safety: can't download other tenants' docs
+      .maybeSingle();
+
+    if (error || !doc) return res.status(404).json({ error: "Document not found" });
+    if (!doc.storage_path) return res.status(404).json({ error: "No file stored for this document" });
+
+    const { data: fileData, error: dlErr } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .download(doc.storage_path);
+
+    if (dlErr || !fileData) return res.status(500).json({ error: "Failed to fetch file" });
+
+    const buffer = Buffer.from(await fileData.arrayBuffer());
+    const filename = (doc.original_filename || "document").replace(/[^a-zA-Z0-9._-]/g, "_");
+    res.setHeader("Content-Type", doc.mimetype || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error("[portal-doc-download]", err.message);
+    res.status(500).json({ error: "Download failed" });
+  }
+});
+
+// POST /api/portal/email-reply — tenant-scoped AI email reply
+app.post("/api/portal/email-reply", requireTenant, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  const tenantId   = req.tenant.tenantId;
+  const tenantName = req.tenant.tenantName || "your organisation";
+
+  try {
+    const [{ data: approvedAnswers }, relevantDocs] = await Promise.all([
+      supabase.from("approved_answers").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
+      findRelevantKnowledgeChunks(email, 5, tenantId)
+    ]);
+
+    const approvedContext = (approvedAnswers || []).slice(0, 10)
+      .map(a => `APPROVED QUESTION: ${a.question}\nAPPROVED ANSWER: ${a.answer}`).join("\n\n");
+    const documentContext = relevantDocs
+      .map(doc => `SOURCE: ${doc.filename}\n${doc.text}`).join("\n\n");
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are an AI assistant for ${tenantName} staff. Draft a professional reply to an incoming email.
+Use the knowledge provided — approved answers first, then documents.
+Rules: Do NOT invent information. If unsure, say the team will follow up. Be concise.
+Style: Friendly and professional. 4–8 lines. Start "Hi there," unless a name is obvious. End "Kind regards,"
+
+APPROVED KNOWLEDGE:\n${approvedContext || "None"}
+DOCUMENT KNOWLEDGE:\n${documentContext || "None"}`
+        },
+        { role: "user", content: `Email:\n${email}` }
+      ],
+      temperature: 0.3
+    });
+
+    const reply      = completion.choices[0].message.content || "No reply generated.";
+    const source     = documentContext.trim() ? "Knowledge Document" : approvedContext.trim() ? "Approved Answer" : "General Guidance";
+    const confidence = documentContext.trim() ? "Medium" : approvedContext.trim() ? "High" : "";
+
+    res.json({ reply, source, confidence });
+  } catch (err) {
+    console.error("[portal-email-reply]", err.message);
+    res.status(500).json({ error: "Failed to generate reply" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── Portal: feature settings ──────────────────────────────────────────────────
 
 app.get("/api/portal/settings", requireTenant, async (req, res) => {

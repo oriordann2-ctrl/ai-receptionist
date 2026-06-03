@@ -1411,6 +1411,17 @@ function logActivity(type, data = {}) {
 function addChatLog(entry) {
   chatLogs.push(entry);
   saveChatLogs();
+  // Persist to Supabase for tenant portal chat logs view
+  if (entry.tenantId) {
+    supabase.from("chat_logs").insert({
+      tenant_id:       entry.tenantId,
+      conversation_id: entry.conversationId || null,
+      user_id:         entry.userId         || null,
+      sender:          entry.sender,
+      message:         entry.message,
+      created_at:      entry.timestamp      || new Date()
+    }).then(() => {}).catch(() => {}); // fire-and-forget — never block the chat response
+  }
 }
 
 function getSession(req) {
@@ -3441,14 +3452,41 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
     const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
     const embedCode = `&lt;script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${tname}"&gt;&lt;/script&gt;`;
 
-    // ── Fetch documents server-side so the list renders without JS ────────────
-    const { data: docs } = await supabase
-      .from("documents")
-      .select("id, original_filename, stored_filename, storage_path, document_type, uploaded_at")
-      .eq("tenant_id", tid)
-      .order("uploaded_at", { ascending: false });
+    // ── Fetch documents + chat logs in parallel ───────────────────────────────
+    const [{ data: docs }, { data: rawLogs }] = await Promise.all([
+      supabase
+        .from("documents")
+        .select("id, original_filename, stored_filename, storage_path, document_type, uploaded_at")
+        .eq("tenant_id", tid)
+        .order("uploaded_at", { ascending: false }),
+      supabase
+        .from("chat_logs")
+        .select("id, conversation_id, sender, message, created_at")
+        .eq("tenant_id", tid)
+        .order("created_at", { ascending: false })
+        .limit(100)
+    ]);
 
     const docListHtml = buildDocListHtml(docs || [], tid, req.tenant.website || null);
+
+    // Group raw log rows into conversations for display
+    const convMap = {};
+    (rawLogs || []).forEach(row => {
+      const key = row.conversation_id || ("msg-" + row.id);
+      if (!convMap[key]) convMap[key] = { conversationId: key, messages: [], startedAt: row.created_at };
+      convMap[key].messages.push(row);
+      if (row.created_at < convMap[key].startedAt) convMap[key].startedAt = row.created_at;
+    });
+    const conversations = Object.values(convMap)
+      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
+      .slice(0, 20)
+      .map(c => ({
+        conversationId: c.conversationId,
+        startedAt: c.startedAt,
+        messageCount: c.messages.length,
+        messages: c.messages.slice().reverse().map(m => ({ sender: m.sender, message: m.message, createdAt: m.created_at }))
+      }));
+    const chatLogsHtml = buildChatLogsHtml(conversations);
 
     // Auto-refresh every 8 s while crawl is still running (no docs yet)
     const autoRefresh = (!docs || docs.length === 0)
@@ -3460,6 +3498,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
       .replace(/TENANT_NAME_PLACEHOLDER/g, tname)
       .replace(/EMBED_CODE_PLACEHOLDER/g,  embedCode)
       .replace("DOC_LIST_PLACEHOLDER",     docListHtml)
+      .replace("CHAT_LOGS_PLACEHOLDER",    chatLogsHtml)
       .replace("AUTO_REFRESH_PLACEHOLDER", autoRefresh);
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
@@ -3555,6 +3594,44 @@ function buildDocListHtml(docs, tid, tenantWebsite) {
   }
 
   return html;
+}
+
+function buildChatLogsHtml(conversations) {
+  function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function fmtDate(ts) {
+    if (!ts) return "";
+    return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+  }
+
+  if (!conversations || conversations.length === 0) {
+    return '<div style="text-align:center;padding:24px 0;font-size:14px;color:#9ca3af;">No conversations yet — they\'ll appear here once visitors start chatting.</div>';
+  }
+
+  return conversations.map(conv => {
+    const firstCustomer = (conv.messages || []).find(m => m.sender === "customer");
+    const preview = firstCustomer ? firstCustomer.message : (conv.messages[0] || {}).message || "";
+    const previewText = esc(preview.length > 90 ? preview.slice(0, 90) + "…" : preview);
+    const date = esc(fmtDate(conv.startedAt));
+    const count = conv.messageCount;
+
+    const msgHtml = (conv.messages || []).map(m => {
+      const cls = m.sender === "bot" ? "conv-msg-bot" : m.sender === "system" ? "conv-msg-system" : "conv-msg-user";
+      const label = m.sender === "bot" ? "Assistant" : m.sender === "system" ? "System" : "Visitor";
+      return '<div class="conv-msg ' + cls + '">'
+        + '<span class="conv-msg-label">' + label + '</span>'
+        + '<div class="conv-msg-text">' + esc(m.message) + '</div>'
+        + '</div>';
+    }).join("");
+
+    return '<details class="conv-details">'
+      + '<summary class="conv-summary">'
+      + '<div class="conv-header"><span class="conv-date">' + date + '</span>'
+      + '<span class="conv-count">' + count + ' message' + (count !== 1 ? 's' : '') + '</span></div>'
+      + '<div class="conv-preview">' + (previewText || '<em style="color:#d1d5db;">—</em>') + '</div>'
+      + '</summary>'
+      + '<div class="conv-messages">' + msgHtml + '</div>'
+      + '</details>';
+  }).join("");
 }
 
 app.post("/portal/logout", (req, res) => {
@@ -3778,6 +3855,56 @@ app.get("/api/portal/status", requireTenant, async (req, res) => {
   }
 });
 
+// ── Portal: recent chat logs ──────────────────────────────────────────────────
+app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+
+    // Fetch last 100 messages for this tenant, newest first
+    const { data, error } = await supabase
+      .from("chat_logs")
+      .select("id, conversation_id, sender, message, created_at")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    // Group into conversations (keyed by conversation_id, or synthetic key if null)
+    const convMap = {};
+    (data || []).forEach(row => {
+      const key = row.conversation_id || ("msg-" + row.id);
+      if (!convMap[key]) {
+        convMap[key] = { conversationId: row.conversation_id || key, messages: [], startedAt: row.created_at };
+      }
+      convMap[key].messages.push(row);
+      // track earliest message time as start
+      if (row.created_at < convMap[key].startedAt) convMap[key].startedAt = row.created_at;
+    });
+
+    // Sort conversations newest first, return up to 20
+    const conversations = Object.values(convMap)
+      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
+      .slice(0, 20)
+      .map(c => ({
+        conversationId: c.conversationId,
+        startedAt: c.startedAt,
+        messageCount: c.messages.length,
+        // messages are newest-first from DB; reverse to show chronologically
+        messages: c.messages.slice().reverse().map(m => ({
+          sender: m.sender,
+          message: m.message,
+          createdAt: m.created_at
+        }))
+      }));
+
+    res.json({ conversations });
+  } catch (err) {
+    console.error("[portal-chat-logs] Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch chat logs." });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Public tenant config — widget fetches this on load ───────────────────────
 app.get("/api/tenant-config/:tenantId", async (req, res) => {
@@ -3939,6 +4066,7 @@ app.post("/chat", async (req, res) => {
     addChatLog({
       userId,
       conversationId,
+      tenantId,
       sender: "customer",
       message: trimmedMessage,
       timestamp: new Date()
@@ -4074,6 +4202,7 @@ Use plain numbers where possible.
         addChatLog({
           userId,
           conversationId,
+          tenantId,
           sender: "system",
           message: "Urgent triage flag raised.",
           timestamp: new Date()
@@ -4189,6 +4318,7 @@ Use plain numbers where possible.
       addChatLog({
         userId,
         conversationId,
+        tenantId,
         sender: "bot",
         message: result.reply,
         timestamp: new Date()
@@ -4243,6 +4373,7 @@ Use plain numbers where possible.
           addChatLog({
             userId,
             conversationId,
+            tenantId,
             sender: "bot",
             message: result.reply,
             timestamp: new Date()
@@ -4266,6 +4397,7 @@ Use plain numbers where possible.
           addChatLog({
             userId,
             conversationId,
+            tenantId,
             sender: "bot",
             message: result.reply,
             timestamp: new Date()
@@ -4577,6 +4709,7 @@ Use plain numbers where possible.
     addChatLog({
       userId,
       conversationId,
+      tenantId,
       sender: "bot",
       message: result.reply,
       timestamp: new Date()

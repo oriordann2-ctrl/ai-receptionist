@@ -216,6 +216,35 @@
       display: none; white-space: pre-wrap;
     }
 
+    /* ── Chat logs ── */
+    .conv-details {
+      border: 1px solid #e2e8f0; border-radius: 10px;
+      margin-bottom: 10px; overflow: hidden;
+    }
+    .conv-details[open] { border-color: #c7d7f5; }
+    .conv-summary {
+      padding: 14px 18px; cursor: pointer; list-style: none;
+      user-select: none; background: #f8fafc;
+      transition: background 0.15s;
+    }
+    .conv-details[open] .conv-summary { background: #eff6ff; border-bottom: 1px solid #c7d7f5; }
+    .conv-summary:hover { background: #f1f5f9; }
+    .conv-summary::-webkit-details-marker { display: none; }
+    .conv-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .conv-date { font-size: 12px; font-weight: 700; color: #374151; }
+    .conv-count { font-size: 11px; color: #6b7280; background: #e5e7eb; border-radius: 20px; padding: 2px 8px; }
+    .conv-preview { font-size: 13px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-messages { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; background: white; }
+    .conv-msg { display: flex; flex-direction: column; gap: 2px; }
+    .conv-msg-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #9ca3af; }
+    .conv-msg-user .conv-msg-label { color: #1d4ed8; }
+    .conv-msg-bot .conv-msg-label { color: #15803d; }
+    .conv-msg-system .conv-msg-label { color: #b45309; }
+    .conv-msg-text { font-size: 13px; color: #111827; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .conv-msg-user .conv-msg-text { background: #eff6ff; border-radius: 8px; padding: 8px 12px; }
+    .conv-msg-bot .conv-msg-text { background: #f0fdf4; border-radius: 8px; padding: 8px 12px; }
+    .conv-msg-system .conv-msg-text { background: #fffbeb; border-radius: 8px; padding: 6px 12px; font-style: italic; font-size: 12px; }
+
     /* ── Mobile ── */
     @media (max-width: 600px) {
       nav { padding: 0 16px; }
@@ -340,6 +369,13 @@
       <button class="btn-ask" id="askBtn" onclick="askAssistant()">Ask</button>
     </div>
     <div class="test-response" id="testResponse"></div>
+  </div>
+
+  <!-- Recent Conversations -->
+  <div class="card">
+    <div class="card-title">Recent Conversations</div>
+    <div class="card-sub">The last 20 conversations visitors have had with your assistant. Click any row to read the full exchange.</div>
+    <div id="chatLogs">CHAT_LOGS_PLACEHOLDER</div>
   </div>
 
 </div>

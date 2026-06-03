@@ -15,12 +15,7 @@
       schedulePoll();
     }
 
-    var input = document.getElementById("testInput");
-    if (input) {
-      input.addEventListener("keypress", function(e) {
-        if (e.key === "Enter") askAssistant();
-      });
-    }
+    loadPortalAnalytics();
   }
 
   // ── Polling (for new signups while crawl runs) ────────────────────────────
@@ -208,6 +203,56 @@
         else { alert("Failed to remove website: " + (data.error || "unknown error")); }
       });
   };
+
+  // ── Analytics ─────────────────────────────────────────────────────────────
+  function loadPortalAnalytics() {
+    var el = document.getElementById("analyticsContent");
+    if (!el) return;
+
+    fetch("/api/portal/analytics")
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.error) { el.innerHTML = '<p style="color:#dc2626;font-size:13px;">Could not load analytics.</p>'; return; }
+
+        var maxBar = Math.max.apply(null, d.trend.map(function(t) { return t.count; })) || 1;
+
+        var sparkHtml = '<div class="sparkline">'
+          + d.trend.map(function(t, i) {
+              var h   = Math.round((t.count / maxBar) * 60);
+              var cls = i === 6 ? "spark-bar spark-today" : "spark-bar";
+              return '<div class="spark-col">'
+                + '<div class="spark-count">' + (t.count || "") + '</div>'
+                + '<div class="spark-bar-wrap"><div class="' + cls + '" style="height:' + (t.count ? h : 3) + 'px;"></div></div>'
+                + '<div class="spark-label">' + t.label + '</div>'
+                + '</div>';
+            }).join("")
+          + '</div>';
+
+        var maxTopic = d.topTopics.length ? d.topTopics[0].count : 1;
+        var topicsHtml = d.topTopics.length
+          ? d.topTopics.map(function(t) {
+              var pct = Math.round((t.count / maxTopic) * 100);
+              return '<div class="topic-row">'
+                + '<div class="topic-name">' + esc(t.topic) + '</div>'
+                + '<div class="topic-bar-bg"><div class="topic-bar-fill" style="width:' + pct + '%;"></div></div>'
+                + '<div class="topic-count">' + t.count + '</div>'
+                + '</div>';
+            }).join("")
+          : '<p style="font-size:13px;color:#9ca3af;">Not enough data yet.</p>';
+
+        el.innerHTML = ''
+          + '<div class="stat-tiles">'
+          + '<div class="stat-tile"><div class="stat-value">' + d.todayCount + '</div><div class="stat-label">Today</div></div>'
+          + '<div class="stat-tile"><div class="stat-value">' + d.totalConversations + '</div><div class="stat-label">Last 30 days</div></div>'
+          + '<div class="stat-tile"><div class="stat-value">' + d.avgMessages + '</div><div class="stat-label">Avg messages</div></div>'
+          + '</div>'
+          + '<div class="analytics-section"><div class="analytics-section-title">Conversations — last 7 days</div>' + sparkHtml + '</div>'
+          + '<div class="analytics-section" style="margin-bottom:0;"><div class="analytics-section-title">Top topics</div>' + topicsHtml + '</div>';
+      })
+      .catch(function() {
+        if (el) el.innerHTML = '<p style="font-size:13px;color:#9ca3af;">Could not load analytics.</p>';
+      });
+  }
 
   // ── Test assistant ────────────────────────────────────────────────────────
   window.askAssistant = function() {

@@ -1208,6 +1208,71 @@
   <div id="juniorDocResults" style="margin-top:20px;"></div>
 </section>
 
+  <!-- ── Analytics ────────────────────────────────────────────── -->
+  <div class="card senior-only" id="adminAnalyticsCard" style="padding:0;">
+    <details id="adminAnalyticsDetails">
+      <summary class="adm-analytics-summary">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">📊</span>
+          <div>
+            <h2 style="margin:0 0 2px;">Analytics</h2>
+            <p class="muted" style="margin:0;font-size:13px;">Conversations, trends &amp; top topics — last 30 days</p>
+          </div>
+        </div>
+        <span class="adm-analytics-chevron">▾</span>
+      </summary>
+      <div style="padding:20px 24px 24px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+          <label style="font-size:13px;font-weight:600;color:#374151;">Filter by tenant:</label>
+          <select id="analyticsFilter" onchange="loadAdminAnalytics()"
+            style="border:1.5px solid #d1d5db;border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;background:white;color:#111827;cursor:pointer;">
+            <option value="">All tenants</option>
+          </select>
+          <button onclick="loadAdminAnalytics()"
+            style="background:#1e40af;color:white;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+            ↺ Refresh
+          </button>
+        </div>
+        <div id="adminAnalyticsContent">
+          <p class="muted" style="text-align:center;padding:20px 0;">Loading analytics…</p>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <style>
+    .adm-analytics-summary {
+      cursor:pointer; list-style:none; display:flex; align-items:center;
+      justify-content:space-between; padding:20px 24px; border-radius:12px;
+      transition:background 0.15s; user-select:none;
+    }
+    details[open] .adm-analytics-summary { background:#f8fafc; border-radius:12px 12px 0 0; border-bottom:1px solid #e2e8f0; }
+    .adm-analytics-summary:hover { background:#f8fafc; }
+    .adm-analytics-summary::-webkit-details-marker { display:none; }
+    .adm-analytics-chevron { font-size:18px; color:#9ca3af; transition:transform 0.2s; }
+    details[open] .adm-analytics-chevron { transform:rotate(180deg); }
+    .adm-stat-tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px; }
+    .adm-stat-tile { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 10px; text-align:center; }
+    .adm-stat-value { font-size:26px; font-weight:800; color:#111827; line-height:1; }
+    .adm-stat-label { font-size:11px; color:#6b7280; margin-top:5px; font-weight:500; }
+    .adm-section-title { font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.8px; margin:0 0 12px; }
+    .adm-sparkline { display:flex; align-items:flex-end; gap:5px; height:72px; }
+    .adm-spark-col { display:flex; flex-direction:column; align-items:center; flex:1; }
+    .adm-spark-bar-wrap { flex:1; width:100%; display:flex; align-items:flex-end; }
+    .adm-spark-bar { width:100%; background:#93c5fd; border-radius:4px 4px 0 0; min-height:3px; }
+    .adm-spark-bar.adm-today { background:#1e40af; }
+    .adm-spark-label { font-size:10px; color:#9ca3af; margin-top:4px; white-space:nowrap; }
+    .adm-spark-count { font-size:10px; color:#374151; font-weight:700; }
+    .adm-topic-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+    .adm-topic-name { font-size:13px; color:#374151; flex-shrink:0; width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .adm-topic-bar-bg { flex:1; background:#f1f5f9; border-radius:4px; height:9px; overflow:hidden; }
+    .adm-topic-bar-fill { height:100%; background:#3b82f6; border-radius:4px; }
+    .adm-topic-count { font-size:12px; color:#6b7280; width:22px; text-align:right; flex-shrink:0; }
+    .adm-tenant-row { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:8px; }
+    .adm-tenant-name { font-size:13px; font-weight:600; color:#111827; }
+    .adm-tenant-stats { font-size:12px; color:#6b7280; }
+  </style>
+
   <!-- ── Chat Logs ─────────────────────────────────────────────── -->
   <div class="card senior-only" id="adminChatLogsCard">
     <h2>Chat Logs</h2>
@@ -3245,6 +3310,87 @@ if (status) {
 
   await loadData();
 }
+
+// ── Admin Analytics ───────────────────────────────────────────────────────────
+async function loadAdminAnalytics() {
+  const el     = document.getElementById("adminAnalyticsContent");
+  const filter = document.getElementById("analyticsFilter");
+  const tid    = filter ? filter.value : "";
+  if (!el) return;
+
+  el.innerHTML = '<p class="muted" style="text-align:center;padding:20px 0;">Loading…</p>';
+
+  try {
+    const url  = "/api/admin/analytics" + (tid ? "?tenantId=" + encodeURIComponent(tid) : "");
+    const res  = await fetch(url, { credentials: "include" });
+    const d    = await res.json();
+
+    // Populate filter dropdown once
+    if (filter && d.tenants && filter.options.length <= 1) {
+      d.tenants.forEach(t => {
+        const o = document.createElement("option");
+        o.value = t.id; o.textContent = t.name || t.id;
+        filter.appendChild(o);
+      });
+      if (tid) filter.value = tid;
+    }
+
+    function escA(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+    const maxBar = Math.max(...(d.trend || []).map(t => t.count), 1);
+    const sparkHtml = '<div class="adm-sparkline">'
+      + (d.trend || []).map((t, i) => {
+          const h   = Math.round((t.count / maxBar) * 60);
+          const cls = i === 6 ? "adm-spark-bar adm-today" : "adm-spark-bar";
+          return `<div class="adm-spark-col">
+            <div class="adm-spark-count">${t.count || ""}</div>
+            <div class="adm-spark-bar-wrap"><div class="${cls}" style="height:${t.count ? h : 3}px;"></div></div>
+            <div class="adm-spark-label">${escA(t.label)}</div>
+          </div>`;
+        }).join("")
+      + '</div>';
+
+    const maxTopic = d.topTopics && d.topTopics.length ? d.topTopics[0].count : 1;
+    const topicsHtml = d.topTopics && d.topTopics.length
+      ? d.topTopics.map(t => {
+          const pct = Math.round((t.count / maxTopic) * 100);
+          return `<div class="adm-topic-row">
+            <div class="adm-topic-name">${escA(t.topic)}</div>
+            <div class="adm-topic-bar-bg"><div class="adm-topic-bar-fill" style="width:${pct}%;"></div></div>
+            <div class="adm-topic-count">${t.count}</div>
+          </div>`;
+        }).join("")
+      : '<p class="muted" style="font-size:13px;">Not enough data yet.</p>';
+
+    const byTenantHtml = !tid && d.byTenant && d.byTenant.length > 1
+      ? '<div style="margin-top:24px;">'
+        + '<p class="adm-section-title">By tenant</p>'
+        + d.byTenant.map(t =>
+            `<div class="adm-tenant-row">
+              <div class="adm-tenant-name">${escA(t.tenantName)}</div>
+              <div class="adm-tenant-stats">${t.totalConversations} convs · ${t.todayCount} today · ${t.avgMessages} avg msgs</div>
+            </div>`
+          ).join("")
+        + '</div>'
+      : "";
+
+    el.innerHTML = `
+      <div class="adm-stat-tiles">
+        <div class="adm-stat-tile"><div class="adm-stat-value">${d.todayCount}</div><div class="adm-stat-label">Today</div></div>
+        <div class="adm-stat-tile"><div class="adm-stat-value">${d.totalConversations}</div><div class="adm-stat-label">Last 30 days</div></div>
+        <div class="adm-stat-tile"><div class="adm-stat-value">${d.avgMessages}</div><div class="adm-stat-label">Avg messages</div></div>
+      </div>
+      <div style="margin-bottom:24px;"><p class="adm-section-title">Conversations — last 7 days</p>${sparkHtml}</div>
+      <div><p class="adm-section-title">Top topics</p>${topicsHtml}</div>
+      ${byTenantHtml}`;
+
+  } catch(err) {
+    console.error("[admin-analytics]", err);
+    el.innerHTML = '<p style="color:#dc2626;font-size:13px;">Failed to load analytics.</p>';
+  }
+}
+
+loadAdminAnalytics();
 
 // ── Admin Chat Logs ────────────────────────────────────────────────────────────
 async function loadAdminChatLogs() {

@@ -6881,7 +6881,7 @@ const EMAIL_AGENT_TOOLS = [
   }
 ];
 
-async function runEmailResponseAgent(emailContent, senderName = "") {
+async function runEmailResponseAgent(emailContent, senderName = "", applicationContext = null) {
   // Extract first name from sender, e.g. "Alan Donelan <alan@x.com>" → "Alan"
   // Falls back to "" (renders as "Hi there,") if no clean name is found
   let firstName = "";
@@ -6946,7 +6946,38 @@ Style:
     },
     {
       role: "user",
-      content: `Draft a reply to this client email:\n\n${emailContent}`
+      content: (() => {
+        // Build application state block if available
+        let stateBlock = "";
+        if (applicationContext?.state) {
+          const s = applicationContext.state;
+          const events = applicationContext.recentEvents || [];
+          const fmt = (d) => new Date(d).toLocaleDateString("en-IE", { day: "numeric", month: "short" });
+
+          stateBlock = [
+            "── APPLICATION STATE ──────────────────────────────",
+            `Borrower:    ${s.borrower_name || "Unknown"}${s.co_borrower_name ? ` & ${s.co_borrower_name}` : ""}`,
+            `Phase:       ${(s.current_phase || "initial_enquiry").replace(/_/g, " ")}`,
+            `Loan amount: ${s.loan_amount ? `€${Number(s.loan_amount).toLocaleString("en-IE")}` : "not confirmed"}`,
+            `Property:    ${s.property_address || "not yet mentioned"}`,
+            `Docs received:    ${s.received_documents?.length ? s.received_documents.join(", ") : "none yet"}`,
+            `Docs outstanding: ${s.missing_documents?.length  ? s.missing_documents.join(", ")  : "none flagged"}`,
+            ...(s.conflict_flags?.length ? [`⚠️  FLAGS: ${s.conflict_flags.join("; ")}`] : []),
+            "",
+            "── HISTORY ─────────────────────────────────────────",
+            s.running_summary || "No history yet.",
+            "",
+            ...(events.length ? [
+              "── RECENT EVENTS ───────────────────────────────────",
+              ...events.slice(0, 5).map(e => `[${fmt(e.created_at)}] ${e.event_type}: ${e.description}`)
+            ] : []),
+            "────────────────────────────────────────────────────",
+            ""
+          ].join("\n");
+        }
+
+        return `${stateBlock}Draft a reply to this client email:\n\n${emailContent}`;
+      })()
     }
   ];
 
@@ -7006,6 +7037,270 @@ Style:
   console.warn("[email-agent] Max iterations reached — returning partial draft");
   const last = messages.filter(m => m.role === "assistant" && m.content).pop();
   return last?.content || "Unable to generate draft.";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Email Context Engine ──────────────────────────────────────────────────────
+// State-driven context for AI reply generation. Tracks each mortgage application
+// as a structured state object so the AI knows what docs have been received,
+// what phase the case is at, and has a running summary of the interaction history.
+// All new tables — zero impact on existing tenants or data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── 1. Deduplicator — strips quoted thread history, signatures, disclaimers ───
+function deduplicateEmailBody(rawBody) {
+  if (!rawBody) return "";
+
+  const lines = rawBody.split("\n");
+  const output = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Gmail / Outlook "On [date] [name] wrote:" thread marker
+    if (/^on .{5,120}wrote:\s*$/i.test(trimmed)) break;
+
+    // Line-quoted text ("> ...")
+    if (trimmed.startsWith(">")) break;
+
+    // Standard signature delimiter
+    if (trimmed === "--" || trimmed === "___" || trimmed === "---") break;
+
+    // Irish business email legal disclaimer markers
+    if (/^(this e-?mail|this message|confidentiality notice|disclaimer:|the information contained)/i.test(trimmed)) break;
+
+    // AOM-specific signature markers
+    if (/^at once mortgages/i.test(trimmed)) break;
+
+    output.push(line);
+  }
+
+  return output.join("\n").trim();
+}
+
+// ── 2. Entity Extractor — pulls key mortgage entities from cleaned email ───────
+async function extractEmailEntities(cleanedBody, from, subject) {
+  try {
+    const response = await anthropic.messages.create({
+      model:      "claude-haiku-4-5",
+      max_tokens: 512,
+      messages: [{
+        role: "user",
+        content:
+`Extract mortgage application entities from this Irish mortgage broker email.
+Return ONLY valid JSON — no markdown, no extra text.
+
+From: ${from}
+Subject: ${subject}
+Body: ${cleanedBody.slice(0, 1500)}
+
+{
+  "borrower_name": "full name of main applicant if mentioned, else null",
+  "co_borrower_name": "second applicant name if mentioned, else null",
+  "event_type": "document_received | document_requested | status_enquiry | milestone | new_enquiry | other",
+  "documents_received": ["documents explicitly sent or attached in THIS email e.g. payslip, gift letter, bank statements"],
+  "documents_mentioned": ["documents referenced but not necessarily sent"],
+  "loan_amount": numeric euros or null,
+  "property_address": "address if mentioned else null",
+  "phase_signal": "initial_enquiry | aip | full_application | underwriting | letter_of_offer | drawdown | null"
+}`
+      }]
+    });
+
+    let text = (response.content[0]?.text || "{}").trim()
+      .replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    return JSON.parse(text);
+  } catch (err) {
+    console.warn("[email-context] Entity extraction failed:", err.message);
+    return { event_type: "other", documents_received: [], documents_mentioned: [] };
+  }
+}
+
+// ── 3. Find or Create Application State ───────────────────────────────────────
+async function findOrCreateApplicationState(from, entities) {
+  const emailMatch = from.match(/<([^>]+)>/);
+  const senderEmail = (emailMatch ? emailMatch[1] : from).toLowerCase().trim();
+
+  // Look for existing state by sender email
+  const { data: existing } = await supabase
+    .from("mortgage_application_states")
+    .select("*")
+    .eq("sender_email", senderEmail)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing;
+
+  // Try to find a matching mortgage lead
+  const { data: lead } = await supabase
+    .from("mortgage_leads")
+    .select("id, name, email")
+    .eq("email", senderEmail)
+    .maybeSingle();
+
+  const { data: newState } = await supabase
+    .from("mortgage_application_states")
+    .insert({
+      lead_id:           lead?.id            || null,
+      sender_email:      senderEmail,
+      borrower_name:     entities.borrower_name  || lead?.name || null,
+      co_borrower_name:  entities.co_borrower_name || null,
+      property_address:  entities.property_address || null,
+      loan_amount:       entities.loan_amount      || null,
+      current_phase:     entities.phase_signal     || "initial_enquiry",
+      missing_documents: [],
+      received_documents:[],
+      running_summary:   null,
+      conflict_flags:    []
+    })
+    .select()
+    .single();
+
+  console.log(`[email-context] New application state created for ${senderEmail}`);
+  return newState;
+}
+
+// ── 4. Running Summary — incrementally updated 3-5 sentence history ───────────
+async function updateRunningSummary(existingSummary, cleanedBody, from, subject, entities) {
+  try {
+    const response = await anthropic.messages.create({
+      model:      "claude-haiku-4-5",
+      max_tokens: 300,
+      messages: [{
+        role: "user",
+        content:
+`Update this Irish mortgage application summary with the new email event.
+Keep it to 3-5 concise sentences covering key history. Be specific about documents received and current status.
+
+Current summary:
+${existingSummary || "No summary yet — this is the first email."}
+
+New email:
+From: ${from}
+Subject: ${subject}
+Documents received: ${(entities.documents_received || []).join(", ") || "none"}
+Event: ${entities.event_type || "other"}
+Content: ${cleanedBody.slice(0, 500)}
+
+Return ONLY the updated summary — no labels or formatting.`
+      }]
+    });
+    return response.content[0]?.text?.trim() || existingSummary;
+  } catch {
+    return existingSummary;
+  }
+}
+
+// ── 5. State Updater — applies new email data to the application state ─────────
+async function updateApplicationState(state, entities, cleanedBody, from, subject) {
+  const updates = {};
+  const events  = [];
+
+  // Phase
+  if (entities.phase_signal && entities.phase_signal !== "null") {
+    updates.current_phase = entities.phase_signal;
+  }
+
+  // Borrower details (only fill if not already set)
+  if (entities.borrower_name    && !state.borrower_name)    updates.borrower_name    = entities.borrower_name;
+  if (entities.co_borrower_name && !state.co_borrower_name) updates.co_borrower_name = entities.co_borrower_name;
+  if (entities.property_address && !state.property_address) updates.property_address = entities.property_address;
+
+  // Loan amount — flag if it changes
+  if (entities.loan_amount) {
+    if (state.loan_amount && state.loan_amount !== entities.loan_amount) {
+      const flag = `Loan amount changed from €${Number(state.loan_amount).toLocaleString("en-IE")} to €${Number(entities.loan_amount).toLocaleString("en-IE")}`;
+      updates.conflict_flags = [...(state.conflict_flags || []), flag];
+      console.warn(`[email-context] Conflict flag raised: ${flag}`);
+    }
+    updates.loan_amount = entities.loan_amount;
+  }
+
+  // Documents received
+  if (entities.documents_received?.length > 0) {
+    const already = state.received_documents || [];
+    const newDocs = entities.documents_received.filter(d => !already.map(a => a.toLowerCase()).includes(d.toLowerCase()));
+    if (newDocs.length > 0) {
+      updates.received_documents = [...already, ...newDocs];
+      // Remove from missing list if matched
+      updates.missing_documents = (state.missing_documents || [])
+        .filter(m => !newDocs.some(r => m.toLowerCase().includes(r.toLowerCase())));
+      events.push({
+        application_id: state.id,
+        event_type:     "document_received",
+        description:    `Received: ${newDocs.join(", ")}`,
+        from_address:   from,
+        email_subject:  subject
+      });
+    }
+  }
+
+  // Running summary
+  if (cleanedBody) {
+    updates.running_summary = await updateRunningSummary(state.running_summary, cleanedBody, from, subject, entities);
+    if (entities.event_type && entities.event_type !== "other") {
+      updates.last_milestone = subject;
+    }
+  }
+
+  updates.updated_at = new Date().toISOString();
+
+  // Persist state updates
+  await supabase.from("mortgage_application_states").update(updates).eq("id", state.id);
+
+  // Log event row
+  if (entities.event_type && entities.event_type !== "other") {
+    events.push({
+      application_id: state.id,
+      event_type:     entities.event_type,
+      description:    subject,
+      from_address:   from,
+      email_subject:  subject
+    });
+  }
+  if (events.length > 0) {
+    await supabase.from("application_events").insert(events);
+  }
+
+  // Short-term email memory — keep last 3 cleaned emails per application
+  await supabase.from("application_email_context").insert({
+    application_id: state.id,
+    cleaned_body:   cleanedBody.slice(0, 3000),
+    from_address:   from,
+    subject,
+    received_at:    new Date().toISOString()
+  });
+
+  // Prune to last 3
+  const { data: all } = await supabase
+    .from("application_email_context")
+    .select("id")
+    .eq("application_id", state.id)
+    .order("created_at", { ascending: false });
+
+  if (all && all.length > 3) {
+    await supabase.from("application_email_context")
+      .delete()
+      .in("id", all.slice(3).map(r => r.id));
+  }
+
+  return { ...state, ...updates };
+}
+
+// ── 6. Context Builder — assembles full context for reply generation ───────────
+async function getApplicationContext(stateId) {
+  const [stateRes, eventsRes, emailsRes] = await Promise.all([
+    supabase.from("mortgage_application_states").select("*").eq("id", stateId).single(),
+    supabase.from("application_events").select("*").eq("application_id", stateId).order("created_at", { ascending: false }).limit(10),
+    supabase.from("application_email_context").select("*").eq("application_id", stateId).order("received_at", { ascending: false }).limit(3)
+  ]);
+
+  return {
+    state:        stateRes.data       || null,
+    recentEvents: eventsRes.data      || [],
+    recentEmails: (emailsRes.data     || []).reverse() // chronological
+  };
 }
 
 // ─── Email intent classifier ──────────────────────────────────────────────────
@@ -7167,7 +7462,25 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
   console.log(`[email-poll] Processing: "${subject}" from ${from}`);
 
   try {
-    const rawDraft = await runEmailResponseAgent(body, from);
+    // ── Email context pipeline (fail-safe — falls back gracefully) ────────────
+    let applicationContext = null;
+    try {
+      const cleanedBody = deduplicateEmailBody(body);
+      console.log(`[email-context] Cleaned: ${cleanedBody.length} chars (raw: ${body.length} chars)`);
+
+      const entities = await extractEmailEntities(cleanedBody, from, subject);
+      console.log(`[email-context] Entities: event=${entities.event_type} docs_received=[${(entities.documents_received||[]).join(",")}]`);
+
+      const state       = await findOrCreateApplicationState(from, entities);
+      const updatedState = await updateApplicationState(state, entities, cleanedBody, from, subject);
+      applicationContext = await getApplicationContext(updatedState.id);
+
+      console.log(`[email-context] Phase: ${applicationContext.state?.current_phase} | Docs received: ${applicationContext.state?.received_documents?.join(", ") || "none"}`);
+    } catch (ctxErr) {
+      console.warn(`[email-context] Pipeline failed — continuing without context: ${ctxErr.message}`);
+    }
+
+    const rawDraft = await runEmailResponseAgent(body, from, applicationContext);
 
     // Strip any trailing sign-off the AI added (e.g. "Kind regards,") — the real signature provides it
     const draftBody = rawDraft.trim().replace(/\n*kind regards,?\s*$/i, "").trim();

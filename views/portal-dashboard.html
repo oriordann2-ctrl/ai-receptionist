@@ -525,6 +525,44 @@
     </div>
   </div>
 
+  <!-- Flagged Answers (shown when train_staff is on) -->
+  <div id="flaggedCard" style="display:none;" class="card" style="padding:0;">
+    <details id="flaggedDetails">
+      <summary class="analytics-summary" style="padding:20px 24px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">⚑</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Flagged Answers</div>
+            <div style="font-size:13px;color:#6b7280;">Answers your staff marked as incorrect — review &amp; approve</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="flaggedBody">
+        <div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">Loading…</div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Approved Answers (shown when train_staff is on) -->
+  <div id="approvedCard" style="display:none;" class="card" style="padding:0;">
+    <details id="approvedDetails">
+      <summary class="analytics-summary" style="padding:20px 24px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">✅</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Approved Answers</div>
+            <div style="font-size:13px;color:#6b7280;">Verified Q&amp;A pairs saved by your team</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="approvedBody">
+        <div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">Loading…</div>
+      </div>
+    </details>
+  </div>
+
   <!-- Analytics -->
   <div class="card" style="padding:0;">
     <details id="analyticsDetails">
@@ -581,44 +619,6 @@
       </summary>
       <div class="analytics-body" id="settingsBody">
         <div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">Loading settings…</div>
-      </div>
-    </details>
-  </div>
-
-  <!-- Flagged Answers (shown when train_staff is on) -->
-  <div id="flaggedCard" style="display:none;" class="card" style="padding:0;">
-    <details id="flaggedDetails">
-      <summary class="analytics-summary" style="padding:20px 24px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">⚑</span>
-          <div>
-            <div class="card-title" style="margin-bottom:2px;">Flagged Answers</div>
-            <div style="font-size:13px;color:#6b7280;">Answers your staff marked as incorrect — review &amp; approve</div>
-          </div>
-        </div>
-        <span class="analytics-chevron">▾</span>
-      </summary>
-      <div class="analytics-body" id="flaggedBody">
-        <div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">Loading…</div>
-      </div>
-    </details>
-  </div>
-
-  <!-- Approved Answers (shown when train_staff is on) -->
-  <div id="approvedCard" style="display:none;" class="card" style="padding:0;">
-    <details id="approvedDetails">
-      <summary class="analytics-summary" style="padding:20px 24px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">✅</span>
-          <div>
-            <div class="card-title" style="margin-bottom:2px;">Approved Answers</div>
-            <div style="font-size:13px;color:#6b7280;">Verified Q&amp;A pairs saved by your team</div>
-          </div>
-        </div>
-        <span class="analytics-chevron">▾</span>
-      </summary>
-      <div class="analytics-body" id="approvedBody">
-        <div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">Loading…</div>
       </div>
     </details>
   </div>

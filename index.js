@@ -7894,7 +7894,12 @@ async function pollGmailInbox() {
   const SKIP_ADDRESSES = [
     "imcapplications@ptsb.ie",        // PTSB document collation & acknowledgements
     "electronicvaluations@ptsb.ie",   // PTSB electronic valuations — bulk/automated
-    "adobesign@adobesign.com",        // Adobe Sign — document signing requests & completion notifications
+  ];
+
+  // Context-only senders — no reply generated, but email IS run through the
+  // context pipeline so document signing events update the application state.
+  const CONTEXT_ONLY_ADDRESSES = [
+    "adobesign@adobesign.com",        // Adobe Sign — gift letters, declarations, consent forms
   ];
 
   function isInternalSender(fromText) {
@@ -7903,6 +7908,12 @@ async function pollGmailInbox() {
     if (INTERNAL_DOMAINS.some(d => addr.endsWith(d))) return true;
     if (SKIP_ADDRESSES.includes(addr)) return true;
     return false;
+  }
+
+  function isContextOnlySender(fromText) {
+    const match = fromText.match(/<([^>]+)>/);
+    const addr  = (match ? match[1] : fromText).toLowerCase().trim();
+    return CONTEXT_ONLY_ADDRESSES.includes(addr);
   }
 
   const results = []; // [{ uid, cls }]
@@ -7930,6 +7941,23 @@ async function pollGmailInbox() {
 
       if (subject.startsWith("Draft reply:")) {
         console.log(`[email-poll] Skipping loop-guard email: "${subject}"`);
+        results.push({ uid, cls: { intent: "Transactional" } });
+        continue;
+      }
+
+      // Context-only senders — run context pipeline to capture document events
+      // (e.g. Adobe Sign gift letter signed) but do NOT generate a reply
+      if (isContextOnlySender(from)) {
+        console.log(`[email-poll] Context-only sender: "${subject}" from ${from} — updating application state, no reply`);
+        try {
+          const cleanedBody = deduplicateEmailBody(body);
+          const entities    = await extractEmailEntities(cleanedBody, from, subject);
+          console.log(`[email-context] Adobe Sign entities: event=${entities.event_type} docs_received=[${(entities.documents_received||[]).join(",")}]`);
+          const state = await findOrCreateApplicationState(from, entities);
+          await updateApplicationState(state, entities, cleanedBody, from, subject);
+        } catch (ctxErr) {
+          console.warn(`[email-context] Context-only pipeline failed: ${ctxErr.message}`);
+        }
         results.push({ uid, cls: { intent: "Transactional" } });
         continue;
       }

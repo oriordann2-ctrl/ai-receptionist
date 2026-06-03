@@ -7902,6 +7902,10 @@ async function pollGmailInbox() {
     "noreply@mail.nuamoney.com",      // NUA Money — automated application notifications
   ];
 
+  const CONTEXT_ONLY_DOMAINS = [
+    "@aom.onlineapplication.io",      // AOM online application portal — all automated notifications
+  ];
+
   function isInternalSender(fromText) {
     const match = fromText.match(/<([^>]+)>/);
     const addr  = (match ? match[1] : fromText).toLowerCase().trim();
@@ -7913,7 +7917,9 @@ async function pollGmailInbox() {
   function isContextOnlySender(fromText) {
     const match = fromText.match(/<([^>]+)>/);
     const addr  = (match ? match[1] : fromText).toLowerCase().trim();
-    return CONTEXT_ONLY_ADDRESSES.includes(addr);
+    if (CONTEXT_ONLY_ADDRESSES.includes(addr)) return true;
+    if (CONTEXT_ONLY_DOMAINS.some(d => addr.endsWith(d))) return true;
+    return false;
   }
 
   const results = []; // [{ uid, cls }]

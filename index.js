@@ -3943,8 +3943,45 @@ app.delete("/api/portal/website", requireTenant, async (req, res) => {
   }
 });
 
-// POST /api/portal/import-website — re-crawl a website URL for this tenant
-app.post("/api/portal/import-website", requireTenant, async (req, res) => {
+// POST /api/portal/knowledge-documents/paste — save pasted text as a knowledge document (senior only)
+app.post("/api/portal/knowledge-documents/paste", requireSeniorTenant, async (req, res) => {
+  try {
+    const { title, text } = req.body;
+    if (!title || !text) return res.status(400).json({ error: "Title and text are required" });
+    const tenantId = req.tenant.tenantId;
+
+    const { data: doc, error } = await supabase
+      .from("documents")
+      .insert({
+        original_filename: `${title.trim()}.txt`,
+        stored_filename:   `${title.trim()}.txt`,
+        storage_path:      null,
+        mimetype:          "text/plain",
+        document_type:     "Pasted Knowledge",
+        description:       title.trim(),
+        tags:              ["pasted"],
+        metadata_complete: true,
+        junior_accessible: true,
+        tenant_id:         tenantId
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[portal-paste] Insert error:", error);
+      return res.status(500).json({ error: "Failed to save knowledge" });
+    }
+
+    await generateAndStoreChunks(doc.id, text.trim(), null, "Pasted Knowledge", null, tenantId);
+    res.json({ success: true, document: { id: doc.id, name: doc.original_filename } });
+  } catch (err) {
+    console.error("[portal-paste] Error:", err.message);
+    res.status(500).json({ error: "Failed to save knowledge" });
+  }
+});
+
+// POST /api/portal/import-website — crawl a website URL for this tenant (senior only)
+app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
   let { url } = req.body;
   if (!url) return res.status(400).json({ error: "url required" });

@@ -488,6 +488,41 @@
 
     <!-- Document list — pre-rendered server-side, refreshed by JS after upload/delete -->
     <div id="docList">DOC_LIST_PLACEHOLDER</div>
+
+    <!-- ── Paste Knowledge ── -->
+    <div style="margin-top:28px;border-top:1px solid #e5e7eb;padding-top:24px;">
+      <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:6px;">Paste Knowledge</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:16px;line-height:1.5;">Add a note, FAQ answer, policy, or process directly to your knowledge base.</div>
+      <input id="pasteKbTitle" type="text" placeholder="Title (e.g. Refund Policy)"
+        style="width:100%;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;margin-bottom:10px;"
+        onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'" />
+      <textarea id="pasteKbText" placeholder="Paste email, FAQ answer, lender clarification, process note…"
+        style="width:100%;min-height:140px;padding:12px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;resize:vertical;outline:none;line-height:1.55;"
+        onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:10px;flex-wrap:wrap;">
+        <button onclick="portalPasteKnowledge()"
+          style="background:#1e40af;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;">
+          Save Knowledge
+        </button>
+        <span id="pasteKbStatus" style="font-size:13px;"></span>
+      </div>
+    </div>
+
+    <!-- ── Import from Website ── -->
+    <div style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:24px;">
+      <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:6px;">Import from Website</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:16px;line-height:1.5;">Crawl a website and add all pages to your knowledge base automatically. This takes 2–3 minutes.</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <input id="importWebsiteUrl" type="url" placeholder="https://example.com"
+          style="flex:1;min-width:200px;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;"
+          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'" />
+        <button id="importWebsiteBtn" onclick="portalImportWebsite()"
+          style="background:#1e40af;color:white;border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
+          Import Website
+        </button>
+      </div>
+      <div id="importWebsiteStatus" style="margin-top:10px;font-size:13px;"></div>
+    </div>
   </div>
 
   <!-- Analytics -->

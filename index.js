@@ -4302,65 +4302,95 @@ ${documentContext || "No documents loaded yet."}`
   }
 });
 
-// POST /api/portal/documents/search — tenant-scoped semantic document search
+// POST /api/portal/documents/search — tenant-scoped document search
+// Combines semantic (embedding) search on content AND filename substring match
 app.post("/api/portal/documents/search", requireTenant, async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: "Query is required" });
 
   const tenantId = req.tenant.tenantId;
+  const baseSelect = "id, original_filename, stored_filename, storage_path, mimetype, document_type";
 
   try {
-    const embeddingResponse = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: query
-    });
+    // ── Run semantic search and filename search in parallel ─────────────────
+    const [embeddingResponse, { data: filenameDocs }] = await Promise.all([
+      openai.embeddings.create({ model: "text-embedding-3-small", input: query }),
+      supabase
+        .from("documents")
+        .select(baseSelect)
+        .eq("tenant_id", tenantId)
+        .neq("document_type", "Website Content")
+        .ilike("original_filename", `%${query}%`)
+        .limit(5)
+    ]);
+
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
-    const { data: chunks, error: rpcErr } = await supabase.rpc("match_chunks", {
-      query_embedding:     queryEmbedding,
-      match_count:         15,
-      filter_lender:       null,
+    // ── Semantic search via embedding RPC ──────────────────────────────────
+    const idToSim = {};
+    const { data: chunks } = await supabase.rpc("match_chunks", {
+      query_embedding:      queryEmbedding,
+      match_count:          15,
+      filter_lender:        null,
       filter_document_type: null,
-      p_tenant_id:         tenantId
+      p_tenant_id:          tenantId
     });
 
-    if (rpcErr || !chunks?.length) return res.json([]);
-
-    // Group by document_id, keep best similarity score
     const docMap = {};
-    for (const chunk of chunks) {
+    for (const chunk of (chunks || [])) {
       if (!docMap[chunk.document_id] || chunk.similarity > docMap[chunk.document_id].similarity) {
         docMap[chunk.document_id] = chunk;
       }
     }
+    Object.values(docMap).forEach(c => { idToSim[c.document_id] = c.similarity; });
 
     const topDocIds = Object.values(docMap)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 5)
       .map(c => c.document_id);
 
-    // Exclude website-crawled pages — only uploaded files (PDF, DOCX, TXT) make sense to download
-    const { data: docs } = await supabase
-      .from("documents")
-      .select("id, original_filename, stored_filename, storage_path, mimetype, document_type")
-      .in("id", topDocIds)
-      .eq("tenant_id", tenantId)
-      .neq("document_type", "Website Content");
+    // Fetch semantic match docs (exclude website content)
+    const { data: semanticDocs } = topDocIds.length
+      ? await supabase
+          .from("documents")
+          .select(baseSelect)
+          .in("id", topDocIds)
+          .eq("tenant_id", tenantId)
+          .neq("document_type", "Website Content")
+      : { data: [] };
 
-    const idToSim = {};
-    Object.values(docMap).forEach(c => { idToSim[c.document_id] = c.similarity; });
+    // ── Merge: filename matches first, then semantic, deduplicated ──────────
+    const seen = new Set();
+    const merged = [];
 
-    const results = (docs || [])
-      .sort((a, b) => (idToSim[b.id] || 0) - (idToSim[a.id] || 0))
-      .map(doc => ({
-        id:           doc.id,
-        filename:     doc.original_filename || "Untitled",
-        mimetype:     doc.mimetype,
-        documentType: doc.document_type,
-        confidence:   (idToSim[doc.id] || 0) > 0.75 ? "Strong match"
-                    : (idToSim[doc.id] || 0) > 0.55 ? "Good match"
-                    : "Possible match"
-      }));
+    // Filename matches → always "Filename match" confidence
+    for (const doc of (filenameDocs || [])) {
+      if (!seen.has(doc.id)) {
+        seen.add(doc.id);
+        merged.push({ ...doc, confidence: "Filename match", simScore: 1 });
+      }
+    }
+
+    // Semantic matches
+    for (const doc of (semanticDocs || [])) {
+      if (!seen.has(doc.id)) {
+        seen.add(doc.id);
+        const sim = idToSim[doc.id] || 0;
+        merged.push({
+          ...doc,
+          confidence: sim > 0.75 ? "Strong match" : sim > 0.55 ? "Good match" : "Possible match",
+          simScore: sim
+        });
+      }
+    }
+
+    const results = merged.map(doc => ({
+      id:           doc.id,
+      filename:     doc.original_filename || "Untitled",
+      mimetype:     doc.mimetype,
+      documentType: doc.document_type,
+      confidence:   doc.confidence
+    }));
 
     res.json(results);
   } catch (err) {

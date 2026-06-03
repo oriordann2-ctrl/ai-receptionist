@@ -205,6 +205,71 @@
       });
   };
 
+  // ── Paste Knowledge ───────────────────────────────────────────────────────
+  window.portalPasteKnowledge = function() {
+    var title  = (document.getElementById("pasteKbTitle")  || {}).value || "";
+    var text   = (document.getElementById("pasteKbText")   || {}).value || "";
+    var status = document.getElementById("pasteKbStatus");
+    if (!title.trim() || !text.trim()) {
+      if (status) { status.style.color = "#dc2626"; status.textContent = "Please enter both a title and some text."; }
+      return;
+    }
+    if (status) { status.style.color = "#6b7280"; status.textContent = "Saving…"; }
+    fetch("/api/portal/knowledge-documents/paste", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: title.trim(), text: text.trim() })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.success) {
+          if (status) { status.style.color = "#16a34a"; status.textContent = "✅ Saved to knowledge base."; }
+          document.getElementById("pasteKbTitle").value = "";
+          document.getElementById("pasteKbText").value  = "";
+          loadDocuments();
+          setTimeout(function() { if (status) status.textContent = ""; }, 4000);
+        } else {
+          if (status) { status.style.color = "#dc2626"; status.textContent = "❌ " + (data.error || "Failed to save."); }
+        }
+      })
+      .catch(function() {
+        if (status) { status.style.color = "#dc2626"; status.textContent = "❌ Something went wrong. Please try again."; }
+      });
+  };
+
+  // ── Import from Website ───────────────────────────────────────────────────
+  window.portalImportWebsite = function() {
+    var urlVal  = ((document.getElementById("importWebsiteUrl") || {}).value || "").trim();
+    var status  = document.getElementById("importWebsiteStatus");
+    var btn     = document.getElementById("importWebsiteBtn");
+    if (!urlVal) {
+      if (status) { status.style.color = "#dc2626"; status.textContent = "Please enter a URL."; }
+      return;
+    }
+    if (btn) btn.disabled = true;
+    if (status) { status.style.color = "#6b7280"; status.textContent = "Crawling website — this takes 2–3 minutes. You can navigate away; it will run in the background."; }
+    fetch("/api/portal/import-website", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: urlVal })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (btn) btn.disabled = false;
+        if (data.success) {
+          if (status) { status.style.color = "#16a34a"; status.textContent = "✅ Import started — your documents will appear below in a few minutes."; }
+          document.getElementById("importWebsiteUrl").value = "";
+          setTimeout(function() { loadDocuments(); }, 30000);
+        } else {
+          if (status) { status.style.color = "#dc2626"; status.textContent = "❌ " + (data.error || "Import failed."); }
+        }
+      })
+      .catch(function() {
+        if (btn) btn.disabled = false;
+        if (status) { status.style.color = "#dc2626"; status.textContent = "❌ Something went wrong. Please try again."; }
+      });
+  };
+
   // ── Analytics ─────────────────────────────────────────────────────────────
   function loadPortalAnalytics() {
     var el = document.getElementById("analyticsContent");

@@ -562,9 +562,19 @@
                 + '<div class="answer-a">' + esc(item.answer) + '</div>'
                 + (item.feedback ? '<div class="answer-feedback">Feedback: ' + esc(item.feedback) + '</div>' : '')
                 + '<div class="answer-actions">'
-                + '<button class="btn-approve" onclick="portalApproveFlagged(\'' + esc(item.id) + '\',\'' + escJs(item.question) + '\',\'' + escJs(item.answer) + '\')">✅ Approve &amp; save</button>'
-                + '<button class="btn-dismiss" onclick="portalDismissFlagged(\'' + esc(item.id) + '\')">Dismiss</button>'
-                + '</div></div>';
+                + '<button class="btn-approve" onclick="portalReviewFlagged(\'' + escJs(item.id) + '\',\'' + escJs(item.question) + '\',\'' + escJs(item.answer) + '\')">✏️ Review &amp; Approve</button>'
+                + '<button class="btn-dismiss" onclick="portalDismissFlagged(\'' + escJs(item.id) + '\')">Dismiss</button>'
+                + '</div>'
+                + '<div class="fa-edit-panel" id="fa-edit-' + esc(item.id) + '" style="display:none;margin-top:14px;border-top:1px solid #e5e7eb;padding-top:14px;">'
+                + '<div style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Question</div>'
+                + '<input type="text" id="fa-q-' + esc(item.id) + '" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;color:#111827;outline:none;margin-bottom:10px;" />'
+                + '<div style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Answer</div>'
+                + '<textarea id="fa-a-' + esc(item.id) + '" rows="4" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;color:#111827;outline:none;resize:vertical;line-height:1.55;"></textarea>'
+                + '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
+                + '<button class="btn-approve" onclick="portalSaveApproved(\'' + escJs(item.id) + '\')">✅ Save Approved Answer</button>'
+                + '<button class="btn-dismiss" onclick="portalCancelReview(\'' + escJs(item.id) + '\')">Cancel</button>'
+                + '</div></div>'
+                + '</div>';
             }).join("")
           + '</div>';
       })
@@ -573,8 +583,40 @@
       });
   }
 
-  window.portalApproveFlagged = function(id, question, answer) {
-    // Save as approved, then dismiss the flag
+  // Open the inline edit panel, pre-fill fields, hide the action buttons
+  window.portalReviewFlagged = function(id, question, answer) {
+    var row      = document.getElementById("fa-" + id);
+    var panel    = document.getElementById("fa-edit-" + id);
+    var qInput   = document.getElementById("fa-q-" + id);
+    var aInput   = document.getElementById("fa-a-" + id);
+    if (!panel || !qInput || !aInput) return;
+    qInput.value = question;
+    aInput.value = answer;
+    panel.style.display = "";
+    // Hide the action buttons row (first .answer-actions inside this row)
+    var actions = row ? row.querySelector(".answer-actions") : null;
+    if (actions) actions.style.display = "none";
+    qInput.focus();
+  };
+
+  // Cancel — hide the edit panel, restore action buttons
+  window.portalCancelReview = function(id) {
+    var row   = document.getElementById("fa-" + id);
+    var panel = document.getElementById("fa-edit-" + id);
+    if (panel) panel.style.display = "none";
+    var actions = row ? row.querySelector(".answer-actions") : null;
+    if (actions) actions.style.display = "";
+  };
+
+  // Save the (possibly edited) question+answer as an approved answer, then delete the flag
+  window.portalSaveApproved = function(id) {
+    var qInput = document.getElementById("fa-q-" + id);
+    var aInput = document.getElementById("fa-a-" + id);
+    if (!qInput || !aInput) return;
+    var question = qInput.value.trim();
+    var answer   = aInput.value.trim();
+    if (!question || !answer) { alert("Please enter both a question and an answer."); return; }
+
     fetch("/api/portal/approved-answers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -591,7 +633,7 @@
         loadFlaggedAnswers();
         loadApprovedAnswers();
       })
-      .catch(function(err) { alert("Could not approve: " + err.message); });
+      .catch(function(err) { alert("Could not save: " + err.message); });
   };
 
   window.portalDismissFlagged = function(id) {

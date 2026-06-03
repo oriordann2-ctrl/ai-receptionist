@@ -29,8 +29,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-// Redirect root to login so the AI receptionist is not the landing page
-app.get("/", (req, res) => res.redirect("/login"));
+// Redirect root to portal; admin is still accessible at /login or /admin
+app.get("/", (req, res) => res.redirect("/portal"));
 app.use(express.static(path.join(__dirname, "public")));
 
 const appointmentsFile = path.join(__dirname, "data", "appointments.json");

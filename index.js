@@ -3926,6 +3926,131 @@ app.get("/api/portal/status", requireTenant, async (req, res) => {
   }
 });
 
+// ── Analytics helpers ─────────────────────────────────────────────────────────
+function classifyTopic(message) {
+  const m = (message || "").toLowerCase();
+  if (/\b(book|appointment|slot|schedule|visit|consultation|booking)\b/.test(m))         return "Bookings";
+  if (/\b(mortgage|loan|deposit|rate|lender|broker|property|buy|purchase|remortgage)\b/.test(m)) return "Mortgages";
+  if (/\b(price|cost|fee|membership|join|sign.?up|enrol|enroll|subscribe|plan|package)\b/.test(m)) return "Pricing & Membership";
+  if (/\b(hour|open|close|opening|closing|time|when|today|tomorrow|weekend)\b/.test(m))   return "Opening Hours";
+  if (/\b(contact|phone|call|email|address|location|directions?|where|find us)\b/.test(m)) return "Contact & Location";
+  if (/\b(cancel|refund|change|update|edit|reschedule|postpone)\b/.test(m))               return "Cancellations";
+  if (/\b(class|course|session|programme|program|timetable|roster)\b/.test(m))            return "Classes & Schedule";
+  return "General Enquiry";
+}
+
+function buildAnalytics(rows) {
+  const now = new Date();
+  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+
+  // Group messages into conversations keyed by conversation_id
+  const convMap = {};
+  (rows || []).forEach(row => {
+    const key = row.conversation_id || ("msg-" + row.id);
+    if (!convMap[key]) convMap[key] = { messages: [], firstAt: row.created_at };
+    convMap[key].messages.push(row);
+    if (row.created_at < convMap[key].firstAt) convMap[key].firstAt = row.created_at;
+  });
+  const convs = Object.values(convMap);
+
+  // Conversations today
+  const todayCount = convs.filter(c => new Date(c.firstAt) >= todayStart).length;
+
+  // 7-day trend
+  const trend = [];
+  for (let i = 6; i >= 0; i--) {
+    const dayStart = new Date(now); dayStart.setDate(dayStart.getDate() - i); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd   = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+    const label    = i === 0 ? "Today" : dayStart.toLocaleDateString("en-IE", { weekday: "short" });
+    const count    = convs.filter(c => { const d = new Date(c.firstAt); return d >= dayStart && d < dayEnd; }).length;
+    trend.push({ label, count });
+  }
+
+  // Avg messages per conversation
+  const totalMessages = convs.reduce((sum, c) => sum + c.messages.length, 0);
+  const avgMessages   = convs.length ? Math.round((totalMessages / convs.length) * 10) / 10 : 0;
+
+  // Top topics — classify first customer message per conversation
+  const topicCounts = {};
+  convs.forEach(c => {
+    const customerMsg = c.messages.find(m => m.sender === "customer");
+    if (customerMsg) {
+      const topic = classifyTopic(customerMsg.message);
+      topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+    }
+  });
+  const topTopics = Object.entries(topicCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([topic, count]) => ({ topic, count }));
+
+  return { todayCount, totalConversations: convs.length, avgMessages, trend, topTopics };
+}
+
+// ── Portal: analytics ─────────────────────────────────────────────────────────
+app.get("/api/portal/analytics", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const since = new Date(); since.setDate(since.getDate() - 30);
+
+    const { data: rows, error } = await supabase
+      .from("chat_logs")
+      .select("id, conversation_id, sender, message, created_at")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", since.toISOString());
+
+    if (error) throw error;
+    res.json(buildAnalytics(rows));
+  } catch (err) {
+    console.error("[portal-analytics]", err.message);
+    res.status(500).json({ error: "Failed to fetch analytics." });
+  }
+});
+
+// ── Admin: analytics (all tenants, optional filter) ───────────────────────────
+app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
+  try {
+    const { tenantId } = req.query;
+    const since = new Date(); since.setDate(since.getDate() - 30);
+
+    let query = supabase
+      .from("chat_logs")
+      .select("id, tenant_id, conversation_id, sender, message, created_at")
+      .gte("created_at", since.toISOString());
+    if (tenantId) query = query.eq("tenant_id", tenantId);
+
+    const { data: rows, error } = await query;
+    if (error) throw error;
+
+    const overall = buildAnalytics(rows);
+
+    // Per-tenant breakdown
+    const tids = [...new Set((rows || []).map(r => r.tenant_id))];
+    const { data: tenantRows } = await supabase
+      .from("tenants").select("id, name")
+      .in("id", tids.length ? tids : ["__none__"]);
+    const tenantNames = {};
+    (tenantRows || []).forEach(t => { tenantNames[t.id] = t.name || t.id; });
+
+    const tenantBuckets = {};
+    (rows || []).forEach(row => {
+      if (!tenantBuckets[row.tenant_id]) tenantBuckets[row.tenant_id] = [];
+      tenantBuckets[row.tenant_id].push(row);
+    });
+    overall.byTenant = Object.entries(tenantBuckets)
+      .map(([tid, trows]) => ({ tenantId: tid, tenantName: tenantNames[tid] || tid, ...buildAnalytics(trows) }))
+      .sort((a, b) => b.totalConversations - a.totalConversations);
+
+    const { data: allTenants } = await supabase.from("tenants").select("id, name").order("name", { ascending: true });
+    overall.tenants = allTenants || [];
+
+    res.json(overall);
+  } catch (err) {
+    console.error("[admin-analytics]", err.message);
+    res.status(500).json({ error: "Failed to fetch analytics." });
+  }
+});
+
 // ── Portal: recent chat logs ──────────────────────────────────────────────────
 app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
   try {

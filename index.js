@@ -7889,7 +7889,7 @@ async function pollGmailInbox() {
   //                     (lender batch systems, document portals, etc.)
   //                     Don't block the whole lender domain — underwriters at
   //                     the same org may send genuine queries that need replies.
-  const INTERNAL_DOMAINS = ["@aom.ie"];
+  const INTERNAL_DOMAINS = []; // no fully-ignored domains — @aom.ie moved to context-only
 
   const SKIP_ADDRESSES = [];
 
@@ -7905,6 +7905,7 @@ async function pollGmailInbox() {
 
   const CONTEXT_ONLY_DOMAINS = [
     "@aom.onlineapplication.io",      // AOM online application portal — all automated notifications
+    "@aom.ie",                        // AOM colleagues — case updates, doc requests, milestones
   ];
 
   function isInternalSender(fromText) {

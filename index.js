@@ -6957,8 +6957,9 @@ Style:
           stateBlock = [
             "── APPLICATION STATE ──────────────────────────────",
             `Borrower:    ${s.borrower_name || "Unknown"}${s.co_borrower_name ? ` & ${s.co_borrower_name}` : ""}`,
-            `Phase:       ${(s.current_phase || "initial_enquiry").replace(/_/g, " ")}`,
-            `Lender:      ${s.lender ? s.lender.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "not yet identified"}`,
+            `Phase:        ${(s.current_phase || "initial_enquiry").replace(/_/g, " ")}`,
+            `Lender:       ${s.lender        ? s.lender.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "not yet identified"}`,
+            `Borrower type:${s.borrower_type ? " " + s.borrower_type.replace(/_/g, " ")                          : " not yet identified"}`,
             `Loan amount: ${s.loan_amount ? `€${Number(s.loan_amount).toLocaleString("en-IE")}` : "not confirmed"}`,
             `Property:    ${s.property_address || "not yet mentioned"}`,
             `Docs received:    ${s.received_documents?.length ? s.received_documents.join(", ") : "none yet"}`,
@@ -7041,6 +7042,176 @@ Style:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Lender Document Checklists ────────────────────────────────────────────────
+// Required documents per lender × borrower type for Irish mortgages.
+// Used to auto-populate missing_documents when lender + borrower_type are known.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LENDER_CHECKLISTS = {
+  haven: {
+    paye: [
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "Salary certificate",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    self_employed: [
+      "2 years audited accounts",
+      "2 years Form 11 tax returns",
+      "Notice of Assessment (last 2 years)",
+      "Accountant's reference letter",
+      "6 months business bank statements",
+      "6 months personal bank statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    contract: [
+      "Current contract (showing end date and rate)",
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ]
+  },
+  ptsb: {
+    paye: [
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "Salary certificate",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    self_employed: [
+      "3 years audited accounts",        // PTSB requires 3 years — stricter than others
+      "3 years Form 11 tax returns",
+      "Notice of Assessment (last 3 years)",
+      "Accountant's reference letter",
+      "6 months business bank statements",
+      "6 months personal bank statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    contract: [
+      "Current contract (showing end date and rate)",
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ]
+  },
+  bank_of_ireland: {
+    paye: [
+      "3 months payslips",
+      "P60 / Employment Detail Summary (most recent)",
+      "Salary certificate",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    self_employed: [
+      "2 years audited accounts",
+      "2 years Form 11 tax returns",
+      "Notice of Assessment (last 2 years)",
+      "Accountant's reference letter",
+      "6 months business bank statements",
+      "6 months personal bank statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    contract: [
+      "Current contract (showing end date and rate)",
+      "3 months payslips",
+      "P60 / Employment Detail Summary (most recent)",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ]
+  },
+  avant: {
+    paye: [
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "Salary certificate",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    self_employed: [
+      "2 years audited accounts",
+      "2 years Form 11 tax returns",
+      "Notice of Assessment (last 2 years)",
+      "Accountant's reference letter",
+      "6 months business bank statements",
+      "6 months personal bank statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    contract: [
+      "Current contract (showing end date and rate)",
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ]
+  },
+  nua: {
+    paye: [
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "Salary certificate",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    self_employed: [
+      "2 years audited accounts",
+      "2 years Form 11 tax returns",
+      "Notice of Assessment (last 2 years)",
+      "Accountant's reference letter",
+      "6 months business bank statements",
+      "6 months personal bank statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    contract: [
+      "Current contract (showing end date and rate)",
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ]
+  }
+};
+
+// Returns the checklist for a given lender + borrower_type, or null if unknown
+function getLenderChecklist(lender, borrowerType) {
+  if (!lender || !borrowerType) return null;
+  return LENDER_CHECKLISTS[lender]?.[borrowerType] || null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── Email Context Engine ──────────────────────────────────────────────────────
 // State-driven context for AI reply generation. Tracks each mortgage application
 // as a structured state object so the AI knows what docs have been received,
@@ -7104,7 +7275,8 @@ Body: ${cleanedBody.slice(0, 1500)}
   "loan_amount": numeric euros or null,
   "property_address": "address if mentioned else null",
   "phase_signal": "initial_enquiry | aip | full_application | underwriting | letter_of_offer | drawdown | null",
-  "lender": "one of: haven | nua | ptsb | bank_of_ireland | avant | null — only set if a lender is clearly mentioned"
+  "lender": "one of: haven | nua | ptsb | bank_of_ireland | avant | null — only set if a lender is clearly mentioned",
+  "borrower_type": "paye | self_employed | contract | null — only set if clearly indicated"
 }`
       }]
     });
@@ -7152,6 +7324,7 @@ async function findOrCreateApplicationState(from, entities) {
       loan_amount:       entities.loan_amount      || null,
       current_phase:     entities.phase_signal     || "initial_enquiry",
       lender:            entities.lender           || null,
+      borrower_type:     entities.borrower_type    || null,
       missing_documents: [],
       received_documents:[],
       running_summary:   null,
@@ -7218,6 +7391,36 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
       console.warn(`[email-context] Conflict flag raised: ${flag}`);
     }
     updates.lender = entities.lender;
+  }
+
+  // Borrower type — only fill if not already set
+  if (entities.borrower_type && entities.borrower_type !== "null" && !state.borrower_type) {
+    updates.borrower_type = entities.borrower_type;
+  }
+
+  // Auto-populate missing_documents from lender checklist when both lender
+  // and borrower_type are known for the first time
+  const effectiveLender       = updates.lender       || state.lender;
+  const effectiveBorrowerType = updates.borrower_type || state.borrower_type;
+  const alreadyHasChecklist   = (state.missing_documents || []).length > 0;
+
+  if (effectiveLender && effectiveBorrowerType && !alreadyHasChecklist) {
+    const checklist = getLenderChecklist(effectiveLender, effectiveBorrowerType);
+    if (checklist) {
+      const alreadyReceived = state.received_documents || [];
+      updates.missing_documents = checklist.filter(
+        doc => !alreadyReceived.some(r => r.toLowerCase().includes(doc.toLowerCase().split(" ")[0]))
+      );
+      console.log(`[email-context] Checklist loaded for ${effectiveLender}/${effectiveBorrowerType}: ${updates.missing_documents.length} docs outstanding`);
+      // Log as a milestone event
+      events.push({
+        application_id: state.id,
+        event_type:     "milestone",
+        description:    `Document checklist loaded: ${effectiveLender} / ${effectiveBorrowerType} (${updates.missing_documents.length} items outstanding)`,
+        from_address:   from,
+        email_subject:  subject
+      });
+    }
   }
 
   // Loan amount — flag if it changes

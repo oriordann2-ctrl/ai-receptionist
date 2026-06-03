@@ -4391,6 +4391,92 @@ app.post("/api/admin/tenants/:id/reset-password", requireAdmin, async (req, res)
   }
 });
 
+// ── Admin: backfill email context from Gmail inbox ────────────────────────────
+// One-off endpoint to process historical emails through the context pipeline.
+// Responds immediately — processing runs in background. Watch Render logs.
+// GET /api/admin/backfill-email-context?days=2
+app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
+  const days = Math.min(parseInt(req.query.days || "2", 10), 30);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  res.json({ success: true, message: `Backfill started for emails since ${since.toDateString()}. Watch Render logs for progress.` });
+
+  // ── Fire and forget ────────────────────────────────────────────────────────
+  (async () => {
+    console.log(`[backfill] Starting email context backfill since ${since.toDateString()}`);
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+      console.error("[backfill] Gmail credentials not set — aborting");
+      return;
+    }
+
+    let processed = 0, skipped = 0, errors = 0;
+
+    try {
+      const client = makeImapClient();
+      await client.connect();
+      const lock = await client.getMailboxLock("INBOX");
+      let rawMessages = [];
+
+      try {
+        // Search all messages (read + unread) since the given date
+        const uids = await client.search({ since }, { uid: true });
+        console.log(`[backfill] Found ${uids.length} emails since ${since.toDateString()}`);
+
+        if (uids.length > 0) {
+          for await (const msg of client.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
+            rawMessages.push({ uid: msg.uid, source: Buffer.from(msg.source) });
+          }
+        }
+      } finally {
+        lock.release();
+        try { await client.logout(); } catch (_) {}
+      }
+
+      // Sort oldest first so state builds up in chronological order
+      rawMessages.sort((a, b) => a.uid - b.uid);
+      console.log(`[backfill] Processing ${rawMessages.length} emails oldest-first...`);
+
+      for (const { uid, source } of rawMessages) {
+        try {
+          const parsed  = await simpleParser(source);
+          const from    = parsed.from?.text || "Unknown";
+          const subject = parsed.subject    || "(no subject)";
+          const body    = parsed.text       || parsed.html || "";
+
+          // Skip system loop emails
+          if (subject.startsWith("Draft reply:")) { skipped++; continue; }
+          // Skip emails sent FROM the monitored inbox (outbound)
+          const fromAddr = (from.match(/<([^>]+)>/) || [])[1] || from;
+          if (fromAddr.toLowerCase() === (process.env.GMAIL_USER || "").toLowerCase()) { skipped++; continue; }
+
+          // Run context pipeline — no reply generation
+          const cleanedBody = deduplicateEmailBody(body);
+          const entities    = await extractEmailEntities(cleanedBody, from, subject);
+          const state       = await findOrCreateApplicationState(from, entities);
+          await updateApplicationState(state, entities, cleanedBody, from, subject);
+
+          processed++;
+          if (processed % 10 === 0) {
+            console.log(`[backfill] Progress: ${processed} processed, ${skipped} skipped, ${errors} errors (of ${rawMessages.length} total)`);
+          }
+
+          // Small delay to avoid hammering the LLM API
+          await new Promise(r => setTimeout(r, 300));
+
+        } catch (err) {
+          errors++;
+          console.warn(`[backfill] Error on uid ${uid}: ${err.message}`);
+        }
+      }
+
+      console.log(`[backfill] Complete — ${processed} processed, ${skipped} skipped, ${errors} errors`);
+
+    } catch (err) {
+      console.error(`[backfill] Fatal error: ${err.message}`);
+    }
+  })();
+});
+
 // ── Portal: recent chat logs ──────────────────────────────────────────────────
 app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
   try {

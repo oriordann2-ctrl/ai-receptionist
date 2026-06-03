@@ -1208,6 +1208,52 @@
   <div id="juniorDocResults" style="margin-top:20px;"></div>
 </section>
 
+  <!-- ── Chat Logs ─────────────────────────────────────────────── -->
+  <div class="card" id="adminChatLogsCard">
+    <h2>Chat Logs</h2>
+    <p class="muted" style="margin-bottom:16px;">All visitor conversations across every tenant. Newest first.</p>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+      <label style="font-size:13px;font-weight:600;color:#374151;">Filter by tenant:</label>
+      <select id="chatLogTenantFilter" onchange="loadAdminChatLogs()"
+        style="border:1.5px solid #d1d5db;border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;background:white;color:#111827;cursor:pointer;">
+        <option value="">All tenants</option>
+      </select>
+      <button onclick="loadAdminChatLogs()"
+        style="background:#1e40af;color:white;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+        ↺ Refresh
+      </button>
+    </div>
+
+    <div id="adminChatLogsContainer">
+      <p class="muted" style="text-align:center;padding:20px 0;">Loading conversations…</p>
+    </div>
+  </div>
+
+  <style>
+    .acl-conv { border:1px solid #e2e8f0; border-radius:10px; margin-bottom:10px; overflow:hidden; }
+    .acl-conv[open] { border-color:#c7d7f5; }
+    .acl-summary { padding:13px 16px; cursor:pointer; list-style:none; background:#f8fafc; transition:background 0.15s; }
+    .acl-conv[open] .acl-summary { background:#eff6ff; border-bottom:1px solid #dbeafe; }
+    .acl-summary:hover { background:#f1f5f9; }
+    .acl-summary::-webkit-details-marker { display:none; }
+    .acl-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px; }
+    .acl-tenant { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; background:#1e40af; color:white; padding:2px 8px; border-radius:20px; }
+    .acl-date { font-size:12px; color:#374151; font-weight:600; }
+    .acl-count { font-size:11px; color:#6b7280; background:#e5e7eb; border-radius:20px; padding:2px 8px; }
+    .acl-preview { font-size:13px; color:#6b7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .acl-messages { padding:14px 16px; display:flex; flex-direction:column; gap:10px; background:white; }
+    .acl-msg { display:flex; flex-direction:column; gap:2px; }
+    .acl-msg-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#9ca3af; }
+    .acl-msg-user .acl-msg-label { color:#1d4ed8; }
+    .acl-msg-bot .acl-msg-label { color:#15803d; }
+    .acl-msg-system .acl-msg-label { color:#b45309; }
+    .acl-msg-text { font-size:13px; color:#111827; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+    .acl-msg-user .acl-msg-text { background:#eff6ff; border-radius:8px; padding:8px 12px; }
+    .acl-msg-bot .acl-msg-text { background:#f0fdf4; border-radius:8px; padding:8px 12px; }
+    .acl-msg-system .acl-msg-text { background:#fffbeb; border-radius:8px; padding:6px 12px; font-style:italic; font-size:12px; }
+  </style>
+
     <div class="card" id="emailCard">
       <h2>Email Reply Assistant</h2>
       <p class="muted">Paste a client email and generate a draft reply.</p>
@@ -3199,6 +3245,79 @@ if (status) {
 
   await loadData();
 }
+
+// ── Admin Chat Logs ────────────────────────────────────────────────────────────
+async function loadAdminChatLogs() {
+  const container = document.getElementById("adminChatLogsContainer");
+  const filter    = document.getElementById("chatLogTenantFilter");
+  const tenantId  = filter ? filter.value : "";
+
+  container.innerHTML = '<p class="muted" style="text-align:center;padding:20px 0;">Loading…</p>';
+
+  try {
+    const url = "/api/admin/chat-logs" + (tenantId ? "?tenantId=" + encodeURIComponent(tenantId) : "");
+    const res  = await fetch(url, { credentials: "include" });
+    const data = await res.json();
+
+    // Populate filter dropdown once (keep existing selection)
+    if (filter && data.tenants && filter.options.length <= 1) {
+      data.tenants.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t.id;
+        opt.textContent = t.name || t.id;
+        filter.appendChild(opt);
+      });
+      if (tenantId) filter.value = tenantId;
+    }
+
+    if (!data.conversations || data.conversations.length === 0) {
+      container.innerHTML = '<p class="muted" style="text-align:center;padding:20px 0;">No conversations found.</p>';
+      return;
+    }
+
+    function esc(s) {
+      return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+    function fmtDate(ts) {
+      if (!ts) return "";
+      return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    }
+
+    container.innerHTML = data.conversations.map(conv => {
+      const firstCustomer = (conv.messages || []).find(m => m.sender === "customer");
+      const preview = firstCustomer ? firstCustomer.message : (conv.messages[0] || {}).message || "";
+      const previewText = esc(preview.length > 90 ? preview.slice(0, 90) + "…" : preview);
+
+      const msgHtml = (conv.messages || []).map(m => {
+        const cls   = m.sender === "bot" ? "acl-msg-bot" : m.sender === "system" ? "acl-msg-system" : "acl-msg-user";
+        const label = m.sender === "bot" ? "Assistant" : m.sender === "system" ? "System" : "Visitor";
+        return `<div class="acl-msg ${cls}">
+          <span class="acl-msg-label">${label}</span>
+          <div class="acl-msg-text">${esc(m.message)}</div>
+        </div>`;
+      }).join("");
+
+      return `<details class="acl-conv">
+        <summary class="acl-summary">
+          <div class="acl-meta">
+            <span class="acl-tenant">${esc(conv.tenantName)}</span>
+            <span class="acl-date">${esc(fmtDate(conv.startedAt))}</span>
+            <span class="acl-count">${conv.messageCount} message${conv.messageCount !== 1 ? "s" : ""}</span>
+          </div>
+          <div class="acl-preview">${previewText || '<em style="color:#d1d5db;">—</em>'}</div>
+        </summary>
+        <div class="acl-messages">${msgHtml}</div>
+      </details>`;
+    }).join("");
+
+  } catch (err) {
+    console.error("[admin-chat-logs]", err);
+    container.innerHTML = '<p style="color:#dc2626;font-size:13px;">Failed to load chat logs.</p>';
+  }
+}
+
+// Load chat logs on page start
+loadAdminChatLogs();
 </script>
 
 </body>

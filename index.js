@@ -6958,6 +6958,7 @@ Style:
             "── APPLICATION STATE ──────────────────────────────",
             `Borrower:    ${s.borrower_name || "Unknown"}${s.co_borrower_name ? ` & ${s.co_borrower_name}` : ""}`,
             `Phase:       ${(s.current_phase || "initial_enquiry").replace(/_/g, " ")}`,
+            `Lender:      ${s.lender ? s.lender.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "not yet identified"}`,
             `Loan amount: ${s.loan_amount ? `€${Number(s.loan_amount).toLocaleString("en-IE")}` : "not confirmed"}`,
             `Property:    ${s.property_address || "not yet mentioned"}`,
             `Docs received:    ${s.received_documents?.length ? s.received_documents.join(", ") : "none yet"}`,
@@ -7102,7 +7103,8 @@ Body: ${cleanedBody.slice(0, 1500)}
   "documents_mentioned": ["documents referenced but not necessarily sent"],
   "loan_amount": numeric euros or null,
   "property_address": "address if mentioned else null",
-  "phase_signal": "initial_enquiry | aip | full_application | underwriting | letter_of_offer | drawdown | null"
+  "phase_signal": "initial_enquiry | aip | full_application | underwriting | letter_of_offer | drawdown | null",
+  "lender": "one of: haven | nua | ptsb | bank_of_ireland | avant | null — only set if a lender is clearly mentioned"
 }`
       }]
     });
@@ -7149,6 +7151,7 @@ async function findOrCreateApplicationState(from, entities) {
       property_address:  entities.property_address || null,
       loan_amount:       entities.loan_amount      || null,
       current_phase:     entities.phase_signal     || "initial_enquiry",
+      lender:            entities.lender           || null,
       missing_documents: [],
       received_documents:[],
       running_summary:   null,
@@ -7206,6 +7209,16 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
   if (entities.borrower_name    && !state.borrower_name)    updates.borrower_name    = entities.borrower_name;
   if (entities.co_borrower_name && !state.co_borrower_name) updates.co_borrower_name = entities.co_borrower_name;
   if (entities.property_address && !state.property_address) updates.property_address = entities.property_address;
+
+  // Lender — update if newly identified (flag if it changes unexpectedly)
+  if (entities.lender && entities.lender !== "null") {
+    if (state.lender && state.lender !== entities.lender) {
+      const flag = `Lender changed from ${state.lender} to ${entities.lender}`;
+      updates.conflict_flags = [...(state.conflict_flags || []), flag];
+      console.warn(`[email-context] Conflict flag raised: ${flag}`);
+    }
+    updates.lender = entities.lender;
+  }
 
   // Loan amount — flag if it changes
   if (entities.loan_amount) {

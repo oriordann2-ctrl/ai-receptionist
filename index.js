@@ -4747,7 +4747,6 @@ app.delete(“/api/admin/tenants/:id”, requireAdmin, async (req, res) => {
       supabase.from(“documents”).delete().eq(“tenant_id”, id),
       supabase.from(“flagged_answers”).delete().eq(“tenant_id”, id),
       supabase.from(“knowledge_chunks”).delete().eq(“tenant_id”, id),
-      supabase.from(“knowledge_documents”).delete().eq(“tenant_id”, id),
       supabase.from(“portal_users”).delete().eq(“tenant_id”, id),
     ];
     await Promise.all(steps);

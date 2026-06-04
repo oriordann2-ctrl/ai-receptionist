@@ -8295,6 +8295,7 @@ async function pollGmailInbox() {
     "aom@onlineapplication.io",       // AOM online application portal (exact address variant)
     "no-reply@asana.com",             // Asana task notifications — may contain case details
     "rome@boi.com",                   // Bank of Ireland — case updates, context only
+    "michael.c.o'malley@aib.ie",      // Haven/AIB business manager — case updates, context only
   ];
 
   const CONTEXT_ONLY_DOMAINS = [
@@ -8362,6 +8363,27 @@ async function pollGmailInbox() {
         for (const [key, value] of parsed.headers.entries()) {
           rawHeaders[key.toLowerCase()] = String(value);
         }
+      }
+
+      // If Cormac is CC'd but not in the TO field, he's just observing —
+      // run context pipeline but do not generate a reply
+      const gmailUser  = (process.env.GMAIL_USER || "").toLowerCase();
+      const toAddrs    = (parsed.to?.value   || []).map(a => (a.address || "").toLowerCase());
+      const ccAddrs    = (parsed.cc?.value   || []).map(a => (a.address || "").toLowerCase());
+      const isCCOnly   = ccAddrs.includes(gmailUser) && !toAddrs.includes(gmailUser);
+
+      if (isCCOnly) {
+        console.log(`[email-poll] CC-only email from ${from}: "${subject}" — context update, no reply`);
+        try {
+          const cleanedBody = deduplicateEmailBody(body);
+          const entities    = await extractEmailEntities(cleanedBody, from, subject);
+          const state       = await findOrCreateApplicationState(from, entities);
+          if (state) await updateApplicationState(state, entities, cleanedBody, from, subject);
+        } catch (ctxErr) {
+          console.warn(`[email-context] CC-only pipeline failed: ${ctxErr.message}`);
+        }
+        results.push({ uid, cls: { intent: "CC-only" } });
+        continue;
       }
 
       // Skip internal team emails — colleagues asking Cormac queries

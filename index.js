@@ -7818,6 +7818,7 @@ async function sendMorningDigest() {
     await mailTransporter.sendMail({
       from:    `"Maeve · At Once Mortgages" <${process.env.EMAIL_USER}>`,
       to:      process.env.BROKER_EMAIL,
+      cc:      "hello@sprimal.com",
       subject: `☀️ Morning Digest — ${today.toLocaleDateString("en-IE", { day:"numeric", month:"short" })} · ${states.length} cases, ${flagged.length} flagged, ${outstanding.length} with outstanding docs`,
       html
     });

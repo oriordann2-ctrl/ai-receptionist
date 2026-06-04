@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const dotenv = require("dotenv");
 const path = require("path");
 const fs = require("fs");
@@ -80,7 +80,7 @@ const mailTransporter = nodemailer.createTransport({
   host:   "smtp.gmail.com",
   port:   465,
   secure: true,
-  family: 4,              // force IPv4 â€” Render blocks IPv6 to Google SMTP
+  family: 4,              // force IPv4 — Render blocks IPv6 to Google SMTP
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -105,10 +105,10 @@ function saveKnowledgeDocs(docs) {
   fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");
 }
 
-// â”€â”€ EBO (ebookingonline.net) Court Booking Integration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── EBO (ebookingonline.net) Court Booking Integration ────────────────────────
 const EBO_BASE = "https://ebookingonline.net/api";
 
-// Map Sprimal tenant ID â†’ EBO credentials + court schedule config
+// Map Sprimal tenant ID → EBO credentials + court schedule config
 const EBO_CONFIG = {
   "monkstown-lawn-tennis-club": {
     clubId:      process.env.EBO_MONKSTOWN_CLUB_ID || "304",
@@ -185,8 +185,8 @@ function buildEboAvailabilitySummary(bookings, dateLabel, cfg) {
   for (let t = openMins; t + slotMins <= closeMins; t += slotMins) allSlots.push(toHHMM(t));
 
   if (!bookings.length) {
-    // No bookings at all â€” all slots on all courts are free (we don't know court count, so say generally)
-    return `${dateLabel}: No bookings found â€” all courts are free. Available slots: ${allSlots.map(s => s + "â€“" + toHHMM(toMins(s) + slotMins)).join(", ")}`;
+    // No bookings at all — all slots on all courts are free (we don't know court count, so say generally)
+    return `${dateLabel}: No bookings found — all courts are free. Available slots: ${allSlots.map(s => s + "–" + toHHMM(toMins(s) + slotMins)).join(", ")}`;
   }
 
   // Build set of booked slot start times per court
@@ -194,7 +194,7 @@ function buildEboAvailabilitySummary(bookings, dateLabel, cfg) {
   bookings.forEach(b => {
     const id = String(b.court_id);
     if (!bookedByCourt[id]) bookedByCourt[id] = new Set();
-    const hhmm = String(b.time || "").slice(11, 16); // extract "HH:MM" â€” no timezone conversion
+    const hhmm = String(b.time || "").slice(11, 16); // extract "HH:MM" — no timezone conversion
     if (hhmm) bookedByCourt[id].add(hhmm);
   });
 
@@ -204,7 +204,7 @@ function buildEboAvailabilitySummary(bookings, dateLabel, cfg) {
     .map(([id, bookedSet]) => {
       const free = allSlots.filter(s => !bookedSet.has(s));
       if (!free.length) return `  Court ${id}: fully booked`;
-      const slots = free.map(s => `${s}â€“${toHHMM(toMins(s) + slotMins)}`).join(", ");
+      const slots = free.map(s => `${s}–${toHHMM(toMins(s) + slotMins)}`).join(", ");
       return `  Court ${id}: free at ${slots}`;
     });
 
@@ -239,18 +239,18 @@ async function maybeGetEboContext(tenantId, message) {
       timeZone: "Europe/Dublin", weekday: "long", day: "numeric", month: "long", year: "numeric"
     });
 
-    return `CURRENT DATE: ${humanDate}\n\nLIVE COURT AVAILABILITY (free slots only â€” already computed, do not recalculate):\n`
+    return `CURRENT DATE: ${humanDate}\n\nLIVE COURT AVAILABILITY (free slots only — already computed, do not recalculate):\n`
       + buildEboAvailabilitySummary(todayBookings, todayLabel, cfg)
       + "\n\n"
       + buildEboAvailabilitySummary(tomorrowBookings, tomorrowLabel, cfg);
 
   } catch (err) {
     console.error("[EBO] Context fetch error:", err.message);
-    return null; // fail silently â€” chatbot answers from KB only
+    return null; // fail silently — chatbot answers from KB only
   }
 }
 
-// â”€â”€ EBO Personal Bookings â€” Email OTP verification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── EBO Personal Bookings — Email OTP verification ───────────────────────────
 const eboOtpStore    = {}; // { [email]: { code, expiresAt, membershipNumber, memberName } }
 const eboMemberCache = {}; // { [tenantId]: { members: [], cachedAt } }
 
@@ -297,7 +297,7 @@ async function fetchEboMemberDetails(tenantId, membershipNumber) {
 
 async function sendEboOtp(toEmail, firstName, code, clubName) {
   if (!process.env.RESEND_API_KEY) {
-    console.warn("[EBO OTP] RESEND_API_KEY not set â€” skipping OTP email");
+    console.warn("[EBO OTP] RESEND_API_KEY not set — skipping OTP email");
     return;
   }
   const resp = await fetch("https://api.resend.com/emails", {
@@ -312,7 +312,7 @@ async function sendEboOtp(toEmail, firstName, code, clubName) {
   });
   if (!resp.ok) {
     const body = await resp.text();
-    console.error(`[EBO OTP] Email failed: ${resp.status} â€” ${body}`);
+    console.error(`[EBO OTP] Email failed: ${resp.status} — ${body}`);
   } else {
     console.log(`[EBO OTP] Code sent to ${toEmail}`);
   }
@@ -337,7 +337,7 @@ async function fetchMemberPersonalBookings(tenantId, membershipNumber, memberNam
   const firstName = (memberName || "").split(" ")[0] || "there";
 
   if (!mine.length) {
-    return `Hi ${firstName} â€” I don't see any upcoming bookings for you in the next 30 days. You can make a booking through the ${clubName} booking page.`;
+    return `Hi ${firstName} — I don't see any upcoming bookings for you in the next 30 days. You can make a booking through the ${clubName} booking page.`;
   }
 
   const slotMins = cfg.slotMinutes || 60;
@@ -346,7 +346,7 @@ async function fetchMemberPersonalBookings(tenantId, membershipNumber, memberNam
     return String(Math.floor(totalMins / 60)).padStart(2, "0") + ":" + String(totalMins % 60).padStart(2, "0");
   }
   function fmtDate(timeStr) {
-    // "2026-06-05 18:00:00" â†’ "Friday 5 June"
+    // "2026-06-05 18:00:00" → "Friday 5 June"
     const d = new Date(timeStr.slice(0, 10) + "T12:00:00Z");
     return d.toLocaleDateString("en-IE", { weekday: "long", day: "numeric", month: "long" });
   }
@@ -367,7 +367,7 @@ async function fetchMemberPersonalBookings(tenantId, membershipNumber, memberNam
     const [hh, mm]     = start.split(":").map(Number);
     const endTime      = toHHMM(hh * 60 + mm + slotMins);
     const coPlayers    = formatCoPlayers(b);
-    return `â€¢ ${fmtDate(b.time)}, Court ${b.court_id}, ${start}â€“${endTime}${coPlayers}`;
+    return `• ${fmtDate(b.time)}, Court ${b.court_id}, ${start}–${endTime}${coPlayers}`;
   });
 
   return `Here are your upcoming bookings, ${firstName}:\n\n${lines.join("\n")}\n\nTo cancel or change a booking please visit the ${clubName} booking page.`;
@@ -380,11 +380,11 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
 
   const isPersonalQuery = EBO_PERSONAL_TRIGGER.test(message);
 
-  // â”€â”€ Mid-flow: waiting for email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Mid-flow: waiting for email ──────────────────────────────────
   if (convo.eboAuthStep === "awaiting_email") {
     const email = message.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return { handled: true, reply: "That doesn't look like a valid email address â€” could you try again?" };
+      return { handled: true, reply: "That doesn't look like a valid email address — could you try again?" };
     }
     try {
       const member = await lookupEboMemberByEmail(tenantId, email);
@@ -401,14 +401,14 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
       await sendEboOtp(email, member.first_name || "there", code, clubName);
       convo.eboAuthStep  = "awaiting_code";
       convo.eboAuthEmail = email.toLowerCase();
-      return { handled: true, reply: `I've sent a 6-digit verification code to ${email} â€” what is it?` };
+      return { handled: true, reply: `I've sent a 6-digit verification code to ${email} — what is it?` };
     } catch (err) {
       console.error("[EBO OTP] Lookup/send error:", err.message);
       return { handled: true, reply: "Sorry, something went wrong looking up your account. Please try again in a moment." };
     }
   }
 
-  // â”€â”€ Mid-flow: waiting for OTP code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Mid-flow: waiting for OTP code ───────────────────────────────
   if (convo.eboAuthStep === "awaiting_code") {
     const entered = message.trim().replace(/\s+/g, "");
     const stored  = convo.eboAuthEmail && eboOtpStore[convo.eboAuthEmail];
@@ -419,10 +419,10 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
       return { handled: true, reply: "That code has expired. What's your email address so I can send a fresh one?" };
     }
     if (entered !== stored.code) {
-      return { handled: true, reply: "That code doesn't match â€” please check the email and try again." };
+      return { handled: true, reply: "That code doesn't match — please check the email and try again." };
     }
 
-    // âœ“ Verified
+    // ✓ Verified
     convo.eboAuthStep         = "verified";
     convo.eboMembershipNumber = stored.membershipNumber;
     convo.eboMemberName       = stored.memberName;
@@ -439,11 +439,11 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
       return { handled: true, reply };
     } catch (err) {
       console.error("[EBO] Personal bookings error:", err.message);
-      return { handled: true, reply: `Verified! But I couldn't load your bookings just now â€” please try again in a moment.` };
+      return { handled: true, reply: `Verified! But I couldn't load your bookings just now — please try again in a moment.` };
     }
   }
 
-  // â”€â”€ Already verified â€” answer personal detail questions â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Already verified — answer personal detail questions ────────
   if (convo.eboAuthStep === "verified") {
     const firstName = (convo.eboMemberName || "").split(" ")[0];
     const lc = message.toLowerCase();
@@ -494,29 +494,29 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
           coPlayersStr = `You're playing with ${names.join(" and ")}.`;
         }
 
-        return { handled: true, reply: `Your next booking is Court ${next.court_id} on ${dateStr} at ${start}â€“${endTime}.\n\n${coPlayersStr}` };
+        return { handled: true, reply: `Your next booking is Court ${next.court_id} on ${dateStr} at ${start}–${endTime}.\n\n${coPlayersStr}` };
       } catch (err) {
-        return { handled: true, reply: "Sorry, I couldn't check your bookings right now â€” please try again." };
+        return { handled: true, reply: "Sorry, I couldn't check your bookings right now — please try again." };
       }
     }
 
     // Membership type / Stripe subscription questions
     if (/\b(membership type|my membership|what (membership|plan|subscription)|my (plan|subscription)|what am i (paying|a member)|when.*renew|renew|expire|expir|membership status|am i (a member|active)|membership fee|how much.*membership|manage.*membership|update.*membership|change.*membership|cancel.*membership)\b/i.test(message)) {
       const email = convo.eboAuthEmail;
-      if (!email) return { handled: true, reply: "I don't have your email on file for this session â€” please refresh and verify again." };
+      if (!email) return { handled: true, reply: "I don't have your email on file for this session — please refresh and verify again." };
       try {
         const stripe = await fetchStripeMembership(email);
         if (!stripe || !stripe.found) {
-          return { handled: true, reply: `I couldn't find a Stripe account linked to ${email}. The club may process your membership separately â€” please contact the secretary.` };
+          return { handled: true, reply: `I couldn't find a Stripe account linked to ${email}. The club may process your membership separately — please contact the secretary.` };
         }
 
-        // Handle manage/cancel/update â†’ send portal link
+        // Handle manage/cancel/update → send portal link
         if (/\b(manage|update|change|cancel|renew)\b/i.test(message)) {
           const portalUrl = await generateStripePortalLink(email);
           if (portalUrl) {
             return { handled: true, reply: `Here's your membership management link, ${firstName}. It's single-use and expires shortly:\n\n${portalUrl}` };
           }
-          return { handled: true, reply: "Sorry, I couldn't generate a management link right now â€” please contact the club secretary." };
+          return { handled: true, reply: "Sorry, I couldn't generate a management link right now — please contact the club secretary." };
         }
 
         if (stripe.noActiveSub || !stripe.subscriptions.length) {
@@ -528,12 +528,12 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
           const price = item && item.price;
           const product = price && price.product;
           const name    = (product && (product.name || product.id)) || "Membership";
-          const amount  = price && price.unit_amount != null ? "â‚¬" + (price.unit_amount / 100).toFixed(2) : null;
+          const amount  = price && price.unit_amount != null ? "€" + (price.unit_amount / 100).toFixed(2) : null;
           const interval = price && price.recurring ? price.recurring.interval : null;
           const renewsOn = sub.current_period_end ? formatStripeDate(sub.current_period_end) : null;
           const status   = sub.status === "active" ? "Active" : sub.status;
 
-          let line = `${name} â€” ${status}`;
+          let line = `${name} — ${status}`;
           if (amount && interval) line += ` (${amount}/${interval})`;
           if (renewsOn) line += `. Renews ${renewsOn}.`;
           return line;
@@ -542,7 +542,7 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
         return { handled: true, reply: `Here's your membership info, ${firstName}:\n\n${lines.join("\n")}\n\nTo manage or update your membership, just ask me for a management link.` };
       } catch (err) {
         console.error("[Stripe] Membership query error:", err.message);
-        return { handled: true, reply: "Sorry, I couldn't retrieve your membership details right now â€” please try again in a moment." };
+        return { handled: true, reply: "Sorry, I couldn't retrieve your membership details right now — please try again in a moment." };
       }
     }
 
@@ -552,11 +552,11 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
       // Look for any balance-related field EBO might return
       const bal = d.balance ?? d.topup ?? d.credit ?? d.credits ?? d.wallet ?? d.account_balance ?? d.top_up ?? null;
       if (bal !== null && bal !== undefined) {
-        return { handled: true, reply: `Your current top-up balance is â‚¬${Number(bal).toFixed(2)}, ${firstName}.` };
+        return { handled: true, reply: `Your current top-up balance is €${Number(bal).toFixed(2)}, ${firstName}.` };
       }
-      // Field not in API response â€” log the actual keys so we can see what's available
+      // Field not in API response — log the actual keys so we can see what's available
       console.log(`[EBO] Member details fields for ${convo.eboMembershipNumber}:`, Object.keys(d));
-      return { handled: true, reply: `I can see your account details but the balance field isn't available through the current API. The club may need to enable that â€” or you can check your balance by logging into the ${clubName} booking portal directly.` };
+      return { handled: true, reply: `I can see your account details but the balance field isn't available through the current API. The club may need to enable that — or you can check your balance by logging into the ${clubName} booking portal directly.` };
     }
 
     // Booking queries
@@ -565,12 +565,12 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
         const reply = await fetchMemberPersonalBookings(tenantId, convo.eboMembershipNumber, convo.eboMemberName, clubName);
         return { handled: true, reply };
       } catch (err) {
-        return { handled: true, reply: "Sorry, I couldn't load your bookings right now â€” please try again." };
+        return { handled: true, reply: "Sorry, I couldn't load your bookings right now — please try again." };
       }
     }
   }
 
-  // â”€â”€ New personal query â€” start the flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── New personal query — start the flow ─────────────────────────
   if (isPersonalQuery) {
     convo.eboAuthStep = "awaiting_email";
     return { handled: true, reply: `Sure! To show your bookings I'll need to verify it's you first. What's the email address on your ${clubName} account?` };
@@ -579,7 +579,7 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
   return { handled: false };
 }
 
-// â”€â”€ Stripe Membership Integration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Stripe Membership Integration ────────────────────────────────────────────
 const STRIPE_BASE = "https://api.stripe.com/v1";
 
 function stripeAuthHeader() {
@@ -627,7 +627,7 @@ async function fetchStripeMembership(email) {
   );
 
   if (!subs || !subs.data || !subs.data.length) {
-    // No active sub â€” check all statuses so we can report accurately
+    // No active sub — check all statuses so we can report accurately
     const allSubs = await stripeGet("/subscriptions?customer=" + customer.id + "&limit=5");
     return { found: true, customer, subscriptions: (allSubs && allSubs.data) || [], noActiveSub: true };
   }
@@ -650,7 +650,7 @@ function formatStripeDate(unixTs) {
   return new Date(unixTs * 1000).toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
 }
 
-// â”€â”€ Helper: generate standardised stored filename from metadata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helper: generate standardised stored filename from metadata ──────────────
 function generateStoredFilename(lender, documentType, effectiveDate, description, originalFilename) {
   const ext = path.extname(originalFilename) || "";
   const lenderSlug  = lender.toUpperCase().replace(/[\s/]+/g, "").replace(/[^A-Z0-9]/g, "").slice(0, 15);
@@ -661,7 +661,7 @@ function generateStoredFilename(lender, documentType, effectiveDate, description
   return `${lenderSlug}_${typeSlug}_${dateSlug}_${descSlug}${ext}`;
 }
 
-// â”€â”€ Text chunking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Text chunking ──────────────────────────────────────────────────────────
 function chunkText(text, chunkWords = 500, overlapWords = 50) {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const chunks = [];
@@ -677,15 +677,15 @@ function chunkText(text, chunkWords = 500, overlapWords = 50) {
   return chunks;
 }
 
-// â”€â”€ Generate embeddings and store in knowledge_chunks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Generate embeddings and store in knowledge_chunks ─────────────────────
 async function generateAndStoreChunks(documentId, text, lender, documentType, effectiveDate, tenantId = "aom") {
   const chunks = chunkText(text);
   if (chunks.length === 0) {
-    console.log(`[embeddings] No text to embed for document ${documentId} â€” skipping`);
+    console.log(`[embeddings] No text to embed for document ${documentId} — skipping`);
     return;
   }
 
-  console.log(`[embeddings] Generating embeddings for ${chunks.length} chunk(s) â€” document ${documentId} (tenant: ${tenantId})`);
+  console.log(`[embeddings] Generating embeddings for ${chunks.length} chunk(s) — document ${documentId} (tenant: ${tenantId})`);
 
   // Single batched API call for all chunks
   const embeddingResponse = await openai.embeddings.create({
@@ -714,7 +714,7 @@ async function generateAndStoreChunks(documentId, text, lender, documentType, ef
   console.log(`[embeddings] Stored ${rows.length} chunk(s) for document ${documentId}`);
 }
 
-// â”€â”€ GET /api/knowledge-documents â€” list all docs for senior broker UI â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── GET /api/knowledge-documents — list all docs for senior broker UI ─────────
 app.get("/api/knowledge-documents", requireLogin, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -748,7 +748,7 @@ app.get("/api/knowledge-documents", requireLogin, async (req, res) => {
   }
 });
 
-// â”€â”€ PATCH /api/documents/:id/metadata â€” save metadata for existing doc â”€â”€â”€â”€â”€â”€â”€â”€
+// ── PATCH /api/documents/:id/metadata — save metadata for existing doc ────────
 app.patch("/api/documents/:id/junior-access", requireSenior, async (req, res) => {
   try {
     const { id } = req.params;
@@ -846,7 +846,7 @@ app.post("/api/knowledge-documents/search", requireLogin, async (req, res) => {
 
     if (!chunks?.length) return res.json([]);
 
-    // 3. Group by document_id â€” keep best similarity score per document
+    // 3. Group by document_id — keep best similarity score per document
     const docMap = {};
     for (const chunk of chunks) {
       if (!docMap[chunk.document_id] || chunk.similarity > docMap[chunk.document_id].similarity) {
@@ -860,7 +860,7 @@ app.post("/api/knowledge-documents/search", requireLogin, async (req, res) => {
       .slice(0, 1)
       .map(c => c.document_id);
 
-    // 4. Fetch document details â€” junior users only see accessible docs
+    // 4. Fetch document details — junior users only see accessible docs
     const docsQuery = supabase
       .from("documents")
       .select("id, original_filename, stored_filename, lender, document_type, effective_date, mimetype, junior_accessible")
@@ -928,7 +928,7 @@ app.delete("/api/knowledge-documents/:id", requireSenior, async (req, res) => {
 
       if (storageError) {
         console.error("Supabase storage delete error:", storageError);
-        // Continue â€” still remove the DB records
+        // Continue — still remove the DB records
       }
     }
 
@@ -1014,7 +1014,7 @@ app.post(
         return res.status(400).json({ error: "No document uploaded" });
       }
 
-      // â”€â”€ Validate required metadata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Validate required metadata ──────────────────────────────────────
       const { lender, documentType, description, effectiveDate, expiryDate, tags, juniorAccessible } = req.body;
 
       if (!lender)        return res.status(400).json({ error: "Lender is required" });
@@ -1022,7 +1022,7 @@ app.post(
       if (!description)   return res.status(400).json({ error: "Description is required" });
       if (!effectiveDate) return res.status(400).json({ error: "Effective date is required" });
 
-      // â”€â”€ Extract text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Extract text ─────────────────────────────────────────────────────
       let extractedText = "";
 
       if (req.file.mimetype === "application/pdf") {
@@ -1044,7 +1044,7 @@ app.post(
         });
       }
 
-      // â”€â”€ Generate standardised filename â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Generate standardised filename ───────────────────────────────────
       const storedFilename = generateStoredFilename(
         lender, documentType, effectiveDate, description, req.file.originalname
       );
@@ -1066,12 +1066,12 @@ app.post(
         return res.status(500).json({ error: "Failed to upload file to Supabase" });
       }
 
-      // â”€â”€ Parse tags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Parse tags ────────────────────────────────────────────────────────
       const tagsArray = tags
         ? tags.split(",").map(t => t.trim()).filter(Boolean)
         : [];
 
-      // â”€â”€ Insert into documents table (source of record) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Insert into documents table (source of record) ───────────────────
       const { data: docData, error: docInsertError } = await supabase
         .from("documents")
         .insert({
@@ -1097,14 +1097,14 @@ app.post(
         return res.status(500).json({ error: "Failed to save document record" });
       }
 
-      // â”€â”€ Generate embeddings and store chunks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Generate embeddings and store chunks ──────────────────────────────
       try {
         await generateAndStoreChunks(docData.id, extractedText, lender, documentType, effectiveDate, "aom");
       } catch (embedErr) {
         console.error("[embeddings] Failed (non-fatal, upload still succeeded):", embedErr.message);
       }
 
-      // â”€â”€ Also insert into knowledge_documents for backward AI compat â”€â”€â”€â”€â”€â”€â”€
+      // ── Also insert into knowledge_documents for backward AI compat ───────
       const { error: kdInsertError } = await supabase
         .from("knowledge_documents")
         .insert({
@@ -1171,7 +1171,7 @@ function startMaeveIntroOnce() {
   if (maeveIntroJustPlayed) {
     maeveIntroJustPlayed = false;
   } else {
-    playMaeveVoice("Hi there, Iâ€™m Maeve. I can help you get started with a mortgage or answer any questions. What are you thinking of doing?");
+    playMaeveVoice("Hi there, I’m Maeve. I can help you get started with a mortgage or answer any questions. What are you thinking of doing?");
   }
 
   document.removeEventListener("click", startMaeveIntroOnce);
@@ -1236,7 +1236,7 @@ let features = settings.features || {
   knowledgeBase: true,
   emailAssistant: true
 };
-let testMode = false; // global â€” suppresses all activity logging when on
+let testMode = false; // global — suppresses all activity logging when on
 
 const BOOKING_TIMES = ["09:30", "11:00", "14:00", "15:30"];
 
@@ -1284,9 +1284,9 @@ const urgentKeywords = [
 
 let conversations = {};
 
-// â”€â”€ Mortgage leads â€” Supabase-backed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mortgage leads — Supabase-backed ─────────────────────────────────────────
 
-// Maps JS camelCase fields â†” Supabase snake_case columns
+// Maps JS camelCase fields ↔ Supabase snake_case columns
 const LEAD_COL_MAP = {
   id:                      "id",
   createdAt:               "created_at",
@@ -1394,9 +1394,9 @@ function saveSettings() {
   });
 }
 
-// â”€â”€ Activity logging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Activity logging ─────────────────────────────────────────────────────────
 function logActivity(type, data = {}) {
-  if (testMode) return; // global test mode â€” suppress all activity
+  if (testMode) return; // global test mode — suppress all activity
   supabase.from("activity_log").insert({
     type,
     role:     data.role     || null,
@@ -1420,7 +1420,7 @@ function addChatLog(entry) {
       sender:          entry.sender,
       message:         entry.message,
       created_at:      entry.timestamp      || new Date()
-    }).then(() => {}).catch(() => {}); // fire-and-forget â€” never block the chat response
+    }).then(() => {}).catch(() => {}); // fire-and-forget — never block the chat response
   }
 }
 
@@ -1491,7 +1491,7 @@ async function createAppointment(userId, conversationId, customerName, date, tim
     appointments.push(newAppointment);
     saveAppointments();
 
-    // Fire-and-forget â€” never block the booking confirmation response
+    // Fire-and-forget — never block the booking confirmation response
     if (process.env.RESEND_API_KEY) {
       fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -1502,7 +1502,7 @@ async function createAppointment(userId, conversationId, customerName, date, tim
         body: JSON.stringify({
           from: "Maeve <maeve@sprimal.com>",
           to: ["hello@sprimal.com", "cormac@aom.ie"],
-          subject: "ðŸ“… New Appointment Booked",
+          subject: "📅 New Appointment Booked",
           text: `New appointment booked:\n\nName: ${customerName}\nPhone: ${customerPhone || "-"}\nEmail: ${customerEmail || "-"}\nDate: ${formatDateNice(date)}\nTime: ${time}\nType: ${type}`
         })
       })
@@ -1512,7 +1512,7 @@ async function createAppointment(userId, conversationId, customerName, date, tim
         )
         .catch(err => console.error("[createAppointment] Email error:", err.message));
     } else {
-      console.warn("[createAppointment] RESEND_API_KEY not set â€” skipping booking email");
+      console.warn("[createAppointment] RESEND_API_KEY not set — skipping booking email");
     }
 
   return newAppointment;
@@ -1635,7 +1635,7 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
       const dateKeys = Object.keys(slots);
       const dateList = dateKeys.map((k, i) => `${i + 1}. ${formatDateNice(k)}`).join("\n");
       return {
-        reply: `Let's start over â€” which date suits you?\n\n${dateList}`
+        reply: `Let's start over — which date suits you?\n\n${dateList}`
       };
     }
 
@@ -1657,7 +1657,7 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
     convo.step = "awaiting_name";
 
     return {
-      reply: "Great â€” what is your name?"
+      reply: "Great — what is your name?"
     };
   }
 
@@ -1668,7 +1668,7 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
       const dateKeys = Object.keys(slots);
       const dateList = dateKeys.map((k, i) => `${i + 1}. ${formatDateNice(k)}`).join("\n");
       return {
-        reply: `Let's start over â€” which date suits you?\n\n${dateList}`
+        reply: `Let's start over — which date suits you?\n\n${dateList}`
       };
     }
 
@@ -1704,7 +1704,7 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
     resetConversation(userId);
 
     return {
-      reply: `All booked! Your ${confirmationLabel} is confirmed for ${formatDateNice(newAppointment.date)} at ${newAppointment.time}. Cormac will be in touch to confirm. See you then! ðŸ‘‹`
+      reply: `All booked! Your ${confirmationLabel} is confirmed for ${formatDateNice(newAppointment.date)} at ${newAppointment.time}. Cormac will be in touch to confirm. See you then! 👋`
     };
   }
 
@@ -1776,7 +1776,7 @@ Rules:
 Style:
 - Friendly and professional
 - Reassuring
-- 4â€“8 lines max
+- 4–8 lines max
 - Start with "Hi there," unless a name is obvious
 - End with "Kind regards,"
 
@@ -1863,7 +1863,7 @@ app.post("/zapier/email-lead", async (req, res) => {
   console.log("[/zapier/email-lead] payload:", JSON.stringify(req.body));
   const { email, income, deposit, timeline, lead_score, subject } = req.body;
 
-  // â”€â”€ Internal / system address filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Internal / system address filter ───────────────────────────────────────
   // These are known non-lead addresses (team, test accounts, monitored inboxes).
   // Never save them as mortgage leads regardless of what Zapier sends.
   const EXCLUDE_LEAD_EMAILS = [
@@ -1894,7 +1894,7 @@ app.post("/zapier/email-lead", async (req, res) => {
     .maybeSingle();
 
   if (existing) {
-    console.log("[/zapier/email-lead] duplicate detected â€” skipping");
+    console.log("[/zapier/email-lead] duplicate detected — skipping");
     return res.json({ success: true, duplicate: true });
   }
 
@@ -2120,7 +2120,7 @@ app.get("/chat-logs", requireAdmin, (req, res) => {
   res.json(chatLogs);
 });
 
-// â”€â”€ Admin: Supabase-backed chat logs (all tenants, optional filter) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: Supabase-backed chat logs (all tenants, optional filter) ───────────
 app.get("/api/admin/chat-logs", requireAdmin, async (req, res) => {
   try {
     const { tenantId } = req.query; // optional filter
@@ -2221,7 +2221,7 @@ app.post("/mode", requireAdmin, (req, res) => {
   res.json({ success: true, businessMode });
 });
 
-// â”€â”€ Feature toggles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Feature toggles ──────────────────────────────────────────────────────────
 // GET is requireLogin so junior staff can read current feature state for UI visibility
 app.get("/features", requireLogin, (req, res) => {
   res.json({ features });
@@ -2373,7 +2373,7 @@ async function generateGenericReply(message, tenantName) {
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant for ${orgName}. The user is already on the ${orgName} website or chat — never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so clearly and suggest they contact ${orgName} directly — never guess, invent details, or use placeholder text like “[insert X here]”. Do not mention mortgages, brokers, or financial products.`
+          content: `You are a helpful assistant for ${orgName}. The user is already on the ${orgName} website or chat — never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so clearly and suggest they contact ${orgName} directly — never guess, invent details, or use placeholder text like "[insert X here]". Do not mention mortgages, brokers, or financial products.`
         },
         {
           role: "user",
@@ -2745,7 +2745,7 @@ app.post("/voice-process", async (req, res) => {
 
 function cleanVoiceText(text) {
   return String(text || "")
-    .replace(/â‚¬/g, " euro ")
+    .replace(/€/g, " euro ")
     .replace(/&/g, " and ")
     .replace(/\n/g, " ")
     .replace(/\s+/g, " ")
@@ -2802,7 +2802,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     // 3. Return in the shape callers expect: { filename, text }
     return chunks.map(chunk => ({
       filename: chunk.lender
-        ? `${chunk.lender} â€” ${chunk.document_type}`
+        ? `${chunk.lender} — ${chunk.document_type}`
         : (chunk.document_type || "Knowledge Base"),
       text: chunk.chunk_text,
       similarity: chunk.similarity
@@ -2818,7 +2818,7 @@ app.post("/whatsapp", async (req, res) => {
   const message = req.body.Body || "";
   const from = req.body.From || "whatsapp-user";
 
-  // ðŸ‘‡ ADD THIS BLOCK RIGHT HERE
+  // 👇 ADD THIS BLOCK RIGHT HERE
   const convo = ensureConversation(from);
 
   if (!convo.consentGiven && !convo.gdprPromptShown) {
@@ -2828,15 +2828,15 @@ app.post("/whatsapp", async (req, res) => {
     const twiml = `
       <Response>
         <Message>
-Hi there ðŸ‘‹ Iâ€™m Maeve.
+Hi there 👋 I’m Maeve.
 
 I can help you get started with a mortgage or answer any questions.
 
-Before we begin â€” Iâ€™ll ask a few questions and may collect personal information to help with your enquiry.
+Before we begin — I’ll ask a few questions and may collect personal information to help with your enquiry.
 
 This information will only be used for that purpose.
 
-Is that okay? Just reply YES to continue ðŸ‘
+Is that okay? Just reply YES to continue 👍
         </Message>
       </Response>
     `;
@@ -2958,7 +2958,7 @@ app.get("/upload", (req, res) => {
 });
 
 
-// â”€â”€ Website import helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Website import helpers ────────────────────────────────────────────────
 
 function extractTextFromHtml(html) {
   return html
@@ -2985,7 +2985,7 @@ function extractPageTitle(html) {
 const GENERIC_FAVICON_PATTERNS = [
   "parastorage.com/client/pfavico",
   "parastorage.com/services"
-  // Note: /favicon.ico is intentionally NOT blocked â€” non-Wix sites serve
+  // Note: /favicon.ico is intentionally NOT blocked — non-Wix sites serve
   // their real club/business logo there. Only Wix uses the parastorage paths.
 ];
 function isGenericFavicon(url) {
@@ -2993,7 +2993,7 @@ function isGenericFavicon(url) {
 }
 
 function extractFaviconUrl(html, baseUrl) {
-  // 1. Prefer apple-touch-icon â€” highest quality (usually 180x180)
+  // 1. Prefer apple-touch-icon — highest quality (usually 180x180)
   const appleMatch = html.match(/<link[^>]+rel=["']apple-touch-icon(?:-precomposed)?["'][^>]*href=["']([^"']+)["']/i)
     || html.match(/<link[^>]+href=["']([^"']+)["'][^>]*rel=["']apple-touch-icon(?:-precomposed)?["']/i);
   if (appleMatch) {
@@ -3003,7 +3003,7 @@ function extractFaviconUrl(html, baseUrl) {
     } catch {}
   }
 
-  // 2. og:image â€” usually the full brand/club logo used for social sharing
+  // 2. og:image — usually the full brand/club logo used for social sharing
   //    Checked before <link rel="icon"> because favicons are often tiny (16px)
   //    while og:image is typically the proper high-resolution logo
   const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
@@ -3015,7 +3015,7 @@ function extractFaviconUrl(html, baseUrl) {
     } catch {}
   }
 
-  // 3. <link rel="icon"> â€” last resort, often only a tiny 16px favicon
+  // 3. <link rel="icon"> — last resort, often only a tiny 16px favicon
   const iconMatches = [...html.matchAll(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/gi)];
   for (const m of iconMatches.reverse()) {
     try {
@@ -3104,22 +3104,22 @@ const CRAWL_NOISE_PATTERNS = [
   /\/tag(s)?(\/|$)/i,
   /\/category(\/|$)/i,
   /\/author(\/|$)/i,
-  /\/page\/\d/i,           // pagination
-  /\?.*page=/i,            // query-string pagination
+  /\/page\/\d/i,
+  /\?.*page=/i,
 ];
 
 function isCrawlNoise(url) {
   try {
     const path = new URL(url).pathname;
     return CRAWL_NOISE_PATTERNS.some(re => re.test(path));
-  } catch { return false; }
+  } catch (e) { return false; }
 }
 
 async function crawlWebsite(rootUrl, maxPages = 40) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
 
-  // Seed queue from sitemap if available â€” catches Wix & other JS-nav sites
+  // Seed queue from sitemap if available — catches Wix & other JS-nav sites
   const sitemapUrls = await fetchSitemapUrls(root);
   let allUrls = sitemapUrls.length > 0
     ? sitemapUrls.filter(u => u.startsWith(root) || u.replace(/^https?:\/\/www\./, "https://").startsWith(root.replace(/^https?:\/\/www\./, "https://")))
@@ -3128,14 +3128,12 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
   // Always include root
   if (!allUrls.includes(root)) allUrls.unshift(root);
 
-  // Split into priority (informational) and noise (match reports, news, etc.)
+  // Priority pages first, noise pages only if budget allows
   const priorityUrls = allUrls.filter(u => !isCrawlNoise(u));
   const noiseUrls    = allUrls.filter(u => isCrawlNoise(u));
-
-  // Fill the queue: priority pages first, noise pages only if budget allows
   const queue = [...priorityUrls, ...noiseUrls];
 
-  console.log(`[crawler] Queue: ${allUrls.length} total URLs (${priorityUrls.length} priority, ${noiseUrls.length} noise) â€” cap: ${maxPages} pages`);
+  console.log(`[crawler] Queue: ${allUrls.length} total URLs (${priorityUrls.length} priority, ${noiseUrls.length} noise) — cap: ${maxPages} pages`);
 
   const pages   = [];
 
@@ -3166,7 +3164,7 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
         // Fallback: use Jina Reader to render JS-heavy pages (Wix, Squarespace, etc.)
         let jinaText = null;
         try {
-          console.log(`[crawler] JS-rendered page detected â€” trying Jina Reader for ${url}`);
+          console.log(`[crawler] JS-rendered page detected — trying Jina Reader for ${url}`);
           const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
             headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
             signal: AbortSignal.timeout(20000)
@@ -3201,7 +3199,7 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
   return pages;
 }
 
-// â”€â”€ POST /api/import-website â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── POST /api/import-website ──────────────────────────────────────────────
 
 app.post("/api/import-website", requireSenior, async (req, res) => {
   const { url } = req.body;
@@ -3260,7 +3258,7 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
   }
 });
 
-// â”€â”€ DELETE /api/import-website â€” remove all pages from a domain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── DELETE /api/import-website — remove all pages from a domain ──────────────
 
 app.delete("/api/import-website", requireSenior, async (req, res) => {
   const { domain } = req.body;
@@ -3296,19 +3294,19 @@ app.delete("/api/import-website", requireSenior, async (req, res) => {
   }
 });
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Tenant self-serve signup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Tenant self-serve signup ──────────────────────────────────────────────────
 
 app.get("/signup", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "signup.html"));
 });
 
-// â”€â”€ Pre-flight website reachability check (called from signup form) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Pre-flight website reachability check (called from signup form) ──────────
 app.get("/api/check-url", async (req, res) => {
   const url = (req.query.url || "").trim();
   if (!url) return res.json({ reachable: false, error: "No URL provided" });
 
-  // Basic sanity â€” must look like an http/https URL
+  // Basic sanity — must look like an http/https URL
   let parsed;
   try { parsed = new URL(url); } catch(e) {
     return res.json({ reachable: false, error: "Invalid URL" });
@@ -3328,7 +3326,7 @@ app.get("/api/check-url", async (req, res) => {
     });
     clearTimeout(timer);
     // 2xx and 3xx (already followed), and even 401/403 mean the site is live
-    // 5xx means a broken server â€” treat as unreachable
+    // 5xx means a broken server — treat as unreachable
     const reachable = response.status < 500;
     return res.json({ reachable, status: response.status });
   } catch (err) {
@@ -3392,15 +3390,15 @@ app.post("/api/signup", async (req, res) => {
   const signupToken = createTenantToken({ tenantId, tenantName: name, email, website: website || null });
   res.cookie("tenant_session", signupToken, {
     httpOnly: true,
-    secure:   true,   // required for HTTPS (Render) â€” without this Chrome discards the cookie
+    secure:   true,   // required for HTTPS (Render) — without this Chrome discards the cookie
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
 
-  // Respond immediately â€” don't make the user wait for the crawl
+  // Respond immediately — don't make the user wait for the crawl
   res.json({ success: true, tenantId });
 
-  // â”€â”€ Fire-and-forget: crawl website + store chunks + send email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fire-and-forget: crawl website + store chunks + send email ────────────
   (async () => {
     try {
       let imported = 0;
@@ -3424,7 +3422,7 @@ app.post("/api/signup", async (req, res) => {
               if (logoUrl) console.log(`[signup] Logo found in HTML for ${tenantId}: ${logoUrl}`);
             }
           } catch (fetchErr) {
-            console.log(`[signup] Homepage fetch failed for ${tenantId} (${fetchErr.message}) â€” will try Clearbit`);
+            console.log(`[signup] Homepage fetch failed for ${tenantId} (${fetchErr.message}) — will try Clearbit`);
           }
 
           // Step 2: fallback to Clearbit Logo API if homepage blocked or returned no logo
@@ -3446,7 +3444,7 @@ app.post("/api/signup", async (req, res) => {
             await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
             console.log(`[signup] Stored logo for ${tenantId}: ${logoUrl}`);
           } else {
-            console.log(`[signup] No logo found for ${tenantId} â€” chat will use default Sprimal icon`);
+            console.log(`[signup] No logo found for ${tenantId} — chat will use default Sprimal icon`);
           }
         } catch (err) {
           console.error(`[signup] Logo extraction error for ${tenantId}:`, err.message);
@@ -3502,7 +3500,7 @@ app.post("/api/signup", async (req, res) => {
             from: "Sprimal <hello@sprimal.com>",
             to: email,
             bcc: ["hello@sprimal.com"],
-            subject: `Your Sprimal assistant is ready ðŸŽ‰`,
+            subject: `Your Sprimal assistant is ready 🎉`,
             html: buildWelcomeEmailHtml({ name, email, portalPassword, website, imported, tenantId })
           })
         }).catch(err => console.error("[signup] Email send error:", err.message));
@@ -3515,15 +3513,15 @@ app.post("/api/signup", async (req, res) => {
   })();
 });
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Welcome email builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Welcome email builder ─────────────────────────────────────────────────────
 
 function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported, tenantId }) {
   const embedCode = `<script src="https://app.sprimal.com/widget.js" data-club-id="${tenantId}" data-club-name="${name}"></script>`;
   const embedCodeEscaped = embedCode.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   const trainingNote = imported > 0
-    ? `We&#39;ve already trained your assistant on <strong>${imported} pages</strong> from your website â€” it&#39;s ready to answer questions right now.`
+    ? `We&#39;ve already trained your assistant on <strong>${imported} pages</strong> from your website — it&#39;s ready to answer questions right now.`
     : `Your assistant is set up and ready. Start by uploading documents or importing your website from the portal.`;
 
   const trialEndDate = new Date();
@@ -3561,14 +3559,14 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
       <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:36px 40px;border-radius:0 0 10px 10px;">
 
         <!-- Headline -->
-        <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#0f1f3d;margin:0 0 10px 0;line-height:1.3;">Welcome to Sprimal, ${name}! ðŸŽ‰</h1>
+        <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#0f1f3d;margin:0 0 10px 0;line-height:1.3;">Welcome to Sprimal, ${name}! 🎉</h1>
         <p style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#374151;margin:0 0 20px 0;line-height:1.65;">${trainingNote}</p>
 
         <!-- Free trial banner -->
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
           <tr><td bgcolor="#eff6ff" style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 18px;">
             <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1e40af;margin:0;line-height:1.5;">
-              &#127381; <strong>You&#39;re on a free 30-day trial</strong> â€” no credit card required, no obligation. Your trial runs until <strong>${trialEnd}</strong>. We&#39;ll be in touch before then with pricing options.
+              &#127381; <strong>You&#39;re on a free 30-day trial</strong> — no credit card required, no obligation. Your trial runs until <strong>${trialEnd}</strong>. We&#39;ll be in touch before then with pricing options.
             </p>
           </td></tr>
         </table>
@@ -3579,11 +3577,11 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
         <!-- What's available -->
         <p style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 16px 0;">What&#39;s available in your portal</p>
 
-        ${feature("ðŸ’¬", "Chat Widget", "An AI assistant your visitors can chat with 24/7. Embed it on your website with one line of code, or share it via QR code â€” no app needed.")}
-        ${feature("ðŸ“š", "Knowledge Base", "Upload documents (PDFs, Word files), paste FAQs or policies, or import your entire website. The more you add, the smarter your assistant becomes.")}
-        ${feature("ðŸ”", "Knowledge Base Assistant", "Ask your own knowledge base a question and see exactly which document the answer came from. Great for checking accuracy before going live.")}
-        ${feature("ðŸ“Š", "Analytics & Chat Logs", "See how many conversations your assistant is having, what topics come up most, and read full transcripts of every visitor exchange.")}
-        ${feature("ðŸ‘¥", "Staff Training", "Give your team access to a private staff portal where they can ask the knowledge base questions, draft email replies, and search documents.")}
+        ${feature("💬", "Chat Widget", "An AI assistant your visitors can chat with 24/7. Embed it on your website with one line of code, or share it via QR code — no app needed.")}
+        ${feature("📚", "Knowledge Base", "Upload documents (PDFs, Word files), paste FAQs or policies, or import your entire website. The more you add, the smarter your assistant becomes.")}
+        ${feature("🔍", "Knowledge Base Assistant", "Ask your own knowledge base a question and see exactly which document the answer came from. Great for checking accuracy before going live.")}
+        ${feature("📊", "Analytics & Chat Logs", "See how many conversations your assistant is having, what topics come up most, and read full transcripts of every visitor exchange.")}
+        ${feature("👥", "Staff Training", "Give your team access to a private staff portal where they can ask the knowledge base questions, draft email replies, and search documents.")}
 
         <!-- Divider -->
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0;"><tr><td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td></tr></table>
@@ -3600,13 +3598,13 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:12px;">
           <tr>
             <td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#2563eb" style="background-color:#2563eb;border-radius:50%;width:24px;height:24px;"><span style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;color:#fff;display:block;width:24px;height:24px;line-height:24px;text-align:center;">2</span></td></tr></table></td>
-            <td style="padding-left:12px;"><p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;margin:0;line-height:1.5;"><strong>Upload a document</strong> or paste some content into the Knowledge Base â€” then ask the Knowledge Base Assistant a question to see it in action.</p></td>
+            <td style="padding-left:12px;"><p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;margin:0;line-height:1.5;"><strong>Upload a document</strong> or paste some content into the Knowledge Base — then ask the Knowledge Base Assistant a question to see it in action.</p></td>
           </tr>
         </table>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
           <tr>
             <td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#2563eb" style="background-color:#2563eb;border-radius:50%;width:24px;height:24px;"><span style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;color:#fff;display:block;width:24px;height:24px;line-height:24px;text-align:center;">3</span></td></tr></table></td>
-            <td style="padding-left:12px;"><p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;margin:0;line-height:1.5;"><strong>Share your chat link</strong> â€” paste the embed code on your website or share your QR code and let visitors start chatting.</p></td>
+            <td style="padding-left:12px;"><p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;margin:0;line-height:1.5;"><strong>Share your chat link</strong> — paste the embed code on your website or share your QR code and let visitors start chatting.</p></td>
           </tr>
         </table>
 
@@ -3661,10 +3659,10 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
 </body></html>`;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Tenant portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Tenant portal ─────────────────────────────────────────────────────────────
 
-// â”€â”€ Signed-cookie sessions (survive server restarts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Signed-cookie sessions (survive server restarts) ─────────────────────────
 // Token format: base64url(JSON) + "." + HMAC-SHA256 signature
 const SESSION_SECRET = process.env.SESSION_SECRET || "sprimal-tenant-session-secret-v1";
 
@@ -3704,7 +3702,7 @@ function requireTenant(req, res, next) {
   next();
 }
 
-// requireSeniorTenant â€” portal routes only accessible to account owners (role=senior)
+// requireSeniorTenant — portal routes only accessible to account owners (role=senior)
 // Existing sessions without a role field are treated as senior (pre-dated the role field)
 function requireSeniorTenant(req, res, next) {
   const session = getTenantSession(req);
@@ -3732,7 +3730,7 @@ app.post("/portal/login", async (req, res) => {
   const normEmail    = email.toLowerCase().trim();
   const normPassword = password.trim();
 
-  // â”€â”€ 1. Check portal_users (junior staff) first â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── 1. Check portal_users (junior staff) first ────────────────────────────
   const { data: portalUsers } = await supabase
     .from("portal_users")
     .select("id, tenant_id, name, email, password, role")
@@ -3743,7 +3741,7 @@ app.post("/portal/login", async (req, res) => {
   if (portalUsers?.[0]) {
     const pu = portalUsers[0];
 
-    // Fetch parent tenant â€” also check train_staff_enabled
+    // Fetch parent tenant — also check train_staff_enabled
     const { data: parentTenant } = await supabase
       .from("tenants")
       .select("name, website, train_staff_enabled")
@@ -3772,8 +3770,8 @@ app.post("/portal/login", async (req, res) => {
     return res.json({ success: true });
   }
 
-  // â”€â”€ 2. Fall back to tenant owner login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Match on both email AND password â€” handles the case where multiple tenants
+  // ── 2. Fall back to tenant owner login ────────────────────────────────────
+  // Match on both email AND password — handles the case where multiple tenants
   // share the same email address (e.g. an agency managing several clients)
   const { data: tenants } = await supabase
     .from("tenants")
@@ -3806,7 +3804,7 @@ app.post("/portal/login", async (req, res) => {
   res.json({ success: true });
 });
 
-// â”€â”€ AOM-specific chat page (existing/new client flow + OTP auth) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AOM-specific chat page (existing/new client flow + OTP auth) ─────────────
 app.get("/chat/aom", async (req, res) => {
   const { data: tenant } = await supabase
     .from("tenants")
@@ -3825,8 +3823,8 @@ app.get("/chat/aom", async (req, res) => {
   res.send(html);
 });
 
-// â”€â”€ AOM OTP store â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// key: email (lowercase) â†’ { code, applicationId, expiresAt }
+// ── AOM OTP store ─────────────────────────────────────────────────────────────
+// key: email (lowercase) → { code, applicationId, expiresAt }
 const aomOtpStore = new Map();
 const AOM_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -3924,7 +3922,7 @@ app.post("/api/aom/verify-otp", async (req, res) => {
     if (Date.now() > stored.expiresAt) { aomOtpStore.delete(email); return res.json({ ok: false, error: "That code has expired. Please request a new one." }); }
     if (stored.code !== code)       return res.json({ ok: false, error: "Incorrect code. Please check your email and try again." });
 
-    // Code correct â€” consume it
+    // Code correct — consume it
     aomOtpStore.delete(email);
     const { applicationId } = stored;
 
@@ -3956,8 +3954,8 @@ app.post("/api/aom/verify-otp", async (req, res) => {
   }
 });
 
-// POST /api/aom/client-chat  â€” chat for OTP-verified existing clients
-const aomClientConversations = new Map(); // conversationId â†’ message history
+// POST /api/aom/client-chat  — chat for OTP-verified existing clients
+const aomClientConversations = new Map(); // conversationId → message history
 
 app.post("/api/aom/client-chat", async (req, res) => {
   try {
@@ -4005,12 +4003,12 @@ ${recentSummary}
 
 Rules:
 - Answer questions about their specific application using only the context above
-- Be warm, clear and reassuring â€” mortgage processes can feel stressful
-- If something is not in the context, say so briefly â€” do not proactively suggest contacting anyone
+- Be warm, clear and reassuring — mortgage processes can feel stressful
+- If something is not in the context, say so briefly — do not proactively suggest contacting anyone
 - Do not speculate about timelines, approvals, or decisions
 - Never mention any person by name under any circumstances
-- Only provide the contact email (cormac@aom.ie) if the client explicitly asks to speak to someone or contact the office â€” refer to it as "the AOM team" not a person's name
-- Do not use markdown bold (**text**) in your responses â€” write in plain text only
+- Only provide the contact email (cormac@aom.ie) if the client explicitly asks to speak to someone or contact the office — refer to it as "the AOM team" not a person's name
+- Do not use markdown bold (**text**) in your responses — write in plain text only
 - Keep replies concise and self-contained`;
 
     // Conversation history
@@ -4037,7 +4035,7 @@ Rules:
   }
 });
 
-// â”€â”€ Public tenant chat page (QR code destination) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Public tenant chat page (QR code destination) ────────────────────────────
 app.get("/chat/:tenantId", async (req, res) => {
   const tenantId = req.params.tenantId;
   const { data: tenant } = await supabase
@@ -4064,7 +4062,7 @@ app.get("/chat/:tenantId", async (req, res) => {
 
 app.get("/portal/dashboard", requireTenant, async (req, res) => {
   try {
-    // â”€â”€ Junior users: verify train_staff_enabled is still on â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Junior users: verify train_staff_enabled is still on ─────────────
     if (req.tenant.role === "junior") {
       const { data: tenantCheck } = await supabase
         .from("tenants")
@@ -4073,7 +4071,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
         .maybeSingle();
 
       if (!tenantCheck?.train_staff_enabled) {
-        // Feature has been disabled â€” clear session and redirect to login with message
+        // Feature has been disabled — clear session and redirect to login with message
         res.clearCookie("tenant_session");
         return res.redirect("/portal?disabled=1");
       }
@@ -4093,7 +4091,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
     const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
     const embedCode = `&lt;script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${tname}"&gt;&lt;/script&gt;`;
 
-    // â”€â”€ Fetch documents + tenant created_at in parallel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Fetch documents + tenant created_at in parallel ──────────────────────
     const [{ data: docs }, { data: tenantMeta }] = await Promise.all([
       supabase
         .from("documents")
@@ -4158,12 +4156,12 @@ function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt) {
   });
 
   if (!websites.length && !uploaded.length) {
-    // Case 1: No website URL â€” no crawl was ever triggered
+    // Case 1: No website URL — no crawl was ever triggered
     if (!tenantWebsite) {
       return '<div style="margin-top:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;text-align:center;">'
-        + '<div style="font-size:32px;margin-bottom:10px;">ðŸ“‚</div>'
+        + '<div style="font-size:32px;margin-bottom:10px;">📂</div>'
         + '<div style="font-size:14px;font-weight:700;color:#374151;margin-bottom:6px;">Your knowledge base is empty</div>'
-        + '<div style="font-size:13px;color:#6b7280;line-height:1.6;">Add content above â€” crawl your website, upload a document, or write a note â€” and your AI assistant will start answering questions straight away.</div>'
+        + '<div style="font-size:13px;color:#6b7280;line-height:1.6;">Add content above — crawl your website, upload a document, or write a note — and your AI assistant will start answering questions straight away.</div>'
         + '</div>';
     }
 
@@ -4178,7 +4176,7 @@ function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt) {
       + '&#8635; Import website now</button>'
       + '</div>';
 
-    // Case 2: Website URL exists, tenant signed up within the last 10 minutes â€” crawl may be in progress
+    // Case 2: Website URL exists, tenant signed up within the last 10 minutes — crawl may be in progress
     const tenantAgeMs = tenantCreatedAt ? (Date.now() - new Date(tenantCreatedAt).getTime()) : Infinity;
     if (tenantAgeMs < 10 * 60 * 1000) {
       return '<div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">'
@@ -4190,10 +4188,10 @@ function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt) {
         + '<style>@keyframes prog{from{width:20%}to{width:80%}}</style>';
     }
 
-    // Case 3: Website URL exists but tenant is older than 10 minutes with no docs â€” crawl stalled or failed
+    // Case 3: Website URL exists but tenant is older than 10 minutes with no docs — crawl stalled or failed
     return '<div style="margin-top:24px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:20px 24px;">'
       + '<div style="font-size:14px;font-weight:700;color:#991b1b;margin-bottom:6px;">&#9888;&#65039; Website import didn\'t complete</div>'
-      + '<div style="font-size:13px;color:#b91c1c;line-height:1.6;">Your knowledge base is empty â€” it looks like the website crawl didn\'t finish. Click below to import your website now.</div>'
+      + '<div style="font-size:13px;color:#b91c1c;line-height:1.6;">Your knowledge base is empty — it looks like the website crawl didn\'t finish. Click below to import your website now.</div>'
       + '<div style="font-size:12px;color:#ef4444;margin-top:6px;">Website: <strong>' + esc(normalizedSite) + '</strong></div>'
       + retryBtn
       + '</div>';
@@ -4250,13 +4248,13 @@ function buildChatLogsHtml(conversations) {
   }
 
   if (!conversations || conversations.length === 0) {
-    return '<div style="text-align:center;padding:24px 0;font-size:14px;color:#9ca3af;">No conversations yet â€” they\'ll appear here once visitors start chatting.</div>';
+    return '<div style="text-align:center;padding:24px 0;font-size:14px;color:#9ca3af;">No conversations yet — they\'ll appear here once visitors start chatting.</div>';
   }
 
   return conversations.map(conv => {
     const firstCustomer = (conv.messages || []).find(m => m.sender === "customer");
     const preview = firstCustomer ? firstCustomer.message : (conv.messages[0] || {}).message || "";
-    const previewText = esc(preview.length > 90 ? preview.slice(0, 90) + "â€¦" : preview);
+    const previewText = esc(preview.length > 90 ? preview.slice(0, 90) + "…" : preview);
     const date = esc(fmtDate(conv.startedAt));
     const count = conv.messageCount;
 
@@ -4273,7 +4271,7 @@ function buildChatLogsHtml(conversations) {
       + '<summary class="conv-summary">'
       + '<div class="conv-header"><span class="conv-date">' + date + '</span>'
       + '<span class="conv-count">' + count + ' message' + (count !== 1 ? 's' : '') + '</span></div>'
-      + '<div class="conv-preview">' + (previewText || '<em style="color:#d1d5db;">â€”</em>') + '</div>'
+      + '<div class="conv-preview">' + (previewText || '<em style="color:#d1d5db;">—</em>') + '</div>'
       + '</summary>'
       + '<div class="conv-messages">' + msgHtml + '</div>'
       + '</details>';
@@ -4358,7 +4356,7 @@ app.post(
 
       if (uploadError) {
         console.error("[portal-upload] Storage error:", uploadError);
-        // Continue anyway â€” store record without storage path
+        // Continue anyway — store record without storage path
       }
 
       const { data: doc, error: docError } = await supabase
@@ -4399,7 +4397,7 @@ app.post(
   }
 );
 
-// DELETE /api/portal/documents/:id â€” delete a single uploaded document + chunks
+// DELETE /api/portal/documents/:id — delete a single uploaded document + chunks
 app.delete("/api/portal/documents/:id", requireTenant, async (req, res) => {
   try {
     const { id } = req.params;
@@ -4418,7 +4416,7 @@ app.delete("/api/portal/documents/:id", requireTenant, async (req, res) => {
   }
 });
 
-// DELETE /api/portal/website â€” delete all pages crawled from a given domain
+// DELETE /api/portal/website — delete all pages crawled from a given domain
 app.delete("/api/portal/website", requireTenant, async (req, res) => {
   try {
     const { domain } = req.body;
@@ -4443,7 +4441,7 @@ app.delete("/api/portal/website", requireTenant, async (req, res) => {
   }
 });
 
-// POST /api/portal/knowledge-documents/paste â€” save pasted text as a knowledge document (senior only)
+// POST /api/portal/knowledge-documents/paste — save pasted text as a knowledge document (senior only)
 app.post("/api/portal/knowledge-documents/paste", requireSeniorTenant, async (req, res) => {
   try {
     const { title, text } = req.body;
@@ -4480,7 +4478,7 @@ app.post("/api/portal/knowledge-documents/paste", requireSeniorTenant, async (re
   }
 });
 
-// POST /api/portal/import-website â€” crawl a website URL for this tenant (senior only)
+// POST /api/portal/import-website — crawl a website URL for this tenant (senior only)
 app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
   let { url } = req.body;
@@ -4493,8 +4491,8 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
   try { rootUrl = new URL(url).href.replace(/\/$/, ""); }
   catch { return res.status(400).json({ error: "Invalid URL" }); }
 
-  // Respond immediately â€” crawl runs in background
-  res.json({ success: true, message: "Import started â€” this takes 2â€“3 minutes." });
+  // Respond immediately — crawl runs in background
+  res.json({ success: true, message: "Import started — this takes 2–3 minutes." });
 
   (async () => {
     try {
@@ -4525,14 +4523,14 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
           console.error(`[portal-import] Page error:`, err.message);
         }
       }
-      console.log(`[portal-import] Done â€” imported ${imported} pages for ${tenantId}`);
+      console.log(`[portal-import] Done — imported ${imported} pages for ${tenantId}`);
     } catch (err) {
       console.error(`[portal-import] Crawl failed for ${tenantId}:`, err.message);
     }
   })();
 });
 
-// GET /api/portal/status â€” returns doc + chunk counts for the tenant (used by dashboard progress UI)
+// GET /api/portal/status — returns doc + chunk counts for the tenant (used by dashboard progress UI)
 app.get("/api/portal/status", requireTenant, async (req, res) => {
   try {
     const tenantId = req.tenant.tenantId;
@@ -4554,7 +4552,7 @@ app.get("/api/portal/status", requireTenant, async (req, res) => {
   }
 });
 
-// â”€â”€ Analytics helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Analytics helpers ─────────────────────────────────────────────────────────
 function classifyTopic(message) {
   const m = (message || "").toLowerCase();
   if (/\b(book|appointment|slot|schedule|visit|consultation|booking)\b/.test(m))         return "Bookings";
@@ -4598,7 +4596,7 @@ function buildAnalytics(rows) {
   const totalMessages = convs.reduce((sum, c) => sum + c.messages.length, 0);
   const avgMessages   = convs.length ? Math.round((totalMessages / convs.length) * 10) / 10 : 0;
 
-  // Top topics â€” classify first customer message per conversation
+  // Top topics — classify first customer message per conversation
   const topicCounts = {};
   convs.forEach(c => {
     const customerMsg = c.messages.find(m => m.sender === "customer");
@@ -4615,7 +4613,7 @@ function buildAnalytics(rows) {
   return { todayCount, totalConversations: convs.length, avgMessages, trend, topTopics };
 }
 
-// â”€â”€ Portal: analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Portal: analytics ─────────────────────────────────────────────────────────
 app.get("/api/portal/analytics", requireTenant, async (req, res) => {
   try {
     const tenantId = req.tenant.tenantId;
@@ -4635,7 +4633,7 @@ app.get("/api/portal/analytics", requireTenant, async (req, res) => {
   }
 });
 
-// â”€â”€ Admin: analytics (all tenants, optional filter) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: analytics (all tenants, optional filter) ───────────────────────────
 app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
   try {
     const { tenantId } = req.query;
@@ -4679,7 +4677,7 @@ app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
   }
 });
 
-// â”€â”€ Admin: list all tenants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: list all tenants ───────────────────────────────────────────────────
 app.get("/api/admin/tenants", requireAdmin, async (req, res) => {
   try {
     const [{ data: tenants, error }, { data: docCounts }, { data: chunkCounts }] = await Promise.all([
@@ -4697,7 +4695,7 @@ app.get("/api/admin/tenants", requireAdmin, async (req, res) => {
 
     if (error) throw error;
 
-    // Build lookup maps: tenantId â†’ count
+    // Build lookup maps: tenantId → count
     const docMap   = {};
     const chunkMap = {};
     (docCounts   || []).forEach(r => { docMap[r.tenant_id]   = (docMap[r.tenant_id]   || 0) + 1; });
@@ -4716,7 +4714,7 @@ app.get("/api/admin/tenants", requireAdmin, async (req, res) => {
   }
 });
 
-// â”€â”€ Admin: reset a tenant's portal password â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: reset a tenant's portal password ───────────────────────────────────
 app.post("/api/admin/tenants/:id/reset-password", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -4734,37 +4732,33 @@ app.post("/api/admin/tenants/:id/reset-password", requireAdmin, async (req, res)
   }
 });
 
-// ── Admin: delete tenant + all associated data ────────────────────────────────
-app.delete(“/api/admin/tenants/:id”, requireAdmin, async (req, res) => {
+// ── Admin: delete tenant + all associated data ───────────────────────────────
+app.delete("/api/admin/tenants/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
-  if (!id) return res.status(400).json({ error: “Missing tenant id.” });
-
+  if (!id) return res.status(400).json({ error: "Missing tenant id." });
   try {
-    // Delete child data first (tables confirmed to have tenant_id), then the tenant row itself
     const steps = [
-      supabase.from(“approved_answers”).delete().eq(“tenant_id”, id),
-      supabase.from(“chat_logs”).delete().eq(“tenant_id”, id),
-      supabase.from(“documents”).delete().eq(“tenant_id”, id),
-      supabase.from(“flagged_answers”).delete().eq(“tenant_id”, id),
-      supabase.from(“knowledge_chunks”).delete().eq(“tenant_id”, id),
-      supabase.from(“portal_users”).delete().eq(“tenant_id”, id),
+      supabase.from("approved_answers").delete().eq("tenant_id", id),
+      supabase.from("chat_logs").delete().eq("tenant_id", id),
+      supabase.from("documents").delete().eq("tenant_id", id),
+      supabase.from("flagged_answers").delete().eq("tenant_id", id),
+      supabase.from("knowledge_chunks").delete().eq("tenant_id", id),
+      supabase.from("portal_users").delete().eq("tenant_id", id),
     ];
     await Promise.all(steps);
-
-    const { error } = await supabase.from(“tenants”).delete().eq(“id”, id);
+    const { error } = await supabase.from("tenants").delete().eq("id", id);
     if (error) throw error;
-
     console.log(`[admin] Tenant deleted: ${id}`);
     res.json({ success: true });
   } catch (err) {
-    console.error(“[admin-delete-tenant]”, err.message);
-    res.status(500).json({ error: “Failed to delete tenant: “ + err.message });
+    console.error("[admin-delete-tenant]", err.message);
+    res.status(500).json({ error: "Failed to delete tenant: " + err.message });
   }
 });
 
-// â”€â”€ Admin: backfill email context from Gmail inbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: backfill email context from Gmail inbox ────────────────────────────
 // One-off endpoint to process historical emails through the context pipeline.
-// Responds immediately â€” processing runs in background. Watch Render logs.
+// Responds immediately — processing runs in background. Watch Render logs.
 // GET /api/admin/backfill-email-context?days=2
 app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
   const days = Math.min(parseInt(req.query.days || "2", 10), 30);
@@ -4772,11 +4766,11 @@ app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
 
   res.json({ success: true, message: `Backfill started for emails since ${since.toDateString()}. Watch Render logs for progress.` });
 
-  // â”€â”€ Fire and forget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fire and forget ────────────────────────────────────────────────────────
   (async () => {
     console.log(`[backfill] Starting email context backfill since ${since.toDateString()}`);
     if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-      console.error("[backfill] Gmail credentials not set â€” aborting");
+      console.error("[backfill] Gmail credentials not set — aborting");
       return;
     }
 
@@ -4820,11 +4814,11 @@ app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
           const fromAddr = (from.match(/<([^>]+)>/) || [])[1] || from;
           if (fromAddr.toLowerCase() === (process.env.GMAIL_USER || "").toLowerCase()) { skipped++; continue; }
 
-          // Run context pipeline â€” no reply generation
+          // Run context pipeline — no reply generation
           const cleanedBody = deduplicateEmailBody(body);
           const entities    = await extractEmailEntities(cleanedBody, from, subject);
           const state       = await findOrCreateApplicationState(from, entities);
-          if (!state) { skipped++; continue; } // noise gate â€” no mortgage signal
+          if (!state) { skipped++; continue; } // noise gate — no mortgage signal
           await updateApplicationState(state, entities, cleanedBody, from, subject);
 
           processed++;
@@ -4841,7 +4835,7 @@ app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
         }
       }
 
-      console.log(`[backfill] Complete â€” ${processed} processed, ${skipped} skipped, ${errors} errors`);
+      console.log(`[backfill] Complete — ${processed} processed, ${skipped} skipped, ${errors} errors`);
 
     } catch (err) {
       console.error(`[backfill] Fatal error: ${err.message}`);
@@ -4849,7 +4843,7 @@ app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
   })();
 });
 
-// â”€â”€ Portal: recent chat logs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Portal: recent chat logs ──────────────────────────────────────────────────
 app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
   try {
     const tenantId = req.tenant.tenantId;
@@ -4899,10 +4893,10 @@ app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
   }
 });
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Portal: junior staff tools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Portal: junior staff tools ────────────────────────────────────────────────
 
-// POST /api/portal/knowledge-answer â€” tenant-scoped KB query for junior staff
+// POST /api/portal/knowledge-answer — tenant-scoped KB query for junior staff
 app.post("/api/portal/knowledge-answer", requireTenant, async (req, res) => {
   const { question } = req.body;
   if (!question) return res.status(400).json({ error: "question is required" });
@@ -4950,7 +4944,7 @@ app.post("/api/portal/knowledge-answer", requireTenant, async (req, res) => {
 Answer questions using ONLY the knowledge base provided below.
 If the answer is not in the knowledge base, say: "I don't have that in the knowledge base yet."
 Do NOT guess or invent information.
-Format using clear plain text â€” no markdown symbols, but you may use short paragraphs.
+Format using clear plain text — no markdown symbols, but you may use short paragraphs.
 
 KNOWLEDGE BASE:
 ${documentContext || "No documents loaded yet."}`
@@ -4972,7 +4966,7 @@ ${documentContext || "No documents loaded yet."}`
   }
 });
 
-// POST /api/portal/documents/search â€” tenant-scoped document search
+// POST /api/portal/documents/search — tenant-scoped document search
 // Combines semantic (embedding) search on content AND filename substring match
 app.post("/api/portal/documents/search", requireTenant, async (req, res) => {
   const { query } = req.body;
@@ -4982,7 +4976,7 @@ app.post("/api/portal/documents/search", requireTenant, async (req, res) => {
   const baseSelect = "id, original_filename, stored_filename, storage_path, mimetype, document_type";
 
   try {
-    // â”€â”€ Run semantic search and filename search in parallel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Run semantic search and filename search in parallel ─────────────────
     const [embeddingResponse, { data: filenameDocs }] = await Promise.all([
       openai.embeddings.create({ model: "text-embedding-3-small", input: query }),
       supabase
@@ -4996,7 +4990,7 @@ app.post("/api/portal/documents/search", requireTenant, async (req, res) => {
 
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
-    // â”€â”€ Semantic search via embedding RPC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Semantic search via embedding RPC ──────────────────────────────────
     const idToSim = {};
     const { data: chunks } = await supabase.rpc("match_chunks", {
       query_embedding:      queryEmbedding,
@@ -5029,11 +5023,11 @@ app.post("/api/portal/documents/search", requireTenant, async (req, res) => {
           .neq("document_type", "Website Content")
       : { data: [] };
 
-    // â”€â”€ Merge: filename matches first, then semantic, deduplicated â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Merge: filename matches first, then semantic, deduplicated ──────────
     const seen = new Set();
     const merged = [];
 
-    // Filename matches â†’ always "Filename match" confidence
+    // Filename matches → always "Filename match" confidence
     for (const doc of (filenameDocs || [])) {
       if (!seen.has(doc.id)) {
         seen.add(doc.id);
@@ -5069,7 +5063,7 @@ app.post("/api/portal/documents/search", requireTenant, async (req, res) => {
   }
 });
 
-// GET /api/portal/documents/:id/download â€” stream a portal document to the browser
+// GET /api/portal/documents/:id/download — stream a portal document to the browser
 app.get("/api/portal/documents/:id/download", requireTenant, async (req, res) => {
   try {
     const { data: doc, error } = await supabase
@@ -5099,7 +5093,7 @@ app.get("/api/portal/documents/:id/download", requireTenant, async (req, res) =>
   }
 });
 
-// POST /api/portal/email-reply â€” tenant-scoped AI email reply
+// POST /api/portal/email-reply — tenant-scoped AI email reply
 app.post("/api/portal/email-reply", requireTenant, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: "Email is required" });
@@ -5124,9 +5118,9 @@ app.post("/api/portal/email-reply", requireTenant, async (req, res) => {
         {
           role: "system",
           content: `You are an AI assistant for ${tenantName} staff. Draft a professional reply to an incoming email.
-Use the knowledge provided â€” approved answers first, then documents.
+Use the knowledge provided — approved answers first, then documents.
 Rules: Do NOT invent information. If unsure, say the team will follow up. Be concise.
-Style: Friendly and professional. 4â€“8 lines. Start "Hi there," unless a name is obvious. End "Kind regards,"
+Style: Friendly and professional. 4–8 lines. Start "Hi there," unless a name is obvious. End "Kind regards,"
 
 APPROVED KNOWLEDGE:\n${approvedContext || "None"}
 DOCUMENT KNOWLEDGE:\n${documentContext || "None"}`
@@ -5147,8 +5141,8 @@ DOCUMENT KNOWLEDGE:\n${documentContext || "None"}`
   }
 });
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Portal: feature settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Portal: feature settings ──────────────────────────────────────────────────
 
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
@@ -5163,7 +5157,7 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
   });
 });
 
-// â”€â”€ Shared: send a portal staff email via Resend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Shared: send a portal staff email via Resend ─────────────────────────────
 function sendStaffEmail(to, subject, html) {
   if (!process.env.RESEND_API_KEY) return;
   fetch("https://api.resend.com/emails", {
@@ -5219,7 +5213,7 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
                   <p style="font-size:14px;color:#374151;margin-bottom:6px;"><strong>URL:</strong> <a href="https://app.sprimal.com/portal" style="color:#1e40af;">https://app.sprimal.com/portal</a></p>
                   <p style="font-size:14px;color:#374151;margin-bottom:0;"><strong>Email:</strong> ${user.email}</p>
                 </div>
-                <p style="margin-top:20px;font-size:13px;color:#6b7280;">â€” The Sprimal team</p>
+                <p style="margin-top:20px;font-size:13px;color:#6b7280;">— The Sprimal team</p>
               </div>`
             );
           } else {
@@ -5231,7 +5225,7 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
                 <h2 style="font-size:20px;color:#111827;margin-bottom:12px;">Hi ${user.name},</h2>
                 <p style="font-size:15px;color:#374151;line-height:1.6;">Your staff access to the <strong>${tenantName}</strong> knowledge base on Sprimal has been <strong style="color:#dc2626;">temporarily suspended</strong> by your manager.</p>
                 <p style="font-size:15px;color:#374151;line-height:1.6;margin-top:12px;">You will not be able to log in until access is restored. Please contact your manager if you have any questions.</p>
-                <p style="margin-top:20px;font-size:13px;color:#6b7280;">â€” The Sprimal team</p>
+                <p style="margin-top:20px;font-size:13px;color:#6b7280;">— The Sprimal team</p>
               </div>`
             );
           }
@@ -5243,7 +5237,7 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   res.json({ success: true });
 });
 
-// â”€â”€ Portal: staff management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Portal: staff management ──────────────────────────────────────────────────
 
 app.get("/api/portal/staff", requireSeniorTenant, async (req, res) => {
   const { data, error } = await supabase
@@ -5307,7 +5301,7 @@ app.delete("/api/portal/staff/:id", requireSeniorTenant, async (req, res) => {
   res.json({ success: true });
 });
 
-// â”€â”€ Portal: flagged answers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Portal: flagged answers ────────────────────────────────────────────────────
 
 // Junior users can flag an answer from their KB session
 app.post("/api/portal/flag-answer", requireTenant, async (req, res) => {
@@ -5343,7 +5337,7 @@ app.delete("/api/portal/flagged-answers/:id", requireSeniorTenant, async (req, r
   res.json({ success: true });
 });
 
-// â”€â”€ Portal: approved answers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Portal: approved answers ───────────────────────────────────────────────────
 
 app.get("/api/portal/approved-answers", requireSeniorTenant, async (req, res) => {
   const { data, error } = await supabase
@@ -5376,8 +5370,8 @@ app.delete("/api/portal/approved-answers/:id", requireSeniorTenant, async (req, 
   res.json({ success: true });
 });
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Public tenant config â€” widget fetches this on load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Public tenant config — widget fetches this on load ───────────────────────
 app.get("/api/tenant-config/:tenantId", async (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
   const { tenantId } = req.params;
@@ -5395,9 +5389,9 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
   res.json({ id: data.id, name: data.name, logo_url: data.logo_url || null });
 });
 
-// â”€â”€ Favicon proxy â€” serves tenant logo through our own domain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Favicon proxy — serves tenant logo through our own domain ─────────────────
 // Avoids hotlinking blocks and CORS issues entirely.
-const faviconCache = new Map(); // tenantId â†’ { buffer, contentType, ts }
+const faviconCache = new Map(); // tenantId → { buffer, contentType, ts }
 
 app.get("/api/tenant-favicon/:tenantId", async (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -5449,7 +5443,7 @@ app.get("/api/tenant-favicon/:tenantId", async (req, res) => {
   }
 });
 
-// â”€â”€ CORS for the public chat endpoint (widget embeds on external sites) â”€â”€â”€â”€â”€â”€â”€
+// ── CORS for the public chat endpoint (widget embeds on external sites) ───────
 app.use("/chat", (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Content-Type");
@@ -5463,7 +5457,7 @@ app.post("/chat", async (req, res) => {
     const { userId, conversationId, message, voiceMode, clubId } = req.body;
     const tenantId = clubId || "aom";
 
-    // â”€â”€ Look up this tenant's business mode, name and feature flags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Look up this tenant's business mode, name and feature flags ──────────
     let effectiveMode = businessMode; // global default ('mortgage')
     let tenantDisplayName = null;
     try {
@@ -5481,7 +5475,7 @@ app.post("/chat", async (req, res) => {
       }
     } catch {}
 
-    // General mode tenants don't collect personal data â€” skip consent gate
+    // General mode tenants don't collect personal data — skip consent gate
     if (effectiveMode === "general") {
       const convo = ensureConversation(userId);
       convo.consentGiven = true;
@@ -5506,7 +5500,7 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    // ðŸ”’ GDPR Consent check
+    // 🔒 GDPR Consent check
     if (!convo.consentGiven) {
 
       const consentWords = /\byes\b|\bok\b|\bokay\b|\byeah\b|\bsure\b|\byep\b|\bfine\b|\balright\b|\babsolutely\b|\bof course\b|\bgo ahead\b|\bno problem\b|\bsounds good\b|\bgrand\b/i;
@@ -5519,17 +5513,17 @@ app.post("/chat", async (req, res) => {
 
       } else if (
         lowerMessage.includes("no") ||
-        lowerMessage.includes("donâ€™t") ||
+        lowerMessage.includes("don’t") ||
         lowerMessage.includes("dont") ||
         lowerMessage.includes("stop")
       ) {
         result.reply =
-          "No problem at all â€” I wonâ€™t collect any personal information. Let me know if you change your mind.";
+          "No problem at all — I won’t collect any personal information. Let me know if you change your mind.";
 
       } else {
-        // They jumped straight to a request â€” remind them of consent first
+        // They jumped straight to a request — remind them of consent first
         result.reply =
-          "Before we get started â€” I may need to collect a few personal details to help with your enquiry. Is that okay?";
+          "Before we get started — I may need to collect a few personal details to help with your enquiry. Is that okay?";
       }
 
       return res.json({ reply: result.reply });
@@ -5630,11 +5624,11 @@ Use plain numbers where possible.
 
     function getMortgageReplyForStep(step) {
       if (step === "buyerType") {
-        return "No problem at all â€” I can help with that ðŸ‘ Are you a first-time buyer, moving home, switching mortgage, or buying an investment property?";
+        return "No problem at all — I can help with that 👍 Are you a first-time buyer, moving home, switching mortgage, or buying an investment property?";
       }
 
       if (step === "propertyPrice") {
-        return "Nice one ðŸ‘ Are you looking at a particular property price, or just a rough range for now?";
+        return "Nice one 👍 Are you looking at a particular property price, or just a rough range for now?";
       }
 
       if (step === "deposit") {
@@ -5642,11 +5636,11 @@ Use plain numbers where possible.
       }
 
       if (step === "income") {
-        return "Got it ðŸ‘ Just so I can get a sense of affordability, what are you earning per year roughly?";
+        return "Got it 👍 Just so I can get a sense of affordability, what are you earning per year roughly?";
       }
 
       if (step === "employmentType") {
-        return "Thatâ€™s helpful. Are you employed, self-employed, or a bit of both?";
+        return "That’s helpful. Are you employed, self-employed, or a bit of both?";
       }
 
       if (step === "name") {
@@ -5654,14 +5648,14 @@ Use plain numbers where possible.
       }
 
       if (step === "phone") {
-        return "And whatâ€™s the best phone number for the broker to reach you on?";
+        return "And what’s the best phone number for the broker to reach you on?";
       }
 
       if (step === "email") {
-        return "Great â€” and what email address should they use?";
+        return "Great — and what email address should they use?";
       }
 
-      return "Brilliant â€” thatâ€™s everything I need ðŸ‘ A broker will take a look and be in touch shortly.";
+      return "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.";
     }
 
     if (!aiEnabled) {
@@ -5704,11 +5698,11 @@ Use plain numbers where possible.
 
     } else if (effectiveMode === "mortgage") {
 
-      // â”€â”€ Company info â€” always answers regardless of active flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Company info — always answers regardless of active flow ──────────────
       if (/who.*broker|who.*work|who.*team|who.*staff|who.*advisor|broker.*name|who.*cormac|who.*david|who.*mahony|about the company|about at once mortgages|who.*maeve/i.test(lowerMessage)) {
-        result.reply = "At Once Mortgages has two mortgage brokers â€” Cormac Collins and David O'Mahony. You can reach them on ðŸ“ž 021 4315 815, or I can book you an appointment â€” just say 'book an appointment'! ðŸ˜Š";
+        result.reply = "At Once Mortgages has two mortgage brokers — Cormac Collins and David O'Mahony. You can reach them on 📞 021 4315 815, or I can book you an appointment — just say 'book an appointment'! 😊";
 
-      // â”€â”€ Qualification agent â€” takes priority â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Qualification agent — takes priority ────────────────────────────────
       } else if (convo.qualMode) {
         try {
           result.reply = await runQualificationAgent(convo, trimmedMessage, !!voiceMode);
@@ -5716,11 +5710,11 @@ Use plain numbers where possible.
           console.error("[qual-agent] Unhandled exception escaped qual agent:", qualErr.message, qualErr.stack);
           convo.qualMode  = false;
           convo.completed = true;
-          result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! ðŸ‘‹";
+          result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
         }
 
       } else if (/speak.*human|talk.*human|human.*agent|speak.*person|talk.*person|speak.*someone|talk.*someone|speak.*cormac|talk.*cormac|speak.*broker|call.*someone|call.*you|phone.*number|contact.*you|real person/i.test(lowerMessage) && !bookingInProgress) {
-        result.reply = "Of course! You can call Cormac Collins directly on ðŸ“ž 021 4315 815, or I can book an appointment for you â€” just say 'book an appointment' and I'll get that sorted. ðŸ˜Š";
+        result.reply = "Of course! You can call Cormac Collins directly on 📞 021 4315 815, or I can book an appointment for you — just say 'book an appointment' and I'll get that sorted. 😊";
 
       } else if (isMortgageApplicationIntent(trimmedMessage, intent) && !bookingInProgress) {
         convo.qualMode = true;
@@ -5730,7 +5724,7 @@ Use plain numbers where possible.
           console.error("[qual-agent] Unhandled exception escaped qual agent:", qualErr.message, qualErr.stack);
           convo.qualMode  = false;
           convo.completed = true;
-          result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! ðŸ‘‹";
+          result.reply = "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
         }
 
       } else if (mortgageInProgress) {
@@ -5783,12 +5777,12 @@ Use plain numbers where possible.
           convo.completed = true;
 
           result.reply =
-            "Great â€” please use the Choose Document button below to upload your payslip securely.\n\n" +
-            "A broker will review your details and be in touch shortly ðŸ‘";
+            "Great — please use the Choose Document button below to upload your payslip securely.\n\n" +
+            "A broker will review your details and be in touch shortly 👍";
 
       } else {
         result.reply =
-          "No problem â€” I can send the link whenever you're ready ðŸ‘";
+          "No problem — I can send the link whenever you're ready 👍";
       }
 
       addChatLog({
@@ -5844,7 +5838,7 @@ Use plain numbers where possible.
 
           convo.mortgageStep = "email";
 
-          result.reply = "Great ðŸ‘ And what email address should the broker use?";
+          result.reply = "Great 👍 And what email address should the broker use?";
 
           addChatLog({
             userId,
@@ -5866,7 +5860,7 @@ Use plain numbers where possible.
           convo.mortgageStep = "uploadPayslip";
 
           result.reply =
-            "Perfect ðŸ‘\n\n" +
+            "Perfect 👍\n\n" +
             "The next step would normally be to review a recent payslip.\n\n" +
             "Would it be okay if I sent you a secure upload link by text or WhatsApp?";
 
@@ -5894,7 +5888,7 @@ Use plain numbers where possible.
 
         if (!currentLead) {
           console.error("Lead not found:", convo.mortgageLeadId);
-          result.reply = "Sorry â€” something went wrong. Please try again.";
+          result.reply = "Sorry — something went wrong. Please try again.";
           return res.json({ reply: result.reply });
         }
 
@@ -5924,16 +5918,16 @@ Use plain numbers where possible.
 
           if (isHot) {
             await updateMortgageLead(completedLead.id, { emailSent: true });
-            console.log("ðŸ”¥ HOT lead flagged");
+            console.log("🔥 HOT lead flagged");
           } else {
-            console.log("âŒ NOT HOT");
+            console.log("❌ NOT HOT");
           }
 
           convo.completed = true;
 
           result.reply =
-            "Brilliant â€” thatâ€™s everything I need ðŸ‘ A broker will take a look and be in touch shortly.\n\n" +
-            "Thanks for using Maeve ðŸ‘‹";
+            "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
+            "Thanks for using Maeve 👋";
         } else {
           convo.mortgageStep = nextStep;
           result.reply = getMortgageReplyForStep(nextStep);
@@ -5949,7 +5943,7 @@ Use plain numbers where possible.
         intent === "upload documents"
       ) {
         result.reply =
-          "No problem â€” you can upload documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
+          "No problem — you can upload documents using the upload option. Typical documents include ID, payslips, bank statements, and proof of address.";
 
       } else if (
         !(/^(what|how|when|where|why|tell me|explain|do i|can i|could i|is it|are there|will i|should i|do you|does it|who)/i.test(lowerMessage) || lowerMessage.includes("?")) &&
@@ -5987,7 +5981,7 @@ Use plain numbers where possible.
 
         if (!currentLead) {
           console.error("Lead not found:", lead.id);
-          result.reply = "Sorry â€” something went wrong creating your enquiry. Please try again.";
+          result.reply = "Sorry — something went wrong creating your enquiry. Please try again.";
           return res.json({ reply: result.reply });
         }
 
@@ -6026,8 +6020,8 @@ Use plain numbers where possible.
       convo.completed = true;
 
       result.reply =
-        "Brilliant â€” thatâ€™s everything I need ðŸ‘ A broker will take a look and be in touch shortly.\n\n" +
-        "Thanks for using Maeve ðŸ‘‹";
+        "Brilliant — that’s everything I need 👍 A broker will take a look and be in touch shortly.\n\n" +
+        "Thanks for using Maeve 👋";
     } else {
       convo.mortgageStep = nextStep;
       result.reply = getMortgageReplyForStep(nextStep);
@@ -6052,7 +6046,7 @@ Use plain numbers where possible.
         lowerMessage.includes("update")
       ) {
         result.reply =
-          "No problem â€” please provide your mortgage lead reference number, for example ML-123456789.";
+          "No problem — please provide your mortgage lead reference number, for example ML-123456789.";
 
       } else if (
         lowerMessage.includes("documents needed") ||
@@ -6064,7 +6058,7 @@ Use plain numbers where possible.
 
 } else {
 
-  // ðŸ”¥ NEW: Check knowledge base documents FIRST
+  // 🔥 NEW: Check knowledge base documents FIRST
   const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId);
 
   console.log("Relevant knowledge docs:", relevantDocs);
@@ -6093,39 +6087,39 @@ Use plain numbers where possible.
       });
 
       const kbReply = stripHtml(completion.choices[0].message.content);
-      const kbUnsure = /i do not know|donâ€™t know|not in the|no information|cannot find|not sure/i.test(kbReply);
+      const kbUnsure = /i do not know|don’t know|not in the|no information|cannot find|not sure/i.test(kbReply);
 
       if (!kbUnsure) {
         result.reply = kbReply;
       } else {
-        // KB couldnâ€™t answer â€” fall through to Maeveâ€™s general reply
+        // KB couldn’t answer — fall through to Maeve’s general reply
         const maeveReply = await generateMaeveReply(trimmedMessage);
-        result.reply = maeveReply || "No problem at all â€” I can help with mortgages, bookings, or any questions. What would you like to do?";
+        result.reply = maeveReply || "No problem at all — I can help with mortgages, bookings, or any questions. What would you like to do?";
       }
 
     } catch (err) {
       console.error("Knowledge base OpenAI error:", err.message);
-      result.reply = "Sorry â€” I couldnâ€™t access the knowledge base.";
+      result.reply = "Sorry — I couldn’t access the knowledge base.";
     }
 
   } else {
-    // No KB docs â€” use Maeveâ€™s general conversational reply
+    // No KB docs — use Maeve’s general conversational reply
     const maeveReply = await generateMaeveReply(trimmedMessage);
     result.reply =
       maeveReply ||
-      "No problem at all â€” I can help with mortgages, consultations, or documents. What are you looking to do?";
+      "No problem at all — I can help with mortgages, consultations, or documents. What are you looking to do?";
   }
 }
 
     } else if (effectiveMode === "general") {
 
-      // â”€â”€ EBO personal booking auth flow (takes priority over KB/availability) â”€
+      // ── EBO personal booking auth flow (takes priority over KB/availability) ─
       const eboPersonal = await handleEboPersonalFlow(convo, trimmedMessage, tenantId, tenantDisplayName || "club");
       if (eboPersonal.handled) {
         result.reply = eboPersonal.reply;
       } else {
 
-      // â”€â”€ KB search + optional live EBO court availability (in parallel) â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── KB search + optional live EBO court availability (in parallel) ────────
       const [relevantDocs, eboContext] = await Promise.all([
         findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId),
         maybeGetEboContext(tenantId, trimmedMessage)
@@ -6163,15 +6157,15 @@ Use plain numbers where possible.
             result.reply = kbReply;
           } else {
             const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName);
-            result.reply = genericReply || "I'm not sure about that â€” please contact us directly for more information.";
+            result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
           }
         } catch (err) {
           console.error("Knowledge base OpenAI error (general mode):", err.message);
-          result.reply = "Sorry â€” I couldn't access the knowledge base right now.";
+          result.reply = "Sorry — I couldn't access the knowledge base right now.";
         }
       } else {
         const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName);
-        result.reply = genericReply || "I'm not sure about that â€” please contact us directly for more information.";
+        result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
       }
 
       } // end: eboPersonal not handled
@@ -6543,14 +6537,14 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
             - Do NOT provide financial advice or approval decisions
             - Do NOT make promises on timelines
 
-            FORMATTING â€” always return HTML using these rules:
+            FORMATTING — always return HTML using these rules:
             - Wrap the whole answer in a <div>
             - Use <p> for each distinct point or paragraph
             - Use <ul><li> for lists of criteria, requirements, or options
             - Use <strong> to highlight key figures, percentages, amounts, and limits
             - Use a <p style="margin-top:12px;color:#6b7280;font-size:13px;"> for any caveats or notes at the end
             - Do NOT use headings (h1, h2, h3)
-            - Do NOT use markdown â€” only HTML tags
+            - Do NOT use markdown — only HTML tags
             - Keep it concise and scannable
 
             KNOWLEDGE BASE:
@@ -6620,7 +6614,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
           answer: generalAnswer,
           source: "AI Generated",
           confidence: "Low",
-          sourceDetail: "General mortgage knowledge only â€” not broker-approved"
+          sourceDetail: "General mortgage knowledge only — not broker-approved"
         });
       }
 
@@ -6651,7 +6645,7 @@ app.post("/api/knowledge-answer", requireLogin, async (req, res) => {
 
 });
 
-// â”€â”€ Lead Qualification Agent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Lead Qualification Agent ──────────────────────────────────────────────────
 
 const leadCriteria = JSON.parse(
   fs.readFileSync(path.join(__dirname, "data", "leadCriteria.json"), "utf8")
@@ -6664,7 +6658,7 @@ function stripHtml(str) {
 
 function parseMoneyValue(value) {
   if (!value && value !== 0) return 0;
-  const text = String(value).toLowerCase().replace(/,/g, "").replace(/â‚¬/g, "").trim();
+  const text = String(value).toLowerCase().replace(/,/g, "").replace(/€/g, "").trim();
   const number = parseFloat(text.replace(/[^\d.]/g, ""));
   if (text.includes("k")) return number * 1000;
   if (text.includes("m")) return number * 1000000;
@@ -6692,34 +6686,34 @@ function calculateLeadScore(answers) {
 
   // LTV
   if (ltv > maxLTV) {
-    issues.push(`Deposit too low â€” LTV is ${ltv.toFixed(1)}%, maximum is ${maxLTV}% for ${isFirstTime ? "first-time buyers" : "movers"}`);
+    issues.push(`Deposit too low — LTV is ${ltv.toFixed(1)}%, maximum is ${maxLTV}% for ${isFirstTime ? "first-time buyers" : "movers"}`);
   } else {
-    strengths.push(`Deposit sufficient â€” LTV ${ltv.toFixed(1)}% within ${maxLTV}% limit âœ…`);
+    strengths.push(`Deposit sufficient — LTV ${ltv.toFixed(1)}% within ${maxLTV}% limit ✅`);
   }
 
   // LTI
   if (lti > maxLTI) {
-    issues.push(`Income may not support loan â€” LTI is ${lti.toFixed(1)}x, maximum is ${maxLTI}x`);
+    issues.push(`Income may not support loan — LTI is ${lti.toFixed(1)}x, maximum is ${maxLTI}x`);
   } else {
-    strengths.push(`Income supports loan â€” LTI ${lti.toFixed(1)}x within ${maxLTI}x limit âœ…`);
+    strengths.push(`Income supports loan — LTI ${lti.toFixed(1)}x within ${maxLTI}x limit ✅`);
   }
 
   // Employment
   const emp = String(answers.employmentType || "").toLowerCase();
   if (emp.includes("self")) {
-    issues.push("Self-employed â€” will need 2+ years of certified accounts");
+    issues.push("Self-employed — will need 2+ years of certified accounts");
   } else if (emp.includes("contract")) {
-    issues.push("Contractor â€” lenders may require employment track record");
+    issues.push("Contractor — lenders may require employment track record");
   } else {
-    strengths.push("PAYE employed â€” strongest position for lenders âœ…");
+    strengths.push("PAYE employed — strongest position for lenders ✅");
   }
 
   // Credit
   const credit = String(answers.creditHistory || "").toLowerCase();
   if (credit === "issues" || credit.includes("miss") || credit.includes("bad") || credit.includes("yes")) {
-    issues.push("Credit issues reported â€” significant concern for lenders");
+    issues.push("Credit issues reported — significant concern for lenders");
   } else {
-    strengths.push("Clean credit history âœ…");
+    strengths.push("Clean credit history ✅");
   }
 
   // Existing debts
@@ -6759,12 +6753,12 @@ function scoringReason(scoring) {
   const { score, issues, strengths } = scoring;
 
   if (score === "hot") {
-    return "Reason: All key indicators are positive â€” financials are strong, employment is stable, and no credit concerns. Prioritise this lead.";
+    return "Reason: All key indicators are positive — financials are strong, employment is stable, and no credit concerns. Prioritise this lead.";
   }
 
   if (score === "warm") {
     const issueList = issues.length > 0
-      ? issues.map(i => i.split("â€”")[0].trim()).join("; ")
+      ? issues.map(i => i.split("—")[0].trim()).join("; ")
       : "minor concerns";
     return `Reason: Core financials are within limits but there are some considerations: ${issueList}. Worth a follow-up call to explore options.`;
   }
@@ -6776,8 +6770,8 @@ function scoringReason(scoring) {
       i.includes("Credit issues")
     );
     const issueList = criticals.length > 0
-      ? criticals.map(i => i.split("â€”")[0].trim()).join("; ")
-      : issues.map(i => i.split("â€”")[0].trim()).join("; ");
+      ? criticals.map(i => i.split("—")[0].trim()).join("; ")
+      : issues.map(i => i.split("—")[0].trim()).join("; ");
     return `Reason: This lead has significant barriers to standard lender approval: ${issueList}. Cormac may need to explore specialist options.`;
   }
 
@@ -6785,18 +6779,18 @@ function scoringReason(scoring) {
 }
 
 async function emailLeadQualification(answers, scoring) {
-  const emoji = { hot: "ðŸ”¥", warm: "âš¡", cold: "â„ï¸" }[scoring.score] || "ðŸ“‹";
+  const emoji = { hot: "🔥", warm: "⚡", cold: "❄️" }[scoring.score] || "📋";
   const label = scoring.score.toUpperCase();
 
-  const subject = `${emoji} ${label} LEAD â€” ${answers.customerName || "New enquiry"}`;
+  const subject = `${emoji} ${label} LEAD — ${answers.customerName || "New enquiry"}`;
 
   const isUnknown = scoring.score === "unknown";
-  const fmt = (n) => n != null ? `â‚¬${Number(n).toLocaleString("en-IE")}` : "Not collected";
+  const fmt = (n) => n != null ? `€${Number(n).toLocaleString("en-IE")}` : "Not collected";
   const fmtPct = (n) => n != null ? `${Number(n).toFixed(1)}%` : "N/A";
   const fmtX   = (n) => n != null ? `${Number(n).toFixed(2)}x` : "N/A";
 
   const text =
-`${emoji} ${label} LEAD â€” ${scoring.score === "hot" ? "FOLLOW UP NOW" : isUnknown ? "INCOMPLETE ENQUIRY" : "FOLLOW UP RECOMMENDED"}
+`${emoji} ${label} LEAD — ${scoring.score === "hot" ? "FOLLOW UP NOW" : isUnknown ? "INCOMPLETE ENQUIRY" : "FOLLOW UP RECOMMENDED"}
 
 Name:           ${answers.customerName   || "Not provided"}
 Phone:          ${answers.customerPhone  || "Not provided"}
@@ -6804,7 +6798,7 @@ Referred by:    ${answers.referralSource || "Not provided"}
 Email:          ${answers.customerEmail  || "Not provided"}
 
 MORTGAGE DETAILS
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+──────────────────────────────────────────
 Buyer type:     ${answers.buyerType      || "Not collected"}
 Property price: ${fmt(scoring.propertyPrice)}
 Deposit:        ${fmt(scoring.deposit)}
@@ -6817,15 +6811,15 @@ Credit history: ${answers.creditHistory  || "Not collected"}
 Existing debts: ${answers.existingDebts  || "None"}
 
 STRENGTHS
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-${(scoring.strengths || []).map(s => `â€¢ ${s}`).join("\n") || "None identified"}
+──────────────────────────────────────────
+${(scoring.strengths || []).map(s => `• ${s}`).join("\n") || "None identified"}
 
 ISSUES
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-${(scoring.issues || []).map(i => `â€¢ ${i}`).join("\n") || (isUnknown ? "Insufficient data to fully score" : "None")}
+──────────────────────────────────────────
+${(scoring.issues || []).map(i => `• ${i}`).join("\n") || (isUnknown ? "Insufficient data to fully score" : "None")}
 
 SCORE: ${emoji} ${label}
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+──────────────────────────────────────────
 ${scoringReason(scoring)}
 
 Qualification via Sprimal AI Chat`;
@@ -6833,7 +6827,7 @@ Qualification via Sprimal AI Chat`;
   const recipients = ["hello@sprimal.com", "cormac@aom.ie"];
 
   if (!process.env.RESEND_API_KEY) {
-    console.warn("[qual-agent] RESEND_API_KEY not set â€” skipping lead email");
+    console.warn("[qual-agent] RESEND_API_KEY not set — skipping lead email");
     return;
   }
 
@@ -6853,17 +6847,17 @@ Qualification via Sprimal AI Chat`;
     });
 
     if (res.ok) {
-      console.log(`[qual-agent] Lead email sent to ${recipients.join(", ")} â€” ${label} â€” ${answers.customerName}`);
+      console.log(`[qual-agent] Lead email sent to ${recipients.join(", ")} — ${label} — ${answers.customerName}`);
     } else {
       const body = await res.text();
-      console.error(`[qual-agent] Email failed: ${res.status} â€” ${body}`);
+      console.error(`[qual-agent] Email failed: ${res.status} — ${body}`);
     }
   } catch (err) {
     console.error("[qual-agent] Email error:", err.message);
   }
 }
 
-// â”€â”€ Qual Agent: answer tracking helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Qual Agent: answer tracking helpers ──────────────────────────────────────
 
 function extractAnswersFromMessages(qualMessages, existingAnswers) {
   const answers = { ...existingAnswers };
@@ -6875,7 +6869,7 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
     .join(" ");
   const lower = allUserText.toLowerCase();
 
-  // â”€â”€ Categorical fields (regex across all user text) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Categorical fields (regex across all user text) ──────────────────────
 
   if (!answers.buyerType) {
     if (/\bfirst[\s-]?time\b|\bftb\b|\bnever owned\b/.test(lower)) {
@@ -6923,7 +6917,7 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
     if (m) answers.customerPhone = m[0].replace(/\s/g, "");
   }
 
-  // â”€â”€ Numeric + short-answer fields: per message, with previous assistant Q as context â”€â”€
+  // ── Numeric + short-answer fields: per message, with previous assistant Q as context ──
   // Build ordered list of user+assistant messages (excluding system/tool)
   const msgs = qualMessages.filter(m => m.role === "user" || m.role === "assistant");
 
@@ -6936,14 +6930,14 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
       : "";
 
     // 1. Explicit-context keywords in the user's own message
-    //    (property keywords only â€” NOT "worth"/"value"/"costs" to avoid "Car loan worth X")
+    //    (property keywords only — NOT "worth"/"value"/"costs" to avoid "Car loan worth X")
     if (!answers.propertyPrice) {
       const m = userText.match(/(?:property|house|home|flat|apartment|place|asking price)\D{0,10}(\d[\d,.]*[kKmM]?)/i)
              || userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:property|house|home|flat|apartment)/i);
       if (m) answers.propertyPrice = parseMoneyValue(m[1]);
     }
     if (!answers.deposit) {
-      const m = userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:euro|â‚¬)?\s*(?:deposit|saved|in savings)/i)
+      const m = userText.match(/(\d[\d,.]*[kKmM]?)\s*(?:euro|€)?\s*(?:deposit|saved|in savings)/i)
              || userText.match(/(?:deposit|saved|savings)[^\d]*(\d[\d,.]*[kKmM]?)/i);
       if (m) answers.deposit = parseMoneyValue(m[1]);
     }
@@ -6953,8 +6947,8 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
       if (m) answers.annualIncome = parseMoneyValue(m[1]);
     }
 
-    // 2. Standalone number (e.g. "700k", "120000", "85k") â€” use the preceding Q for context
-    const standaloneNum = userText.match(/^\s*(\d[\d,.]*[kKmM]?)\s*(?:â‚¬|euros?)?\s*$/i);
+    // 2. Standalone number (e.g. "700k", "120000", "85k") — use the preceding Q for context
+    const standaloneNum = userText.match(/^\s*(\d[\d,.]*[kKmM]?)\s*(?:€|euros?)?\s*$/i);
     if (standaloneNum && prevQ) {
       const val = parseMoneyValue(standaloneNum[1]);
       if (val > 0) {
@@ -6968,7 +6962,7 @@ function extractAnswersFromMessages(qualMessages, existingAnswers) {
       }
     }
 
-    // 3. Short yes/no/none â€” use the preceding Q to set categorical fields
+    // 3. Short yes/no/none — use the preceding Q to set categorical fields
     const shortAns = userText.trim().toLowerCase();
     if (/^(no|none|nope|never|clean|all good|no issues?|never missed|all clear)$/.test(shortAns) && prevQ) {
       if (!answers.creditHistory && /missed|repayment|credit history|bad debt|loan payment/i.test(prevQ)) {
@@ -7003,20 +6997,20 @@ function buildConfirmedBlock(answers) {
   const lines = [];
   const buyerLabels = { first_time: "first-time buyer", mover: "mover / second buyer", buy_to_let: "buy-to-let investor" };
 
-  if (answers.buyerType)      lines.push(`âœ“ Buyer type: ${buyerLabels[answers.buyerType] || answers.buyerType}`);
-  if (answers.propertyPrice)  lines.push(`âœ“ Property price: â‚¬${answers.propertyPrice.toLocaleString("en-IE")}`);
-  if (answers.deposit)        lines.push(`âœ“ Deposit: â‚¬${answers.deposit.toLocaleString("en-IE")}`);
-  if (answers.annualIncome)   lines.push(`âœ“ Annual income: â‚¬${answers.annualIncome.toLocaleString("en-IE")}`);
-  if (answers.employmentType) lines.push(`âœ“ Employment: ${answers.employmentType}`);
-  if (answers.existingDebts)  lines.push(`âœ“ Existing debts: ${answers.existingDebts}`);
-  if (answers.creditHistory)  lines.push(`âœ“ Credit history: ${answers.creditHistory}`);
+  if (answers.buyerType)      lines.push(`✓ Buyer type: ${buyerLabels[answers.buyerType] || answers.buyerType}`);
+  if (answers.propertyPrice)  lines.push(`✓ Property price: €${answers.propertyPrice.toLocaleString("en-IE")}`);
+  if (answers.deposit)        lines.push(`✓ Deposit: €${answers.deposit.toLocaleString("en-IE")}`);
+  if (answers.annualIncome)   lines.push(`✓ Annual income: €${answers.annualIncome.toLocaleString("en-IE")}`);
+  if (answers.employmentType) lines.push(`✓ Employment: ${answers.employmentType}`);
+  if (answers.existingDebts)  lines.push(`✓ Existing debts: ${answers.existingDebts}`);
+  if (answers.creditHistory)  lines.push(`✓ Credit history: ${answers.creditHistory}`);
 
   if (lines.length === 0) return "";
 
-  return `\n\n=== CONFIRMED â€” DO NOT ASK ABOUT THESE AGAIN ===\n${lines.join("\n")}\n================================================`;
+  return `\n\n=== CONFIRMED — DO NOT ASK ABOUT THESE AGAIN ===\n${lines.join("\n")}\n================================================`;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 const QUAL_SYSTEM_PROMPT = `You are Maeve, a warm and friendly Irish mortgage assistant working for At Once Mortgages in Cork, Ireland.
 
@@ -7028,21 +7022,21 @@ Company facts you know:
 
 Your job is to have a natural, conversational chat to qualify a potential mortgage customer.
 
-CRITICAL â€” BEFORE EVERY SINGLE RESPONSE, scan the ENTIRE conversation history and mentally mark off everything already answered:
-- Has buyer type been mentioned? â†’ CONFIRMED. Do NOT ask again.
-- Has property price been mentioned? â†’ CONFIRMED. Do NOT ask again.
-- Has deposit been mentioned? â†’ CONFIRMED. Do NOT ask again.
-- Has income been mentioned? â†’ CONFIRMED. Do NOT ask again.
-- Has employment been mentioned? â†’ CONFIRMED. Do NOT ask again.
-- Have debts been mentioned? â†’ CONFIRMED. Do NOT ask again.
-- Has credit history been mentioned? â†’ CONFIRMED. Do NOT ask again.
+CRITICAL — BEFORE EVERY SINGLE RESPONSE, scan the ENTIRE conversation history and mentally mark off everything already answered:
+- Has buyer type been mentioned? → CONFIRMED. Do NOT ask again.
+- Has property price been mentioned? → CONFIRMED. Do NOT ask again.
+- Has deposit been mentioned? → CONFIRMED. Do NOT ask again.
+- Has income been mentioned? → CONFIRMED. Do NOT ask again.
+- Has employment been mentioned? → CONFIRMED. Do NOT ask again.
+- Have debts been mentioned? → CONFIRMED. Do NOT ask again.
+- Has credit history been mentioned? → CONFIRMED. Do NOT ask again.
 
-BUYER TYPE RECOGNITION â€” these phrases ALL confirm buyer type immediately. Never ask about buyer type again after any of these:
-- "first time", "first-time", "first time buyer", "never owned", "FTB" â†’ buyerType = first_time_buyer âœ“ CONFIRMED
-- "moving", "mover", "second time", "already own", "upgrading", "downsizing" â†’ buyerType = mover âœ“ CONFIRMED
-- "buy to let", "investment", "rental", "BTL", "renting it out" â†’ buyerType = buy_to_let âœ“ CONFIRMED
+BUYER TYPE RECOGNITION — these phrases ALL confirm buyer type immediately. Never ask about buyer type again after any of these:
+- "first time", "first-time", "first time buyer", "never owned", "FTB" → buyerType = first_time_buyer ✓ CONFIRMED
+- "moving", "mover", "second time", "already own", "upgrading", "downsizing" → buyerType = mover ✓ CONFIRMED
+- "buy to let", "investment", "rental", "BTL", "renting it out" → buyerType = buy_to_let ✓ CONFIRMED
 
-If the customer mentions a property, price, location, or area they are looking at, that also confirms they are buying (not already an owner specifying existing home) â€” treat as context, not a re-ask trigger.
+If the customer mentions a property, price, location, or area they are looking at, that also confirms they are buying (not already an owner specifying existing home) — treat as context, not a re-ask trigger.
 
 MULTIPLE ANSWERS: If the customer gives several pieces of information in one message (e.g. "first time buyer, looking at a 450k place, have 50k deposit"), accept ALL of them at once and only ask for the NEXT missing item.
 
@@ -7051,28 +7045,28 @@ Collect these 9 pieces of information through friendly conversation:
 2. Property price
 3. Deposit amount
 4. Gross annual income (combined if joint application)
-5. Employment type â€” PAYE, self-employed, or contractor
+5. Employment type — PAYE, self-employed, or contractor
 6. Any existing loans, car finance, or credit card debt
 7. Any missed loan or mortgage repayments in the last 5 years
 8. Name, phone number, and email address
-9. How they heard about At Once Mortgages (ask this naturally near the end, e.g. "Just before we finish â€” how did you hear about us?")
+9. How they heard about At Once Mortgages (ask this naturally near the end, e.g. "Just before we finish — how did you hear about us?")
 
 Rules:
-- Be warm and natural â€” use short Irish phrases like "Sound", "Grand", "Perfect", "No bother".
+- Be warm and natural — use short Irish phrases like "Sound", "Grand", "Perfect", "No bother".
 - Keep each response to 1-2 sentences MAXIMUM.
-- Ask only ONE question at a time â€” the next missing piece of information only.
+- Ask only ONE question at a time — the next missing piece of information only.
 - Do NOT summarise or repeat back what the customer has already told you.
 - Do NOT use mortgage jargon like LTV or LTI.
-- Do NOT tell them the outcome â€” just thank them and say the broker will be in touch.
+- Do NOT tell them the outcome — just thank them and say the broker will be in touch.
 
 Only call submit_qualification when you have ALL required fields including name, phone, email, and referral source.
 
-ABSOLUTE PROHIBITIONS â€” never do any of the following under any circumstances:
+ABSOLUTE PROHIBITIONS — never do any of the following under any circumstances:
 - Do NOT ask for payslips, bank statements, P60s, or any documents
 - Do NOT mention document upload or file upload
 - Do NOT suggest sending a link by text, WhatsApp, or email
 - Do NOT add any extra steps after collecting the 8 fields above
-- The moment you have all 8 fields, call submit_qualification immediately â€” nothing else`;
+- The moment you have all 8 fields, call submit_qualification immediately — nothing else`;
 
 async function runQualificationAgent(convo, userMessage, voiceMode = false) {
   if (!convo.qualMessages) {
@@ -7121,7 +7115,7 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
     // Force submit if: email+phone confirmed in code, OR intercept already fired once
     const forceSubmit = allFieldsCollected(convo.qualAnswers) || !!convo._forceSubmit;
     if (forceSubmit) {
-      console.log("[qual-agent] Forcing submit_qualification â€” all fields confirmed or banned content intercepted");
+      console.log("[qual-agent] Forcing submit_qualification — all fields confirmed or banned content intercepted");
     }
 
     // Remove any orphaned assistant tool_calls messages that have no tool response
@@ -7158,7 +7152,7 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
       console.error("[qual-agent] Messages at time of error:", JSON.stringify(convo.qualMessages.map(m => ({ role: m.role, contentLen: (m.content || "").length }))));
       convo.qualMode  = false;
       convo.completed = true;
-      return "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! ðŸ‘‹";
+      return "Thanks so much for chatting! Cormac Collins from At Once Mortgages will be in touch with you shortly. Have a great day! 👋";
     }
 
     const finishReason = response.choices[0].finish_reason;
@@ -7166,7 +7160,7 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
     console.log(`[qual-agent] iter=${i} finish_reason=${finishReason} tool_calls=${message.tool_calls?.length || 0} content_len=${(message.content || "").length}`);
     convo.qualMessages.push(message);
 
-    // â”€â”€ Tool call check FIRST â€” some models return finish_reason=stop even
+    // ── Tool call check FIRST — some models return finish_reason=stop even
     //    when tool_calls are present, so we check the message itself, not the flag.
     if (message.tool_calls?.length) {
       const toolCall = message.tool_calls[0];
@@ -7176,19 +7170,19 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
         console.log("[qual-agent] Tool call parsed, customerName:", answers.customerName, "| fields:", Object.keys(answers).join(","));
       } catch (e) {
         console.error("[qual-agent] Failed to parse tool arguments:", e.message);
-        return "Thanks for that â€” a broker will be in touch with you shortly.";
+        return "Thanks for that — a broker will be in touch with you shortly.";
       }
 
       // Score the lead
       const scoring = calculateLeadScore(answers);
-      console.log(`[qual-agent] Score: ${scoring.score.toUpperCase()} â€” ${answers.customerName}`);
+      console.log(`[qual-agent] Score: ${scoring.score.toUpperCase()} — ${answers.customerName}`);
 
       // Save lead to Supabase (non-fatal if it fails)
       try {
         await insertMortgageLead({
           id:                     "ML-" + Date.now(),
           createdAt:              new Date().toISOString(),
-          status:                 `New lead â€” ${scoring.score}`,
+          status:                 `New lead — ${scoring.score}`,
           name:                   answers.customerName,
           phone:                  answers.customerPhone,
           email:                  answers.customerEmail,
@@ -7211,7 +7205,7 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
         console.error("[qual-agent] Lead save failed:", saveErr.message);
       }
 
-      // Email â€” fire-and-forget, never block qual completion
+      // Email — fire-and-forget, never block qual completion
       emailLeadQualification(answers, scoring).catch(err =>
         console.error("[qual-agent] Email error (async):", err.message)
       );
@@ -7225,10 +7219,10 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
 
       // Closing message by score
       const closing = {
-        hot:     "That's brilliant â€” thank you so much for those details! ðŸ˜Š You look like a really strong candidate. Cormac Collins from At Once Mortgages will be in touch with you very shortly. Have a great day!",
-        warm:    "Lovely, thank you for sharing all of that! You're in a good position and Cormac will be in touch soon to go through your options. Talk soon! ðŸ‘‹",
-        cold:    "Thanks so much for chatting with me today. Cormac will take a look at your details and be in touch to discuss the best path forward for you. Have a lovely day! ðŸ‘‹",
-        unknown: "Thanks so much for chatting with me today! Cormac Collins from At Once Mortgages will be in touch with you shortly to go through your options. Have a great day! ðŸ‘‹"
+        hot:     "That's brilliant — thank you so much for those details! 😊 You look like a really strong candidate. Cormac Collins from At Once Mortgages will be in touch with you very shortly. Have a great day!",
+        warm:    "Lovely, thank you for sharing all of that! You're in a good position and Cormac will be in touch soon to go through your options. Talk soon! 👋",
+        cold:    "Thanks so much for chatting with me today. Cormac will take a look at your details and be in touch to discuss the best path forward for you. Have a lovely day! 👋",
+        unknown: "Thanks so much for chatting with me today! Cormac Collins from At Once Mortgages will be in touch with you shortly to go through your options. Have a great day! 👋"
       };
 
       convo.qualMode  = false;
@@ -7237,14 +7231,14 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
       return closing[scoring.score] || closing.unknown;
     }
 
-    // â”€â”€ Natural conversation reply (no tool_calls present) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Natural conversation reply (no tool_calls present) ───────────────────
     if (finishReason === "stop") {
       const reply = message.content || "";
 
       // Hard intercept: if model hallucinated a payslip/upload/document step
       const hasBannedContent = /payslip|pay[\s-]slip|bank[\s-]?statement|p60|\bupload\b|secure[\s-]?link|whatsapp.*link|text.*link/i.test(reply);
       if (hasBannedContent) {
-        console.warn("[qual-agent] Intercepted prohibited step â€” forcing submit on next iteration");
+        console.warn("[qual-agent] Intercepted prohibited step — forcing submit on next iteration");
         convo.qualMessages.pop(); // remove the bad assistant message
         convo._forceSubmit = true;
         continue;
@@ -7253,8 +7247,8 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
       return reply;
     }
 
-    // Unexpected finish_reason (e.g. "length") â€” loop continues to next iteration
-    console.warn("[qual-agent] Unexpected finish_reason:", finishReason, "â€” retrying");
+    // Unexpected finish_reason (e.g. "length") — loop continues to next iteration
+    console.warn("[qual-agent] Unexpected finish_reason:", finishReason, "— retrying");
   }
 
   return "Sorry, something went wrong. Please try again or contact us directly at 021 4315 815.";
@@ -7264,7 +7258,7 @@ async function runQualificationAgent(convo, userMessage, voiceMode = false) {
 function isMortgageApplicationIntent(message, intent) {
   const lower = message.toLowerCase();
 
-  // If the message looks like a question, treat it as a general FAQ â€” never start qual flow
+  // If the message looks like a question, treat it as a general FAQ — never start qual flow
   const isQuestion = /^(what|how|when|where|why|do i|can i|could i|is it|are there|will i|should i|do you|does it|who)/i.test(lower) || lower.includes("?");
   if (isQuestion) return false;
 
@@ -7276,14 +7270,14 @@ function isMortgageApplicationIntent(message, intent) {
     "moving home", "second time buyer", "start my application",
     "apply for a mortgage", "get started with a mortgage", "get started"
   ];
-  // Only trigger on very explicit application intents â€” not generic "mortgage enquiry"
+  // Only trigger on very explicit application intents — not generic "mortgage enquiry"
   const triggerIntents = ["mortgage application", "apply for mortgage"];
 
   return triggerPhrases.some(p => lower.includes(p)) ||
          triggerIntents.some(i => (intent || "").includes(i));
 }
 
-// â”€â”€ Gmail IMAP email polling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Gmail IMAP email polling ──────────────────────────────────────────────────
 
 const CORMAC_SIGNATURE = `Kind Regards,
 
@@ -7305,7 +7299,7 @@ Life Assurance Products - Mortgage Protection, Life Assurance, Serious Illness C
 
 This email (including any attachments) is confidential, privileged and may be used only by the person to whom it is addressed. If you are not the addressee then you may not read, disseminate, print, copy, store or otherwise use it. If you have received it in error, please notify At Once Mortgages and delete it from your system.`;
 
-// â”€â”€ Email Response Agent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Email Response Agent ─────────────────────────────────────────────────────
 // Uses OpenAI tool calls so the agent decides what to search rather than
 // having everything pre-loaded into the prompt.
 
@@ -7341,11 +7335,11 @@ const EMAIL_AGENT_TOOLS = [
 ];
 
 async function runEmailResponseAgent(emailContent, senderName = "", applicationContext = null) {
-  // Extract first name from sender, e.g. "Alan Donelan <alan@x.com>" â†’ "Alan"
+  // Extract first name from sender, e.g. "Alan Donelan <alan@x.com>" → "Alan"
   // Falls back to "" (renders as "Hi there,") if no clean name is found
   let firstName = "";
   if (senderName) {
-    // Strip the email address portion if present: "Name <email>" â†’ "Name"
+    // Strip the email address portion if present: "Name <email>" → "Name"
     const displayName = senderName.replace(/<[^>]+>/, "").trim();
     // If what's left still looks like a raw email address, discard it
     if (displayName && !displayName.includes("@")) {
@@ -7360,38 +7354,38 @@ async function runEmailResponseAgent(emailContent, senderName = "", applicationC
       role: "system",
       content: `You are drafting a reply email on behalf of Cormac Collins, an Irish mortgage broker at At Once Mortgages.
 
-Write in the FIRST PERSON as Cormac. Never refer to "Cormac", "the broker", or "we" in a way that implies a third party â€” you ARE Cormac writing directly to the client.
+Write in the FIRST PERSON as Cormac. Never refer to "Cormac", "the broker", or "we" in a way that implies a third party — you ARE Cormac writing directly to the client.
 
 You have two tools:
 - search_knowledge_base: searches lender criteria, policy docs, rates and procedures
 - search_approved_answers: searches broker-pre-approved Q&A pairs
 
 Instructions:
-1. Read the FULL email carefully â€” this includes any quoted/previous messages in the thread (lines starting with ">" or prefixed with "On [date] wrote:"). Use the thread history to understand the full context: what documents have already been sent, what questions have already been answered, what the current status of the application is.
+1. Read the FULL email carefully — this includes any quoted/previous messages in the thread (lines starting with ">" or prefixed with "On [date] wrote:"). Use the thread history to understand the full context: what documents have already been sent, what questions have already been answered, what the current status of the application is.
 2. Identify the specific topic(s) being asked about in the latest message
 3. Search for relevant information using specific targeted queries
 4. You may search multiple times with different queries if needed
 5. Once you have enough information, draft the reply
 
 Using thread history:
-- If the thread shows a client previously sent a payslip, gift letter, bank statement or other document â€” acknowledge it as received if they are asking about it
-- If the thread shows a question was already answered â€” do not repeat the full answer, just confirm
-- If the thread mentions a specific person (e.g. a parent providing a gift) â€” use their name naturally in the reply
+- If the thread shows a client previously sent a payslip, gift letter, bank statement or other document — acknowledge it as received if they are asking about it
+- If the thread shows a question was already answered — do not repeat the full answer, just confirm
+- If the thread mentions a specific person (e.g. a parent providing a gift) — use their name naturally in the reply
 - Do NOT ask for documents that the thread shows have already been sent
 
 Rules for the draft:
-- Write as "I" â€” e.g. "I'll chase that up", "I've received your documents", "I'll be in touch"
+- Write as "I" — e.g. "I'll chase that up", "I've received your documents", "I'll be in touch"
 - Do NOT invent lender-specific criteria not found in your searches
 - Do NOT promise approval, rates, or timelines
 - Do NOT give financial advice
 - If searches return nothing useful, say you will be in touch to confirm (e.g. "I'll come back to you on that")
-- Keep it concise and human â€” 4 to 8 lines
+- Keep it concise and human — 4 to 8 lines
 
-IMPORTANT â€” New mortgage enquiries:
+IMPORTANT — New mortgage enquiries:
 If the email is a NEW mortgage enquiry (someone wanting to start the mortgage process,
-asking about applying, asking if they qualify, asking about getting a mortgage â€” with
+asking about applying, asking if they qualify, asking about getting a mortgage — with
 no existing case reference or ongoing application mentioned), do NOT search the knowledge
-base or provide detailed mortgage information. Instead write a short warm reply (3â€“4 lines)
+base or provide detailed mortgage information. Instead write a short warm reply (3–4 lines)
 that:
   1. Thanks them for getting in touch
   2. Directs them to start the process on the At Once Mortgages website chat at
@@ -7401,9 +7395,9 @@ Do NOT do this for existing clients who already have a case in progress.
 
 Style:
 - Friendly and professional
-- Start with "Hi ${firstName || "there"}," â€” always use the sender's first name if available, never "Hi there" when a name is known
-- Use Irish/British English spelling throughout â€” e.g. "apologise" not "apologize", "recognise" not "recognize", "organise" not "organize", "colour" not "color", "favour" not "favor"
-- Do NOT add a sign-off or "Kind regards" â€” the signature is added automatically`
+- Start with "Hi ${firstName || "there"}," — always use the sender's first name if available, never "Hi there" when a name is known
+- Use Irish/British English spelling throughout — e.g. "apologise" not "apologize", "recognise" not "recognize", "organise" not "organize", "colour" not "color", "favour" not "favor"
+- Do NOT add a sign-off or "Kind regards" — the signature is added automatically`
     },
     {
       role: "user",
@@ -7416,12 +7410,12 @@ Style:
           const fmt = (d) => new Date(d).toLocaleDateString("en-IE", { day: "numeric", month: "short" });
 
           stateBlock = [
-            "â”€â”€ APPLICATION STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€",
+            "── APPLICATION STATE ──────────────────────────────",
             `Borrower:    ${s.borrower_name || "Unknown"}${s.co_borrower_name ? ` & ${s.co_borrower_name}` : ""}`,
             `Phase:        ${(s.current_phase || "initial_enquiry").replace(/_/g, " ")}`,
             `Lender:       ${s.lender        ? s.lender.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "not yet identified"}`,
             `Borrower type:${s.borrower_type ? " " + s.borrower_type.replace(/_/g, " ")                          : " not yet identified"}`,
-            `Loan amount: ${s.loan_amount ? `â‚¬${Number(s.loan_amount).toLocaleString("en-IE")}` : "not confirmed"}`,
+            `Loan amount: ${s.loan_amount ? `€${Number(s.loan_amount).toLocaleString("en-IE")}` : "not confirmed"}`,
             `Property:    ${s.property_address || "not yet mentioned"}`,
             `Docs received:    ${s.received_documents?.length
               ? s.received_documents.map(d => {
@@ -7430,16 +7424,16 @@ Style:
                 }).join(", ")
               : "none yet"}`,
             `Docs outstanding: ${s.missing_documents?.length  ? s.missing_documents.join(", ")  : "none flagged"}`,
-            ...(s.conflict_flags?.length ? [`âš ï¸  FLAGS: ${s.conflict_flags.join("; ")}`] : []),
+            ...(s.conflict_flags?.length ? [`⚠️  FLAGS: ${s.conflict_flags.join("; ")}`] : []),
             "",
-            "â”€â”€ HISTORY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€",
+            "── HISTORY ─────────────────────────────────────────",
             s.running_summary || "No history yet.",
             "",
             ...(events.length ? [
-              "â”€â”€ RECENT EVENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€",
+              "── RECENT EVENTS ───────────────────────────────────",
               ...events.slice(0, 5).map(e => `[${fmt(e.created_at)}] ${e.event_type}: ${e.description}`)
             ] : []),
-            "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€",
+            "────────────────────────────────────────────────────",
             ""
           ].join("\n");
         }
@@ -7449,7 +7443,7 @@ Style:
     }
   ];
 
-  // Agent loop â€” max 6 iterations (3 rounds of tool calls + final answer)
+  // Agent loop — max 6 iterations (3 rounds of tool calls + final answer)
   for (let i = 0; i < 6; i++) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -7502,16 +7496,16 @@ Style:
     }
   }
 
-  console.warn("[email-agent] Max iterations reached â€” returning partial draft");
+  console.warn("[email-agent] Max iterations reached — returning partial draft");
   const last = messages.filter(m => m.role === "assistant" && m.content).pop();
   return last?.content || "Unable to generate draft.";
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Lender Document Checklists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Required documents per lender Ã— borrower type for Irish mortgages.
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Lender Document Checklists ────────────────────────────────────────────────
+// Required documents per lender × borrower type for Irish mortgages.
 // Used to auto-populate missing_documents when lender + borrower_type are known.
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 const LENDER_CHECKLISTS = {
   haven: {
@@ -7556,7 +7550,7 @@ const LENDER_CHECKLISTS = {
       "Proof of address (last 6 months)"
     ],
     self_employed: [
-      "3 years audited accounts",        // PTSB requires 3 years â€” stricter than others
+      "3 years audited accounts",        // PTSB requires 3 years — stricter than others
       "3 years Form 11 tax returns",
       "Notice of Assessment (last 3 years)",
       "Accountant's reference letter",
@@ -7677,15 +7671,15 @@ function getLenderChecklist(lender, borrowerType) {
   return LENDER_CHECKLISTS[lender]?.[borrowerType] || null;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Email Context Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Email Context Engine ──────────────────────────────────────────────────────
 // State-driven context for AI reply generation. Tracks each mortgage application
 // as a structured state object so the AI knows what docs have been received,
 // what phase the case is at, and has a running summary of the interaction history.
-// All new tables â€” zero impact on existing tenants or data.
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// All new tables — zero impact on existing tenants or data.
+// ─────────────────────────────────────────────────────────────────────────────
 
-// â”€â”€ 1. Deduplicator â€” strips quoted thread history, signatures, disclaimers â”€â”€â”€
+// ── 1. Deduplicator — strips quoted thread history, signatures, disclaimers ───
 function deduplicateEmailBody(rawBody) {
   if (!rawBody) return "";
 
@@ -7716,7 +7710,7 @@ function deduplicateEmailBody(rawBody) {
   return output.join("\n").trim();
 }
 
-// â”€â”€ 2. Entity Extractor â€” pulls key mortgage entities from cleaned email â”€â”€â”€â”€â”€â”€â”€
+// ── 2. Entity Extractor — pulls key mortgage entities from cleaned email ───────
 async function extractEmailEntities(cleanedBody, from, subject) {
   try {
     const response = await anthropic.messages.create({
@@ -7726,7 +7720,7 @@ async function extractEmailEntities(cleanedBody, from, subject) {
         role: "user",
         content:
 `Extract mortgage application entities from this Irish mortgage broker email.
-Return ONLY valid JSON â€” no markdown, no extra text.
+Return ONLY valid JSON — no markdown, no extra text.
 
 From: ${from}
 Subject: ${subject}
@@ -7741,8 +7735,8 @@ Body: ${cleanedBody.slice(0, 1500)}
   "loan_amount": numeric euros or null,
   "property_address": "address if mentioned else null",
   "phase_signal": "initial_enquiry | aip | full_application | underwriting | letter_of_offer | drawdown | null",
-  "lender": "one of: haven | nua | ptsb | bank_of_ireland | avant | null â€” only set if a lender is clearly mentioned",
-  "borrower_type": "paye | self_employed | contract | null â€” only set if clearly indicated"
+  "lender": "one of: haven | nua | ptsb | bank_of_ireland | avant | null — only set if a lender is clearly mentioned",
+  "borrower_type": "paye | self_employed | contract | null — only set if clearly indicated"
 }`
       }]
     });
@@ -7756,7 +7750,7 @@ Body: ${cleanedBody.slice(0, 1500)}
   }
 }
 
-// â”€â”€ 3. Find or Create Application State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 3. Find or Create Application State ───────────────────────────────────────
 async function findOrCreateApplicationState(from, entities) {
   const emailMatch = from.match(/<([^>]+)>/);
   const senderEmail = (emailMatch ? emailMatch[1] : from).toLowerCase().trim();
@@ -7772,10 +7766,10 @@ async function findOrCreateApplicationState(from, entities) {
 
   if (existing) return existing;
 
-  // â”€â”€ Noise gate: don't create a new state row for clearly non-mortgage emails â”€â”€
+  // ── Noise gate: don't create a new state row for clearly non-mortgage emails ──
   // If Claude found no borrower name, no lender, no documents, and labelled the
   // event as "other", this email almost certainly isn't a mortgage enquiry.
-  // We skip state creation entirely â€” the try/catch in the caller handles null.
+  // We skip state creation entirely — the try/catch in the caller handles null.
   const hasSignal =
     entities.borrower_name ||
     entities.lender ||
@@ -7784,7 +7778,7 @@ async function findOrCreateApplicationState(from, entities) {
     (entities.event_type && entities.event_type !== "other");
 
   if (!hasSignal) {
-    console.log(`[email-context] Noise gate â€” no mortgage signal detected for ${senderEmail}, skipping state creation`);
+    console.log(`[email-context] Noise gate — no mortgage signal detected for ${senderEmail}, skipping state creation`);
     return null;
   }
 
@@ -7819,7 +7813,7 @@ async function findOrCreateApplicationState(from, entities) {
   return newState;
 }
 
-// â”€â”€ 4. Running Summary â€” incrementally updated 3-5 sentence history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 4. Running Summary — incrementally updated 3-5 sentence history ───────────
 async function updateRunningSummary(existingSummary, cleanedBody, from, subject, entities) {
   try {
     const response = await anthropic.messages.create({
@@ -7832,7 +7826,7 @@ async function updateRunningSummary(existingSummary, cleanedBody, from, subject,
 Keep it to 3-5 concise sentences covering key history. Be specific about documents received and current status.
 
 Current summary:
-${existingSummary || "No summary yet â€” this is the first email."}
+${existingSummary || "No summary yet — this is the first email."}
 
 New email:
 From: ${from}
@@ -7841,7 +7835,7 @@ Documents received: ${(entities.documents_received || []).join(", ") || "none"}
 Event: ${entities.event_type || "other"}
 Content: ${cleanedBody.slice(0, 500)}
 
-Return ONLY the updated summary â€” no labels or formatting.`
+Return ONLY the updated summary — no labels or formatting.`
       }]
     });
     return response.content[0]?.text?.trim() || existingSummary;
@@ -7850,7 +7844,7 @@ Return ONLY the updated summary â€” no labels or formatting.`
   }
 }
 
-// â”€â”€ 5. State Updater â€” applies new email data to the application state â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 5. State Updater — applies new email data to the application state ─────────
 async function updateApplicationState(state, entities, cleanedBody, from, subject) {
   const updates = {};
   const events  = [];
@@ -7865,7 +7859,7 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
   if (entities.co_borrower_name && !state.co_borrower_name) updates.co_borrower_name = entities.co_borrower_name;
   if (entities.property_address && !state.property_address) updates.property_address = entities.property_address;
 
-  // Lender â€” update if newly identified (flag if it changes unexpectedly)
+  // Lender — update if newly identified (flag if it changes unexpectedly)
   if (entities.lender && entities.lender !== "null") {
     if (state.lender && state.lender !== entities.lender) {
       const flag = `Lender changed from ${state.lender} to ${entities.lender}`;
@@ -7875,7 +7869,7 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
     updates.lender = entities.lender;
   }
 
-  // Borrower type â€” only fill if not already set
+  // Borrower type — only fill if not already set
   if (entities.borrower_type && entities.borrower_type !== "null" && !state.borrower_type) {
     updates.borrower_type = entities.borrower_type;
   }
@@ -7905,10 +7899,10 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
     }
   }
 
-  // Loan amount â€” flag if it changes
+  // Loan amount — flag if it changes
   if (entities.loan_amount) {
     if (state.loan_amount && state.loan_amount !== entities.loan_amount) {
-      const flag = `Loan amount changed from â‚¬${Number(state.loan_amount).toLocaleString("en-IE")} to â‚¬${Number(entities.loan_amount).toLocaleString("en-IE")}`;
+      const flag = `Loan amount changed from €${Number(state.loan_amount).toLocaleString("en-IE")} to €${Number(entities.loan_amount).toLocaleString("en-IE")}`;
       updates.conflict_flags = [...(state.conflict_flags || []), flag];
       console.warn(`[email-context] Conflict flag raised: ${flag}`);
     }
@@ -7961,7 +7955,7 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
     await supabase.from("application_events").insert(events);
   }
 
-  // Short-term email memory â€” keep last 3 cleaned emails per application
+  // Short-term email memory — keep last 3 cleaned emails per application
   await supabase.from("application_email_context").insert({
     application_id: state.id,
     cleaned_body:   cleanedBody.slice(0, 3000),
@@ -7986,7 +7980,7 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
   return { ...state, ...updates };
 }
 
-// â”€â”€ 6. Context Builder â€” assembles full context for reply generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 6. Context Builder — assembles full context for reply generation ───────────
 async function getApplicationContext(stateId) {
   const [stateRes, eventsRes, docEventsRes, emailsRes] = await Promise.all([
     supabase.from("mortgage_application_states").select("*").eq("id", stateId).single(),
@@ -7995,7 +7989,7 @@ async function getApplicationContext(stateId) {
     supabase.from("application_email_context").select("*").eq("application_id", stateId).order("received_at", { ascending: false }).limit(3)
   ]);
 
-  // Build a map of document name â†’ received date from document_received events
+  // Build a map of document name → received date from document_received events
   const docDates = {};
   for (const e of (docEventsRes.data || [])) {
     // description format: "Received: doc1, doc2"
@@ -8014,7 +8008,7 @@ async function getApplicationContext(stateId) {
   };
 }
 
-// â”€â”€â”€ Morning Digest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Morning Digest ───────────────────────────────────────────────────────────
 
 const PHASE_ORDER = ["initial_enquiry","aip","full_application","underwriting","letter_of_offer","drawdown"];
 const PHASE_LABEL = {
@@ -8045,7 +8039,7 @@ async function sendMorningDigest() {
     const dateLabel = today.toLocaleDateString("en-IE", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
     const since24h  = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-    // â”€â”€ Fetch data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Fetch data ──────────────────────────────────────────────────────────
     const [statesRes, eventsRes] = await Promise.all([
       supabase.from("mortgage_application_states").select("*").order("updated_at", { ascending: false }),
       supabase.from("application_events").select("*, mortgage_application_states(borrower_name, sender_email)")
@@ -8055,7 +8049,7 @@ async function sendMorningDigest() {
     const states = statesRes.data || [];
     const events = eventsRes.data || [];
 
-    // â”€â”€ Categorise â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Categorise ──────────────────────────────────────────────────────────
     const flagged     = states.filter(s => s.conflict_flags?.length > 0);
     const outstanding = states.filter(s => s.missing_documents?.length > 0);
     const newEnquiries= states.filter(s => s.current_phase === "initial_enquiry" &&
@@ -8069,7 +8063,7 @@ async function sendMorningDigest() {
       byPhase[p].push(s);
     }
 
-    // â”€â”€ HTML helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── HTML helpers ────────────────────────────────────────────────────────
     const pill = (text, color) =>
       `<span style="background:${color};color:white;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">${text}</span>`;
 
@@ -8088,7 +8082,7 @@ async function sendMorningDigest() {
 
     const caseRow = (s, extra = "") => {
       const name    = s.borrower_name || s.sender_email || "Unknown";
-      const lender  = LENDER_LABEL[s.lender] || "â€”";
+      const lender  = LENDER_LABEL[s.lender] || "—";
       const phase   = PHASE_LABEL[s.current_phase] || "Unknown";
       const pColor  = phaseColor(s.current_phase);
       return `<tr>
@@ -8096,14 +8090,14 @@ async function sendMorningDigest() {
           <div style="font-weight:600;color:#111827;font-size:14px;">${name}</div>
           <div style="font-size:12px;color:#6b7280;margin-top:2px;">
             ${pill(phase, pColor)}
-            ${lender !== "â€”" ? `&nbsp;<span style="color:#6b7280;">${lender}</span>` : ""}
+            ${lender !== "—" ? `&nbsp;<span style="color:#6b7280;">${lender}</span>` : ""}
           </div>
           ${extra ? `<div style="font-size:12px;color:#b45309;margin-top:4px;">${extra}</div>` : ""}
         </td>
       </tr>`;
     };
 
-    // â”€â”€ Build HTML â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Build HTML ──────────────────────────────────────────────────────────
     let html = `
 <!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
@@ -8113,7 +8107,7 @@ async function sendMorningDigest() {
 
   <!-- Header -->
   <tr><td style="background:#111827;padding:24px 32px;">
-    <div style="color:white;font-size:20px;font-weight:700;">â˜€ï¸ Good morning, Cormac</div>
+    <div style="color:white;font-size:20px;font-weight:700;">☀️ Good morning, Cormac</div>
     <div style="color:#9ca3af;font-size:13px;margin-top:4px;">${dateLabel}</div>
   </td></tr>
 
@@ -8132,18 +8126,18 @@ async function sendMorningDigest() {
   <tr><td style="padding:0 32px 32px;">
     <table width="100%" cellpadding="0" cellspacing="0">`;
 
-    // â”€â”€ Section 1: Flagged cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Section 1: Flagged cases ──────────────────────────────────────────
     if (flagged.length > 0) {
-      html += sectionHeader("ðŸš¨", "Needs Attention");
+      html += sectionHeader("🚨", "Needs Attention");
       for (const s of flagged) {
-        const flags = s.conflict_flags.join(" Â· ");
-        html += caseRow(s, `âš ï¸ ${flags}`);
+        const flags = s.conflict_flags.join(" · ");
+        html += caseRow(s, `⚠️ ${flags}`);
       }
     }
 
-    // â”€â”€ Section 2: Outstanding documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Section 2: Outstanding documents ─────────────────────────────────
     if (outstanding.length > 0) {
-      html += sectionHeader("ðŸ“‹", "Outstanding Documents");
+      html += sectionHeader("📋", "Outstanding Documents");
       // Sort by phase priority (later phases = more urgent)
       const sorted = [...outstanding].sort((a, b) =>
         PHASE_ORDER.indexOf(b.current_phase) - PHASE_ORDER.indexOf(a.current_phase)
@@ -8154,23 +8148,23 @@ async function sendMorningDigest() {
       }
     }
 
-    // â”€â”€ Section 3: Overnight activity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Section 3: Overnight activity ─────────────────────────────────────
     if (events.length > 0) {
-      html += sectionHeader("ðŸ•", "Overnight Activity");
+      html += sectionHeader("🕐", "Overnight Activity");
       for (const e of events.slice(0, 15)) {
         const name = e.mortgage_application_states?.borrower_name || e.mortgage_application_states?.sender_email || "Unknown";
         const time = new Date(e.created_at).toLocaleTimeString("en-IE", { hour:"2-digit", minute:"2-digit" });
         html += `<tr><td style="padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:13px;">
           <span style="color:#111827;font-weight:600;">${name}</span>
-          <span style="color:#6b7280;"> Â· ${e.event_type?.replace(/_/g," ") || "update"}</span>
+          <span style="color:#6b7280;"> · ${e.event_type?.replace(/_/g," ") || "update"}</span>
           <span style="color:#9ca3af;float:right;">${time}</span>
           ${e.description ? `<div style="color:#6b7280;font-size:12px;margin-top:2px;">${e.description}</div>` : ""}
         </td></tr>`;
       }
     }
 
-    // â”€â”€ Section 4: Pipeline overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    html += sectionHeader("ðŸ“Š", "Pipeline Overview");
+    // ── Section 4: Pipeline overview ──────────────────────────────────────
+    html += sectionHeader("📊", "Pipeline Overview");
     html += `<tr><td style="padding:12px 0;">
       <table width="100%" cellpadding="0" cellspacing="0">`;
     for (const phase of PHASE_ORDER) {
@@ -8183,13 +8177,13 @@ async function sendMorningDigest() {
           ${pill(PHASE_LABEL[phase], color)}
         </td>
         <td style="padding:6px 0 6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#374151;">
-          <strong>${cases.length}</strong> â€” ${names}
+          <strong>${cases.length}</strong> — ${names}
         </td>
       </tr>`;
     }
     html += `</table></td></tr>`;
 
-    // â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Footer ─────────────────────────────────────────────────────────────
     html += `
     </table>
   </td></tr>
@@ -8197,7 +8191,7 @@ async function sendMorningDigest() {
   <!-- Footer -->
   <tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
     <div style="font-size:12px;color:#9ca3af;text-align:center;">
-      Sent by Maeve Â· Sprimal AI for At Once Mortgages
+      Sent by Maeve · Sprimal AI for At Once Mortgages
     </div>
   </td></tr>
 
@@ -8205,14 +8199,14 @@ async function sendMorningDigest() {
 </td></tr></table>
 </body></html>`;
 
-    // â”€â”€ Send via Resend (maeve@sprimal.com) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const subject = `â˜€ï¸ Morning Digest â€” ${today.toLocaleDateString("en-IE", { day:"numeric", month:"short" })} Â· ${states.length} cases, ${flagged.length} flagged, ${outstanding.length} with outstanding docs`;
+    // ── Send via Resend (maeve@sprimal.com) ─────────────────────────────────
+    const subject = `☀️ Morning Digest — ${today.toLocaleDateString("en-IE", { day:"numeric", month:"short" })} · ${states.length} cases, ${flagged.length} flagged, ${outstanding.length} with outstanding docs`;
 
     const resendRes = await fetch("https://api.resend.com/emails", {
       method:  "POST",
       headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from:    "Maeve Â· At Once Mortgages <maeve@sprimal.com>",
+        from:    "Maeve · At Once Mortgages <maeve@sprimal.com>",
         to:      [process.env.BROKER_EMAIL],
         cc:      ["hello@sprimal.com"],
         subject,
@@ -8225,7 +8219,7 @@ async function sendMorningDigest() {
       throw new Error(`Resend API error: ${err}`);
     }
 
-    console.log(`[digest] Morning digest sent to ${process.env.BROKER_EMAIL} â€” ${states.length} cases, ${flagged.length} flagged`);
+    console.log(`[digest] Morning digest sent to ${process.env.BROKER_EMAIL} — ${states.length} cases, ${flagged.length} flagged`);
     return { ok: true, cases: states.length, flagged: flagged.length, outstanding: outstanding.length };
 
   } catch (err) {
@@ -8234,12 +8228,12 @@ async function sendMorningDigest() {
   }
 }
 
-// â”€â”€ Schedule digest at 07:30 Irish time (UTC+1) every weekday â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Schedule digest at 07:30 Irish time (UTC+1) every weekday ─────────────────
 function scheduleMorningDigest() {
   function msUntilNext730() {
     const now    = new Date();
     const target = new Date(now);
-    // Irish Standard Time is UTC+1 (UTC+0 in winter â€” close enough for a morning digest)
+    // Irish Standard Time is UTC+1 (UTC+0 in winter — close enough for a morning digest)
     target.setUTCHours(6, 30, 0, 0); // 06:30 UTC = 07:30 IST
     if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
     return target - now;
@@ -8254,7 +8248,7 @@ function scheduleMorningDigest() {
     const min     = now.getUTCMinutes();
     const isWeekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
 
-    // Send between 06:30â€“06:35 UTC (07:30â€“07:35 IST) on weekdays, once per day
+    // Send between 06:30–06:35 UTC (07:30–07:35 IST) on weekdays, once per day
     if (isWeekday && hour === 6 && min >= 30 && min < 35 && lastDigestDate !== dateKey) {
       lastDigestDate = dateKey;
       sendMorningDigest().catch(err => console.error("[digest] Scheduled send failed:", err.message));
@@ -8263,10 +8257,10 @@ function scheduleMorningDigest() {
 
   // Check every minute
   setInterval(checkAndSend, 60 * 1000);
-  console.log("[digest] Morning digest scheduler active â€” fires 07:30 IST weekdays");
+  console.log("[digest] Morning digest scheduler active — fires 07:30 IST weekdays");
 }
 
-// Admin endpoint â€” resend welcome email to any tenant
+// Admin endpoint — resend welcome email to any tenant
 app.get("/api/admin/send-welcome-email/:tenantId", requireAdmin, async (req, res) => {
   try {
     const { tenantId } = req.params;
@@ -8298,7 +8292,7 @@ app.get("/api/admin/send-welcome-email/:tenantId", requireAdmin, async (req, res
         from: "Sprimal <hello@sprimal.com>",
         to:   email,
         bcc:  ["hello@sprimal.com"],
-        subject: `Your Sprimal assistant is ready ðŸŽ‰`,
+        subject: `Your Sprimal assistant is ready 🎉`,
         html: buildWelcomeEmailHtml({ name, email, portalPassword, website, imported: imported || 0, tenantId })
       })
     });
@@ -8316,7 +8310,7 @@ app.get("/api/admin/send-welcome-email/:tenantId", requireAdmin, async (req, res
   }
 });
 
-// Admin endpoint â€” trigger digest manually for testing
+// Admin endpoint — trigger digest manually for testing
 app.get("/api/admin/send-morning-digest", requireAdmin, async (req, res) => {
   try {
     const result = await sendMorningDigest();
@@ -8326,45 +8320,45 @@ app.get("/api/admin/send-morning-digest", requireAdmin, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ Email intent classifier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Email intent classifier ──────────────────────────────────────────────────
 // Mirrors the Python email_router.py logic.
 // Step 1: header-based pre-filter (free, instant).
 // Step 2: Anthropic LLM classification with prompt caching on the static system prompt.
-// Fails open â€” on any error, defaults to needs_reply so real enquiries are never silently dropped.
+// Fails open — on any error, defaults to needs_reply so real enquiries are never silently dropped.
 
 const EMAIL_CLASSIFIER_SYSTEM_PROMPT = `You are an email intent classifier for a mortgage broker's inbox. Your job is to read an incoming email and determine:
 
-1. The primary intent of the sender â€” choose exactly one:
+1. The primary intent of the sender — choose exactly one:
    ACTIONABLE (sender expects a personal response):
-   - Question       â€” asking something that requires an answer
-   - Request        â€” asking for a document, callback, or action
-   - Scheduling     â€” proposing or confirming a meeting or call
-   - Problem        â€” reporting an issue or urgent situation
-   - Mortgage Enquiry â€” new or ongoing mortgage application enquiry
+   - Question       — asking something that requires an answer
+   - Request        — asking for a document, callback, or action
+   - Scheduling     — proposing or confirming a meeting or call
+   - Problem        — reporting an issue or urgent situation
+   - Mortgage Enquiry — new or ongoing mortgage application enquiry
 
    PASSIVE (no personal reply needed):
-   - Information/FYI â€” sharing information with no engagement needed
-   - Transactional  â€” automated receipt, invoice, or order confirmation
-   - System Alert   â€” server alert, monitoring notification
-   - Auto-Response  â€” out-of-office reply, vacation auto-responder
-   - Promotional    â€” newsletter, marketing, or sales email
+   - Information/FYI — sharing information with no engagement needed
+   - Transactional  — automated receipt, invoice, or order confirmation
+   - System Alert   — server alert, monitoring notification
+   - Auto-Response  — out-of-office reply, vacation auto-responder
+   - Promotional    — newsletter, marketing, or sales email
 
 2. Whether to reply or suppress:
-   - "needs_reply"  â†’ Question, Request, Scheduling, Problem, Mortgage Enquiry
-   - "no_reply"     â†’ Information/FYI, Transactional, System Alert, Auto-Response, Promotional
+   - "needs_reply"  → Question, Request, Scheduling, Problem, Mortgage Enquiry
+   - "no_reply"     → Information/FYI, Transactional, System Alert, Auto-Response, Promotional
 
 3. Your confidence as a decimal from 0.0 to 1.0.
 
 Strict rules:
-- Out-of-office or vacation replies â†’ Auto-Response + no_reply always.
-- Newsletters or marketing â†’ Promotional + no_reply always.
+- Out-of-office or vacation replies → Auto-Response + no_reply always.
+- Newsletters or marketing → Promotional + no_reply always.
 - Only choose needs_reply if a real human is clearly seeking a personal response.
 - When uncertain, lean toward no_reply to avoid reply loops.
 
 Respond with ONLY valid JSON, no markdown, no extra text:
 {"intent":"<one of the ten intents>","category":"needs_reply|no_reply","confidence":<float>,"type":"short_snake_case_label","reason":"one concise sentence"}`;
 
-// RFC 3834 / RFC 2369 automated-email header rules â€” same as Python email_router.py
+// RFC 3834 / RFC 2369 automated-email header rules — same as Python email_router.py
 const SUPPRESS_HEADER_RULES = [
   // auto-submitted: anything except "no" means automated
   { header: "auto-submitted",           check: v => v.toLowerCase().trim() !== "no" },
@@ -8385,18 +8379,18 @@ function checkEmailHeaders(headers = {}) {
       return `Header '${rule.header}: ${value}' marks email as automated`;
     }
   }
-  return null; // no suppression headers found â€” proceed to LLM
+  return null; // no suppression headers found — proceed to LLM
 }
 
 async function classifyInboundEmail(from, subject, body, headers = {}) {
-  // Step 1 â€” header pre-filter (free, no API call needed)
+  // Step 1 — header pre-filter (free, no API call needed)
   const headerReason = checkEmailHeaders(headers);
   if (headerReason) {
     console.log(`[email-classify] Suppressed by header: ${headerReason}`);
     return { category: "no_reply", intent: "Auto-Response", confidence: 1.0, type: "automated_header", reason: headerReason };
   }
 
-  // Step 2 â€” Anthropic LLM classification with prompt caching
+  // Step 2 — Anthropic LLM classification with prompt caching
   try {
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5",   // fast, cheap classifier; swap to claude-opus-4-7 for max accuracy
@@ -8405,7 +8399,7 @@ async function classifyInboundEmail(from, subject, body, headers = {}) {
         {
           type: "text",
           text: EMAIL_CLASSIFIER_SYSTEM_PROMPT,
-          // cache_control marker â€” caching only activates when prefix >= 4096 tokens (haiku-4-5 minimum)
+          // cache_control marker — caching only activates when prefix >= 4096 tokens (haiku-4-5 minimum)
           // Left here so it kicks in automatically if the prompt is ever expanded
           cache_control: { type: "ephemeral" }
         }
@@ -8421,11 +8415,11 @@ async function classifyInboundEmail(from, subject, body, headers = {}) {
     // Log cache metrics so we can verify prompt caching is working
     const usage = response.usage;
     console.log(
-      `[email-classify] LLM tokens â€” input: ${usage.input_tokens} | cache_write: ${usage.cache_creation_input_tokens || 0} | cache_read: ${usage.cache_read_input_tokens || 0} | output: ${usage.output_tokens}`
+      `[email-classify] LLM tokens — input: ${usage.input_tokens} | cache_write: ${usage.cache_creation_input_tokens || 0} | cache_read: ${usage.cache_read_input_tokens || 0} | output: ${usage.output_tokens}`
     );
 
     let rawText = response.content.find(b => b.type === "text")?.text?.trim() || "{}";
-    // Strip markdown code fences â€” model sometimes wraps JSON in ```json...``` despite instructions
+    // Strip markdown code fences — model sometimes wraps JSON in ```json...``` despite instructions
     rawText = rawText.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
     const parsed = JSON.parse(rawText);
 
@@ -8440,15 +8434,15 @@ async function classifyInboundEmail(from, subject, body, headers = {}) {
 
   } catch (err) {
     console.error("[email-classify] Error:", err.message);
-    // Fail open â€” better to generate an unnecessary draft than miss a real enquiry
-    return { category: "needs_reply", intent: "Unknown", confidence: 0, type: "unknown", reason: "Classification failed â€” defaulting to reply" };
+    // Fail open — better to generate an unnecessary draft than miss a real enquiry
+    return { category: "needs_reply", intent: "Unknown", confidence: 0, type: "unknown", reason: "Classification failed — defaulting to reply" };
   }
 }
 
-// â”€â”€â”€ Gmail label tagging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Gmail label tagging ─────────────────────────────────────────────────────
 // Gmail exposes labels as IMAP mailbox folders.
 // Copying a message into a label folder applies that label without moving the
-// email out of INBOX â€” so Cormac sees both the label and the original inbox view.
+// email out of INBOX — so Cormac sees both the label and the original inbox view.
 //
 // Labels created under "Sprimal/" so they group neatly in the Gmail sidebar:
 //   Sprimal/Mortgage Enquiry   Sprimal/Question   Sprimal/Request
@@ -8467,7 +8461,7 @@ async function applyGmailLabel(imapClient, uid, labelName) {
       try {
         await imapClient.mailboxCreate(labelName);
       } catch (_) {
-        // Already exists or server rejected â€” safe to continue
+        // Already exists or server rejected — safe to continue
       }
       gmailLabelCache.add(labelName);
     }
@@ -8476,7 +8470,7 @@ async function applyGmailLabel(imapClient, uid, labelName) {
     await imapClient.messageCopy(uid, labelName, { uid: true });
     console.log(`[email-poll] Gmail label applied: "${labelName}"`);
   } catch (err) {
-    // Non-fatal â€” labelling is best-effort, email processing still continues
+    // Non-fatal — labelling is best-effort, email processing still continues
     console.warn(`[email-poll] Could not apply Gmail label "${labelName}": ${err.message}`);
   }
 }
@@ -8485,7 +8479,7 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
   console.log(`[email-poll] Processing: "${subject}" from ${from}`);
 
   try {
-    // â”€â”€ Email context pipeline (fail-safe â€” falls back gracefully) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Email context pipeline (fail-safe — falls back gracefully) ────────────
     let applicationContext = null;
     try {
       const cleanedBody = deduplicateEmailBody(body);
@@ -8496,7 +8490,7 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
 
       const state       = await findOrCreateApplicationState(from, entities);
       if (!state) {
-        console.log(`[email-context] Noise gate triggered â€” no application context built for ${from}`);
+        console.log(`[email-context] Noise gate triggered — no application context built for ${from}`);
       } else {
         const updatedState = await updateApplicationState(state, entities, cleanedBody, from, subject);
         applicationContext = await getApplicationContext(updatedState.id);
@@ -8504,18 +8498,18 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
 
       console.log(`[email-context] Phase: ${applicationContext.state?.current_phase} | Docs received: ${applicationContext.state?.received_documents?.join(", ") || "none"}`);
     } catch (ctxErr) {
-      console.warn(`[email-context] Pipeline failed â€” continuing without context: ${ctxErr.message}`);
+      console.warn(`[email-context] Pipeline failed — continuing without context: ${ctxErr.message}`);
     }
 
     const rawDraft = await runEmailResponseAgent(body, from, applicationContext);
 
-    // Strip any trailing sign-off the AI added â€” the real signature provides it
+    // Strip any trailing sign-off the AI added — the real signature provides it
     const draftBody = rawDraft.trim()
       .replace(/\n*(kind regards|best regards|many thanks|thanks|warm regards|regards|best|cheers|sincerely|yours sincerely|yours faithfully),?\s*(cormac|maeve)?\s*$/i, "")
       .trim();
     const draft = `${draftBody}\n\n${CORMAC_SIGNATURE}`;
 
-    // â”€â”€ HTML email â€” draft is visually distinct at a glance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── HTML email — draft is visually distinct at a glance ──────────────────
     const intentLabel    = cls.intent     || "Unknown";
     const confidencePct  = Math.round((cls.confidence || 0) * 100);
     const classifyReason = cls.reason     || "";
@@ -8529,7 +8523,7 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/\n/g, "<br>");
 
-    // Table-based layout â€” works in Outlook desktop (Word renderer), Gmail, and Outlook 365 web.
+    // Table-based layout — works in Outlook desktop (Word renderer), Gmail, and Outlook 365 web.
     // Rules: bgcolor attribute on <td> (Outlook ignores CSS background on divs),
     //        no border-radius (never renders in Outlook), no emoji (render as boxes).
     const fromSafe    = from.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -8552,7 +8546,7 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
     </tr>
   </table>
 
-  <!-- Suggested draft â€” green box -->
+  <!-- Suggested draft — green box -->
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;border:2px solid #38a169;">
     <tr>
       <td bgcolor="#f0fff4" style="background:#f0fff4;padding:20px 24px;">
@@ -8566,7 +8560,7 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
     </tr>
   </table>
 
-  <!-- Original email â€” greyed out -->
+  <!-- Original email — greyed out -->
   <table width="100%" cellpadding="0" cellspacing="0" border="0">
     <tr>
       <td bgcolor="#f7fafc" style="background:#f7fafc;border-left:3px solid #cbd5e0;padding:10px 16px;font-family:Arial,sans-serif;font-size:13px;color:#718096;">
@@ -8587,12 +8581,12 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
 
     // Plain-text fallback for email clients that don't render HTML
     const textBody =
-`[SPRIMAL DRAFT â€” ${intentLabel} Â· ${confidencePct}% confidence]
+`[SPRIMAL DRAFT — ${intentLabel} · ${confidencePct}% confidence]
 
 SUGGESTED DRAFT REPLY:
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+──────────────────────────────────────────
 ${draft.trim()}
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+──────────────────────────────────────────
 
 ORIGINAL EMAIL
 From: ${from}
@@ -8600,10 +8594,10 @@ Subject: ${subject}
 
 ${body.trim()}
 
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-Generated by Sprimal Â· Review before sending Â· Not sent to client yet`;
+──────────────────────────────────────────
+Generated by Sprimal · Review before sending · Not sent to client yet`;
 
-    // Never send back to the monitored inbox â€” that causes a loop; deduplicate addresses
+    // Never send back to the monitored inbox — that causes a loop; deduplicate addresses
     const recipients = [...new Set(
       [brokerEmail, "hello@sprimal.com"]
         .filter(Boolean)
@@ -8612,7 +8606,7 @@ Generated by Sprimal Â· Review before sending Â· Not sent to client yet`;
     )];
 
     if (recipients.length === 0) {
-      console.log("[email-poll] No recipients configured â€” skipping send");
+      console.log("[email-poll] No recipients configured — skipping send");
       return;
     }
 
@@ -8635,7 +8629,7 @@ Generated by Sprimal Â· Review before sending Â· Not sent to client yet`;
   }
 }
 
-// Helper â€” create a fresh ImapFlow client each time so there's no shared socket state
+// Helper — create a fresh ImapFlow client each time so there's no shared socket state
 function makeImapClient() {
   const c = new ImapFlow({
     host: "imap.gmail.com",
@@ -8651,7 +8645,7 @@ function makeImapClient() {
 async function pollGmailInbox() {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
 
-  // â”€â”€ Phase 1: fetch sources + mark as seen immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Phase 1: fetch sources + mark as seen immediately ────────────────────
   // Mark emails as seen RIGHT HERE while the connection is fresh, before any
   // slow LLM work. This guarantees no email is ever reprocessed even if the
   // later phases fail. Labels are applied afterwards as best-effort only.
@@ -8667,15 +8661,15 @@ async function pollGmailInbox() {
 
       if (!uids || uids.length === 0) {
         console.log("[email-poll] No new messages");
-        // fall through to finally â€” do NOT return here, logout must always run
+        // fall through to finally — do NOT return here, logout must always run
       } else {
-        console.log(`[email-poll] ${uids.length} unseen message(s) â€” fetching sources`);
+        console.log(`[email-poll] ${uids.length} unseen message(s) — fetching sources`);
 
         for await (const msg of fetchClient.fetch(uids.join(","), { source: true, uid: true }, { uid: true })) {
           rawMessages.push({ uid: msg.uid, source: Buffer.from(msg.source) });
         }
 
-        // Mark as seen now â€” before any LLM calls â€” so a crash in Phase 2
+        // Mark as seen now — before any LLM calls — so a crash in Phase 2
         // never causes the same email to be processed twice.
         const fetchedUids = rawMessages.map(m => m.uid);
         await fetchClient.messageFlagsAdd(fetchedUids.join(","), ["\\Seen"], { uid: true });
@@ -8683,61 +8677,61 @@ async function pollGmailInbox() {
       }
     } finally {
       lock.release();
-      try { await fetchClient.logout(); } catch (_) {} // always close â€” prevents socket timeout on idle polls
+      try { await fetchClient.logout(); } catch (_) {} // always close — prevents socket timeout on idle polls
     }
   } catch (err) {
     console.error("[email-poll] IMAP fetch error:", err.message);
     return;
   }
 
-  // Nothing to process â€” exit cleanly
+  // Nothing to process — exit cleanly
   if (rawMessages.length === 0) return;
 
-  // â”€â”€ Phase 2: classify + reply â€” no IMAP connection held â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Phase 2: classify + reply — no IMAP connection held ───────────────────
 
   // Senders that should never trigger a draft reply.
   //
-  // INTERNAL_DOMAINS  â€” whole domains (Cormac's colleagues)
-  // SKIP_ADDRESSES    â€” specific automated addresses at external organisations
+  // INTERNAL_DOMAINS  — whole domains (Cormac's colleagues)
+  // SKIP_ADDRESSES    — specific automated addresses at external organisations
   //                     (lender batch systems, document portals, etc.)
-  //                     Don't block the whole lender domain â€” underwriters at
+  //                     Don't block the whole lender domain — underwriters at
   //                     the same org may send genuine queries that need replies.
-  const INTERNAL_DOMAINS = []; // no fully-ignored domains â€” @aom.ie moved to context-only
+  const INTERNAL_DOMAINS = []; // no fully-ignored domains — @aom.ie moved to context-only
 
   const SKIP_ADDRESSES = [];
 
-  // Context-only senders â€” no reply generated, but email IS run through the
+  // Context-only senders — no reply generated, but email IS run through the
   // context pipeline so document events update the application state.
   const CONTEXT_ONLY_ADDRESSES = [
-    "adobesign@adobesign.com",        // Adobe Sign â€” gift letters, declarations, consent forms
-    "imcapplications@ptsb.ie",        // PTSB â€” document acknowledgements & application status updates
-    "electronicvaluations@ptsb.ie",   // PTSB â€” valuation confirmations & milestones
-    "noreply@mail.nuamoney.com",      // NUA Money â€” automated application notifications
-    "maeve@sprimal.com",              // Sprimal AI â€” context only, never reply to self
+    "adobesign@adobesign.com",        // Adobe Sign — gift letters, declarations, consent forms
+    "imcapplications@ptsb.ie",        // PTSB — document acknowledgements & application status updates
+    "electronicvaluations@ptsb.ie",   // PTSB — valuation confirmations & milestones
+    "noreply@mail.nuamoney.com",      // NUA Money — automated application notifications
+    "maeve@sprimal.com",              // Sprimal AI — context only, never reply to self
     "aom@onlineapplication.io",       // AOM online application portal (exact address variant)
-    "no-reply@asana.com",             // Asana task notifications â€” may contain case details
-    "rome@boi.com",                   // Bank of Ireland â€” case updates, context only
-    "michael.c.o'malley@aib.ie",      // Haven/AIB business manager â€” case updates, context only
+    "no-reply@asana.com",             // Asana task notifications — may contain case details
+    "rome@boi.com",                   // Bank of Ireland — case updates, context only
+    "michael.c.o'malley@aib.ie",      // Haven/AIB business manager — case updates, context only
   ];
 
   const CONTEXT_ONLY_DOMAINS = [
-    "@aom.onlineapplication.io",      // AOM online application portal â€” all automated notifications
-    "@aom.ie",                        // AOM colleagues â€” case updates, doc requests, milestones
-    "@ptsb.ie",                       // PTSB staff â€” lender communications, never auto-reply
+    "@aom.onlineapplication.io",      // AOM online application portal — all automated notifications
+    "@aom.ie",                        // AOM colleagues — case updates, doc requests, milestones
+    "@ptsb.ie",                       // PTSB staff — lender communications, never auto-reply
   ];
 
-  // Noise senders â€” fully ignored. No reply, no context pipeline, no LLM call.
+  // Noise senders — fully ignored. No reply, no context pipeline, no LLM call.
   // These are non-mortgage transactional/marketing emails that can never contain
   // application-relevant data. Add to this list whenever the application state
   // table accumulates junk rows from a recurring sender.
   const NOISE_SKIP_ADDRESSES = [
-    "oriordann@gmail.com",                  // Sprimal admin â€” never process or reply
+    "oriordann@gmail.com",                  // Sprimal admin — never process or reply
     "messaging-service@post.xero.com",      // Xero invoice notifications
     "info@micksgarage.com",                 // Car parts marketing
     "events@lia.ie",                        // LIA CPD event invitations
     "latest@royallondonnews.com",           // Royal London insurance marketing
     "peter.rice@irishlife.ie",              // Irish Life weekly markets marketing
-    // "no-reply@asana.com" â€” moved to context-only (Asana tasks may contain case details)
+    // "no-reply@asana.com" — moved to context-only (Asana tasks may contain case details)
     "noreply@reports.connecteam.com",       // Connecteam time tracking
     "no-reply@teams.mail.microsoft",        // Microsoft Teams notifications
     "noreply.invitations@trustpilotmail.com", // Trustpilot review requests
@@ -8812,23 +8806,23 @@ async function pollGmailInbox() {
         }
 
         if (!cormacAddressed) {
-          console.log(`[email-poll] CC-only email from ${from}: "${subject}" â€” context updated, no reply needed`);
+          console.log(`[email-poll] CC-only email from ${from}: "${subject}" — context updated, no reply needed`);
           results.push({ uid, cls: { intent: "CC-only" } });
           continue;
         }
 
-        console.log(`[email-poll] CC-only but Cormac directly addressed in "${subject}" â€” generating reply`);
+        console.log(`[email-poll] CC-only but Cormac directly addressed in "${subject}" — generating reply`);
         // Fall through to normal classification + reply
       }
 
-      // Skip internal team emails â€” colleagues asking Cormac queries
+      // Skip internal team emails — colleagues asking Cormac queries
       if (isInternalSender(from)) {
         console.log(`[email-poll] Skipping internal email from ${from}: "${subject}"`);
         results.push({ uid, cls: { intent: "Internal" } });
         continue;
       }
 
-      // Skip known noise senders â€” no reply, no context pipeline, no LLM cost
+      // Skip known noise senders — no reply, no context pipeline, no LLM cost
       if (isNoiseSender(from)) {
         console.log(`[email-poll] Skipping noise sender ${from}: "${subject}"`);
         results.push({ uid, cls: { intent: "Noise" } });
@@ -8841,10 +8835,10 @@ async function pollGmailInbox() {
         continue;
       }
 
-      // Context-only senders â€” run context pipeline to capture document events
+      // Context-only senders — run context pipeline to capture document events
       // (e.g. Adobe Sign gift letter signed) but do NOT generate a reply
       if (isContextOnlySender(from)) {
-        console.log(`[email-poll] Context-only sender: "${subject}" from ${from} â€” updating application state, no reply`);
+        console.log(`[email-poll] Context-only sender: "${subject}" from ${from} — updating application state, no reply`);
         try {
           const cleanedBody = deduplicateEmailBody(body);
           const entities    = await extractEmailEntities(cleanedBody, from, subject);
@@ -8860,13 +8854,13 @@ async function pollGmailInbox() {
 
       const cls = await classifyInboundEmail(from, subject, body, rawHeaders);
       console.log(
-        `[email-poll] Classified "${subject}" â†’ ${cls.intent} (${cls.category}, ${Math.round((cls.confidence||0)*100)}% confidence): ${cls.reason}`
+        `[email-poll] Classified "${subject}" → ${cls.intent} (${cls.category}, ${Math.round((cls.confidence||0)*100)}% confidence): ${cls.reason}`
       );
 
       if (cls.category === "needs_reply") {
         await processInboundEmail({ from, subject, body, cls });
       } else {
-        console.log(`[email-poll] Skipping â€” no reply needed`);
+        console.log(`[email-poll] Skipping — no reply needed`);
       }
 
       results.push({ uid, cls });
@@ -8878,7 +8872,7 @@ async function pollGmailInbox() {
 
   if (results.length === 0) return;
 
-  // â”€â”€ Phase 3: apply Gmail labels (best-effort) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Phase 3: apply Gmail labels (best-effort) ─────────────────────────────
   // Emails are already marked as seen above, so a failure here is cosmetic only.
   try {
     const labelClient = makeImapClient();
@@ -8897,14 +8891,14 @@ async function pollGmailInbox() {
 
     try { await labelClient.logout(); } catch (_) {}
   } catch (err) {
-    // Non-fatal â€” labels are cosmetic, core processing already completed
+    // Non-fatal — labels are cosmetic, core processing already completed
     console.warn(`[email-poll] Gmail label phase skipped: ${err.message}`);
   }
 }
 
 function startEmailPolling() {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.log("[email-poll] GMAIL_USER or GMAIL_APP_PASSWORD not set â€” email polling disabled");
+    console.log("[email-poll] GMAIL_USER or GMAIL_APP_PASSWORD not set — email polling disabled");
     return;
   }
 

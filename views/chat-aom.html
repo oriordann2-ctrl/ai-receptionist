@@ -468,18 +468,45 @@
   }
 
   function startNewChat(intent) {
-    var opening;
-    if (intent === "mortgage") {
-      opening = "Great — I can help with that. To get started, are you a first-time buyer, looking to switch mortgage, or remortgaging?";
-    } else if (intent === "appointment") {
-      opening = "No problem. To arrange a call or meeting with Cormac, you can reach out at cormac@aom.ie — or tell me a bit about what you need and I can pass the details on.";
-    } else {
-      opening = "Of course — what's on your mind?";
-    }
-    addMsg(opening, "bot");
-    flow.state = "NEW_CHAT";
-    setInput("chat", "Ask a question…");
-    flow.currentHandler = handleNewChat;
+    // GDPR consent gate — show before any backend call
+    addMsg("Before we get started — I may need to collect some personal details to help with your enquiry. Is that okay?", "bot");
+    setInput("disabled");
+    addButtons([
+      { label: "Yes, that's fine", value: "yes" },
+      { label: "No thanks",        value: "no"  }
+    ], function(btn) {
+      addMsg(btn.label, "user");
+      if (btn.value === "no") {
+        delay(function() {
+          addMsg("No problem at all — I won't collect any personal information. If you have general questions about mortgages, I'm still happy to help.", "bot");
+          flow.state = "NEW_CHAT";
+          setInput("chat", "Ask a question…");
+          flow.currentHandler = handleNewChat;
+        });
+      } else {
+        // Register consent with the backend, then open the chat
+        fetch(BACKEND + "/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: userId, conversationId: conversationId, message: "yes", clubId: TENANT_ID })
+        })
+        .then(function(r) { return r.json(); })
+        .finally(function() {
+          var opening;
+          if (intent === "mortgage") {
+            opening = "Great — I can help with that. To get started, are you a first-time buyer, looking to switch mortgage, or remortgaging?";
+          } else if (intent === "appointment") {
+            opening = "No problem. To arrange a call or meeting with Cormac, you can reach out at cormac@aom.ie — or tell me a bit about what you need and I can pass the details on.";
+          } else {
+            opening = "Of course — what's on your mind?";
+          }
+          addMsg(opening, "bot");
+          flow.state = "NEW_CHAT";
+          setInput("chat", "Ask a question…");
+          flow.currentHandler = handleNewChat;
+        });
+      }
+    });
   }
 
   function handleNewChat(message) {

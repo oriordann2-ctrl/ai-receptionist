@@ -8008,6 +8008,7 @@ async function pollGmailInbox() {
     "electronicvaluations@ptsb.ie",   // PTSB — valuation confirmations & milestones
     "noreply@mail.nuamoney.com",      // NUA Money — automated application notifications
     "maeve@sprimal.com",              // Sprimal AI — context only, never reply to self
+    "aom@onlineapplication.io",       // AOM online application portal (exact address variant)
   ];
 
   const CONTEXT_ONLY_DOMAINS = [

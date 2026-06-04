@@ -2367,12 +2367,13 @@ Do not ask more than one question at a time.
 
 async function generateGenericReply(message, tenantName) {
   try {
+    const orgName = tenantName || "the organisation";
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant for ${tenantName || "this organisation"}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't know the answer, say so politely and suggest they contact the organisation directly. Do not mention mortgages, brokers, or financial products.`
+          content: `You are a helpful assistant for ${orgName}. The user is already on the ${orgName} website or chat — never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so politely and suggest they contact ${orgName} directly. Do not mention mortgages, brokers, or financial products.`
         },
         {
           role: "user",
@@ -5347,6 +5348,7 @@ app.post("/chat", async (req, res) => {
         .maybeSingle();
       if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
       if (tenantData?.name) tenantDisplayName = tenantData.name;
+      else tenantDisplayName = tenantId.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
       // Respect AI Receptionist on/off toggle (null/undefined = enabled by default)
       if (tenantData?.ai_enabled === false) {
         return res.json({ reply: "The AI assistant is currently unavailable. Please contact us directly." });

@@ -7050,7 +7050,12 @@ Style:
             `Borrower type:${s.borrower_type ? " " + s.borrower_type.replace(/_/g, " ")                          : " not yet identified"}`,
             `Loan amount: ${s.loan_amount ? `€${Number(s.loan_amount).toLocaleString("en-IE")}` : "not confirmed"}`,
             `Property:    ${s.property_address || "not yet mentioned"}`,
-            `Docs received:    ${s.received_documents?.length ? s.received_documents.join(", ") : "none yet"}`,
+            `Docs received:    ${s.received_documents?.length
+              ? s.received_documents.map(d => {
+                  const date = applicationContext.docDates?.[d];
+                  return date ? `${d} (${date})` : d;
+                }).join(", ")
+              : "none yet"}`,
             `Docs outstanding: ${s.missing_documents?.length  ? s.missing_documents.join(", ")  : "none flagged"}`,
             ...(s.conflict_flags?.length ? [`⚠️  FLAGS: ${s.conflict_flags.join("; ")}`] : []),
             "",
@@ -7610,15 +7615,28 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
 
 // ── 6. Context Builder — assembles full context for reply generation ───────────
 async function getApplicationContext(stateId) {
-  const [stateRes, eventsRes, emailsRes] = await Promise.all([
+  const [stateRes, eventsRes, docEventsRes, emailsRes] = await Promise.all([
     supabase.from("mortgage_application_states").select("*").eq("id", stateId).single(),
     supabase.from("application_events").select("*").eq("application_id", stateId).order("created_at", { ascending: false }).limit(10),
+    supabase.from("application_events").select("description, created_at").eq("application_id", stateId).eq("event_type", "document_received").order("created_at", { ascending: true }),
     supabase.from("application_email_context").select("*").eq("application_id", stateId).order("received_at", { ascending: false }).limit(3)
   ]);
+
+  // Build a map of document name → received date from document_received events
+  const docDates = {};
+  for (const e of (docEventsRes.data || [])) {
+    // description format: "Received: doc1, doc2"
+    const docs = (e.description || "").replace(/^Received:\s*/i, "").split(",").map(d => d.trim());
+    const date = new Date(e.created_at).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" });
+    for (const doc of docs) {
+      if (doc && !docDates[doc]) docDates[doc] = date; // keep earliest date
+    }
+  }
 
   return {
     state:        stateRes.data       || null,
     recentEvents: eventsRes.data      || [],
+    docDates,                                          // { "AIB account statements": "3 Jun 2026", ... }
     recentEmails: (emailsRes.data     || []).reverse() // chronological
   };
 }

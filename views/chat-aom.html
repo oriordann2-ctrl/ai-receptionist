@@ -303,7 +303,7 @@
       hideTyping();
 
       if (data.status === "not_found") {
-        addMsg("I couldn't find any applications linked to " + email + ".\n\nDouble-check the address you used with AOM, or contact Cormac directly.", "bot");
+        addMsg("I couldn't find any applications linked to " + email + ".\n\nDouble-check the address you used with AOM, or contact the office directly.", "bot");
         addButtons([
           { label: "Try a different email", value: "retry" },
           { label: "Contact AOM",           value: "contact" }
@@ -313,7 +313,7 @@
             delay(startExistingFlow);
           } else {
             delay(function() {
-              addMsg("You can reach Cormac at cormac@aom.ie or call the office directly.", "bot");
+              addMsg("You can reach the AOM team at hello@aom.ie or call the office directly.", "bot");
             });
           }
         });
@@ -496,7 +496,7 @@
           if (intent === "mortgage") {
             opening = "Great — I can help with that. To get started, are you a first-time buyer, looking to switch mortgage, or remortgaging?";
           } else if (intent === "appointment") {
-            opening = "No problem. To arrange a call or meeting with Cormac, you can reach out at cormac@aom.ie — or tell me a bit about what you need and I can pass the details on.";
+            opening = "No problem. To arrange a call or meeting with the team, you can reach out at hello@aom.ie — or tell me a bit about what you need and I can pass the details on.";
           } else {
             opening = "Of course — what's on your mind?";
           }

@@ -516,10 +516,24 @@
             ], function(btn) {
               addMsg(btn.label, "user");
               flow.state = "NEW_CHAT";
-              setInput("chat", "Ask a question…");
               flow.currentHandler = handleNewChat;
-              // Seed the first message as context so the AI knows their situation
-              delay(function() { handleNewChat(btn.value); }, 1);
+              // Silently seed the context message without showing it as a bubble
+              showTyping();
+              fetch(BACKEND + "/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: userId, conversationId: conversationId, message: btn.value, clubId: TENANT_ID })
+              })
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                hideTyping();
+                addMsg(data.reply || "What would you like to know?", "bot");
+                setInput("chat", "Ask a question…");
+              })
+              .catch(function() {
+                hideTyping();
+                setInput("chat", "Ask a question…");
+              });
             });
           } else if (intent === "appointment") {
             addMsg("No problem — tell me a bit about what you need and I'll make sure the team has everything ready for your call.", "bot");

@@ -7814,14 +7814,25 @@ async function sendMorningDigest() {
 </td></tr></table>
 </body></html>`;
 
-    // ── Send ────────────────────────────────────────────────────────────────
-    await mailTransporter.sendMail({
-      from:    `"Maeve · At Once Mortgages" <${process.env.EMAIL_USER}>`,
-      to:      process.env.BROKER_EMAIL,
-      cc:      "hello@sprimal.com",
-      subject: `☀️ Morning Digest — ${today.toLocaleDateString("en-IE", { day:"numeric", month:"short" })} · ${states.length} cases, ${flagged.length} flagged, ${outstanding.length} with outstanding docs`,
-      html
+    // ── Send via Resend (maeve@sprimal.com) ─────────────────────────────────
+    const subject = `☀️ Morning Digest — ${today.toLocaleDateString("en-IE", { day:"numeric", month:"short" })} · ${states.length} cases, ${flagged.length} flagged, ${outstanding.length} with outstanding docs`;
+
+    const resendRes = await fetch("https://api.resend.com/emails", {
+      method:  "POST",
+      headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from:    "Maeve · At Once Mortgages <maeve@sprimal.com>",
+        to:      [process.env.BROKER_EMAIL],
+        cc:      ["hello@sprimal.com"],
+        subject,
+        html
+      })
     });
+
+    if (!resendRes.ok) {
+      const err = await resendRes.text();
+      throw new Error(`Resend API error: ${err}`);
+    }
 
     console.log(`[digest] Morning digest sent to ${process.env.BROKER_EMAIL} — ${states.length} cases, ${flagged.length} flagged`);
     return { ok: true, cases: states.length, flagged: flagged.length, outstanding: outstanding.length };

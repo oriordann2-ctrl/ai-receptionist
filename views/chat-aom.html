@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>At Once Mortgages — Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #111827;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    #header {
+      background: #111827;
+      padding: 14px 16px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      padding-top: max(14px, env(safe-area-inset-top));
+    }
+    #avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; flex-shrink: 0;
+    }
+    #avatar img { width: 90%; height: 90%; object-fit: contain; border-radius: 0; }
+    #header-info { flex: 1; min-width: 0; }
+    #header-name { font-size: 15px; font-weight: 700; color: white; }
+    #header-sub  { font-size: 12px; color: #9ca3af; margin-top: 1px; }
+    #header-dot  {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e; flex-shrink: 0;
+    }
+
+    /* ── Messages ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      background: #f9fafb;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .msg {
+      max-width: 82%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 15px;
+      line-height: 1.45;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .bot  { background: #e5e7eb; color: #111827; align-self: flex-start; border-bottom-left-radius: 4px; }
+    .user { background: #111827; color: white;   align-self: flex-end;   border-bottom-right-radius: 4px; }
+
+    /* ── Typing indicator ── */
+    .typing {
+      display: flex; gap: 5px; padding: 12px 14px;
+      align-items: center; align-self: flex-start;
+      background: #e5e7eb; border-radius: 18px; border-bottom-left-radius: 4px;
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #9ca3af; animation: bounce 0.9s infinite ease-in-out;
+    }
+    .dot:nth-child(2) { animation-delay: .15s; }
+    .dot:nth-child(3) { animation-delay: .30s; }
+    @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+    /* ── Quick reply buttons ── */
+    .quick-replies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 4px 0 6px;
+      align-self: flex-start;
+      max-width: 90%;
+    }
+    .qr-btn {
+      border: 1.5px solid #374151;
+      background: white;
+      color: #111827;
+      border-radius: 20px;
+      padding: 8px 18px;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .qr-btn:hover:not(:disabled) { background: #111827; color: white; border-color: #111827; }
+    .qr-btn.selected { background: #111827; color: white; border-color: #111827; }
+    .qr-btn:disabled { opacity: 0.45; cursor: default; }
+
+    /* ── Input bar ── */
+    #footer {
+      background: white;
+      border-top: 1px solid #e5e7eb;
+      padding: 10px 12px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+    #input {
+      flex: 1;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 22px;
+      padding: 10px 16px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      resize: none;
+      max-height: 120px;
+      line-height: 1.4;
+      transition: border-color 0.15s;
+    }
+    #input:focus { border-color: #111827; }
+    #input:disabled { background: #f9fafb; cursor: not-allowed; }
+    #send-btn {
+      width: 42px; height: 42px; flex-shrink: 0;
+      background: #111827; border: none; border-radius: 50%;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s; padding: 0;
+    }
+    #send-btn:hover  { background: #1f2937; }
+    #send-btn:active { background: #374151; }
+    #send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+    #send-btn svg { width: 20px; height: 20px; fill: white; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div id="avatar">AVATAR_PLACEHOLDER</div>
+  <div id="header-info">
+    <div id="header-name">Maeve</div>
+    <div id="header-sub">At Once Mortgages</div>
+  </div>
+  <div id="header-dot"></div>
+</div>
+
+<div id="messages"></div>
+
+<div id="footer">
+  <textarea id="input" rows="1" placeholder="Type here…"></textarea>
+  <button id="send-btn" aria-label="Send">
+    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+  </button>
+</div>
+
+<script>
+  var TENANT_ID = "aom";
+  var BACKEND   = "https://app.sprimal.com";
+
+  var userId         = "aom-" + Math.random().toString(36).slice(2, 10);
+  var conversationId = sessionStorage.getItem("sprimal_aom_conv") || ("aom-conv-" + Date.now());
+  sessionStorage.setItem("sprimal_aom_conv", conversationId);
+
+  var messagesEl = document.getElementById("messages");
+  var inputEl    = document.getElementById("input");
+  var sendBtn    = document.getElementById("send-btn");
+
+  // ── Flow state ────────────────────────────────────────────────────────────
+  var flow = {
+    state:         "INIT",
+    email:         null,
+    applicationId: null,
+    clientToken:   null,
+    currentHandler: null
+  };
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function addMsg(text, role) {
+    var div = document.createElement("div");
+    div.className = "msg " + role;
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return div;
+  }
+
+  function showTyping() {
+    var el = document.createElement("div");
+    el.className = "typing"; el.id = "typing";
+    el.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+    messagesEl.appendChild(el);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function hideTyping() {
+    var el = document.getElementById("typing");
+    if (el) el.remove();
+  }
+
+  function addButtons(buttons, onSelect) {
+    var container = document.createElement("div");
+    container.className = "quick-replies";
+    buttons.forEach(function(btn) {
+      var el = document.createElement("button");
+      el.className = "qr-btn";
+      el.textContent = btn.label;
+      el.addEventListener("click", function() {
+        container.querySelectorAll(".qr-btn").forEach(function(b) { b.disabled = true; });
+        el.classList.add("selected");
+        onSelect(btn);
+      });
+      container.appendChild(el);
+    });
+    messagesEl.appendChild(container);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return container;
+  }
+
+  function setInput(mode, placeholder) {
+    inputEl.value = "";
+    inputEl.style.height = "auto";
+    if (mode === "disabled") {
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+      inputEl.placeholder = "";
+    } else {
+      inputEl.disabled = false;
+      sendBtn.disabled = false;
+      inputEl.placeholder = placeholder || "Type here…";
+      setTimeout(function() { inputEl.focus(); }, 50);
+    }
+  }
+
+  function autoResize() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
+  }
+
+  function delay(fn, ms) { setTimeout(fn, ms === undefined ? 500 : ms); }
+
+  function handleSubmit() {
+    var text = inputEl.value.trim();
+    if (!text || inputEl.disabled || sendBtn.disabled) return;
+    if (flow.currentHandler) flow.currentHandler(text);
+  }
+
+  sendBtn.addEventListener("click", handleSubmit);
+  inputEl.addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
+  });
+  inputEl.addEventListener("input", autoResize);
+
+  // ── INIT ──────────────────────────────────────────────────────────────────
+
+  window.addEventListener("load", function() {
+    setInput("disabled");
+    addMsg("Hi there 👋 I'm Maeve, the At Once Mortgages assistant.\n\nAre you an existing AOM client, or getting in touch for the first time?", "bot");
+    addButtons([
+      { label: "Existing Client", value: "existing" },
+      { label: "New to AOM",      value: "new" }
+    ], function(btn) {
+      addMsg(btn.label, "user");
+      delay(btn.value === "existing" ? startExistingFlow : startNewFlow);
+    });
+  });
+
+  // ── EXISTING CLIENT PATH ──────────────────────────────────────────────────
+
+  function startExistingFlow() {
+    flow.state = "EXISTING_EMAIL";
+    addMsg("Welcome back. What's the email address associated with your application?", "bot");
+    setInput("email", "Your email address…");
+    flow.currentHandler = handleExistingEmail;
+  }
+
+  function handleExistingEmail(email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      addMsg("That doesn't look like a valid email address. Please try again.", "bot");
+      return;
+    }
+    flow.email = email;
+    addMsg(email, "user");
+    setInput("disabled");
+    showTyping();
+
+    fetch(BACKEND + "/api/aom/lookup-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      hideTyping();
+
+      if (data.status === "not_found") {
+        addMsg("I couldn't find any applications linked to " + email + ".\n\nDouble-check the address you used with AOM, or contact Cormac directly.", "bot");
+        addButtons([
+          { label: "Try a different email", value: "retry" },
+          { label: "Contact AOM",           value: "contact" }
+        ], function(btn) {
+          addMsg(btn.label, "user");
+          if (btn.value === "retry") {
+            delay(startExistingFlow);
+          } else {
+            delay(function() {
+              addMsg("You can reach Cormac at cormac@aom.ie or call the office directly.", "bot");
+            });
+          }
+        });
+
+      } else if (data.status === "single") {
+        flow.applicationId = data.applications[0].id;
+        addMsg("Found your application" + (data.applications[0].borrower_name ? ", " + data.applications[0].borrower_name : "") + ". I'll send a secure code to " + email + " now.", "bot");
+        delay(function() { sendOtp(email, data.applications[0].id); }, 600);
+
+      } else if (data.status === "multiple") {
+        addMsg("I can see " + data.applications.length + " applications linked to that email. Which one are you enquiring about?", "bot");
+        addButtons(data.applications.map(function(app) {
+          var label = app.borrower_name || "Application";
+          if (app.lender) label += " — " + app.lender;
+          return { label: label, value: app.id };
+        }), function(btn) {
+          flow.applicationId = btn.value;
+          addMsg(btn.label, "user");
+          delay(function() {
+            addMsg("Got it. I'll send a secure code to " + flow.email + " now.", "bot");
+            delay(function() { sendOtp(flow.email, flow.applicationId); }, 600);
+          });
+        });
+      }
+    })
+    .catch(function() {
+      hideTyping();
+      addMsg("Something went wrong. Please try again.", "bot");
+      setInput("email", "Your email address…");
+    });
+  }
+
+  function sendOtp(email, applicationId) {
+    fetch(BACKEND + "/api/aom/send-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, applicationId: applicationId })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        addMsg("I've sent a 6-digit code to " + email + ". Enter it below — it expires in 10 minutes.", "bot");
+        flow.state = "EXISTING_OTP";
+        setInput("otp", "6-digit code");
+        flow.currentHandler = handleOtp;
+      } else {
+        addMsg("Sorry, I had trouble sending the code. Please try again shortly.", "bot");
+      }
+    })
+    .catch(function() {
+      addMsg("Something went wrong sending the code. Please try again.", "bot");
+    });
+  }
+
+  function handleOtp(code) {
+    if (!/^\d{6}$/.test(code)) {
+      addMsg("Please enter the 6-digit code from your email.", "bot");
+      return;
+    }
+    addMsg(code, "user");
+    setInput("disabled");
+    showTyping();
+
+    fetch(BACKEND + "/api/aom/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: flow.email, code: code })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      hideTyping();
+      if (data.ok) {
+        flow.clientToken   = data.token;
+        flow.applicationId = data.applicationId;
+        flow.state         = "EXISTING_VERIFIED";
+        addMsg("You're verified ✅\n\n" + data.greeting, "bot");
+        setInput("chat", "Ask about your application…");
+        flow.currentHandler = handleVerifiedChat;
+      } else {
+        addMsg(data.error || "That code didn't match. Please check your email and try again.", "bot");
+        setInput("otp", "6-digit code");
+      }
+    })
+    .catch(function() {
+      hideTyping();
+      addMsg("Something went wrong. Please try again.", "bot");
+      setInput("otp", "6-digit code");
+    });
+  }
+
+  function handleVerifiedChat(message) {
+    addMsg(message, "user");
+    inputEl.value = "";
+    inputEl.style.height = "auto";
+    setInput("disabled");
+    showTyping();
+
+    fetch(BACKEND + "/api/aom/client-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId:        userId,
+        conversationId: conversationId,
+        message:       message,
+        applicationId: flow.applicationId,
+        token:         flow.clientToken
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      hideTyping();
+      addMsg(data.reply || "Sorry, something went wrong.", "bot");
+      setInput("chat", "Ask about your application…");
+      flow.currentHandler = handleVerifiedChat;
+    })
+    .catch(function() {
+      hideTyping();
+      addMsg("Sorry, I couldn't connect. Please try again.", "bot");
+      setInput("chat", "Ask about your application…");
+      flow.currentHandler = handleVerifiedChat;
+    });
+  }
+
+  // ── NEW CLIENT PATH ───────────────────────────────────────────────────────
+
+  function startNewFlow() {
+    flow.state = "NEW_EMAIL";
+    addMsg("Great, let's get started. What's your email address?", "bot");
+    setInput("email", "Your email address…");
+    flow.currentHandler = handleNewEmail;
+  }
+
+  function handleNewEmail(email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      addMsg("That doesn't look like a valid email address. Please try again.", "bot");
+      return;
+    }
+    flow.email = email;
+    addMsg(email, "user");
+    setInput("disabled");
+    delay(function() {
+      addMsg("Thanks. What brings you to AOM today?", "bot");
+      addButtons([
+        { label: "Apply for a mortgage", value: "mortgage"     },
+        { label: "Book an appointment",  value: "appointment"  },
+        { label: "Something else",       value: "other"        }
+      ], function(btn) {
+        addMsg(btn.label, "user");
+        delay(function() { startNewChat(btn.value); });
+      });
+    });
+  }
+
+  function startNewChat(intent) {
+    var opening;
+    if (intent === "mortgage") {
+      opening = "Great — I can help with that. To get started, are you a first-time buyer, looking to switch mortgage, or remortgaging?";
+    } else if (intent === "appointment") {
+      opening = "No problem. To arrange a call or meeting with Cormac, you can reach out at cormac@aom.ie — or tell me a bit about what you need and I can pass the details on.";
+    } else {
+      opening = "Of course — what's on your mind?";
+    }
+    addMsg(opening, "bot");
+    flow.state = "NEW_CHAT";
+    setInput("chat", "Ask a question…");
+    flow.currentHandler = handleNewChat;
+  }
+
+  function handleNewChat(message) {
+    addMsg(message, "user");
+    inputEl.value = "";
+    inputEl.style.height = "auto";
+    setInput("disabled");
+    showTyping();
+
+    fetch(BACKEND + "/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId:         userId,
+        conversationId: conversationId,
+        message:        message,
+        clubId:         TENANT_ID
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      hideTyping();
+      addMsg(data.reply || "Sorry, something went wrong.", "bot");
+      setInput("chat", "Ask a question…");
+      flow.currentHandler = handleNewChat;
+    })
+    .catch(function() {
+      hideTyping();
+      addMsg("Sorry, I couldn't connect. Please try again.", "bot");
+      setInput("chat", "Ask a question…");
+      flow.currentHandler = handleNewChat;
+    });
+  }
+</script>
+</body>
+</html>

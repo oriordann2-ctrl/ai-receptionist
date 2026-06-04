@@ -3735,6 +3735,235 @@ app.post("/portal/login", async (req, res) => {
   res.json({ success: true });
 });
 
+// ── AOM-specific chat page (existing/new client flow + OTP auth) ─────────────
+app.get("/chat/aom", async (req, res) => {
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("id, name, logo_url")
+    .eq("id", "aom")
+    .maybeSingle();
+
+  const name = ((tenant?.name) || "At Once Mortgages").replace(/"/g, "&quot;");
+  const avatarHtml = tenant?.logo_url
+    ? `<img src="${tenant.logo_url}" alt="${name}" />`
+    : `<svg viewBox="0 0 48 48" fill="none" style="width:100%;height:100%;"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>`;
+
+  const html = fs.readFileSync(path.join(__dirname, "views", "chat-aom.html"), "utf8")
+    .replace("AVATAR_PLACEHOLDER", avatarHtml);
+
+  res.setHeader("Cache-Control", "no-store");
+  res.send(html);
+});
+
+// ── AOM OTP store ─────────────────────────────────────────────────────────────
+// key: email (lowercase) → { code, applicationId, expiresAt }
+const aomOtpStore = new Map();
+const AOM_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+// Purge expired OTPs every 15 minutes
+setInterval(function() {
+  const now = Date.now();
+  for (const [k, v] of aomOtpStore) {
+    if (v.expiresAt < now) aomOtpStore.delete(k);
+  }
+}, 15 * 60 * 1000);
+
+// POST /api/aom/lookup-email
+app.post("/api/aom/lookup-email", async (req, res) => {
+  try {
+    const email = (req.body.email || "").toLowerCase().trim();
+    if (!email) return res.status(400).json({ error: "email required" });
+
+    const { data: apps } = await supabase
+      .from("mortgage_application_states")
+      .select("id, borrower_name, lender, current_phase")
+      .eq("sender_email", email)
+      .order("updated_at", { ascending: false });
+
+    if (!apps || apps.length === 0) {
+      return res.json({ status: "not_found", applications: [] });
+    }
+    if (apps.length === 1) {
+      return res.json({ status: "single", applications: apps });
+    }
+    return res.json({ status: "multiple", applications: apps });
+  } catch (err) {
+    console.error("[aom/lookup-email]", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/aom/send-otp
+app.post("/api/aom/send-otp", async (req, res) => {
+  try {
+    const email = (req.body.email || "").toLowerCase().trim();
+    const { applicationId } = req.body;
+    if (!email || !applicationId) return res.status(400).json({ error: "email and applicationId required" });
+
+    // Generate 6-digit code
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    aomOtpStore.set(email, { code, applicationId, expiresAt: Date.now() + AOM_OTP_TTL_MS });
+
+    // Send via Resend
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Maeve at AOM <maeve@sprimal.com>",
+        to:   email,
+        subject: "Your AOM verification code",
+        html: `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f1f5f9;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table cellpadding="0" cellspacing="0" border="0" width="480" style="max-width:480px;background:#fff;border-radius:10px;padding:36px 40px;">
+      <tr><td>
+        <p style="font-size:13px;font-weight:bold;color:#0f1f3d;margin:0 0 6px 0;">At Once Mortgages</p>
+        <h1 style="font-size:20px;font-weight:bold;color:#0f1f3d;margin:0 0 20px 0;">Your verification code</h1>
+        <p style="font-size:15px;color:#374151;margin:0 0 28px 0;">Enter this code in the chat to access your application:</p>
+        <div style="background:#f3f4f6;border-radius:8px;padding:20px;text-align:center;margin-bottom:28px;">
+          <span style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#111827;">${code}</span>
+        </div>
+        <p style="font-size:13px;color:#6b7280;margin:0;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`
+      })
+    });
+
+    console.log(`[aom/send-otp] OTP sent to ${email}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[aom/send-otp]", err.message);
+    res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// POST /api/aom/verify-otp
+app.post("/api/aom/verify-otp", async (req, res) => {
+  try {
+    const email = (req.body.email || "").toLowerCase().trim();
+    const code  = (req.body.code  || "").trim();
+    if (!email || !code) return res.status(400).json({ ok: false, error: "email and code required" });
+
+    const stored = aomOtpStore.get(email);
+    if (!stored)                    return res.json({ ok: false, error: "No code found for that email. Please request a new one." });
+    if (Date.now() > stored.expiresAt) { aomOtpStore.delete(email); return res.json({ ok: false, error: "That code has expired. Please request a new one." }); }
+    if (stored.code !== code)       return res.json({ ok: false, error: "Incorrect code. Please check your email and try again." });
+
+    // Code correct — consume it
+    aomOtpStore.delete(email);
+    const { applicationId } = stored;
+
+    // Load application context for the greeting
+    let greeting = "What would you like to know about your application?";
+    try {
+      const appCtx = await getApplicationContext(applicationId);
+      const s = appCtx.state;
+      const phase = s.current_phase ? s.current_phase.replace(/_/g, " ") : "in progress";
+      const docsReceived = s.received_documents?.length
+        ? s.received_documents.slice(0, 3).join(", ") + (s.received_documents.length > 3 ? ` and ${s.received_documents.length - 3} more` : "")
+        : null;
+      greeting = `Your application is currently at the ${phase} stage` +
+        (s.lender ? ` with ${s.lender}` : "") + "." +
+        (docsReceived ? `\n\nDocuments received so far: ${docsReceived}.` : "") +
+        "\n\nWhat would you like to know?";
+    } catch (ctxErr) {
+      console.error("[aom/verify-otp] context load error:", ctxErr.message);
+    }
+
+    // Issue a short-lived signed session token
+    const tokenPayload = { email, applicationId, exp: Date.now() + (2 * 60 * 60 * 1000) }; // 2hr
+    const token = createTenantToken(tokenPayload);
+
+    res.json({ ok: true, token, applicationId, greeting });
+  } catch (err) {
+    console.error("[aom/verify-otp]", err.message);
+    res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// POST /api/aom/client-chat  — chat for OTP-verified existing clients
+const aomClientConversations = new Map(); // conversationId → message history
+
+app.post("/api/aom/client-chat", async (req, res) => {
+  try {
+    const { userId, conversationId, message, applicationId, token } = req.body;
+    if (!message || !applicationId || !token) return res.status(400).json({ error: "Missing fields" });
+
+    // Verify token
+    const session = verifyTenantToken(token);
+    if (!session || session.applicationId !== applicationId || Date.now() > session.exp) {
+      return res.status(401).json({ error: "Session expired. Please refresh and verify again." });
+    }
+
+    // Load application context
+    const appCtx = await getApplicationContext(applicationId);
+    const s = appCtx.state;
+
+    const docsReceived = s.received_documents?.length
+      ? s.received_documents.map(d => {
+          const date = appCtx.docDates?.[d];
+          return date ? `${d} (${date})` : d;
+        }).join(", ")
+      : "none yet";
+
+    const docsMissing = s.missing_documents?.length
+      ? s.missing_documents.join(", ")
+      : "none outstanding";
+
+    const recentSummary = appCtx.recentEvents?.length
+      ? appCtx.recentEvents.slice(0, 3).map(e => `- ${e.event_type}: ${e.description}`).join("\n")
+      : "No recent events";
+
+    const systemPrompt = `You are Maeve, the AI assistant for At Once Mortgages. You are speaking directly with ${s.borrower_name || "a client"}, who has been verified via email OTP.
+
+Application summary:
+- Borrower: ${s.borrower_name || "Unknown"}
+- Lender: ${s.lender || "Not yet selected"}
+- Stage: ${(s.current_phase || "initial enquiry").replace(/_/g, " ")}
+- Loan amount: ${s.loan_amount || "Not specified"}
+- Docs received: ${docsReceived}
+- Docs outstanding: ${docsMissing}
+- Running summary: ${s.running_summary || "No summary yet"}
+
+Recent activity:
+${recentSummary}
+
+Rules:
+- Answer questions about their specific application using only the context above
+- Be warm, clear and reassuring — mortgage processes can feel stressful
+- If you don't know something or it's not in the context, say so honestly and suggest they contact Cormac directly at cormac@aom.ie
+- Do not speculate about timelines, approvals, or decisions — those are for the broker
+- Keep replies concise`;
+
+    // Conversation history
+    if (!aomClientConversations.has(conversationId)) {
+      aomClientConversations.set(conversationId, []);
+    }
+    const history = aomClientConversations.get(conversationId);
+    history.push({ role: "user", content: message });
+
+    const response = await anthropic.messages.create({
+      model:      "claude-haiku-4-5",
+      max_tokens: 400,
+      system:     systemPrompt,
+      messages:   history.slice(-10)
+    });
+
+    const reply = response.content[0]?.text?.trim() || "Sorry, I couldn't generate a response. Please try again.";
+    history.push({ role: "assistant", content: reply });
+
+    res.json({ reply });
+  } catch (err) {
+    console.error("[aom/client-chat]", err.message);
+    res.status(500).json({ reply: "Sorry, something went wrong. Please try again." });
+  }
+});
+
 // ── Public tenant chat page (QR code destination) ────────────────────────────
 app.get("/chat/:tenantId", async (req, res) => {
   const tenantId = req.params.tenantId;

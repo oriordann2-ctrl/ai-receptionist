@@ -8011,6 +8011,7 @@ async function pollGmailInbox() {
     "maeve@sprimal.com",              // Sprimal AI — context only, never reply to self
     "aom@onlineapplication.io",       // AOM online application portal (exact address variant)
     "no-reply@asana.com",             // Asana task notifications — may contain case details
+    "rome@boi.com",                   // Bank of Ireland — case updates, context only
   ];
 
   const CONTEXT_ONLY_DOMAINS = [

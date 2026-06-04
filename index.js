@@ -7915,6 +7915,86 @@ function scheduleMorningDigest() {
   console.log("[digest] Morning digest scheduler active — fires 07:30 IST weekdays");
 }
 
+// Admin endpoint — resend welcome email to any tenant
+app.get("/api/admin/send-welcome-email/:tenantId", requireAdmin, async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+
+    const { data: tenant, error } = await supabase
+      .from("tenants")
+      .select("id, name, email, website, portal_password")
+      .eq("id", tenantId)
+      .maybeSingle();
+
+    if (error || !tenant) return res.status(404).json({ ok: false, error: "Tenant not found" });
+
+    // Count imported pages
+    const { count: imported } = await supabase
+      .from("knowledge_chunks")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "Website Content");
+
+    const name    = tenant.name || tenantId;
+    const email   = tenant.email;
+    const website = tenant.website || "";
+
+    const trainingNote = (imported || 0) > 0
+      ? `We&#39;ve trained your assistant on <strong style="color:#0f1f3d;">${imported} pages</strong> from <a href="${website}" style="color:#1e40af;text-decoration:none;">${website}</a>. It&#39;s ready to answer questions right now.`
+      : `Your assistant is set up and ready. You can add your website content from your portal dashboard.`;
+
+    const loginUrl = "https://app.sprimal.com/portal";
+
+    const resendRes = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Sprimal <hello@sprimal.com>",
+        to:   email,
+        subject: `Your Sprimal assistant is ready 🎉`,
+        html: `
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f1f5f9;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="max-width:560px;width:100%;">
+      <tr><td align="center" bgcolor="#0f1f3d" style="background-color:#0f1f3d;border-radius:10px 10px 0 0;padding:22px 32px;">
+        <span style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;letter-spacing:-0.5px;">Sprimal</span>
+      </td></tr>
+      <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:36px 40px;border-radius:0 0 10px 10px;">
+        <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#0f1f3d;margin:0 0 10px 0;line-height:1.3;">Your AI assistant is live, ${name}! 🎉</h1>
+        <p style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#374151;margin:0 0 24px 0;line-height:1.65;">${trainingNote}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;background:#f8fafc;border-radius:8px;padding:16px;">
+          <tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;padding:8px 16px;">
+            <strong>Portal:</strong> <a href="${loginUrl}" style="color:#1e40af;">${loginUrl}</a><br/>
+            <strong>Email:</strong> ${email}<br/>
+            <strong>Password:</strong> ${tenant.portal_password}
+          </td></tr>
+        </table>
+        <a href="${loginUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:13px 28px;border-radius:8px;">Log in to your portal →</a>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`
+      })
+    });
+
+    if (!resendRes.ok) {
+      const err = await resendRes.text();
+      return res.status(500).json({ ok: false, error: `Resend error: ${err}` });
+    }
+
+    console.log(`[admin] Welcome email resent to ${email} for tenant ${tenantId}`);
+    res.json({ ok: true, message: `Welcome email sent to ${email}` });
+
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Admin endpoint — trigger digest manually for testing
 app.get("/api/admin/send-morning-digest", requireAdmin, async (req, res) => {
   try {

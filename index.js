@@ -4036,8 +4036,8 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
     // preventing large HTML blobs from being embedded in the page and freezing the browser.
     const chatLogsHtml = "";
 
-    // Auto-refresh every 8 s while crawl is still running (no docs yet)
-    const autoRefresh = (!docs || docs.length === 0)
+    // Auto-refresh every 8 s while crawl is still running (no docs yet, but only if website configured)
+    const autoRefresh = (!docs || docs.length === 0) && req.tenant.website
       ? '<meta http-equiv="refresh" content="8">'
       : '';
 
@@ -4077,20 +4077,27 @@ function buildDocListHtml(docs, tid, tenantWebsite) {
   });
 
   if (!websites.length && !uploaded.length) {
-    // Build optional "Try again" button if tenant has a website configured
-    let retryBtn = "";
-    if (tenantWebsite) {
-      let normalizedSite = tenantWebsite;
-      if (!/^https?:\/\//i.test(normalizedSite)) normalizedSite = "https://" + normalizedSite;
-      let domain = "";
-      try { domain = new URL(normalizedSite).hostname; } catch(e) {}
-      retryBtn = '<div style="margin-top:14px;">'
-        + '<button onclick="portalReimportWebsite(\'' + domain.replace(/'/g, "\\'") + '\',\'' + normalizedSite.replace(/'/g, "\\'") + '\')" '
-        + 'style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">'
-        + '&#8635; Retry website import</button>'
-        + '<span style="font-size:12px;color:#a16207;margin-left:10px;">Taking too long? Click to re-crawl.</span>'
+    // If there is no website URL configured, no crawl was ever triggered — show empty state
+    if (!tenantWebsite) {
+      return '<div style="margin-top:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;text-align:center;">'
+        + '<div style="font-size:32px;margin-bottom:10px;">📂</div>'
+        + '<div style="font-size:14px;font-weight:700;color:#374151;margin-bottom:6px;">Your knowledge base is empty</div>'
+        + '<div style="font-size:13px;color:#6b7280;line-height:1.6;">Add content above — crawl your website, upload a document, or write a note — and your AI assistant will start answering questions straight away.</div>'
         + '</div>';
     }
+
+    // Website URL is present — a crawl was triggered at signup; show in-progress banner
+    let normalizedSite = tenantWebsite;
+    if (!/^https?:\/\//i.test(normalizedSite)) normalizedSite = "https://" + normalizedSite;
+    let domain = "";
+    try { domain = new URL(normalizedSite).hostname; } catch(e) {}
+    const retryBtn = '<div style="margin-top:14px;">'
+      + '<button onclick="portalReimportWebsite(\'' + domain.replace(/'/g, "\\'") + '\',\'' + normalizedSite.replace(/'/g, "\\'") + '\')" '
+      + 'style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">'
+      + '&#8635; Retry website import</button>'
+      + '<span style="font-size:12px;color:#a16207;margin-left:10px;">Taking too long? Click to re-crawl.</span>'
+      + '</div>';
+
     return '<div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">'
       + '<div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:6px;">&#9203; Setting up your assistant&hellip;</div>'
       + '<div style="font-size:13px;color:#a16207;line-height:1.6;">We\'re crawling your website and building your knowledge base. This takes 2&ndash;3 minutes.<br>This page refreshes automatically &mdash; no need to do anything.</div>'

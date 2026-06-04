@@ -8286,6 +8286,7 @@ async function pollGmailInbox() {
   // application-relevant data. Add to this list whenever the application state
   // table accumulates junk rows from a recurring sender.
   const NOISE_SKIP_ADDRESSES = [
+    "oriordann@gmail.com",                  // Sprimal admin — never process or reply
     "messaging-service@post.xero.com",      // Xero invoice notifications
     "info@micksgarage.com",                 // Car parts marketing
     "events@lia.ie",                        // LIA CPD event invitations

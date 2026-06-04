@@ -8024,6 +8024,7 @@ async function pollGmailInbox() {
     "info@micksgarage.com",                 // Car parts marketing
     "events@lia.ie",                        // LIA CPD event invitations
     "latest@royallondonnews.com",           // Royal London insurance marketing
+    "peter.rice@irishlife.ie",              // Irish Life weekly markets marketing
     "no-reply@asana.com",                   // Asana task notifications
     "noreply@reports.connecteam.com",       // Connecteam time tracking
     "no-reply@teams.mail.microsoft",        // Microsoft Teams notifications

@@ -8365,15 +8365,20 @@ async function pollGmailInbox() {
         }
       }
 
-      // If Cormac is CC'd but not in the TO field, he's just observing —
-      // run context pipeline but do not generate a reply
+      // If Cormac is CC'd but not in the TO field, he's just observing.
+      // Only generate a reply if the email explicitly asks Cormac to act
+      // (e.g. "Cormac, can you..." / "Cormac please...").
       const gmailUser  = (process.env.GMAIL_USER || "").toLowerCase();
       const toAddrs    = (parsed.to?.value   || []).map(a => (a.address || "").toLowerCase());
       const ccAddrs    = (parsed.cc?.value   || []).map(a => (a.address || "").toLowerCase());
       const isCCOnly   = ccAddrs.includes(gmailUser) && !toAddrs.includes(gmailUser);
 
       if (isCCOnly) {
-        console.log(`[email-poll] CC-only email from ${from}: "${subject}" — context update, no reply`);
+        // Check if Cormac is specifically called on in the body
+        const cormacAddressed = /\bcormac\b.{0,80}(\?|please|can you|could you|would you|do you|will you)/i.test(body)
+                             || /\bcormac\b.*\bcan you\b/i.test(body);
+
+        // Always update context
         try {
           const cleanedBody = deduplicateEmailBody(body);
           const entities    = await extractEmailEntities(cleanedBody, from, subject);
@@ -8382,8 +8387,15 @@ async function pollGmailInbox() {
         } catch (ctxErr) {
           console.warn(`[email-context] CC-only pipeline failed: ${ctxErr.message}`);
         }
-        results.push({ uid, cls: { intent: "CC-only" } });
-        continue;
+
+        if (!cormacAddressed) {
+          console.log(`[email-poll] CC-only email from ${from}: "${subject}" — context updated, no reply needed`);
+          results.push({ uid, cls: { intent: "CC-only" } });
+          continue;
+        }
+
+        console.log(`[email-poll] CC-only but Cormac directly addressed in "${subject}" — generating reply`);
+        // Fall through to normal classification + reply
       }
 
       // Skip internal team emails — colleagues asking Cormac queries

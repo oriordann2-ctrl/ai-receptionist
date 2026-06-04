@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TENANT_NAME_PLACEHOLDER — Staff Tools</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #0f172a; }
@@ -73,6 +74,15 @@
       background: #f9fafb; border: 1px solid #e5e7eb;
       padding: 16px; border-radius: 12px;
       font-size: 14px; line-height: 1.7; color: #111827;
+    }
+    .kb-answer-body h1, .kb-answer-body h2 { font-size: 15px; font-weight: 700; color: #111827; margin: 14px 0 6px; }
+    .kb-answer-body h3 { font-size: 14px; font-weight: 700; color: #374151; margin: 12px 0 4px; }
+    .kb-answer-body ul, .kb-answer-body ol { padding-left: 20px; margin: 6px 0; }
+    .kb-answer-body li { margin-bottom: 4px; }
+    .kb-answer-body strong { font-weight: 700; color: #111827; }
+    .kb-answer-body p { margin-bottom: 8px; }
+    .kb-answer-body *:first-child { margin-top: 0; }
+    .answer-box-hidden {
       white-space: pre-wrap; word-break: break-word;
     }
 
@@ -248,7 +258,9 @@
           + (data.sourceDetail ? '<span class="badge badge-gray">' + esc(data.sourceDetail) + '</span>' : '')
           + '</div>';
 
-        answerBox.innerHTML = '<div style="font-size:14px;line-height:1.75;color:#111827;">' + (data.answer || "No answer returned.") + '</div>' + badgeHtml;
+        var rawAnswer = (data.answer || "No answer returned.").replace(/\[cite:\s*\d+\]/g, "");
+        var renderedAnswer = typeof marked !== "undefined" ? marked.parse(rawAnswer) : rawAnswer.replace(/\n/g, "<br>");
+        answerBox.innerHTML = '<div class="kb-answer-body">' + renderedAnswer + '</div>' + badgeHtml;
         if (lastKBAnswer) actions.style.display = "flex";
       })
       .catch(function() {

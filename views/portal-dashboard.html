@@ -57,6 +57,13 @@
     }
     .card-title { font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 6px; }
     .card-sub { font-size: 14px; color: #6b7280; margin-bottom: 24px; line-height: 1.5; }
+    .kb-answer-body h1, .kb-answer-body h2 { font-size:15px; font-weight:700; color:#111827; margin:14px 0 6px; }
+    .kb-answer-body h3 { font-size:14px; font-weight:700; color:#374151; margin:12px 0 4px; }
+    .kb-answer-body ul, .kb-answer-body ol { padding-left:20px; margin:6px 0; }
+    .kb-answer-body li { margin-bottom:4px; }
+    .kb-answer-body strong { font-weight:700; color:#111827; }
+    .kb-answer-body p { margin-bottom:8px; }
+    .kb-answer-body *:first-child { margin-top:0; }
 
     /* ── Embed code ── */
     .embed-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
@@ -640,6 +647,21 @@
     </div>
   </div>
 
+  <!-- ── Knowledge Base Assistant ── -->
+  <div class="card">
+    <div class="card-title">Knowledge Base Assistant ⭐</div>
+    <div class="card-sub">Ask a question to search your knowledge base and see the source of the answer — useful for checking accuracy before saving or sharing.</div>
+    <textarea id="portalKbQuestion" rows="2" placeholder="e.g. What documents are required for a Haven straight switcher?"
+      style="width:100%;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;resize:vertical;outline:none;line-height:1.5;margin-bottom:10px;"
+      onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();portalAskKB();}"></textarea>
+    <button id="portalKbBtn" onclick="portalAskKB()"
+      style="background:#111827;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;">
+      Ask Knowledge Base
+    </button>
+    <div id="portalKbAnswer" style="display:none;margin-top:16px;background:#f9fafb;border:1px solid #e5e7eb;padding:16px;border-radius:12px;"></div>
+  </div>
+
   <!-- Flagged Answers (shown when train_staff is on) -->
   <div id="flaggedCard" style="display:none;" class="card" style="padding:0;">
     <details id="flaggedDetails">
@@ -707,6 +729,7 @@
   window.tenantId   = "TENANT_ID_PLACEHOLDER";
   window.tenantName = "TENANT_NAME_PLACEHOLDER";
 </script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="/portal.js"></script>
 <script>
   // ── Lazy-load Recent Conversations ───────────────────────────────────────────
@@ -774,6 +797,46 @@
         });
     });
   })();
+
+  // ── Knowledge Base Assistant ─────────────────────────────────────────────────
+  window.portalAskKB = function() {
+    var question  = document.getElementById("portalKbQuestion").value.trim();
+    var answerBox = document.getElementById("portalKbAnswer");
+    var btn       = document.getElementById("portalKbBtn");
+
+    if (!question) { answerBox.style.display = "block"; answerBox.textContent = "Please enter a question."; return; }
+
+    btn.disabled = true; btn.textContent = "Thinking…";
+    answerBox.style.display = "block";
+    answerBox.innerHTML = '<div style="color:#6b7280;font-size:14px;">Searching…</div>';
+
+    fetch("/api/portal/knowledge-answer", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ question: question })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        btn.disabled = false; btn.textContent = "Ask Knowledge Base";
+        if (data.error) { answerBox.innerHTML = '<div style="color:#dc2626;font-size:14px;">Error: ' + data.error + '</div>'; return; }
+
+        var clean    = (data.answer || "No answer returned.").replace(/\[cite:\s*\d+\]/g, "");
+        var rendered = typeof marked !== "undefined" ? marked.parse(clean) : clean.replace(/\n/g, "<br>");
+
+        var badgeColor = { "Approved Answer": "#16a34a", "Knowledge Document": "#2563eb" }[data.source] || "#6b7280";
+        var badges = '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+          + '<span style="background:' + badgeColor + ';color:white;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;">' + (data.source || "AI Generated") + '</span>'
+          + (data.confidence ? '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;">Confidence: ' + data.confidence + '</span>' : '')
+          + (data.sourceDetail ? '<span style="background:#f3f4f6;color:#374151;padding:2px 10px;border-radius:12px;font-size:11px;">' + data.sourceDetail + '</span>' : '')
+          + '</div>';
+
+        answerBox.innerHTML = '<div style="font-size:14px;line-height:1.75;color:#111827;" class="kb-answer-body">' + rendered + '</div>' + badges;
+      })
+      .catch(function() {
+        btn.disabled = false; btn.textContent = "Ask Knowledge Base";
+        answerBox.innerHTML = '<div style="color:#dc2626;font-size:14px;">Something went wrong — please try again.</div>';
+      });
+  };
 </script>
 </body>
 </html>

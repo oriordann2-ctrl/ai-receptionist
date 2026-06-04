@@ -7951,6 +7951,7 @@ app.get("/api/admin/send-welcome-email/:tenantId", requireAdmin, async (req, res
       body: JSON.stringify({
         from: "Sprimal <hello@sprimal.com>",
         to:   email,
+        bcc:  ["hello@sprimal.com"],
         subject: `Your Sprimal assistant is ready 🎉`,
         html: `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">

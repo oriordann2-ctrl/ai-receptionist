@@ -1424,11 +1424,32 @@ function addChatLog(entry) {
   }
 }
 
+const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours inactivity
+
 function getSession(req) {
   const sessionId = req.cookies.admin_session;
   if (!sessionId) return null;
-  return sessions.get(sessionId);
+  const session = sessions.get(sessionId);
+  if (!session) return null;
+  // Check inactivity timeout
+  if (Date.now() - session.lastActive > SESSION_TIMEOUT_MS) {
+    sessions.delete(sessionId);
+    return null;
+  }
+  // Refresh lastActive on every use
+  session.lastActive = Date.now();
+  return session;
 }
+
+// Purge expired sessions from memory every hour
+setInterval(() => {
+  const cutoff = Date.now() - SESSION_TIMEOUT_MS;
+  let purged = 0;
+  for (const [id, session] of sessions.entries()) {
+    if (session.lastActive < cutoff) { sessions.delete(id); purged++; }
+  }
+  if (purged > 0) console.log(`[session] Purged ${purged} expired session(s)`);
+}, 60 * 60 * 1000);
 
 function requireLogin(req, res, next) {
   const session = getSession(req);
@@ -1523,19 +1544,16 @@ function ensureConversation(userId) {
 }
 
 function requireAdmin(req, res, next) {
-  const sessionId = req.cookies.admin_session;
-
-  if (!sessionId || !sessions.has(sessionId)) {
+  const session = getSession(req);
+  if (!session) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-
   next();
 }
 
 function requireAdminPage(req, res, next) {
-  const sessionId = req.cookies.admin_session;
-
-  if (!sessionId || !sessions.has(sessionId)) {
+  const session = getSession(req);
+  if (!session) {
     return res.redirect("/login");
   }
 
@@ -2038,12 +2056,15 @@ app.get("/admin/documents/:id/view", (req, res) => {
     }
 
     const sessionId = crypto.randomUUID();
+    const now = Date.now();
 
-    sessions.set(sessionId, { role, isTest: false });
+    sessions.set(sessionId, { role, isTest: false, createdAt: now, lastActive: now });
 
     res.cookie("admin_session", sessionId, {
       httpOnly: true,
-      sameSite: "lax"
+      secure:   true,
+      sameSite: "lax",
+      maxAge:   8 * 60 * 60 * 1000  // 8 hours in ms
     });
 
     logActivity("login", { role });

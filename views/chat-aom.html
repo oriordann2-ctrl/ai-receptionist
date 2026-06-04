@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>At Once Mortgages — Chat</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -65,6 +66,11 @@
     }
     .bot  { background: white; color: #0f2a5e; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
     .user { background: #1e4db7; color: white;  align-self: flex-end;   border-bottom-right-radius: 4px; }
+    .bot p { margin: 0 0 8px 0; }
+    .bot p:last-child { margin-bottom: 0; }
+    .bot ul, .bot ol { margin: 4px 0 8px 18px; }
+    .bot li { margin-bottom: 3px; }
+    .bot strong { font-weight: 600; color: #0f2a5e; }
 
     /* ── Typing indicator ── */
     .typing {
@@ -191,7 +197,11 @@
   function addMsg(text, role) {
     var div = document.createElement("div");
     div.className = "msg " + role;
-    div.textContent = text;
+    if (role === "bot" && typeof marked !== "undefined") {
+      div.innerHTML = marked.parse(text);
+    } else {
+      div.textContent = text;
+    }
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return div;

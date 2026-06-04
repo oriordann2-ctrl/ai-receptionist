@@ -75,29 +75,35 @@
   var panel = document.createElement("div");
   panel.id = "sprimal-panel";
   panel.className = "sprimal-hidden";
-  var defaultAvatarSvg = '<svg viewBox="0 0 48 48" fill="none" style="width:100%;height:100%;"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>';
-  var initialAvatarHtml = clubId === "aom"
-    ? '<img src="https://app.sprimal.com/aom-logo.png" alt="' + clubName + '" />'
-    : defaultAvatarSvg;
 
-  panel.innerHTML = [
-    '<div id="sprimal-header">',
-    '  <div id="sprimal-header-left">',
-    '    <div id="sprimal-avatar">' + initialAvatarHtml + '</div>',
-    '    <div id="sprimal-header-info">',
-    '      <span id="sprimal-header-name">' + botName + '</span>',
-    '      <span id="sprimal-header-sub">' + clubName + '</span>',
-    '    </div>',
-    '  </div>',
-    '  <button id="sprimal-close" aria-label="Close chat">&times;</button>',
-    '</div>',
-    '<div id="sprimal-messages"></div>',
-    '<div id="sprimal-footer">',
-    '  <input id="sprimal-input" type="text" placeholder="Type a message..." autocomplete="off" />',
-    '  <button id="sprimal-send">Send</button>',
-    '</div>'
-  ].join("");
-  document.body.appendChild(panel);
+  // AOM uses the full chat-aom.html page in an iframe
+  if (clubId === "aom") {
+    panel.style.cssText += "padding:0;overflow:hidden;";
+    panel.innerHTML = [
+      '<iframe id="sprimal-iframe" src="" allow="clipboard-write" style="width:100%;height:100%;border:none;border-radius:16px;display:block;"></iframe>'
+    ].join("");
+    document.body.appendChild(panel);
+  } else {
+    var defaultAvatarSvg = '<svg viewBox="0 0 48 48" fill="none" style="width:100%;height:100%;"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>';
+    panel.innerHTML = [
+      '<div id="sprimal-header">',
+      '  <div id="sprimal-header-left">',
+      '    <div id="sprimal-avatar">' + defaultAvatarSvg + '</div>',
+      '    <div id="sprimal-header-info">',
+      '      <span id="sprimal-header-name">' + botName + '</span>',
+      '      <span id="sprimal-header-sub">' + clubName + '</span>',
+      '    </div>',
+      '  </div>',
+      '  <button id="sprimal-close" aria-label="Close chat">&times;</button>',
+      '</div>',
+      '<div id="sprimal-messages"></div>',
+      '<div id="sprimal-footer">',
+      '  <input id="sprimal-input" type="text" placeholder="Type a message..." autocomplete="off" />',
+      '  <button id="sprimal-send">Send</button>',
+      '</div>'
+    ].join("");
+    document.body.appendChild(panel);
+  }
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   var messages  = document.getElementById("sprimal-messages");
@@ -105,6 +111,7 @@
   var sendBtn   = document.getElementById("sprimal-send");
   var closeBtn  = document.getElementById("sprimal-close");
   var badge     = document.getElementById("sprimal-badge");
+  var iframe    = document.getElementById("sprimal-iframe");
 
   var isOpen    = false;
   var hasOpened = false;
@@ -206,17 +213,21 @@
     isOpen = true;
     panel.classList.remove("sprimal-hidden");
     hideBadge();
-    if (isMobile()) btn.style.display = "none"; // hide launcher — use × to close
+    if (isMobile()) btn.style.display = "none";
 
-    if (!hasOpened) {
-      hasOpened = true;
-      var greeting = clubId === "aom"
-        ? "Hi there 👋 I'm Maeve.\n\nI can help you get started with a mortgage or answer any questions.\n\nBefore we begin — I'll ask a few questions and may collect personal information to help with your enquiry. This information will only be used for that purpose.\n\nIs that okay?"
-        : "Hi there 👋 I'm Maeve, your " + clubName + " assistant.\n\nI can answer questions about the club — memberships, facilities, schedules, and more.\n\nWhat would you like to know?";
-      addMsg(greeting, "bot");
+    if (clubId === "aom") {
+      // Load iframe on first open
+      if (!hasOpened && iframe) {
+        iframe.src = BACKEND + "/chat/aom";
+      }
+    } else {
+      if (!hasOpened) {
+        var greeting = "Hi there 👋 I'm Maeve, your " + clubName + " assistant.\n\nI can answer questions about the club — memberships, facilities, schedules, and more.\n\nWhat would you like to know?";
+        addMsg(greeting, "bot");
+        setTimeout(function () { if (input) input.focus(); }, 100);
+      }
     }
-
-    setTimeout(function () { input.focus(); }, 100);
+    hasOpened = true;
   }
 
   function closePanel() {
@@ -230,7 +241,7 @@
     if (isOpen) { closePanel(); } else { openPanel(); }
   });
 
-  closeBtn.addEventListener("click", closePanel);
+  if (closeBtn) closeBtn.addEventListener("click", closePanel);
 
   sendBtn.addEventListener("click", send);
 

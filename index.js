@@ -4740,12 +4740,18 @@ app.delete(“/api/admin/tenants/:id”, requireAdmin, async (req, res) => {
   if (!id) return res.status(400).json({ error: “Missing tenant id.” });
 
   try {
-    // Delete child data first, then the tenant row itself
+    // Delete child data first (all tables with tenant_id), then the tenant row itself
     const steps = [
-      supabase.from(“knowledge_chunks”).delete().eq(“tenant_id”, id),
+      supabase.from(“activity_log”).delete().eq(“tenant_id”, id),
+      supabase.from(“application_email_context”).delete().eq(“tenant_id”, id),
+      supabase.from(“application_events”).delete().eq(“tenant_id”, id),
+      supabase.from(“approved_answers”).delete().eq(“tenant_id”, id),
+      supabase.from(“chat_logs”).delete().eq(“tenant_id”, id),
       supabase.from(“documents”).delete().eq(“tenant_id”, id),
       supabase.from(“flagged_answers”).delete().eq(“tenant_id”, id),
-      supabase.from(“approved_answers”).delete().eq(“tenant_id”, id),
+      supabase.from(“knowledge_chunks”).delete().eq(“tenant_id”, id),
+      supabase.from(“knowledge_documents”).delete().eq(“tenant_id”, id),
+      supabase.from(“portal_users”).delete().eq(“tenant_id”, id),
     ];
     await Promise.all(steps);
 

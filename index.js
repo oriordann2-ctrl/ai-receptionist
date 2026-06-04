@@ -7623,6 +7623,256 @@ async function getApplicationContext(stateId) {
   };
 }
 
+// ─── Morning Digest ───────────────────────────────────────────────────────────
+
+const PHASE_ORDER = ["initial_enquiry","aip","full_application","underwriting","letter_of_offer","drawdown"];
+const PHASE_LABEL = {
+  initial_enquiry: "Initial Enquiry",
+  aip:             "AIP",
+  full_application:"Full Application",
+  underwriting:    "Underwriting",
+  letter_of_offer: "Letter of Offer",
+  drawdown:        "Drawdown",
+  null:            "Unknown"
+};
+const LENDER_LABEL = {
+  haven:           "Haven",
+  ptsb:            "PTSB",
+  bank_of_ireland: "Bank of Ireland",
+  avant:           "Avant",
+  nua:             "NUA Money"
+};
+
+function phaseColor(phase) {
+  return { initial_enquiry:"#6b7280", aip:"#3b82f6", full_application:"#8b5cf6",
+           underwriting:"#f59e0b", letter_of_offer:"#10b981", drawdown:"#059669" }[phase] || "#6b7280";
+}
+
+async function sendMorningDigest() {
+  try {
+    const today     = new Date();
+    const dateLabel = today.toLocaleDateString("en-IE", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+    const since24h  = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+    // ── Fetch data ──────────────────────────────────────────────────────────
+    const [statesRes, eventsRes] = await Promise.all([
+      supabase.from("mortgage_application_states").select("*").order("updated_at", { ascending: false }),
+      supabase.from("application_events").select("*, mortgage_application_states(borrower_name, sender_email)")
+               .gte("created_at", since24h).order("created_at", { ascending: false }).limit(50)
+    ]);
+
+    const states = statesRes.data || [];
+    const events = eventsRes.data || [];
+
+    // ── Categorise ──────────────────────────────────────────────────────────
+    const flagged     = states.filter(s => s.conflict_flags?.length > 0);
+    const outstanding = states.filter(s => s.missing_documents?.length > 0);
+    const newEnquiries= states.filter(s => s.current_phase === "initial_enquiry" &&
+                                           new Date(s.created_at) >= new Date(since24h));
+
+    // Group by phase for pipeline overview
+    const byPhase = {};
+    for (const s of states) {
+      const p = s.current_phase || "initial_enquiry";
+      if (!byPhase[p]) byPhase[p] = [];
+      byPhase[p].push(s);
+    }
+
+    // ── HTML helpers ────────────────────────────────────────────────────────
+    const pill = (text, color) =>
+      `<span style="background:${color};color:white;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">${text}</span>`;
+
+    const statCard = (value, label, color) =>
+      `<td style="text-align:center;padding:12px 20px;">
+         <div style="font-size:28px;font-weight:700;color:${color};">${value}</div>
+         <div style="font-size:12px;color:#6b7280;margin-top:2px;">${label}</div>
+       </td>`;
+
+    const sectionHeader = (emoji, title) =>
+      `<tr><td style="padding:24px 0 8px;">
+         <div style="font-size:16px;font-weight:700;color:#111827;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">
+           ${emoji} ${title}
+         </div>
+       </td></tr>`;
+
+    const caseRow = (s, extra = "") => {
+      const name    = s.borrower_name || s.sender_email || "Unknown";
+      const lender  = LENDER_LABEL[s.lender] || "—";
+      const phase   = PHASE_LABEL[s.current_phase] || "Unknown";
+      const pColor  = phaseColor(s.current_phase);
+      return `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;">
+          <div style="font-weight:600;color:#111827;font-size:14px;">${name}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px;">
+            ${pill(phase, pColor)}
+            ${lender !== "—" ? `&nbsp;<span style="color:#6b7280;">${lender}</span>` : ""}
+          </div>
+          ${extra ? `<div style="font-size:12px;color:#b45309;margin-top:4px;">${extra}</div>` : ""}
+        </td>
+      </tr>`;
+    };
+
+    // ── Build HTML ──────────────────────────────────────────────────────────
+    let html = `
+<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:24px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+
+  <!-- Header -->
+  <tr><td style="background:#111827;padding:24px 32px;">
+    <div style="color:white;font-size:20px;font-weight:700;">☀️ Good morning, Cormac</div>
+    <div style="color:#9ca3af;font-size:13px;margin-top:4px;">${dateLabel}</div>
+  </td></tr>
+
+  <!-- Stats bar -->
+  <tr><td style="padding:0 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e5e7eb;">
+      <tr>
+        ${statCard(states.length,      "Active Cases",          "#111827")}
+        ${statCard(flagged.length,     "Flagged",               "#ef4444")}
+        ${statCard(outstanding.length, "Outstanding Docs",      "#f59e0b")}
+        ${statCard(newEnquiries.length,"New Today",             "#3b82f6")}
+      </tr>
+    </table>
+  </td></tr>
+
+  <tr><td style="padding:0 32px 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0">`;
+
+    // ── Section 1: Flagged cases ──────────────────────────────────────────
+    if (flagged.length > 0) {
+      html += sectionHeader("🚨", "Needs Attention");
+      for (const s of flagged) {
+        const flags = s.conflict_flags.join(" · ");
+        html += caseRow(s, `⚠️ ${flags}`);
+      }
+    }
+
+    // ── Section 2: Outstanding documents ─────────────────────────────────
+    if (outstanding.length > 0) {
+      html += sectionHeader("📋", "Outstanding Documents");
+      // Sort by phase priority (later phases = more urgent)
+      const sorted = [...outstanding].sort((a, b) =>
+        PHASE_ORDER.indexOf(b.current_phase) - PHASE_ORDER.indexOf(a.current_phase)
+      );
+      for (const s of sorted) {
+        const docs = s.missing_documents.join(", ");
+        html += caseRow(s, `Missing: ${docs}`);
+      }
+    }
+
+    // ── Section 3: Overnight activity ─────────────────────────────────────
+    if (events.length > 0) {
+      html += sectionHeader("🕐", "Overnight Activity");
+      for (const e of events.slice(0, 15)) {
+        const name = e.mortgage_application_states?.borrower_name || e.mortgage_application_states?.sender_email || "Unknown";
+        const time = new Date(e.created_at).toLocaleTimeString("en-IE", { hour:"2-digit", minute:"2-digit" });
+        html += `<tr><td style="padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:13px;">
+          <span style="color:#111827;font-weight:600;">${name}</span>
+          <span style="color:#6b7280;"> · ${e.event_type?.replace(/_/g," ") || "update"}</span>
+          <span style="color:#9ca3af;float:right;">${time}</span>
+          ${e.description ? `<div style="color:#6b7280;font-size:12px;margin-top:2px;">${e.description}</div>` : ""}
+        </td></tr>`;
+      }
+    }
+
+    // ── Section 4: Pipeline overview ──────────────────────────────────────
+    html += sectionHeader("📊", "Pipeline Overview");
+    html += `<tr><td style="padding:12px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0">`;
+    for (const phase of PHASE_ORDER) {
+      const cases = byPhase[phase] || [];
+      if (!cases.length) continue;
+      const color = phaseColor(phase);
+      const names = cases.map(s => s.borrower_name || s.sender_email || "Unknown").join(", ");
+      html += `<tr>
+        <td style="padding:6px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;width:140px;">
+          ${pill(PHASE_LABEL[phase], color)}
+        </td>
+        <td style="padding:6px 0 6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#374151;">
+          <strong>${cases.length}</strong> — ${names}
+        </td>
+      </tr>`;
+    }
+    html += `</table></td></tr>`;
+
+    // ── Footer ─────────────────────────────────────────────────────────────
+    html += `
+    </table>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+    <div style="font-size:12px;color:#9ca3af;text-align:center;">
+      Sent by Maeve · Sprimal AI for At Once Mortgages
+    </div>
+  </td></tr>
+
+</table>
+</td></tr></table>
+</body></html>`;
+
+    // ── Send ────────────────────────────────────────────────────────────────
+    await mailTransporter.sendMail({
+      from:    `"Maeve · At Once Mortgages" <${process.env.EMAIL_USER}>`,
+      to:      process.env.BROKER_EMAIL,
+      subject: `☀️ Morning Digest — ${today.toLocaleDateString("en-IE", { day:"numeric", month:"short" })} · ${states.length} cases, ${flagged.length} flagged, ${outstanding.length} with outstanding docs`,
+      html
+    });
+
+    console.log(`[digest] Morning digest sent to ${process.env.BROKER_EMAIL} — ${states.length} cases, ${flagged.length} flagged`);
+    return { ok: true, cases: states.length, flagged: flagged.length, outstanding: outstanding.length };
+
+  } catch (err) {
+    console.error("[digest] Failed to send morning digest:", err.message);
+    throw err;
+  }
+}
+
+// ── Schedule digest at 07:30 Irish time (UTC+1) every weekday ─────────────────
+function scheduleMorningDigest() {
+  function msUntilNext730() {
+    const now    = new Date();
+    const target = new Date(now);
+    // Irish Standard Time is UTC+1 (UTC+0 in winter — close enough for a morning digest)
+    target.setUTCHours(6, 30, 0, 0); // 06:30 UTC = 07:30 IST
+    if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+    return target - now;
+  }
+
+  let lastDigestDate = null;
+
+  function checkAndSend() {
+    const now     = new Date();
+    const dateKey = now.toISOString().slice(0, 10);
+    const hour    = now.getUTCHours();
+    const min     = now.getUTCMinutes();
+    const isWeekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
+
+    // Send between 06:30–06:35 UTC (07:30–07:35 IST) on weekdays, once per day
+    if (isWeekday && hour === 6 && min >= 30 && min < 35 && lastDigestDate !== dateKey) {
+      lastDigestDate = dateKey;
+      sendMorningDigest().catch(err => console.error("[digest] Scheduled send failed:", err.message));
+    }
+  }
+
+  // Check every minute
+  setInterval(checkAndSend, 60 * 1000);
+  console.log("[digest] Morning digest scheduler active — fires 07:30 IST weekdays");
+}
+
+// Admin endpoint — trigger digest manually for testing
+app.get("/api/admin/send-morning-digest", requireAdmin, async (req, res) => {
+  try {
+    const result = await sendMorningDigest();
+    res.json({ ok: true, message: "Digest sent", ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ─── Email intent classifier ──────────────────────────────────────────────────
 // Mirrors the Python email_router.py logic.
 // Step 1: header-based pre-filter (free, instant).
@@ -8176,4 +8426,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   startEmailPolling();
+  scheduleMorningDigest();
 });

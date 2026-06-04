@@ -7030,6 +7030,7 @@ Do NOT do this for existing clients who already have a case in progress.
 Style:
 - Friendly and professional
 - Start with "Hi ${firstName || "there"}," — always use the sender's first name if available, never "Hi there" when a name is known
+- Use Irish/British English spelling throughout — e.g. "apologise" not "apologize", "recognise" not "recognize", "organise" not "organize", "colour" not "color", "favour" not "favor"
 - Do NOT add a sign-off or "Kind regards" — the signature is added automatically`
     },
     {

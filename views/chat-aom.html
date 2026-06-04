@@ -497,7 +497,7 @@
           flow.currentHandler = handleNewChat;
         });
       } else {
-        // Register consent with the backend, then open the chat
+        // Register consent with the backend
         fetch(BACKEND + "/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -505,18 +505,33 @@
         })
         .then(function(r) { return r.json(); })
         .finally(function() {
-          var opening;
           if (intent === "mortgage") {
-            opening = "Great — I can help with that. To get started, are you a first-time buyer, looking to switch mortgage, or remortgaging?";
+            addMsg("Great — to get started, which of these best describes you?", "bot");
+            setInput("disabled");
+            addButtons([
+              { label: "First-time buyer",  value: "I am a first-time buyer looking to get a mortgage." },
+              { label: "Switching",         value: "I am looking to switch my existing mortgage." },
+              { label: "Remortgaging",      value: "I am looking to remortgage my property." },
+              { label: "Something else",    value: "I have a different mortgage situation." }
+            ], function(btn) {
+              addMsg(btn.label, "user");
+              flow.state = "NEW_CHAT";
+              setInput("chat", "Ask a question…");
+              flow.currentHandler = handleNewChat;
+              // Seed the first message as context so the AI knows their situation
+              delay(function() { handleNewChat(btn.value); }, 1);
+            });
           } else if (intent === "appointment") {
-            opening = "No problem. To arrange a call or meeting with the team, you can reach out at cormac@aom.ie — or tell me a bit about what you need and I can pass the details on.";
+            addMsg("No problem — tell me a bit about what you need and I'll make sure the team has everything ready for your call.", "bot");
+            flow.state = "NEW_CHAT";
+            setInput("chat", "Ask a question…");
+            flow.currentHandler = handleNewChat;
           } else {
-            opening = "Of course — what's on your mind?";
+            addMsg("Of course — what's on your mind?", "bot");
+            flow.state = "NEW_CHAT";
+            setInput("chat", "Ask a question…");
+            flow.currentHandler = handleNewChat;
           }
-          addMsg(opening, "bot");
-          flow.state = "NEW_CHAT";
-          setInput("chat", "Ask a question…");
-          flow.currentHandler = handleNewChat;
         });
       }
     });

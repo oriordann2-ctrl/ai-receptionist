@@ -162,6 +162,11 @@
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
     }
 
+    .form-group input.field-error {
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+    }
+
     .form-group input::placeholder {
       color: #94a3b8;
     }
@@ -382,54 +387,123 @@
   </div>
 
   <script>
+    function setError(msg) {
+      var el = document.getElementById("error");
+      el.textContent = msg;
+      // Shake the relevant input for visual feedback
+    }
+
+    function resetBtn() {
+      var btn = document.getElementById("submitBtn");
+      btn.disabled = false;
+      btn.textContent = "Get my free assistant →";
+    }
+
+    function highlightField(id) {
+      var input = document.getElementById(id);
+      input.style.borderColor = "#dc2626";
+      input.style.boxShadow = "0 0 0 3px rgba(220,38,38,0.12)";
+      input.focus();
+      input.addEventListener("input", function clearErr() {
+        input.style.borderColor = "";
+        input.style.boxShadow = "";
+        document.getElementById("error").textContent = "";
+        input.removeEventListener("input", clearErr);
+      }, { once: true });
+    }
+
     async function signup() {
-      const name    = document.getElementById("name").value.trim();
-      const website = document.getElementById("website").value.trim();
-      const email   = document.getElementById("email").value.trim();
-      const errorDiv  = document.getElementById("error");
-      const submitBtn = document.getElementById("submitBtn");
+      var name    = document.getElementById("name").value.trim();
+      var website = document.getElementById("website").value.trim();
+      var email   = document.getElementById("email").value.trim();
+      var submitBtn = document.getElementById("submitBtn");
 
-      errorDiv.textContent = "";
+      setError("");
 
-      if (!name)  { errorDiv.textContent = "Please enter your business or club name."; return; }
-      if (!email) { errorDiv.textContent = "Please enter your email address."; return; }
-
-      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        errorDiv.textContent = "Please enter a valid email address.";
+      // ── 1. All fields required ───────────────────────────────────────────
+      if (!name) {
+        setError("Please enter your business or club name.");
+        highlightField("name");
+        return;
+      }
+      if (!website) {
+        setError("Please enter your website URL — we need it to train your assistant.");
+        highlightField("website");
+        return;
+      }
+      if (!email) {
+        setError("Please enter your email address.");
+        highlightField("email");
         return;
       }
 
+      // ── 2. Email format ──────────────────────────────────────────────────
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        setError("That doesn't look like a valid email address. Please include an @ symbol and a domain (e.g. you@yourclub.com).");
+        highlightField("email");
+        return;
+      }
+
+      // ── 3. Normalise website URL ─────────────────────────────────────────
+      var normalizedUrl = website;
+      if (!/^https?:\/\//i.test(normalizedUrl)) normalizedUrl = "https://" + normalizedUrl;
+
+      // Basic URL structure check
+      try { new URL(normalizedUrl); } catch(e) {
+        setError("That doesn't look like a valid website URL. Try something like https://yourclub.com");
+        highlightField("website");
+        return;
+      }
+
+      // ── 4. Check website is actually reachable ───────────────────────────
       submitBtn.disabled = true;
+      submitBtn.textContent = "Checking website…";
+
+      try {
+        var checkRes = await fetch("/api/check-url?url=" + encodeURIComponent(normalizedUrl));
+        var checkData = await checkRes.json();
+        if (!checkData.reachable) {
+          setError("We couldn't reach that website (" + normalizedUrl + "). Please double-check the URL is correct and the site is live, then try again.");
+          highlightField("website");
+          resetBtn();
+          return;
+        }
+      } catch(e) {
+        // If our own check fails (network issue server-side), don't block the user — proceed
+      }
+
+      // Write back the normalised URL so the backend receives it cleanly
+      document.getElementById("website").value = normalizedUrl;
+
+      // ── 5. Submit ────────────────────────────────────────────────────────
       submitBtn.textContent = "Setting up your assistant…";
 
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 20000); // 20s max
+        var controller = new AbortController();
+        var timeout = setTimeout(function() { controller.abort(); }, 20000);
 
-        const res = await fetch("/api/signup", {
+        var res = await fetch("/api/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, website, email }),
+          body: JSON.stringify({ name: name, website: normalizedUrl, email: email }),
           signal: controller.signal
         });
         clearTimeout(timeout);
 
-        const data = await res.json();
+        var data = await res.json();
 
         if (data.success) {
           window.location.href = "/portal/dashboard?new=1";
         } else {
-          errorDiv.textContent = data.error || "Something went wrong. Please try again.";
-          submitBtn.disabled = false;
-          submitBtn.textContent = "Get my free assistant →";
+          setError(data.error || "Something went wrong. Please try again.");
+          resetBtn();
         }
       } catch (err) {
-        const msg = err.name === "AbortError"
+        var msg = err.name === "AbortError"
           ? "The server took too long to respond. Please try again."
           : "Could not connect. Please try again.";
-        errorDiv.textContent = msg;
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Get my free assistant →";
+        setError(msg);
+        resetBtn();
       }
     }
 

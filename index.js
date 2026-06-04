@@ -3267,6 +3267,40 @@ app.get("/signup", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "signup.html"));
 });
 
+// ── Pre-flight website reachability check (called from signup form) ──────────
+app.get("/api/check-url", async (req, res) => {
+  const url = (req.query.url || "").trim();
+  if (!url) return res.json({ reachable: false, error: "No URL provided" });
+
+  // Basic sanity — must look like an http/https URL
+  let parsed;
+  try { parsed = new URL(url); } catch(e) {
+    return res.json({ reachable: false, error: "Invalid URL" });
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    return res.json({ reachable: false, error: "Invalid protocol" });
+  }
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, {
+      method: "HEAD",
+      signal: controller.signal,
+      redirect: "follow",
+      headers: { "User-Agent": "Sprimalbot/1.0 (website-check)" }
+    });
+    clearTimeout(timer);
+    // 2xx and 3xx (already followed), and even 401/403 mean the site is live
+    // 5xx means a broken server — treat as unreachable
+    const reachable = response.status < 500;
+    return res.json({ reachable, status: response.status });
+  } catch (err) {
+    const reason = err.name === "AbortError" ? "timeout" : err.message;
+    return res.json({ reachable: false, error: reason });
+  }
+});
+
 app.post("/api/signup", async (req, res) => {
   const { name, email } = req.body;
   // Normalize website URL: add https:// if no protocol is present

@@ -3267,6 +3267,40 @@ app.get("/signup", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "signup.html"));
 });
 
+// ── Pre-flight website reachability check (called from signup form) ──────────
+app.get("/api/check-url", async (req, res) => {
+  const url = (req.query.url || "").trim();
+  if (!url) return res.json({ reachable: false, error: "No URL provided" });
+
+  // Basic sanity — must look like an http/https URL
+  let parsed;
+  try { parsed = new URL(url); } catch(e) {
+    return res.json({ reachable: false, error: "Invalid URL" });
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    return res.json({ reachable: false, error: "Invalid protocol" });
+  }
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, {
+      method: "HEAD",
+      signal: controller.signal,
+      redirect: "follow",
+      headers: { "User-Agent": "Sprimalbot/1.0 (website-check)" }
+    });
+    clearTimeout(timer);
+    // 2xx and 3xx (already followed), and even 401/403 mean the site is live
+    // 5xx means a broken server — treat as unreachable
+    const reachable = response.status < 500;
+    return res.json({ reachable, status: response.status });
+  } catch (err) {
+    const reason = err.name === "AbortError" ? "timeout" : err.message;
+    return res.json({ reachable: false, error: reason });
+  }
+});
+
 app.post("/api/signup", async (req, res) => {
   const { name, email } = req.body;
   // Normalize website URL: add https:// if no protocol is present
@@ -4023,21 +4057,32 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
     const tname = (req.tenant.tenantName || req.tenant.tenantId || "").replace(/"/g, "&quot;");
     const embedCode = `&lt;script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${tname}"&gt;&lt;/script&gt;`;
 
-    // ── Fetch documents only — chat logs are lazy-loaded client-side ─────────
-    const { data: docs } = await supabase
-      .from("documents")
-      .select("id, original_filename, stored_filename, storage_path, document_type, uploaded_at")
-      .eq("tenant_id", tid)
-      .order("uploaded_at", { ascending: false });
+    // ── Fetch documents + tenant created_at in parallel ──────────────────────
+    const [{ data: docs }, { data: tenantMeta }] = await Promise.all([
+      supabase
+        .from("documents")
+        .select("id, original_filename, stored_filename, storage_path, document_type, uploaded_at")
+        .eq("tenant_id", tid)
+        .order("uploaded_at", { ascending: false }),
+      supabase
+        .from("tenants")
+        .select("created_at")
+        .eq("id", tid)
+        .maybeSingle()
+    ]);
 
-    const docListHtml = buildDocListHtml(docs || [], tid, req.tenant.website || null);
+    const tenantCreatedAt = tenantMeta?.created_at || null;
+    const docListHtml = buildDocListHtml(docs || [], tid, req.tenant.website || null, tenantCreatedAt);
 
     // Chat logs are lazy-loaded via /api/portal/chat-logs when the section is opened,
     // preventing large HTML blobs from being embedded in the page and freezing the browser.
     const chatLogsHtml = "";
 
-    // Auto-refresh every 8 s while crawl is still running (no docs yet)
-    const autoRefresh = (!docs || docs.length === 0)
+    // Auto-refresh every 8 s only while a crawl is genuinely in progress:
+    // website set + no docs yet + tenant created within the last 10 minutes
+    const tenantAgeMs = tenantCreatedAt ? (Date.now() - new Date(tenantCreatedAt).getTime()) : Infinity;
+    const crawlInProgress = (!docs || docs.length === 0) && req.tenant.website && tenantAgeMs < 10 * 60 * 1000;
+    const autoRefresh = crawlInProgress
       ? '<meta http-equiv="refresh" content="8">'
       : '';
 
@@ -4058,7 +4103,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
   }
 });
 
-function buildDocListHtml(docs, tid, tenantWebsite) {
+function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt) {
   function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
   const websites = docs.filter(d => d.document_type === "Website Content");
@@ -4077,28 +4122,45 @@ function buildDocListHtml(docs, tid, tenantWebsite) {
   });
 
   if (!websites.length && !uploaded.length) {
-    // Build optional "Try again" button if tenant has a website configured
-    let retryBtn = "";
-    if (tenantWebsite) {
-      let normalizedSite = tenantWebsite;
-      if (!/^https?:\/\//i.test(normalizedSite)) normalizedSite = "https://" + normalizedSite;
-      let domain = "";
-      try { domain = new URL(normalizedSite).hostname; } catch(e) {}
-      retryBtn = '<div style="margin-top:14px;">'
-        + '<button onclick="portalReimportWebsite(\'' + domain.replace(/'/g, "\\'") + '\',\'' + normalizedSite.replace(/'/g, "\\'") + '\')" '
-        + 'style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">'
-        + '&#8635; Retry website import</button>'
-        + '<span style="font-size:12px;color:#a16207;margin-left:10px;">Taking too long? Click to re-crawl.</span>'
+    // Case 1: No website URL — no crawl was ever triggered
+    if (!tenantWebsite) {
+      return '<div style="margin-top:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;text-align:center;">'
+        + '<div style="font-size:32px;margin-bottom:10px;">📂</div>'
+        + '<div style="font-size:14px;font-weight:700;color:#374151;margin-bottom:6px;">Your knowledge base is empty</div>'
+        + '<div style="font-size:13px;color:#6b7280;line-height:1.6;">Add content above — crawl your website, upload a document, or write a note — and your AI assistant will start answering questions straight away.</div>'
         + '</div>';
     }
-    return '<div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">'
-      + '<div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:6px;">&#9203; Setting up your assistant&hellip;</div>'
-      + '<div style="font-size:13px;color:#a16207;line-height:1.6;">We\'re crawling your website and building your knowledge base. This takes 2&ndash;3 minutes.<br>This page refreshes automatically &mdash; no need to do anything.</div>'
-      + '<div style="margin-top:12px;height:4px;background:#fde68a;border-radius:2px;overflow:hidden;">'
-      + '<div style="height:100%;width:40%;background:#f59e0b;border-radius:2px;animation:prog 2s ease-in-out infinite alternate;"></div></div>'
+
+    let normalizedSite = tenantWebsite;
+    if (!/^https?:\/\//i.test(normalizedSite)) normalizedSite = "https://" + normalizedSite;
+    let domain = "";
+    try { domain = new URL(normalizedSite).hostname; } catch(e) {}
+
+    const retryBtn = '<div style="margin-top:16px;">'
+      + '<button onclick="portalReimportWebsite(\'' + domain.replace(/'/g, "\\'") + '\',\'' + normalizedSite.replace(/'/g, "\\'") + '\')" '
+      + 'style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">'
+      + '&#8635; Import website now</button>'
+      + '</div>';
+
+    // Case 2: Website URL exists, tenant signed up within the last 10 minutes — crawl may be in progress
+    const tenantAgeMs = tenantCreatedAt ? (Date.now() - new Date(tenantCreatedAt).getTime()) : Infinity;
+    if (tenantAgeMs < 10 * 60 * 1000) {
+      return '<div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">'
+        + '<div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:6px;">&#9203; Setting up your assistant&hellip;</div>'
+        + '<div style="font-size:13px;color:#a16207;line-height:1.6;">We\'re crawling your website and building your knowledge base. This takes 2&ndash;3 minutes.<br>This page refreshes automatically &mdash; no need to do anything.</div>'
+        + '<div style="margin-top:12px;height:4px;background:#fde68a;border-radius:2px;overflow:hidden;">'
+        + '<div style="height:100%;width:40%;background:#f59e0b;border-radius:2px;animation:prog 2s ease-in-out infinite alternate;"></div></div>'
+        + '</div>'
+        + '<style>@keyframes prog{from{width:20%}to{width:80%}}</style>';
+    }
+
+    // Case 3: Website URL exists but tenant is older than 10 minutes with no docs — crawl stalled or failed
+    return '<div style="margin-top:24px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:20px 24px;">'
+      + '<div style="font-size:14px;font-weight:700;color:#991b1b;margin-bottom:6px;">&#9888;&#65039; Website import didn\'t complete</div>'
+      + '<div style="font-size:13px;color:#b91c1c;line-height:1.6;">Your knowledge base is empty — it looks like the website crawl didn\'t finish. Click below to import your website now.</div>'
+      + '<div style="font-size:12px;color:#ef4444;margin-top:6px;">Website: <strong>' + esc(normalizedSite) + '</strong></div>'
       + retryBtn
-      + '</div>'
-      + '<style>@keyframes prog{from{width:20%}to{width:80%}}</style>';
+      + '</div>';
   }
 
   let html = "";

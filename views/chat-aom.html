@@ -551,6 +551,48 @@
     });
   }
 
+  // Detect quick-reply options from an AI response
+  function getSuggestions(reply) {
+    var lower = reply.toLowerCase();
+    // Employment type
+    if (lower.includes("paye") && lower.includes("self-employed")) {
+      return [
+        { label: "PAYE",          value: "PAYE" },
+        { label: "Self-employed", value: "Self-employed" },
+        { label: "Contractor",    value: "Contractor" }
+      ];
+    }
+    // Existing loans / commitments
+    if (lower.includes("existing loan") || (lower.includes("car finance") && lower.includes("credit card"))) {
+      return [
+        { label: "None",          value: "None" },
+        { label: "I have some",   value: "I have existing loan commitments" }
+      ];
+    }
+    // Property found
+    if (lower.includes("found a property") || lower.includes("have you found")) {
+      return [
+        { label: "Yes",      value: "Yes, I have found a property" },
+        { label: "Not yet",  value: "No, I haven't found a property yet" }
+      ];
+    }
+    // Missed repayments
+    if (lower.includes("missed") && lower.includes("repayment")) {
+      return [
+        { label: "No",  value: "No" },
+        { label: "Yes", value: "Yes" }
+      ];
+    }
+    // Generic yes/no questions
+    if (reply.trim().endsWith("?") && /\b(have you|do you|did you|are you|is there|would you)\b/i.test(reply)) {
+      return [
+        { label: "Yes", value: "Yes" },
+        { label: "No",  value: "No"  }
+      ];
+    }
+    return null;
+  }
+
   function handleNewChat(message) {
     addMsg(message, "user");
     inputEl.value = "";
@@ -571,8 +613,18 @@
     .then(function(r) { return r.json(); })
     .then(function(data) {
       hideTyping();
-      addMsg(data.reply || "Sorry, something went wrong.", "bot");
-      setInput("chat", "Ask a question…");
+      var reply = data.reply || "Sorry, something went wrong.";
+      addMsg(reply, "bot");
+
+      var suggestions = getSuggestions(reply);
+      if (suggestions) {
+        addButtons(suggestions, function(btn) {
+          handleNewChat(btn.value);
+        });
+        setInput("disabled");
+      } else {
+        setInput("chat", "Ask a question…");
+      }
       flow.currentHandler = handleNewChat;
     })
     .catch(function() {

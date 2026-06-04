@@ -3743,8 +3743,12 @@ app.get("/chat/aom", async (req, res) => {
     .eq("id", "aom")
     .maybeSingle();
 
+  const avatarHtml = tenant?.logo_url
+    ? `<img src="${tenant.logo_url}" alt="At Once Mortgages" />`
+    : "AOM";
+
   const html = fs.readFileSync(path.join(__dirname, "views", "chat-aom.html"), "utf8")
-    .replace("AVATAR_PLACEHOLDER", "AOM");
+    .replace("AVATAR_PLACEHOLDER", avatarHtml);
 
   res.setHeader("Cache-Control", "no-store");
   res.send(html);

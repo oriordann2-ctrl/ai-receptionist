@@ -3931,8 +3931,10 @@ ${recentSummary}
 Rules:
 - Answer questions about their specific application using only the context above
 - Be warm, clear and reassuring — mortgage processes can feel stressful
-- If you don't know something or it's not in the context, say so honestly and suggest they contact Cormac directly at cormac@aom.ie
+- If you don't know something or it's not in the context, say so honestly and suggest they contact the AOM team directly at cormac@aom.ie
 - Do not speculate about timelines, approvals, or decisions — those are for the broker
+- Never refer to the broker by name — use "the AOM team" or "the office" instead
+- Do not use markdown bold (**text**) in your responses — write in plain text only
 - Keep replies concise`;
 
     // Conversation history

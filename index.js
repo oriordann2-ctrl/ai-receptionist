@@ -8595,6 +8595,7 @@ async function pollGmailInbox() {
   const CONTEXT_ONLY_DOMAINS = [
     "@aom.onlineapplication.io",      // AOM online application portal — all automated notifications
     "@aom.ie",                        // AOM colleagues — case updates, doc requests, milestones
+    "@ptsb.ie",                       // PTSB staff — lender communications, never auto-reply
   ];
 
   // Noise senders — fully ignored. No reply, no context pipeline, no LLM call.

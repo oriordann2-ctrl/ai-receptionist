@@ -2373,7 +2373,7 @@ async function generateGenericReply(message, tenantName) {
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant for ${orgName}. The user is already on the ${orgName} website or chat â€” never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so politely and suggest they contact ${orgName} directly. Do not mention mortgages, brokers, or financial products.`
+          content: `You are a helpful assistant for ${orgName}. The user is already on the ${orgName} website or chat — never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so clearly and suggest they contact ${orgName} directly — never guess, invent details, or use placeholder text like “[insert X here]”. Do not mention mortgages, brokers, or financial products.`
         },
         {
           role: "user",
@@ -6143,8 +6143,8 @@ Use plain numbers where possible.
 
         try {
           const sysPrompt = eboContext
-            ? "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE. Keep answers friendly and concise."
-            : "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". Answer ONLY using the provided knowledge base context. If the answer is not clearly in the context, say you do not know. Keep answers friendly and concise.";
+            ? "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly."
+            : "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". Answer ONLY using the provided knowledge base context. If the answer is not in the context, say so clearly — for example: 'I don't have that information, please check the website or contact " + (tenantDisplayName || "us") + " directly.' Never invent, guess, or use placeholder text like '[insert location here]'. Keep answers friendly and concise.";
 
           const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",

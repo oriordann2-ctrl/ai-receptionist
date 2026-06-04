@@ -4734,6 +4734,32 @@ app.post("/api/admin/tenants/:id/reset-password", requireAdmin, async (req, res)
   }
 });
 
+// ── Admin: delete tenant + all associated data ────────────────────────────────
+app.delete(“/api/admin/tenants/:id”, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: “Missing tenant id.” });
+
+  try {
+    // Delete child data first, then the tenant row itself
+    const steps = [
+      supabase.from(“knowledge_chunks”).delete().eq(“tenant_id”, id),
+      supabase.from(“documents”).delete().eq(“tenant_id”, id),
+      supabase.from(“flagged_answers”).delete().eq(“tenant_id”, id),
+      supabase.from(“approved_answers”).delete().eq(“tenant_id”, id),
+    ];
+    await Promise.all(steps);
+
+    const { error } = await supabase.from(“tenants”).delete().eq(“id”, id);
+    if (error) throw error;
+
+    console.log(`[admin] Tenant deleted: ${id}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(“[admin-delete-tenant]”, err.message);
+    res.status(500).json({ error: “Failed to delete tenant: “ + err.message });
+  }
+});
+
 // â”€â”€ Admin: backfill email context from Gmail inbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // One-off endpoint to process historical emails through the context pipeline.
 // Responds immediately â€” processing runs in background. Watch Render logs.

@@ -3257,6 +3257,10 @@ async function loadAdminTenants() {
         <button class="btn-reset-pw" onclick="resetTenantPassword('${escT(t.id)}', '${escT(t.name || t.id)}')">
           🔑 Reset password
         </button>
+        <button class="btn-delete-tenant" onclick="deleteTenant('${escT(t.id)}', '${escT(t.name || t.id)}')"
+          style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          🗑 Delete
+        </button>
       </div>`;
     }).join("");
   } catch(err) {
@@ -3283,6 +3287,27 @@ async function resetTenantPassword(tenantId, tenantName) {
     alert(`✅ New password for ${tenantName}:\n\n${data.password}\n\nShare this with the tenant to log into their portal.`);
   } catch(err) {
     alert("Failed to reset password. Please try again.");
+  }
+}
+
+async function deleteTenant(tenantId, tenantName) {
+  if (!confirm(`⚠️ Delete "${tenantName}"?\n\nThis will permanently delete the tenant and ALL their data — documents, knowledge base, chat history, and their portal access.\n\nThis cannot be undone. Are you sure?`)) return;
+  if (!confirm(`Final confirmation — delete "${tenantName}" (${tenantId}) permanently?`)) return;
+
+  try {
+    const res  = await fetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}`, {
+      method: "DELETE", credentials: "include"
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    // Remove the row from the UI
+    const row = document.getElementById(`tenant-row-${tenantId}`);
+    if (row) row.remove();
+
+    alert(`✅ Tenant "${tenantName}" has been deleted.`);
+  } catch(err) {
+    alert("Failed to delete tenant: " + err.message);
   }
 }
 

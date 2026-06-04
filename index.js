@@ -8009,6 +8009,7 @@ async function pollGmailInbox() {
     "noreply@mail.nuamoney.com",      // NUA Money — automated application notifications
     "maeve@sprimal.com",              // Sprimal AI — context only, never reply to self
     "aom@onlineapplication.io",       // AOM online application portal (exact address variant)
+    "no-reply@asana.com",             // Asana task notifications — may contain case details
   ];
 
   const CONTEXT_ONLY_DOMAINS = [
@@ -8026,7 +8027,7 @@ async function pollGmailInbox() {
     "events@lia.ie",                        // LIA CPD event invitations
     "latest@royallondonnews.com",           // Royal London insurance marketing
     "peter.rice@irishlife.ie",              // Irish Life weekly markets marketing
-    "no-reply@asana.com",                   // Asana task notifications
+    // "no-reply@asana.com" — moved to context-only (Asana tasks may contain case details)
     "noreply@reports.connecteam.com",       // Connecteam time tracking
     "no-reply@teams.mail.microsoft",        // Microsoft Teams notifications
     "noreply.invitations@trustpilotmail.com", // Trustpilot review requests

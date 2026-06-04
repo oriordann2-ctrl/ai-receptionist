@@ -8087,8 +8087,10 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
 
     const rawDraft = await runEmailResponseAgent(body, from, applicationContext);
 
-    // Strip any trailing sign-off the AI added (e.g. "Kind regards,") — the real signature provides it
-    const draftBody = rawDraft.trim().replace(/\n*kind regards,?\s*$/i, "").trim();
+    // Strip any trailing sign-off the AI added — the real signature provides it
+    const draftBody = rawDraft.trim()
+      .replace(/\n*(kind regards|best regards|many thanks|thanks|warm regards|regards|best|cheers|sincerely|yours sincerely|yours faithfully),?\s*(cormac|maeve)?\s*$/i, "")
+      .trim();
     const draft = `${draftBody}\n\n${CORMAC_SIGNATURE}`;
 
     // ── HTML email — draft is visually distinct at a glance ──────────────────

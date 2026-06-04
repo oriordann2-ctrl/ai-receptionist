@@ -4453,6 +4453,7 @@ app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
           const cleanedBody = deduplicateEmailBody(body);
           const entities    = await extractEmailEntities(cleanedBody, from, subject);
           const state       = await findOrCreateApplicationState(from, entities);
+          if (!state) { skipped++; continue; } // noise gate — no mortgage signal
           await updateApplicationState(state, entities, cleanedBody, from, subject);
 
           processed++;
@@ -7392,6 +7393,22 @@ async function findOrCreateApplicationState(from, entities) {
 
   if (existing) return existing;
 
+  // ── Noise gate: don't create a new state row for clearly non-mortgage emails ──
+  // If Claude found no borrower name, no lender, no documents, and labelled the
+  // event as "other", this email almost certainly isn't a mortgage enquiry.
+  // We skip state creation entirely — the try/catch in the caller handles null.
+  const hasSignal =
+    entities.borrower_name ||
+    entities.lender ||
+    (entities.documents_received && entities.documents_received.length > 0) ||
+    (entities.documents_mentioned && entities.documents_mentioned.length > 0) ||
+    (entities.event_type && entities.event_type !== "other");
+
+  if (!hasSignal) {
+    console.log(`[email-context] Noise gate — no mortgage signal detected for ${senderEmail}, skipping state creation`);
+    return null;
+  }
+
   // Try to find a matching mortgage lead
   const { data: lead } = await supabase
     .from("mortgage_leads")
@@ -7774,8 +7791,12 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
       console.log(`[email-context] Entities: event=${entities.event_type} docs_received=[${(entities.documents_received||[]).join(",")}]`);
 
       const state       = await findOrCreateApplicationState(from, entities);
-      const updatedState = await updateApplicationState(state, entities, cleanedBody, from, subject);
-      applicationContext = await getApplicationContext(updatedState.id);
+      if (!state) {
+        console.log(`[email-context] Noise gate triggered — no application context built for ${from}`);
+      } else {
+        const updatedState = await updateApplicationState(state, entities, cleanedBody, from, subject);
+        applicationContext = await getApplicationContext(updatedState.id);
+      }
 
       console.log(`[email-context] Phase: ${applicationContext.state?.current_phase} | Docs received: ${applicationContext.state?.received_documents?.join(", ") || "none"}`);
     } catch (ctxErr) {
@@ -7994,6 +8015,34 @@ async function pollGmailInbox() {
     "@aom.ie",                        // AOM colleagues — case updates, doc requests, milestones
   ];
 
+  // Noise senders — fully ignored. No reply, no context pipeline, no LLM call.
+  // These are non-mortgage transactional/marketing emails that can never contain
+  // application-relevant data. Add to this list whenever the application state
+  // table accumulates junk rows from a recurring sender.
+  const NOISE_SKIP_ADDRESSES = [
+    "messaging-service@post.xero.com",      // Xero invoice notifications
+    "info@micksgarage.com",                 // Car parts marketing
+    "events@lia.ie",                        // LIA CPD event invitations
+    "latest@royallondonnews.com",           // Royal London insurance marketing
+    "no-reply@asana.com",                   // Asana task notifications
+    "noreply@reports.connecteam.com",       // Connecteam time tracking
+    "no-reply@teams.mail.microsoft",        // Microsoft Teams notifications
+    "noreply.invitations@trustpilotmail.com", // Trustpilot review requests
+  ];
+
+  const NOISE_SKIP_DOMAINS = [
+    // Add domain-level noise patterns here, e.g. "@post.xero.com"
+    "@post.xero.com",
+  ];
+
+  function isNoiseSender(fromText) {
+    const match = fromText.match(/<([^>]+)>/);
+    const addr  = (match ? match[1] : fromText).toLowerCase().trim();
+    if (NOISE_SKIP_ADDRESSES.includes(addr)) return true;
+    if (NOISE_SKIP_DOMAINS.some(d => addr.endsWith(d))) return true;
+    return false;
+  }
+
   function isInternalSender(fromText) {
     const match = fromText.match(/<([^>]+)>/);
     const addr  = (match ? match[1] : fromText).toLowerCase().trim();
@@ -8033,6 +8082,13 @@ async function pollGmailInbox() {
         continue;
       }
 
+      // Skip known noise senders — no reply, no context pipeline, no LLM cost
+      if (isNoiseSender(from)) {
+        console.log(`[email-poll] Skipping noise sender ${from}: "${subject}"`);
+        results.push({ uid, cls: { intent: "Noise" } });
+        continue;
+      }
+
       if (subject.startsWith("Draft reply:")) {
         console.log(`[email-poll] Skipping loop-guard email: "${subject}"`);
         results.push({ uid, cls: { intent: "Transactional" } });
@@ -8048,7 +8104,7 @@ async function pollGmailInbox() {
           const entities    = await extractEmailEntities(cleanedBody, from, subject);
           console.log(`[email-context] Adobe Sign entities: event=${entities.event_type} docs_received=[${(entities.documents_received||[]).join(",")}]`);
           const state = await findOrCreateApplicationState(from, entities);
-          await updateApplicationState(state, entities, cleanedBody, from, subject);
+          if (state) await updateApplicationState(state, entities, cleanedBody, from, subject);
         } catch (ctxErr) {
           console.warn(`[email-context] Context-only pipeline failed: ${ctxErr.message}`);
         }

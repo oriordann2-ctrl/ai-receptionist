@@ -76,11 +76,18 @@
   panel.id = "sprimal-panel";
   panel.className = "sprimal-hidden";
 
-  // AOM uses the full chat-aom.html page in an iframe
+  // AOM uses the full chat-aom.html page in an iframe — preloaded immediately
   if (clubId === "aom") {
     panel.style.cssText += "padding:0;overflow:hidden;";
     panel.innerHTML = [
-      '<iframe id="sprimal-iframe" src="" allow="clipboard-write" style="width:100%;height:100%;border:none;border-radius:16px;display:block;"></iframe>'
+      '<div id="sprimal-iframe-loader" style="position:absolute;inset:0;background:#0f2a5e;display:flex;align-items:center;justify-content:center;border-radius:16px;z-index:1;">',
+      '  <div style="display:flex;gap:6px;">',
+      '    <div style="width:8px;height:8px;border-radius:50%;background:#93c5fd;animation:sprimal-bounce .9s infinite ease-in-out;"></div>',
+      '    <div style="width:8px;height:8px;border-radius:50%;background:#93c5fd;animation:sprimal-bounce .9s .15s infinite ease-in-out;"></div>',
+      '    <div style="width:8px;height:8px;border-radius:50%;background:#93c5fd;animation:sprimal-bounce .9s .3s infinite ease-in-out;"></div>',
+      '  </div>',
+      '</div>',
+      '<iframe id="sprimal-iframe" src="' + BACKEND + '/chat/aom" allow="clipboard-write" style="width:100%;height:100%;border:none;border-radius:16px;display:block;position:relative;z-index:2;"></iframe>'
     ].join("");
     document.body.appendChild(panel);
   } else {
@@ -112,6 +119,14 @@
   var closeBtn  = document.getElementById("sprimal-close");
   var badge     = document.getElementById("sprimal-badge");
   var iframe    = document.getElementById("sprimal-iframe");
+  var iframeLoader = document.getElementById("sprimal-iframe-loader");
+
+  // Hide the loading overlay once the iframe has loaded
+  if (iframe && iframeLoader) {
+    iframe.addEventListener("load", function() {
+      iframeLoader.style.display = "none";
+    });
+  }
 
   var isOpen    = false;
   var hasOpened = false;
@@ -216,10 +231,7 @@
     if (isMobile()) btn.style.display = "none";
 
     if (clubId === "aom") {
-      // Load iframe on first open
-      if (!hasOpened && iframe) {
-        iframe.src = BACKEND + "/chat/aom";
-      }
+      // iframe already preloaded — nothing to do
     } else {
       if (!hasOpened) {
         var greeting = "Hi there 👋 I'm Maeve, your " + clubName + " assistant.\n\nI can answer questions about the club — memberships, facilities, schedules, and more.\n\nWhat would you like to know?";

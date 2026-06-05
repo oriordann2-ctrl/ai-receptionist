@@ -9420,7 +9420,7 @@ app.get("/api/workflow/:clubId", async (req, res) => {
 
 // Portal: list all workflows for the logged-in tenant
 app.get("/api/portal/workflows", requireTenant, async (req, res) => {
-  const clubId = req.session.tenantId;
+  const clubId = req.tenant.tenantId;
   const { data, error } = await supabase
     .from("chat_workflows")
     .select("id, name, is_active, created_at, updated_at, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value))")
@@ -9432,7 +9432,7 @@ app.get("/api/portal/workflows", requireTenant, async (req, res) => {
 
 // Portal: create a new (empty) workflow
 app.post("/api/portal/workflows", requireTenant, async (req, res) => {
-  const clubId = req.session.tenantId;
+  const clubId = req.tenant.tenantId;
   const { name } = req.body;
   const { data, error } = await supabase
     .from("chat_workflows")
@@ -9445,7 +9445,7 @@ app.post("/api/portal/workflows", requireTenant, async (req, res) => {
 
 // Portal: update workflow metadata (name / is_active)
 app.put("/api/portal/workflows/:id", requireTenant, async (req, res) => {
-  const clubId = req.session.tenantId;
+  const clubId = req.tenant.tenantId;
   const { id }   = req.params;
   const { name, is_active } = req.body;
 
@@ -9471,7 +9471,7 @@ app.put("/api/portal/workflows/:id", requireTenant, async (req, res) => {
 
 // Portal: delete a workflow (cascades to steps and choices)
 app.delete("/api/portal/workflows/:id", requireTenant, async (req, res) => {
-  const clubId = req.session.tenantId;
+  const clubId = req.tenant.tenantId;
   const { id } = req.params;
   const { error } = await supabase
     .from("chat_workflows")
@@ -9484,7 +9484,7 @@ app.delete("/api/portal/workflows/:id", requireTenant, async (req, res) => {
 
 // Portal: replace all steps + choices for a workflow (full overwrite on save)
 app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
-  const clubId = req.session.tenantId;
+  const clubId = req.tenant.tenantId;
   const { id }   = req.params;
   const { steps } = req.body; // [{step_order, bot_message, choices:[{label,action_type,action_value,choice_order}]}]
 

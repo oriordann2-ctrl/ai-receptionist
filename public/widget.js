@@ -520,7 +520,7 @@
     } else if (type === "url") {
       if (val) window.open(val, "_blank");
       addMsg("Opening that page for you 👍\n\nFeel free to ask me anything else — I'm still here!", "bot");
-      setTimeout(function () { enableTextInput(); }, 300);
+      setTimeout(function () { enableTextInput(); showBackToMenu(); }, 300);
 
     } else if (type === "switch_flow") {
       var targetSteps = wfFlowMap[val];

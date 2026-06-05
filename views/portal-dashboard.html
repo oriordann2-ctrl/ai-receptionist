@@ -465,6 +465,23 @@
     .owner-lender  { background: #fef3c7; color: #92400e; }
     .detail-conflict { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #dc2626; line-height: 1.5; }
     .detail-modal-box { max-width: 600px; }
+    .detail-notes-box {
+      width: 100%; min-height: 90px; padding: 10px 12px;
+      border: 1.5px solid #e2e8f0; border-radius: 8px;
+      font-size: 13px; font-family: inherit; color: #111827;
+      line-height: 1.6; outline: none; resize: vertical;
+      transition: border-color 0.15s; background: white;
+    }
+    .detail-notes-box:focus { border-color: #2563eb; }
+    .btn-save-notes {
+      background: #1e40af; color: white; border: none;
+      border-radius: 7px; padding: 8px 18px; font-size: 13px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: background 0.15s; margin-top: 8px;
+    }
+    .btn-save-notes:hover:not(:disabled) { background: #1d3a9e; }
+    .btn-save-notes:disabled { background: #93c5fd; cursor: not-allowed; }
+    .notes-saved-msg { font-size: 12px; color: #16a34a; font-weight: 600; margin-top: 6px; display: none; }
 
     /* ── Mobile ── */
     @media (max-width: 600px) {
@@ -948,11 +965,24 @@
         <div class="detail-conflict" id="detailConflicts"></div>
       </div>
 
+      <!-- Broker Notes -->
+      <div class="detail-section">
+        <div class="detail-section-title">🗒 Broker Notes</div>
+        <textarea class="detail-notes-box" id="detailNotesBox" placeholder="Add a note about the latest interaction, call, or update — the AI will factor this into its next action recommendation…"></textarea>
+        <div>
+          <button class="btn-save-notes" id="detailNotesSaveBtn" onclick="saveNotes()">Save Note</button>
+          <div class="notes-saved-msg" id="notesSavedMsg">✓ Saved — refresh next action to reflect this update</div>
+        </div>
+      </div>
+
       <!-- Next Action -->
       <div class="detail-section">
         <div class="detail-section-title">⚡ Recommended Next Action</div>
         <div id="detailNextAction">
           <div style="text-align:center;padding:20px;font-size:13px;color:#9ca3af;">Generating recommendation…</div>
+        </div>
+        <div style="margin-top:8px;text-align:right;">
+          <button onclick="refreshNextAction()" style="background:none;border:none;cursor:pointer;font-size:12px;color:#6b7280;font-family:inherit;padding:4px 6px;">↻ Refresh recommendation</button>
         </div>
       </div>
 
@@ -1173,6 +1203,12 @@
       // Reset next action to loading state
       document.getElementById('detailNextAction').innerHTML = '<div style="text-align:center;padding:20px;font-size:13px;color:#9ca3af;">Generating recommendation…</div>';
 
+      // Broker notes
+      document.getElementById('detailNotesBox').value = a.manual_notes || '';
+      document.getElementById('notesSavedMsg').style.display = 'none';
+      document.getElementById('detailNotesSaveBtn').disabled = false;
+      document.getElementById('detailNotesSaveBtn').textContent = 'Save Note';
+
       document.getElementById('mortDetailsModal').classList.add('open');
 
       // Fetch full details + next action from server
@@ -1200,6 +1236,49 @@
     window.closeMortDetails = function() {
       document.getElementById('mortDetailsModal').classList.remove('open');
       detailCurrentId = null;
+    };
+
+    window.saveNotes = function() {
+      if (!detailCurrentId) return;
+      var btn     = document.getElementById('detailNotesSaveBtn');
+      var savedEl = document.getElementById('notesSavedMsg');
+      var notes   = document.getElementById('detailNotesBox').value;
+      btn.disabled = true; btn.textContent = 'Saving…';
+      savedEl.style.display = 'none';
+
+      fetch('/api/portal/mortgage-applications/' + detailCurrentId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manual_notes: notes || null })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        btn.disabled = false; btn.textContent = 'Save Note';
+        if (data.error) { alert('Failed to save: ' + data.error); return; }
+        // Update local cache
+        var idx = apps.findIndex(function(x){ return x.id === detailCurrentId; });
+        if (idx !== -1) apps[idx].manual_notes = notes || null;
+        savedEl.style.display = 'block';
+        setTimeout(function(){ savedEl.style.display = 'none'; }, 4000);
+      })
+      .catch(function(){
+        btn.disabled = false; btn.textContent = 'Save Note';
+        alert('Something went wrong. Please try again.');
+      });
+    };
+
+    window.refreshNextAction = function() {
+      if (!detailCurrentId) return;
+      document.getElementById('detailNextAction').innerHTML = '<div style="text-align:center;padding:20px;font-size:13px;color:#9ca3af;">Generating recommendation…</div>';
+      fetch('/api/portal/mortgage-applications/' + detailCurrentId + '/details')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.next_action) renderNextAction(data.next_action);
+          else document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#9ca3af;">No recommendation available.</div>';
+        })
+        .catch(function(){
+          document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#ef4444;">Failed to generate recommendation.</div>';
+        });
     };
 
     window.switchToEdit = function() {

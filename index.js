@@ -4878,7 +4878,7 @@ app.put("/api/portal/mortgage-applications/:id", requireTenant, async (req, res)
   }
   const { id } = req.params;
   if (!id) return res.status(400).json({ error: "Missing application id." });
-  const allowed = ["borrower_name","co_borrower_name","client_email","application_ref","lender","current_phase","borrower_type","loan_amount","property_address"];
+  const allowed = ["borrower_name","co_borrower_name","client_email","application_ref","lender","current_phase","borrower_type","loan_amount","property_address","manual_notes"];
   const updates = {};
   for (const key of allowed) {
     if (Object.prototype.hasOwnProperty.call(req.body, key)) updates[key] = req.body[key];
@@ -4927,7 +4927,8 @@ Property Address: ${app.property_address || "Not yet identified"}
 Documents Received: ${(app.received_documents || []).join(", ") || "None recorded"}
 Documents Outstanding: ${(app.missing_documents || []).join(", ") || "None recorded"}
 Conflict Flags: ${(app.conflict_flags || []).join("; ") || "None"}
-Running Summary: ${app.running_summary || "No summary yet."}
+AI Running Summary: ${app.running_summary || "No summary yet."}
+Broker Notes (manually added by AOM staff — treat as high priority context): ${app.manual_notes || "None"}
 
 Return ONLY valid JSON:
 {

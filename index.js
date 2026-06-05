@@ -7733,7 +7733,7 @@ Body: ${cleanedBody.slice(0, 1500)}
   "borrower_name": "full name of main applicant if mentioned, else null",
   "co_borrower_name": "second applicant name if mentioned, else null",
   "client_email": "the borrower/applicant's own personal email address if explicitly mentioned in the email body (e.g. 'john@gmail.com'), else null — do NOT use the sender's email",
-  "application_ref": "any lender or portal reference number mentioned (e.g. 92806275, 61720822, NPDH-260526-009, B50007177), else null",
+  "application_ref": "any lender or portal reference number mentioned in the subject line OR body (e.g. 92806275, 61720822, NPDH-260526-009, B50007177) — check the Subject field carefully as these numbers very commonly appear there, else null",
   "event_type": "document_received | document_requested | status_enquiry | milestone | new_enquiry | other",
   "documents_received": ["documents explicitly sent or attached in THIS email e.g. payslip, gift letter, bank statements"],
   "documents_mentioned": ["documents referenced but not necessarily sent"],

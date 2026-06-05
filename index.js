@@ -4047,6 +4047,97 @@ Rules:
   }
 });
 
+// ── One-time admin seed: create AOM chat flows ───────────────────────────────
+// Visit /api/admin/seed-aom-flows?password=<ADMIN_PASSWORD> once, then this
+// endpoint does nothing (idempotent — checks for existing flows first).
+app.get("/api/admin/seed-aom-flows", async (req, res) => {
+  if (req.query.password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  // Idempotency: skip if AOM flows already exist
+  const { data: existing } = await supabase
+    .from("chat_workflows")
+    .select("id")
+    .eq("club_id", "aom")
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    return res.json({ ok: true, message: "AOM flows already exist — nothing to do." });
+  }
+
+  try {
+    // ── Create flows ────────────────────────────────────────────────────────
+    const flowNames = [
+      "AOM — Main Menu",
+      "Existing Client",
+      "New to AOM",
+      "Mortgage Enquiry",
+      "Book Appointment"
+    ];
+    const { data: flows, error: flowErr } = await supabase
+      .from("chat_workflows")
+      .insert(flowNames.map(name => ({ club_id: "aom", name, is_active: false })))
+      .select("id, name");
+    if (flowErr) throw flowErr;
+
+    const fMain  = flows.find(f => f.name === "AOM — Main Menu").id;
+    const fExist = flows.find(f => f.name === "Existing Client").id;
+    const fNew   = flows.find(f => f.name === "New to AOM").id;
+    const fMort  = flows.find(f => f.name === "Mortgage Enquiry").id;
+    const fAppt  = flows.find(f => f.name === "Book Appointment").id;
+
+    // ── Create steps ────────────────────────────────────────────────────────
+    const stepDefs = [
+      { workflow_id: fMain,  step_order: 1, bot_message: "Hi there 👋 I'm Maeve, the At Once Mortgages assistant.\n\nAre you an existing AOM client, or getting in touch for the first time?" },
+      { workflow_id: fExist, step_order: 1, bot_message: "Welcome back.\n\nTo pull up your application, please type your email address below and I'll look it up for you." },
+      { workflow_id: fNew,   step_order: 1, bot_message: "Great, let's get started. What brings you to AOM today?" },
+      { workflow_id: fMort,  step_order: 1, bot_message: "Before we get started — I may need to collect some personal details to help with your enquiry. Is that okay?" },
+      { workflow_id: fMort,  step_order: 2, bot_message: "To get started, which of these best describes you?" },
+      { workflow_id: fAppt,  step_order: 1, bot_message: "No problem — tell me a bit about what you need and I'll make sure the team has everything ready for your call." },
+    ];
+    const { data: steps, error: stepErr } = await supabase
+      .from("workflow_steps")
+      .insert(stepDefs)
+      .select("id, workflow_id, step_order");
+    if (stepErr) throw stepErr;
+
+    const s = (wfId, order) => steps.find(s => s.workflow_id === wfId && s.step_order === order).id;
+
+    // ── Create choices ──────────────────────────────────────────────────────
+    const choices = [
+      // Main Menu
+      { step_id: s(fMain,  1), choice_order: 1, label: "Existing Client",     action_type: "switch_flow", action_value: fExist },
+      { step_id: s(fMain,  1), choice_order: 2, label: "New to AOM",          action_type: "switch_flow", action_value: fNew   },
+      // Existing Client
+      { step_id: s(fExist, 1), choice_order: 1, label: "Enter my email address", action_type: "ai_fallback", action_value: null },
+      { step_id: s(fExist, 1), choice_order: 2, label: "← Back to main menu",    action_type: "switch_flow", action_value: fMain },
+      // New to AOM
+      { step_id: s(fNew,   1), choice_order: 1, label: "Apply for a mortgage", action_type: "switch_flow", action_value: fMort },
+      { step_id: s(fNew,   1), choice_order: 2, label: "Book an appointment",  action_type: "switch_flow", action_value: fAppt },
+      { step_id: s(fNew,   1), choice_order: 3, label: "Something else",       action_type: "ai_fallback", action_value: null  },
+      // Mortgage — step 1 (GDPR)
+      { step_id: s(fMort,  1), choice_order: 1, label: "Yes, that's fine", action_type: "next_step", action_value: "2" },
+      { step_id: s(fMort,  1), choice_order: 2, label: "No thanks",        action_type: "message",   action_value: "No problem at all — I won't collect any personal information.\n\nIf you have general questions about mortgages, I'm still happy to help." },
+      // Mortgage — step 2 (buyer type)
+      { step_id: s(fMort,  2), choice_order: 1, label: "First-time buyer", action_type: "ai_fallback", action_value: null },
+      { step_id: s(fMort,  2), choice_order: 2, label: "Switching",        action_type: "ai_fallback", action_value: null },
+      { step_id: s(fMort,  2), choice_order: 3, label: "Remortgaging",     action_type: "ai_fallback", action_value: null },
+      { step_id: s(fMort,  2), choice_order: 4, label: "Something else",   action_type: "ai_fallback", action_value: null },
+      // Book Appointment
+      { step_id: s(fAppt,  1), choice_order: 1, label: "Get started →",       action_type: "ai_fallback", action_value: null  },
+      { step_id: s(fAppt,  1), choice_order: 2, label: "← Back to main menu", action_type: "switch_flow", action_value: fMain },
+    ];
+    const { error: choiceErr } = await supabase.from("workflow_choices").insert(choices);
+    if (choiceErr) throw choiceErr;
+
+    res.json({ ok: true, message: "AOM flows created successfully.", flows: flows.map(f => f.name) });
+  } catch (err) {
+    console.error("[seed-aom-flows]", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── Public tenant chat page (QR code destination) ────────────────────────────
 app.get("/chat/:tenantId", async (req, res) => {
   const tenantId = req.params.tenantId;

@@ -766,29 +766,41 @@
   <!-- ── Section: Mortgage Applications (AOM only — hidden for all other tenants) ── -->
   <div id="mortgageTrackerSection" style="display:none;">
     <div class="section-group-label">📋 Mortgage Applications</div>
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div class="card-title">Application Tracker</div>
-        <button onclick="refreshMortgageApps()" style="background:none;border:none;cursor:pointer;font-size:13px;color:#2563eb;font-weight:600;font-family:inherit;padding:4px 8px;border-radius:6px;transition:background 0.15s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='none'">↻ Refresh</button>
-      </div>
-      <div class="card-sub">All active mortgage applications — updated automatically as emails arrive. Click Edit to correct any field.</div>
-      <div class="mort-table-wrap">
-        <table class="mort-table">
-          <thead>
-            <tr>
-              <th>Borrower</th>
-              <th>Lender</th>
-              <th>Phase</th>
-              <th>App Ref</th>
-              <th>Last Activity</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="mortTableBody">
-            <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:24px 0;">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="card" style="padding:0;">
+      <details id="mortgageTrackerDetails">
+        <summary class="analytics-summary">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;">📋</span>
+            <div>
+              <div class="card-title" style="margin-bottom:2px;">Application Tracker</div>
+              <div style="font-size:13px;color:#6b7280;">All active mortgage applications — updated automatically as emails arrive</div>
+            </div>
+          </div>
+          <span class="analytics-chevron">▾</span>
+        </summary>
+        <div class="analytics-body">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+            <button onclick="refreshMortgageApps()" style="background:none;border:none;cursor:pointer;font-size:13px;color:#2563eb;font-weight:600;font-family:inherit;padding:4px 8px;border-radius:6px;transition:background 0.15s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='none'">↻ Refresh</button>
+          </div>
+          <div class="mort-table-wrap">
+            <table class="mort-table">
+              <thead>
+                <tr>
+                  <th>Borrower</th>
+                  <th>Lender</th>
+                  <th>Phase</th>
+                  <th>App Ref</th>
+                  <th>Last Activity</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="mortTableBody">
+                <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:24px 0;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
     </div>
   </div>
 

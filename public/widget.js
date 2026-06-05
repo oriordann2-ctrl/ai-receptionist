@@ -158,6 +158,46 @@
   var isOpen    = false;
   var hasOpened = false;
 
+  // ── Message history persistence (survives panel close/reopen & page nav) ──
+  var MSG_STORE = "sprimal_history_" + clubId;
+
+  function saveHistory() {
+    if (clubId === "aom" || !messages) return;
+    try {
+      var items = [];
+      var nodes = messages.children;
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        // Skip transient elements — typing dots and choice buttons
+        if (n.id === "sprimal-typing" || n.id === "sprimal-choices") continue;
+        items.push({ cls: n.className, inner: n.innerHTML });
+      }
+      sessionStorage.setItem(MSG_STORE, JSON.stringify({ ts: Date.now(), items: items }));
+    } catch (e) {}
+  }
+
+  function loadHistory() {
+    if (clubId === "aom" || !messages) return false;
+    try {
+      var raw = sessionStorage.getItem(MSG_STORE);
+      if (!raw) return false;
+      var data = JSON.parse(raw);
+      // Expire after 30 minutes
+      if (!data || !data.items || !data.items.length || (Date.now() - data.ts) > 1800000) {
+        sessionStorage.removeItem(MSG_STORE);
+        return false;
+      }
+      data.items.forEach(function (item) {
+        var div = document.createElement("div");
+        div.className = item.cls;
+        div.innerHTML = item.inner; // safe — only our own rendered markup
+        messages.appendChild(div);
+      });
+      messages.scrollTop = messages.scrollHeight;
+      return true;
+    } catch (e) { return false; }
+  }
+
   // ── Workflow state ────────────────────────────────────────────────────────
   var wfSteps   = [];  // sorted steps for the currently-active flow
   var wfFlowMap = {};  // { flowId: sortedSteps[] } — all flows pre-fetched for switch_flow
@@ -254,6 +294,7 @@
     div.textContent = stripHtml(text);
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
+    saveHistory();
     return div;
   }
 
@@ -297,6 +338,7 @@
     });
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
+    saveHistory();
     return div;
   }
 
@@ -496,15 +538,20 @@
       // iframe already preloaded — nothing to do
     } else {
       if (!hasOpened) {
-        if (wfSteps.length) {
-          // Workflow mode: hide footer text input, show button menu
+        if (loadHistory()) {
+          // Restored previous session — show text input so they can continue
+          var footer = document.getElementById("sprimal-footer");
+          if (footer) footer.style.display = "flex";
+          setTimeout(function () { if (input) input.focus(); }, 100);
+        } else if (wfSteps.length) {
+          // Fresh start — workflow mode: hide footer, show button menu
           wfMode = true;
           var footer = document.getElementById("sprimal-footer");
           if (footer) footer.style.display = "none";
           addMsg("Hi there 👋 I'm " + botName + ", your " + clubName + " assistant.", "bot");
           showWorkflowStep(wfSteps[0]);
         } else {
-          // Standard AI mode: show greeting + text input
+          // Fresh start — standard AI mode
           var greeting = "Hi there 👋 I'm " + botName + ", your " + clubName + " assistant.\n\nWhat would you like to know?";
           addMsg(greeting, "bot");
           setTimeout(function () { if (input) input.focus(); }, 100);

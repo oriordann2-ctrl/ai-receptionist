@@ -1261,9 +1261,29 @@
       document.getElementById('mortDetailsModal').classList.add('open');
 
       // Fetch full details + next action from server
+      // The server may auto-generate summary and load doc checklist — always use response data
       fetch('/api/portal/mortgage-applications/' + id + '/details')
         .then(function(r){ return r.json(); })
         .then(function(data){
+          // Update local cache with any server-side enrichments
+          if (data.application) {
+            var idx = apps.findIndex(function(x){ return x.id === id; });
+            if (idx !== -1) apps[idx] = Object.assign(apps[idx], data.application);
+            // Re-render summary and docs from server response (may now be populated)
+            var app = data.application;
+            var summaryEl = document.getElementById('detailSummary');
+            summaryEl.textContent = app.running_summary || 'No summary recorded yet — will populate as emails are processed.';
+            summaryEl.style.color = app.running_summary ? '#374151' : '#9ca3af';
+
+            var recv = app.received_documents || [];
+            var miss = app.missing_documents  || [];
+            document.getElementById('detailDocsReceived').innerHTML = recv.length
+              ? recv.map(function(d){ return '<span class="detail-doc-badge detail-doc-received">' + esc(d) + '</span>'; }).join('')
+              : '<span style="font-size:13px;color:#9ca3af;">None recorded</span>';
+            document.getElementById('detailDocsMissing').innerHTML = miss.length
+              ? miss.map(function(d){ return '<span class="detail-doc-badge detail-doc-missing">' + esc(d) + '</span>'; }).join('')
+              : '<span style="font-size:13px;color:#9ca3af;">None outstanding</span>';
+          }
           if (data.next_action) renderNextAction(data.next_action);
           else document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#9ca3af;">No recommendation available.</div>';
         })
@@ -1332,6 +1352,22 @@
       fetch('/api/portal/mortgage-applications/' + detailCurrentId + '/details')
         .then(function(r){ return r.json(); })
         .then(function(data){
+          if (data.application) {
+            var idx = apps.findIndex(function(x){ return x.id === detailCurrentId; });
+            if (idx !== -1) apps[idx] = Object.assign(apps[idx], data.application);
+            var app = data.application;
+            var summaryEl = document.getElementById('detailSummary');
+            summaryEl.textContent = app.running_summary || 'No summary recorded yet.';
+            summaryEl.style.color = app.running_summary ? '#374151' : '#9ca3af';
+            var recv = app.received_documents || [];
+            var miss = app.missing_documents  || [];
+            document.getElementById('detailDocsReceived').innerHTML = recv.length
+              ? recv.map(function(d){ return '<span class="detail-doc-badge detail-doc-received">' + esc(d) + '</span>'; }).join('')
+              : '<span style="font-size:13px;color:#9ca3af;">None recorded</span>';
+            document.getElementById('detailDocsMissing').innerHTML = miss.length
+              ? miss.map(function(d){ return '<span class="detail-doc-badge detail-doc-missing">' + esc(d) + '</span>'; }).join('')
+              : '<span style="font-size:13px;color:#9ca3af;">None outstanding</span>';
+          }
           if (data.next_action) renderNextAction(data.next_action);
           else document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#9ca3af;">No recommendation available.</div>';
         })

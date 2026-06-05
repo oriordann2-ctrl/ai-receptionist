@@ -4815,9 +4815,12 @@ app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
           if (fromAddr.toLowerCase() === (process.env.GMAIL_USER || "").toLowerCase()) { skipped++; continue; }
 
           // Run context pipeline — no reply generation
-          const cleanedBody = deduplicateEmailBody(body);
-          const entities    = await extractEmailEntities(cleanedBody, from, subject);
-          const state       = await findOrCreateApplicationState(from, entities);
+          const cleanedBody  = deduplicateEmailBody(body);
+          const entities     = await extractEmailEntities(cleanedBody, from, subject);
+          const backfillAddr = (from.match(/<([^>]+)>/) || [])[1] || from;
+          const backfillIsStaff = CONTEXT_ONLY_DOMAINS.some(d => backfillAddr.toLowerCase().endsWith(d))
+                               || CONTEXT_ONLY_ADDRESSES.includes(backfillAddr.toLowerCase());
+          const state       = await findOrCreateApplicationState(from, entities, backfillIsStaff);
           if (!state) { skipped++; continue; } // noise gate — no mortgage signal
           await updateApplicationState(state, entities, cleanedBody, from, subject);
 
@@ -7729,6 +7732,8 @@ Body: ${cleanedBody.slice(0, 1500)}
 {
   "borrower_name": "full name of main applicant if mentioned, else null",
   "co_borrower_name": "second applicant name if mentioned, else null",
+  "client_email": "the borrower/applicant's own personal email address if explicitly mentioned in the email body (e.g. 'john@gmail.com'), else null — do NOT use the sender's email",
+  "application_ref": "any lender or portal reference number mentioned (e.g. 92806275, 61720822, NPDH-260526-009, B50007177), else null",
   "event_type": "document_received | document_requested | status_enquiry | milestone | new_enquiry | other",
   "documents_received": ["documents explicitly sent or attached in THIS email e.g. payslip, gift letter, bank statements"],
   "documents_mentioned": ["documents referenced but not necessarily sent"],
@@ -7751,25 +7756,69 @@ Body: ${cleanedBody.slice(0, 1500)}
 }
 
 // ── 3. Find or Create Application State ───────────────────────────────────────
-async function findOrCreateApplicationState(from, entities) {
+// isStaffOrSystem: true when email is from AOM staff, lender, or system address.
+// Staff/system emails can UPDATE existing records but must never CREATE new ones —
+// they cover multiple clients so keying by sender_email would mix cases together.
+async function findOrCreateApplicationState(from, entities, isStaffOrSystem = false) {
   const emailMatch = from.match(/<([^>]+)>/);
   const senderEmail = (emailMatch ? emailMatch[1] : from).toLowerCase().trim();
+  const clientEmail = (entities.client_email || "").toLowerCase().trim() || null;
+  const appRef      = (entities.application_ref || "").trim() || null;
 
-  // Look for existing state by sender email
-  const { data: existing } = await supabase
-    .from("mortgage_application_states")
-    .select("*")
-    .eq("sender_email", senderEmail)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // ── Lookup priority ────────────────────────────────────────────────────────
+  // 1. client_email extracted from body → strongest signal
+  if (clientEmail) {
+    const { data: byClientEmail } = await supabase
+      .from("mortgage_application_states")
+      .select("*")
+      .or(`client_email.eq.${clientEmail},sender_email.eq.${clientEmail}`)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (byClientEmail) {
+      console.log(`[email-context] Matched by client_email: ${clientEmail}`);
+      return byClientEmail;
+    }
+  }
 
-  if (existing) return existing;
+  // 2. Application reference number (lender ref like 92806275)
+  if (appRef) {
+    const { data: byRef } = await supabase
+      .from("mortgage_application_states")
+      .select("*")
+      .eq("application_ref", appRef)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (byRef) {
+      console.log(`[email-context] Matched by application_ref: ${appRef}`);
+      return byRef;
+    }
+  }
 
-  // ── Noise gate: don't create a new state row for clearly non-mortgage emails ──
-  // If Claude found no borrower name, no lender, no documents, and labelled the
-  // event as "other", this email almost certainly isn't a mortgage enquiry.
-  // We skip state creation entirely — the try/catch in the caller handles null.
+  // 3. Sender email — only valid when the sender IS the client (not staff/system)
+  if (!isStaffOrSystem) {
+    const { data: bySender } = await supabase
+      .from("mortgage_application_states")
+      .select("*")
+      .or(`sender_email.eq.${senderEmail},client_email.eq.${senderEmail}`)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (bySender) {
+      console.log(`[email-context] Matched by sender_email: ${senderEmail}`);
+      return bySender;
+    }
+  }
+
+  // ── Staff/system with no match — do NOT create a new row ──────────────────
+  // These emails cover multiple clients; creating a row would mix cases.
+  if (isStaffOrSystem) {
+    console.log(`[email-context] Staff/system email (${senderEmail}) — no existing application found, skipping state creation`);
+    return null;
+  }
+
+  // ── Noise gate — don't create rows for clearly non-mortgage emails ─────────
   const hasSignal =
     entities.borrower_name ||
     entities.lender ||
@@ -7778,11 +7827,11 @@ async function findOrCreateApplicationState(from, entities) {
     (entities.event_type && entities.event_type !== "other");
 
   if (!hasSignal) {
-    console.log(`[email-context] Noise gate — no mortgage signal detected for ${senderEmail}, skipping state creation`);
+    console.log(`[email-context] Noise gate — no mortgage signal for ${senderEmail}, skipping`);
     return null;
   }
 
-  // Try to find a matching mortgage lead
+  // ── Create new state — sender is a direct client ───────────────────────────
   const { data: lead } = await supabase
     .from("mortgage_leads")
     .select("id, name, email")
@@ -7792,15 +7841,17 @@ async function findOrCreateApplicationState(from, entities) {
   const { data: newState } = await supabase
     .from("mortgage_application_states")
     .insert({
-      lead_id:           lead?.id            || null,
+      lead_id:           lead?.id                   || null,
       sender_email:      senderEmail,
-      borrower_name:     entities.borrower_name  || lead?.name || null,
-      co_borrower_name:  entities.co_borrower_name || null,
-      property_address:  entities.property_address || null,
-      loan_amount:       entities.loan_amount      || null,
-      current_phase:     entities.phase_signal     || "initial_enquiry",
-      lender:            entities.lender           || null,
-      borrower_type:     entities.borrower_type    || null,
+      client_email:      senderEmail,               // sender IS the client
+      application_ref:   appRef,
+      borrower_name:     entities.borrower_name     || lead?.name || null,
+      co_borrower_name:  entities.co_borrower_name  || null,
+      property_address:  entities.property_address  || null,
+      loan_amount:       entities.loan_amount        || null,
+      current_phase:     entities.phase_signal       || "initial_enquiry",
+      lender:            entities.lender             || null,
+      borrower_type:     entities.borrower_type      || null,
       missing_documents: [],
       received_documents:[],
       running_summary:   null,
@@ -7809,7 +7860,7 @@ async function findOrCreateApplicationState(from, entities) {
     .select()
     .single();
 
-  console.log(`[email-context] New application state created for ${senderEmail}`);
+  console.log(`[email-context] New application state created for client: ${senderEmail}`);
   return newState;
 }
 
@@ -7853,6 +7904,12 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
   if (entities.phase_signal && entities.phase_signal !== "null") {
     updates.current_phase = entities.phase_signal;
   }
+
+  // Identity fields — fill in if newly discovered
+  const newClientEmail = (entities.client_email || "").toLowerCase().trim() || null;
+  if (newClientEmail && !state.client_email) updates.client_email = newClientEmail;
+  const newAppRef = (entities.application_ref || "").trim() || null;
+  if (newAppRef && !state.application_ref) updates.application_ref = newAppRef;
 
   // Borrower details (only fill if not already set)
   if (entities.borrower_name    && !state.borrower_name)    updates.borrower_name    = entities.borrower_name;
@@ -8486,9 +8543,9 @@ async function processInboundEmail({ from, subject, body, cls = {} }) {
       console.log(`[email-context] Cleaned: ${cleanedBody.length} chars (raw: ${body.length} chars)`);
 
       const entities = await extractEmailEntities(cleanedBody, from, subject);
-      console.log(`[email-context] Entities: event=${entities.event_type} docs_received=[${(entities.documents_received||[]).join(",")}]`);
+      console.log(`[email-context] Entities: event=${entities.event_type} docs_received=[${(entities.documents_received||[]).join(",")}] client_email=${entities.client_email||"null"} app_ref=${entities.application_ref||"null"}`);
 
-      const state       = await findOrCreateApplicationState(from, entities);
+      const state       = await findOrCreateApplicationState(from, entities, false); // direct client email
       if (!state) {
         console.log(`[email-context] Noise gate triggered — no application context built for ${from}`);
       } else {
@@ -8718,6 +8775,16 @@ async function pollGmailInbox() {
     "@aom.onlineapplication.io",      // AOM online application portal — all automated notifications
     "@aom.ie",                        // AOM colleagues — case updates, doc requests, milestones
     "@ptsb.ie",                       // PTSB staff — lender communications, never auto-reply
+    "@boi.com",                       // Bank of Ireland staff
+    "@bankofireland.com",             // Bank of Ireland
+    "@havenmortgages.ie",             // Haven Mortgages
+    "@haven.ie",                      // Haven (alt domain)
+    "@aib.ie",                        // AIB staff
+    "@avant.ie",                      // Avant Money
+    "@avantmoney.ie",                 // Avant Money (alt domain)
+    "@nuamoney.com",                  // Nua Money
+    "@irishlife.ie",                  // Irish Life
+    "@ebs.ie",                        // EBS
   ];
 
   // Noise senders — fully ignored. No reply, no context pipeline, no LLM call.
@@ -8735,6 +8802,12 @@ async function pollGmailInbox() {
     "noreply@reports.connecteam.com",       // Connecteam time tracking
     "no-reply@teams.mail.microsoft",        // Microsoft Teams notifications
     "noreply.invitations@trustpilotmail.com", // Trustpilot review requests
+    // Third-party professionals (surveyors, other brokers, estate agents)
+    // who email AOM but are not clients and not lenders
+    "cdsurveyingltd@gmail.com",
+    "robert@irishandeuropean.ie",
+    "info@reaodonoghueclarke.ie",
+    "gary@gtfm.ie",
   ];
 
   const NOISE_SKIP_DOMAINS = [
@@ -8795,11 +8868,11 @@ async function pollGmailInbox() {
         const cormacAddressed = /\bcormac\b.{0,80}(\?|please|can you|could you|would you|do you|will you)/i.test(body)
                              || /\bcormac\b.*\bcan you\b/i.test(body);
 
-        // Always update context
+        // Always update context (CC email — treat as staff/system, never create)
         try {
           const cleanedBody = deduplicateEmailBody(body);
           const entities    = await extractEmailEntities(cleanedBody, from, subject);
-          const state       = await findOrCreateApplicationState(from, entities);
+          const state       = await findOrCreateApplicationState(from, entities, true); // isStaffOrSystem=true
           if (state) await updateApplicationState(state, entities, cleanedBody, from, subject);
         } catch (ctxErr) {
           console.warn(`[email-context] CC-only pipeline failed: ${ctxErr.message}`);
@@ -8843,7 +8916,7 @@ async function pollGmailInbox() {
           const cleanedBody = deduplicateEmailBody(body);
           const entities    = await extractEmailEntities(cleanedBody, from, subject);
           console.log(`[email-context] Adobe Sign entities: event=${entities.event_type} docs_received=[${(entities.documents_received||[]).join(",")}]`);
-          const state = await findOrCreateApplicationState(from, entities);
+          const state = await findOrCreateApplicationState(from, entities, true); // isStaffOrSystem=true
           if (state) await updateApplicationState(state, entities, cleanedBody, from, subject);
         } catch (ctxErr) {
           console.warn(`[email-context] Context-only pipeline failed: ${ctxErr.message}`);

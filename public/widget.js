@@ -371,6 +371,7 @@
           wfMode = true;
           var footer = document.getElementById("sprimal-footer");
           if (footer) footer.style.display = "none";
+          addMsg("Hi there 👋 I'm " + botName + ", your " + clubName + " assistant.", "bot");
           showWorkflowStep(wfSteps[0]);
         } else {
           // Standard AI mode: show greeting + text input

@@ -825,7 +825,7 @@
         </summary>
         <div class="analytics-body">
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-            <button onclick="refreshMortgageApps()" style="background:none;border:none;cursor:pointer;font-size:13px;color:#2563eb;font-weight:600;font-family:inherit;padding:4px 8px;border-radius:6px;transition:background 0.15s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='none'">↻ Refresh</button>
+            <button id="mortRefreshBtn" onclick="refreshMortgageApps()" style="background:none;border:none;cursor:pointer;font-size:13px;color:#2563eb;font-weight:600;font-family:inherit;padding:4px 8px;border-radius:6px;transition:background 0.15s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='none'">↻ Refresh</button>
           </div>
           <div class="mort-table-wrap">
             <table class="mort-table">
@@ -1459,12 +1459,18 @@
     };
 
     window.refreshMortgageApps = function() {
+      var btn = document.getElementById('mortRefreshBtn');
+      if (btn) { btn.textContent = '↻ Refreshing…'; btn.disabled = true; }
       fetch('/api/portal/mortgage-applications')
         .then(function(r){ return r.json(); })
         .then(function(data){
           if (data.applications) { apps = data.applications; renderTable(); }
+          if (btn) { btn.textContent = '↻ Refresh'; btn.disabled = false; }
         })
-        .catch(function(){});
+        .catch(function(err){
+          console.error('[mortgage-tracker] Refresh failed:', err);
+          if (btn) { btn.textContent = '↻ Refresh'; btn.disabled = false; }
+        });
     };
 
     renderTable();

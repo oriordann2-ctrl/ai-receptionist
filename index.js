@@ -4977,50 +4977,80 @@ Return ONLY the summary text — no labels, no formatting.`;
     }
   }
 
-  // Persist any auto-generated updates
-  if (Object.keys(stateUpdates).length) {
-    await supabase.from("mortgage_application_states").update(stateUpdates).eq("id", id);
-  }
+  // ── Generate summary + next action in a single call for consistency ──────────
+  // Generating both together guarantees they can never contradict each other.
 
-  // ── Generate next action recommendation via Claude ─────────────────────────
+  const docsOutstanding = (app.missing_documents || []).join(", ") || "None";
+  const docsReceived    = (app.received_documents || []).join(", ") || "None recorded";
+  const phaseLabel      = PHASE_LABELS[app.current_phase] || app.current_phase || "Unknown";
+  const lenderLabel     = LENDER_LABELS[app.lender] || app.lender || "Not yet determined";
+  const allDocsIn       = (app.missing_documents || []).length === 0 && (app.received_documents || []).length > 0;
+  const lateStage       = ["underwriting","letter_of_offer","drawdown"].includes(app.current_phase);
 
   let nextAction = null;
   try {
     const prompt =
-`You are an expert Irish mortgage advisor assistant for AOM (At Once Mortgages), a mortgage brokerage.
+`You are an expert Irish mortgage advisor for AOM (At Once Mortgages), an Irish mortgage brokerage.
 
-Based on this mortgage application state, identify the single most important next action to move the application forward. Be specific and practical.
+Using ONLY the application data below, produce two things that must be fully consistent with each other.
 
+APPLICATION DATA:
 Borrower: ${app.borrower_name || "Unknown"}${app.co_borrower_name ? " & " + app.co_borrower_name : ""}
-Lender: ${LENDER_LABELS[app.lender] || app.lender || "Not yet determined"}
-Phase: ${PHASE_LABELS[app.current_phase] || app.current_phase || "Unknown"}
+Lender: ${lenderLabel}
+Phase: ${phaseLabel}
 Borrower Type: ${app.borrower_type || "Unknown"}
 Loan Amount: ${app.loan_amount ? "€" + Number(app.loan_amount).toLocaleString("en-IE") : "Unknown"}
-Property Address: ${app.property_address || "Not yet identified"}
-Documents Received: ${(app.received_documents || []).join(", ") || "None recorded"}
-Documents Outstanding: ${(app.missing_documents || []).join(", ") || "None recorded"}
+Property: ${app.property_address || "Not yet identified"}
+Documents Received: ${docsReceived}
+Documents Outstanding: ${docsOutstanding}
+All Documents Complete: ${allDocsIn ? "YES — do not recommend chasing documents" : "NO"}
+Late Stage (underwriting/offer/drawdown): ${lateStage ? "YES — application is with lender, focus on lender-side actions" : "NO"}
 Conflict Flags: ${(app.conflict_flags || []).join("; ") || "None"}
-AI Running Summary: ${app.running_summary || "No summary yet."}
-Broker Notes (manually added by AOM staff — treat as high priority context): ${app.manual_notes || "None"}
+Email History Summary: ${app.running_summary || "No email history yet."}
+Broker Notes (high priority): ${app.manual_notes || "None"}
+
+RULES:
+- If All Documents Complete is YES, do NOT recommend collecting or chasing any documents
+- If Phase is Underwriting, the application is already with the lender awaiting their review — next action should reflect this
+- If Phase is Letter of Offer or Drawdown, focus on those stages
+- The summary and next_action must tell the same story — they must not contradict each other
+- Be specific and practical — avoid vague advice
 
 Return ONLY valid JSON:
 {
-  "next_action": "Specific description of the single most important next step",
+  "summary": "2-4 sentences describing where this application stands right now, based on the data above",
+  "next_action": "The single most important next step to move this application forward",
   "owner": "Client | AOM | Lender",
   "reason": "One sentence explaining why this is the priority action"
 }`;
 
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 256,
+      max_tokens: 400,
       messages: [{ role: "user", content: prompt }]
     });
     let text = (response.content[0]?.text || "{}").trim()
       .replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
-    nextAction = JSON.parse(text);
+    const parsed = JSON.parse(text);
+
+    // If no running summary existed, save the generated one
+    if (!app.running_summary && parsed.summary) {
+      stateUpdates.running_summary = parsed.summary;
+      app.running_summary = parsed.summary;
+      if (!Object.keys(stateUpdates).includes("running_summary")) {
+        await supabase.from("mortgage_application_states").update({ running_summary: parsed.summary }).eq("id", id);
+      }
+    }
+
+    nextAction = { next_action: parsed.next_action, owner: parsed.owner, reason: parsed.reason };
   } catch (err) {
-    console.warn("[mortgage-details] Next action generation failed:", err.message);
+    console.warn("[mortgage-details] AI generation failed:", err.message);
     nextAction = { next_action: "Unable to generate recommendation at this time.", owner: "AOM", reason: "" };
+  }
+
+  // Persist any state updates (checklist, summary)
+  if (Object.keys(stateUpdates).length) {
+    await supabase.from("mortgage_application_states").update(stateUpdates).eq("id", id);
   }
 
   res.json({ application: app, next_action: nextAction });

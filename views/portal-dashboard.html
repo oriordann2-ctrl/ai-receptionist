@@ -438,6 +438,34 @@
     .btn-modal-save:disabled { background: #93c5fd; cursor: not-allowed; }
     .modal-error { color: #dc2626; font-size: 13px; margin-top: 10px; padding: 8px 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; display: none; }
 
+    /* ── Details panel ── */
+    .detail-section { margin-bottom: 20px; }
+    .detail-section-title { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; }
+    .detail-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .detail-meta-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
+    .detail-meta-label { font-size: 11px; color: #9ca3af; font-weight: 600; margin-bottom: 3px; }
+    .detail-meta-value { font-size: 13px; color: #111827; font-weight: 600; }
+    .detail-summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; font-size: 13px; color: #374151; line-height: 1.65; }
+    .detail-doc-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .detail-doc-badge { font-size: 12px; padding: 3px 10px; border-radius: 20px; font-weight: 500; }
+    .detail-doc-received { background: #dcfce7; color: #15803d; }
+    .detail-doc-missing  { background: #fef3c7; color: #92400e; }
+    .detail-next-action-box {
+      border: 2px solid #c7d7f5; border-radius: 10px; padding: 16px 18px;
+      background: #eff6ff;
+    }
+    .detail-next-action-text { font-size: 14px; font-weight: 600; color: #1e40af; line-height: 1.5; margin-bottom: 8px; }
+    .detail-next-action-reason { font-size: 13px; color: #3b82f6; line-height: 1.5; margin-bottom: 10px; }
+    .detail-owner-badge {
+      display: inline-block; font-size: 12px; font-weight: 700;
+      padding: 3px 12px; border-radius: 20px;
+    }
+    .owner-client  { background: #dcfce7; color: #15803d; }
+    .owner-aom     { background: #dbeafe; color: #1d4ed8; }
+    .owner-lender  { background: #fef3c7; color: #92400e; }
+    .detail-conflict { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #dc2626; line-height: 1.5; }
+    .detail-modal-box { max-width: 600px; }
+
     /* ── Mobile ── */
     @media (max-width: 600px) {
       nav { padding: 0 16px; }
@@ -884,6 +912,57 @@
     </div>
   </div>
 
+  <!-- Details Modal -->
+  <div class="modal-overlay" id="mortDetailsModal" onclick="if(event.target===this)closeMortDetails()">
+    <div class="modal-box detail-modal-box">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px;">
+        <div>
+          <div class="modal-title" id="detailModalTitle" style="margin-bottom:4px;">Client Details</div>
+          <div id="detailModalSub" style="font-size:13px;color:#6b7280;"></div>
+        </div>
+        <button onclick="closeMortDetails()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af;padding:0;line-height:1;flex-shrink:0;">✕</button>
+      </div>
+
+      <!-- Meta grid -->
+      <div class="detail-section">
+        <div class="detail-meta-grid" id="detailMetaGrid"></div>
+      </div>
+
+      <!-- AI Summary -->
+      <div class="detail-section" id="detailSummarySection">
+        <div class="detail-section-title">AI Summary</div>
+        <div class="detail-summary-box" id="detailSummary"></div>
+      </div>
+
+      <!-- Documents -->
+      <div class="detail-section" id="detailDocsSection">
+        <div class="detail-section-title">Documents Received</div>
+        <div class="detail-doc-list" id="detailDocsReceived"></div>
+        <div class="detail-section-title" style="margin-top:12px;">Documents Outstanding</div>
+        <div class="detail-doc-list" id="detailDocsMissing"></div>
+      </div>
+
+      <!-- Conflict Flags -->
+      <div class="detail-section" id="detailConflictSection" style="display:none;">
+        <div class="detail-section-title" style="color:#dc2626;">⚠ Conflict Flags</div>
+        <div class="detail-conflict" id="detailConflicts"></div>
+      </div>
+
+      <!-- Next Action -->
+      <div class="detail-section">
+        <div class="detail-section-title">⚡ Recommended Next Action</div>
+        <div id="detailNextAction">
+          <div style="text-align:center;padding:20px;font-size:13px;color:#9ca3af;">Generating recommendation…</div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-modal-cancel" onclick="closeMortDetails()">Close</button>
+        <button class="btn-modal-save" style="background:#374151;" onclick="switchToEdit()">Edit Application</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Section: Settings ── -->
   <div class="section-group-label">⚙️ Settings</div>
 
@@ -1027,10 +1106,107 @@
           + '<td>' + phase + '</td>'
           + '<td>' + ref + '</td>'
           + '<td style="font-size:12px;color:#6b7280;white-space:nowrap;">' + esc(fmtDate(a.updated_at)) + '</td>'
-          + '<td><button class="btn-edit-app" onclick="openMortModal(\'' + esc(a.id) + '\')">Edit</button></td>'
+          + '<td style="white-space:nowrap;display:flex;gap:6px;">'
+          + '<button class="btn-edit-app" onclick="openMortDetails(\'' + esc(a.id) + '\')" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;">Details</button>'
+          + '<button class="btn-edit-app" onclick="openMortModal(\'' + esc(a.id) + '\')">Edit</button>'
+          + '</td>'
           + '</tr>';
       }).join('');
     }
+
+    var detailCurrentId = null;
+
+    window.openMortDetails = function(id) {
+      detailCurrentId = id;
+      var a = apps.find(function(x){ return x.id === id; });
+      if (!a) return;
+
+      var LENDER_LABELS = { aib:'AIB', avant:'Avant Money', bank_of_ireland:'Bank of Ireland', ebs:'EBS', haven:'Haven', irishlife:'Irish Life', nua:'Nua Money', ptsb:'PTSB' };
+      var PHASE_LABELS  = { initial_enquiry:'Initial Enquiry', aip:'AIP', full_application:'Full Application', underwriting:'Underwriting', letter_of_offer:'Letter of Offer', drawdown:'Drawdown' };
+      var BTYPE_LABELS  = { paye:'PAYE', self_employed:'Self Employed', contract:'Contract' };
+
+      // Header
+      document.getElementById('detailModalTitle').textContent = a.borrower_name || 'Unknown Client';
+      var sub = [];
+      if (a.co_borrower_name) sub.push('& ' + a.co_borrower_name);
+      if (a.client_email) sub.push(a.client_email);
+      document.getElementById('detailModalSub').textContent = sub.join(' · ');
+
+      // Meta grid
+      var meta = [
+        { label: 'Lender',        value: LENDER_LABELS[a.lender] || a.lender || '—' },
+        { label: 'Phase',         value: PHASE_LABELS[a.current_phase] || a.current_phase || '—' },
+        { label: 'Borrower Type', value: BTYPE_LABELS[a.borrower_type] || a.borrower_type || '—' },
+        { label: 'Loan Amount',   value: a.loan_amount ? '€' + Number(a.loan_amount).toLocaleString('en-IE') : '—' },
+        { label: 'App Ref',       value: a.application_ref || '—' },
+        { label: 'Property',      value: a.property_address || '—' }
+      ];
+      document.getElementById('detailMetaGrid').innerHTML = meta.map(function(m) {
+        return '<div class="detail-meta-item"><div class="detail-meta-label">' + esc(m.label) + '</div><div class="detail-meta-value">' + esc(m.value) + '</div></div>';
+      }).join('');
+
+      // Summary
+      var summaryEl = document.getElementById('detailSummary');
+      summaryEl.textContent = a.running_summary || 'No summary recorded yet — will populate as emails are processed.';
+      summaryEl.style.color = a.running_summary ? '#374151' : '#9ca3af';
+
+      // Documents
+      var recv = a.received_documents || [];
+      var miss = a.missing_documents  || [];
+      document.getElementById('detailDocsReceived').innerHTML = recv.length
+        ? recv.map(function(d){ return '<span class="detail-doc-badge detail-doc-received">' + esc(d) + '</span>'; }).join('')
+        : '<span style="font-size:13px;color:#9ca3af;">None recorded</span>';
+      document.getElementById('detailDocsMissing').innerHTML = miss.length
+        ? miss.map(function(d){ return '<span class="detail-doc-badge detail-doc-missing">' + esc(d) + '</span>'; }).join('')
+        : '<span style="font-size:13px;color:#9ca3af;">None outstanding</span>';
+
+      // Conflict flags
+      var flags = a.conflict_flags || [];
+      var conflictEl = document.getElementById('detailConflictSection');
+      if (flags.length) {
+        document.getElementById('detailConflicts').innerHTML = flags.map(function(f){ return '<div>• ' + esc(f) + '</div>'; }).join('');
+        conflictEl.style.display = 'block';
+      } else {
+        conflictEl.style.display = 'none';
+      }
+
+      // Reset next action to loading state
+      document.getElementById('detailNextAction').innerHTML = '<div style="text-align:center;padding:20px;font-size:13px;color:#9ca3af;">Generating recommendation…</div>';
+
+      document.getElementById('mortDetailsModal').classList.add('open');
+
+      // Fetch full details + next action from server
+      fetch('/api/portal/mortgage-applications/' + id + '/details')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.next_action) renderNextAction(data.next_action);
+          else document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#9ca3af;">No recommendation available.</div>';
+        })
+        .catch(function(){
+          document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#ef4444;">Failed to generate recommendation.</div>';
+        });
+    };
+
+    function renderNextAction(na) {
+      var ownerClass = na.owner === 'Client' ? 'owner-client' : na.owner === 'Lender' ? 'owner-lender' : 'owner-aom';
+      document.getElementById('detailNextAction').innerHTML =
+        '<div class="detail-next-action-box">'
+        + '<div class="detail-next-action-text">' + esc(na.next_action) + '</div>'
+        + (na.reason ? '<div class="detail-next-action-reason">' + esc(na.reason) + '</div>' : '')
+        + '<div>Action owner: <span class="detail-owner-badge ' + ownerClass + '">' + esc(na.owner) + '</span></div>'
+        + '</div>';
+    }
+
+    window.closeMortDetails = function() {
+      document.getElementById('mortDetailsModal').classList.remove('open');
+      detailCurrentId = null;
+    };
+
+    window.switchToEdit = function() {
+      if (!detailCurrentId) return;
+      closeMortDetails();
+      openMortModal(detailCurrentId);
+    };
 
     window.openMortModal = function(id) {
       var a = apps.find(function(x){ return x.id === id; });

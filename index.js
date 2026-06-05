@@ -4894,6 +4894,64 @@ app.put("/api/portal/mortgage-applications/:id", requireTenant, async (req, res)
   res.json({ application: data });
 });
 
+// ── Portal: Mortgage Application Details + AI Next Action ────────────────────
+app.get("/api/portal/mortgage-applications/:id/details", requireTenant, async (req, res) => {
+  if (!process.env.AOM_TENANT_ID || req.tenant.tenantId !== process.env.AOM_TENANT_ID) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const { id } = req.params;
+  const { data: app, error } = await supabase
+    .from("mortgage_application_states")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error || !app) return res.status(404).json({ error: "Application not found." });
+
+  // Generate next action recommendation via Claude
+  const LENDER_LABELS = { aib:"AIB", avant:"Avant Money", bank_of_ireland:"Bank of Ireland", ebs:"EBS", haven:"Haven", irishlife:"Irish Life", nua:"Nua Money", ptsb:"PTSB" };
+  const PHASE_LABELS  = { initial_enquiry:"Initial Enquiry", aip:"AIP", full_application:"Full Application", underwriting:"Underwriting", letter_of_offer:"Letter of Offer", drawdown:"Drawdown" };
+
+  let nextAction = null;
+  try {
+    const prompt =
+`You are an expert Irish mortgage advisor assistant for AOM (At Once Mortgages), a mortgage brokerage.
+
+Based on this mortgage application state, identify the single most important next action to move the application forward. Be specific and practical.
+
+Borrower: ${app.borrower_name || "Unknown"}${app.co_borrower_name ? " & " + app.co_borrower_name : ""}
+Lender: ${LENDER_LABELS[app.lender] || app.lender || "Not yet determined"}
+Phase: ${PHASE_LABELS[app.current_phase] || app.current_phase || "Unknown"}
+Borrower Type: ${app.borrower_type || "Unknown"}
+Loan Amount: ${app.loan_amount ? "€" + Number(app.loan_amount).toLocaleString("en-IE") : "Unknown"}
+Property Address: ${app.property_address || "Not yet identified"}
+Documents Received: ${(app.received_documents || []).join(", ") || "None recorded"}
+Documents Outstanding: ${(app.missing_documents || []).join(", ") || "None recorded"}
+Conflict Flags: ${(app.conflict_flags || []).join("; ") || "None"}
+Running Summary: ${app.running_summary || "No summary yet."}
+
+Return ONLY valid JSON:
+{
+  "next_action": "Specific description of the single most important next step",
+  "owner": "Client | AOM | Lender",
+  "reason": "One sentence explaining why this is the priority action"
+}`;
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 256,
+      messages: [{ role: "user", content: prompt }]
+    });
+    let text = (response.content[0]?.text || "{}").trim()
+      .replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    nextAction = JSON.parse(text);
+  } catch (err) {
+    console.warn("[mortgage-details] Next action generation failed:", err.message);
+    nextAction = { next_action: "Unable to generate recommendation at this time.", owner: "AOM", reason: "" };
+  }
+
+  res.json({ application: app, next_action: nextAction });
+});
+
 // ── Portal: recent chat logs ──────────────────────────────────────────────────
 app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
   try {

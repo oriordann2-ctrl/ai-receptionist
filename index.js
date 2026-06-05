@@ -4120,13 +4120,26 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
       ? '<meta http-equiv="refresh" content="8">'
       : '';
 
+    // Mortgage tracker — only for AOM tenant
+    let mortgageAppsScript = "var MORTGAGE_APPS = null;";
+    if (process.env.AOM_TENANT_ID && req.tenant.tenantId === process.env.AOM_TENANT_ID) {
+      const { data: mortApps } = await supabase
+        .from("mortgage_application_states")
+        .select("id, borrower_name, co_borrower_name, client_email, application_ref, lender, current_phase, borrower_type, loan_amount, property_address, updated_at")
+        .order("updated_at", { ascending: false });
+      const safeJson = JSON.stringify(mortApps || [])
+        .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+      mortgageAppsScript = `var MORTGAGE_APPS = ${safeJson};`;
+    }
+
     const html = fs.readFileSync(path.join(__dirname, "views", "portal-dashboard.html"), "utf8")
-      .replace(/TENANT_ID_PLACEHOLDER/g,   tid)
-      .replace(/TENANT_NAME_PLACEHOLDER/g, tname)
-      .replace(/EMBED_CODE_PLACEHOLDER/g,  embedCode)
-      .replace("DOC_LIST_PLACEHOLDER",     docListHtml)
-      .replace("CHAT_LOGS_PLACEHOLDER",    chatLogsHtml)
-      .replace("AUTO_REFRESH_PLACEHOLDER", autoRefresh);
+      .replace(/TENANT_ID_PLACEHOLDER/g,        tid)
+      .replace(/TENANT_NAME_PLACEHOLDER/g,       tname)
+      .replace(/EMBED_CODE_PLACEHOLDER/g,        embedCode)
+      .replace("DOC_LIST_PLACEHOLDER",           docListHtml)
+      .replace("CHAT_LOGS_PLACEHOLDER",          chatLogsHtml)
+      .replace("AUTO_REFRESH_PLACEHOLDER",       autoRefresh)
+      .replace("MORTGAGE_APPS_JSON_PLACEHOLDER", mortgageAppsScript);
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
@@ -4844,6 +4857,41 @@ app.get("/api/admin/backfill-email-context", requireAdmin, async (req, res) => {
       console.error(`[backfill] Fatal error: ${err.message}`);
     }
   })();
+});
+
+// ── Portal: Mortgage Application Tracker (AOM tenant only) ───────────────────
+app.get("/api/portal/mortgage-applications", requireTenant, async (req, res) => {
+  if (!process.env.AOM_TENANT_ID || req.tenant.tenantId !== process.env.AOM_TENANT_ID) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const { data, error } = await supabase
+    .from("mortgage_application_states")
+    .select("id, borrower_name, co_borrower_name, client_email, application_ref, lender, current_phase, borrower_type, loan_amount, property_address, updated_at")
+    .order("updated_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ applications: data || [] });
+});
+
+app.put("/api/portal/mortgage-applications/:id", requireTenant, async (req, res) => {
+  if (!process.env.AOM_TENANT_ID || req.tenant.tenantId !== process.env.AOM_TENANT_ID) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: "Missing application id." });
+  const allowed = ["borrower_name","co_borrower_name","client_email","application_ref","lender","current_phase","borrower_type","loan_amount","property_address"];
+  const updates = {};
+  for (const key of allowed) {
+    if (Object.prototype.hasOwnProperty.call(req.body, key)) updates[key] = req.body[key];
+  }
+  if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields to update." });
+  const { data, error } = await supabase
+    .from("mortgage_application_states")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ application: data });
 });
 
 // ── Portal: recent chat logs ──────────────────────────────────────────────────

@@ -377,6 +377,67 @@
     }
     .btn-delete-answer:hover { background: #fef2f2; }
 
+    /* ── Mortgage Tracker ── */
+    .mort-table-wrap { overflow-x: auto; margin-top: 4px; }
+    .mort-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .mort-table th {
+      text-align: left; font-size: 11px; font-weight: 700; color: #9ca3af;
+      text-transform: uppercase; letter-spacing: 0.7px;
+      padding: 0 14px 12px 0; border-bottom: 1px solid #e5e7eb; white-space: nowrap;
+    }
+    .mort-table td { padding: 12px 14px 12px 0; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+    .mort-table tr:last-child td { border-bottom: none; }
+    .mort-badge {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px; white-space: nowrap;
+    }
+    .mort-badge-lender { background: #dbeafe; color: #1d4ed8; }
+    .mort-badge-phase  { background: #f3f4f6; color: #374151; }
+    .btn-edit-app {
+      background: white; border: 1.5px solid #d1d5db; color: #374151;
+      border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: border-color 0.15s; white-space: nowrap;
+    }
+    .btn-edit-app:hover { border-color: #6b7280; color: #111827; }
+
+    /* ── Edit Application Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 500;
+      align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: white; border-radius: 14px; padding: 28px 32px;
+      width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal-title { font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 20px; }
+    .modal-field { margin-bottom: 16px; }
+    .modal-field label { display: block; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    .modal-field input, .modal-field select {
+      width: 100%; padding: 10px 12px; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; font-size: 14px; font-family: inherit; color: #111827;
+      outline: none; transition: border-color 0.15s; background: white;
+    }
+    .modal-field input:focus, .modal-field select:focus { border-color: #2563eb; }
+    .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
+    .btn-modal-cancel {
+      background: white; border: 1.5px solid #e2e8f0; color: #6b7280;
+      border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-modal-cancel:hover { background: #f8fafc; }
+    .btn-modal-save {
+      background: #1e40af; color: white; border: none;
+      border-radius: 8px; padding: 10px 24px; font-size: 14px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-modal-save:hover:not(:disabled) { background: #1d3a9e; }
+    .btn-modal-save:disabled { background: #93c5fd; cursor: not-allowed; }
+    .modal-error { color: #dc2626; font-size: 13px; margin-top: 10px; padding: 8px 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; display: none; }
+
     /* ── Mobile ── */
     @media (max-width: 600px) {
       nav { padding: 0 16px; }
@@ -393,6 +454,8 @@
       .doc-row { flex-wrap: wrap; }
       .btn-delete { margin-left: auto; }
       .staff-add-fields { flex-direction: column; }
+      .modal-row { grid-template-columns: 1fr; }
+      .modal-box { padding: 20px 16px; }
     }
   </style>
 </head>
@@ -700,6 +763,115 @@
     </details>
   </div>
 
+  <!-- ── Section: Mortgage Applications (AOM only — hidden for all other tenants) ── -->
+  <div id="mortgageTrackerSection" style="display:none;">
+    <div class="section-group-label">📋 Mortgage Applications</div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="card-title">Application Tracker</div>
+        <button onclick="refreshMortgageApps()" style="background:none;border:none;cursor:pointer;font-size:13px;color:#2563eb;font-weight:600;font-family:inherit;padding:4px 8px;border-radius:6px;transition:background 0.15s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='none'">↻ Refresh</button>
+      </div>
+      <div class="card-sub">All active mortgage applications — updated automatically as emails arrive. Click Edit to correct any field.</div>
+      <div class="mort-table-wrap">
+        <table class="mort-table">
+          <thead>
+            <tr>
+              <th>Borrower</th>
+              <th>Lender</th>
+              <th>Phase</th>
+              <th>App Ref</th>
+              <th>Last Activity</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="mortTableBody">
+            <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:24px 0;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Application Modal -->
+  <div class="modal-overlay" id="mortModal" onclick="if(event.target===this)closeMortModal()">
+    <div class="modal-box">
+      <div class="modal-title" id="mortModalTitle">Edit Application</div>
+      <input type="hidden" id="mortEditId" />
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>Borrower Name</label>
+          <input type="text" id="mortEditBorrower" placeholder="Full name" />
+        </div>
+        <div class="modal-field">
+          <label>Co-Borrower Name</label>
+          <input type="text" id="mortEditCoBorrower" placeholder="Full name (if joint)" />
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>Client Email</label>
+          <input type="email" id="mortEditClientEmail" placeholder="borrower@gmail.com" />
+        </div>
+        <div class="modal-field">
+          <label>Application Ref</label>
+          <input type="text" id="mortEditAppRef" placeholder="e.g. 92806275" />
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>Lender</label>
+          <select id="mortEditLender">
+            <option value="">— Unknown —</option>
+            <option value="aib">AIB</option>
+            <option value="avant">Avant Money</option>
+            <option value="bank_of_ireland">Bank of Ireland</option>
+            <option value="ebs">EBS</option>
+            <option value="haven">Haven</option>
+            <option value="irishlife">Irish Life</option>
+            <option value="nua">Nua Money</option>
+            <option value="ptsb">PTSB</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Phase</label>
+          <select id="mortEditPhase">
+            <option value="">— Unknown —</option>
+            <option value="initial_enquiry">Initial Enquiry</option>
+            <option value="aip">AIP</option>
+            <option value="full_application">Full Application</option>
+            <option value="underwriting">Underwriting</option>
+            <option value="letter_of_offer">Letter of Offer</option>
+            <option value="drawdown">Drawdown</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>Borrower Type</label>
+          <select id="mortEditBorrowerType">
+            <option value="">— Unknown —</option>
+            <option value="paye">PAYE</option>
+            <option value="self_employed">Self Employed</option>
+            <option value="contract">Contract</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Loan Amount (€)</label>
+          <input type="number" id="mortEditLoanAmount" placeholder="e.g. 320000" min="0" />
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>Property Address</label>
+        <input type="text" id="mortEditPropertyAddress" placeholder="Full address" />
+      </div>
+      <div class="modal-error" id="mortModalError"></div>
+      <div class="modal-actions">
+        <button class="btn-modal-cancel" onclick="closeMortModal()">Cancel</button>
+        <button class="btn-modal-save" id="mortSaveBtn" onclick="saveMortApp()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Section: Settings ── -->
   <div class="section-group-label">⚙️ Settings</div>
 
@@ -728,6 +900,8 @@
   // Tenant data injected server-side
   window.tenantId   = "TENANT_ID_PLACEHOLDER";
   window.tenantName = "TENANT_NAME_PLACEHOLDER";
+  // Mortgage tracker data — null for all non-AOM tenants
+  MORTGAGE_APPS_JSON_PLACEHOLDER
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="/portal.js"></script>
@@ -796,6 +970,126 @@
           container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#ef4444;">Failed to load conversations. Please refresh and try again.</div>';
         });
     });
+  })();
+
+  // ── Mortgage Application Tracker (AOM only) ──────────────────────────────────
+  (function() {
+    if (typeof MORTGAGE_APPS === 'undefined' || MORTGAGE_APPS === null) return;
+    document.getElementById('mortgageTrackerSection').style.display = 'block';
+
+    var apps = MORTGAGE_APPS;
+
+    var LENDER_LABELS = {
+      aib:'AIB', avant:'Avant', bank_of_ireland:'BOI', ebs:'EBS',
+      haven:'Haven', irishlife:'Irish Life', nua:'Nua', ptsb:'PTSB'
+    };
+    var PHASE_LABELS = {
+      initial_enquiry:'Enquiry', aip:'AIP', full_application:'Full App',
+      underwriting:'Underwriting', letter_of_offer:'Letter of Offer', drawdown:'Drawdown'
+    };
+
+    function esc(s) {
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function fmtDate(ts) {
+      if (!ts) return '—';
+      return new Date(ts).toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    }
+
+    function renderTable() {
+      var tbody = document.getElementById('mortTableBody');
+      if (!apps || !apps.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:24px 0;">No applications yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = apps.map(function(a) {
+        var name = esc(a.borrower_name || '—');
+        var subName = a.co_borrower_name ? '<div style="font-size:11px;color:#6b7280;margin-top:2px;">+ ' + esc(a.co_borrower_name) + '</div>' : '';
+        var email = a.client_email ? '<div style="font-size:11px;color:#9ca3af;margin-top:1px;">' + esc(a.client_email) + '</div>' : '';
+        var lender = a.lender ? '<span class="mort-badge mort-badge-lender">' + esc(LENDER_LABELS[a.lender]||a.lender) + '</span>' : '<span style="color:#d1d5db;">—</span>';
+        var phase  = a.current_phase ? '<span class="mort-badge mort-badge-phase">' + esc(PHASE_LABELS[a.current_phase]||a.current_phase) + '</span>' : '<span style="color:#d1d5db;">—</span>';
+        var ref    = a.application_ref ? '<span style="font-family:monospace;font-size:12px;">' + esc(a.application_ref) + '</span>' : '<span style="color:#d1d5db;">—</span>';
+        return '<tr>'
+          + '<td><div style="font-weight:600;color:#111827;">' + name + '</div>' + subName + email + '</td>'
+          + '<td>' + lender + '</td>'
+          + '<td>' + phase + '</td>'
+          + '<td>' + ref + '</td>'
+          + '<td style="font-size:12px;color:#6b7280;white-space:nowrap;">' + esc(fmtDate(a.updated_at)) + '</td>'
+          + '<td><button class="btn-edit-app" onclick="openMortModal(\'' + esc(a.id) + '\')">Edit</button></td>'
+          + '</tr>';
+      }).join('');
+    }
+
+    window.openMortModal = function(id) {
+      var a = apps.find(function(x){ return x.id === id; });
+      if (!a) return;
+      document.getElementById('mortEditId').value             = a.id;
+      document.getElementById('mortModalTitle').textContent   = 'Edit: ' + (a.borrower_name || 'Unknown Client');
+      document.getElementById('mortEditBorrower').value       = a.borrower_name || '';
+      document.getElementById('mortEditCoBorrower').value     = a.co_borrower_name || '';
+      document.getElementById('mortEditClientEmail').value    = a.client_email || '';
+      document.getElementById('mortEditAppRef').value         = a.application_ref || '';
+      document.getElementById('mortEditLender').value         = a.lender || '';
+      document.getElementById('mortEditPhase').value          = a.current_phase || '';
+      document.getElementById('mortEditBorrowerType').value   = a.borrower_type || '';
+      document.getElementById('mortEditLoanAmount').value     = a.loan_amount || '';
+      document.getElementById('mortEditPropertyAddress').value = a.property_address || '';
+      document.getElementById('mortModalError').style.display = 'none';
+      document.getElementById('mortModal').classList.add('open');
+    };
+
+    window.closeMortModal = function() {
+      document.getElementById('mortModal').classList.remove('open');
+    };
+
+    window.saveMortApp = function() {
+      var id  = document.getElementById('mortEditId').value;
+      var btn = document.getElementById('mortSaveBtn');
+      var err = document.getElementById('mortModalError');
+      err.style.display = 'none';
+      btn.disabled = true; btn.textContent = 'Saving…';
+
+      fetch('/api/portal/mortgage-applications/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          borrower_name:     document.getElementById('mortEditBorrower').value.trim() || null,
+          co_borrower_name:  document.getElementById('mortEditCoBorrower').value.trim() || null,
+          client_email:      document.getElementById('mortEditClientEmail').value.trim() || null,
+          application_ref:   document.getElementById('mortEditAppRef').value.trim() || null,
+          lender:            document.getElementById('mortEditLender').value || null,
+          current_phase:     document.getElementById('mortEditPhase').value || null,
+          borrower_type:     document.getElementById('mortEditBorrowerType').value || null,
+          loan_amount:       document.getElementById('mortEditLoanAmount').value ? Number(document.getElementById('mortEditLoanAmount').value) : null,
+          property_address:  document.getElementById('mortEditPropertyAddress').value.trim() || null
+        })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        btn.disabled = false; btn.textContent = 'Save Changes';
+        if (data.error) { err.textContent = data.error; err.style.display = 'block'; return; }
+        var idx = apps.findIndex(function(x){ return x.id === id; });
+        if (idx !== -1) apps[idx] = Object.assign(apps[idx], data.application);
+        renderTable();
+        closeMortModal();
+      })
+      .catch(function(){
+        btn.disabled = false; btn.textContent = 'Save Changes';
+        err.textContent = 'Something went wrong. Please try again.';
+        err.style.display = 'block';
+      });
+    };
+
+    window.refreshMortgageApps = function() {
+      fetch('/api/portal/mortgage-applications')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.applications) { apps = data.applications; renderTable(); }
+        })
+        .catch(function(){});
+    };
+
+    renderTable();
   })();
 
   // ── Knowledge Base Assistant ─────────────────────────────────────────────────

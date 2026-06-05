@@ -9404,6 +9404,7 @@ function startEmailPolling() {
 
 // Public: fetch the active workflow for a club (called by the widget on open)
 app.get("/api/workflow/:clubId", async (req, res) => {
+  res.header("Access-Control-Allow-Origin", "*");
   const { clubId } = req.params;
   try {
     const { data: workflow } = await supabase

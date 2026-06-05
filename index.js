@@ -7730,8 +7730,8 @@ Subject: ${subject}
 Body: ${cleanedBody.slice(0, 1500)}
 
 {
-  "borrower_name": "full name of main applicant if mentioned, else null",
-  "co_borrower_name": "second applicant name if mentioned, else null",
+  "borrower_name": "full name of the person applying for the mortgage (the borrower/applicant) if mentioned, else null — do NOT use names of children, dependents, solicitors, valuers, or other third parties",
+  "co_borrower_name": "full name of the second mortgage applicant (joint borrower) if mentioned, else null — do NOT use names of children or dependents",
   "client_email": "the borrower/applicant's own personal email address if explicitly mentioned in the email body (e.g. 'john@gmail.com'), else null — do NOT use the sender's email",
   "application_ref": "any lender or portal reference number mentioned in the subject line OR body (e.g. 92806275, 61720822, NPDH-260526-009, B50007177) — check the Subject field carefully as these numbers very commonly appear there, else null",
   "event_type": "document_received | document_requested | status_enquiry | milestone | new_enquiry | other",

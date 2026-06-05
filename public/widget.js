@@ -208,9 +208,10 @@
   }
 
   // ── Workflow state ────────────────────────────────────────────────────────
-  var wfSteps   = [];  // sorted steps for the currently-active flow
-  var wfFlowMap = {};  // { flowId: sortedSteps[] } — all flows pre-fetched for switch_flow
-  var wfMode    = false;
+  var wfSteps    = [];       // sorted steps for the currently-active flow
+  var wfFlowMap  = {};       // { flowId: sortedSteps[] } — all flows pre-fetched for switch_flow
+  var wfMode     = false;
+  var rootFlowId = null;     // ID of the entry-point (active) flow — used for "Back to menu"
   var brandColor = "#111827"; // updated when tenant config loads
 
   // Pre-fetch all flows in background (non-AOM only)
@@ -227,6 +228,7 @@
         // Entry point = the active (root) flow
         if (d.workflow && d.workflow.workflow_steps && d.workflow.workflow_steps.length) {
           wfSteps = wfFlowMap[d.workflow.id] || [];
+          rootFlowId = d.workflow.id;
         }
         // Fullscreen mode: auto-open now that wfSteps is ready
         if (fullscreen && !hasOpened) openPanel();
@@ -390,6 +392,37 @@
     if (input) { input.value = ""; input.focus(); }
   }
 
+  // Show a subtle "Back to main menu" button after an AI reply in text mode
+  function showBackToMenu() {
+    if (!rootFlowId || !wfFlowMap[rootFlowId]) return;
+    var existing = document.getElementById("sprimal-back-menu");
+    if (existing) existing.parentNode.removeChild(existing);
+    var container = document.createElement("div");
+    container.id = "sprimal-back-menu";
+    container.style.cssText = "padding:4px 0 6px;align-self:flex-start;";
+    var menuBtn = document.createElement("button");
+    menuBtn.className = "sprimal-choice sprimal-choice-ai";
+    menuBtn.textContent = "↩ Back to main menu";
+    menuBtn.addEventListener("click", function () {
+      var el = document.getElementById("sprimal-back-menu");
+      if (el) el.parentNode.removeChild(el);
+      wfSteps = wfFlowMap[rootFlowId];
+      wfMode = true;
+      var footer = document.getElementById("sprimal-footer");
+      if (footer) footer.style.display = "none";
+      showWorkflowStep(wfSteps[0]);
+    });
+    container.appendChild(menuBtn);
+    messages.appendChild(container);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  // Remove the back-to-menu button (called when user sends a new message)
+  function clearBackToMenu() {
+    var el = document.getElementById("sprimal-back-menu");
+    if (el) el.parentNode.removeChild(el);
+  }
+
   // Render a workflow step: bot message + choice buttons
   function showWorkflowStep(step) {
     if (!step) return;
@@ -510,6 +543,7 @@
     var text = input.value.trim();
     if (!text) return;
 
+    clearBackToMenu();
     addMsg(text, "user");
     input.value = "";
     sendBtn.disabled = true;
@@ -526,11 +560,13 @@
         addMsg(data.reply || "Sorry, something went wrong.", "bot");
         sendBtn.disabled = false;
         input.focus();
+        showBackToMenu();
       })
       .catch(function () {
         hideTyping();
         addMsg("Sorry, I couldn't connect. Please try again.", "bot");
         sendBtn.disabled = false;
+        showBackToMenu();
       });
   }
 

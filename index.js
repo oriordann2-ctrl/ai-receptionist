@@ -7722,26 +7722,37 @@ async function extractEmailEntities(cleanedBody, from, subject) {
       messages: [{
         role: "user",
         content:
-`Extract mortgage application entities from this Irish mortgage broker email.
-Return ONLY valid JSON — no markdown, no extra text.
+`You are extracting structured data from an Irish mortgage broker email (AOM — At Once Mortgages).
+Return ONLY valid JSON — no markdown, no explanation, no extra text.
 
 From: ${from}
 Subject: ${subject}
-Body: ${cleanedBody.slice(0, 1500)}
+Body: ${cleanedBody.slice(0, 2000)}
+
+Extraction rules:
+- borrower_name: The mortgage applicant's full name. If the email is sent directly by the client, their name is likely the borrower. Do NOT use names of children, dependents, solicitors, valuers, estate agents, or lender staff.
+- co_borrower_name: The second mortgage applicant (joint borrower) only. Do NOT use dependents or children.
+- client_email: The borrower's personal email address only if explicitly written in the email body. NEVER use the sender's email address. Look for patterns like "my email is..." or "contact me at...".
+- application_ref: Any reference number in the Subject line OR body — check both carefully. Common formats: 8-digit numbers (e.g. 92806275, 61719462), alphanumeric refs (e.g. NPDH-260526-009, B50007177), AOM portal refs (e.g. 2605-00000064).
+- lender: First check the sender's email domain — @aib.ie → aib, @ptsb.ie → ptsb, @irishlife.ie → irishlife, @havenmortgages.ie or @haven.ie → haven, @boi.com or @bankofireland.com → bank_of_ireland, @ebs.ie → ebs, @avantmoney.ie or @avant.ie → avant, @nuamoney.com → nua. Otherwise read the email body for lender mentions.
+- loan_amount: Numeric euros only, no symbol or commas (e.g. 320000). null if not mentioned.
+- documents_received: Only documents explicitly submitted or attached in THIS email (e.g. payslips, bank statements, gift letter, P60, employment detail summary).
+- documents_mentioned: Documents referenced, requested, or discussed but not submitted in this email.
+- phase_signal: Best signal of current application stage from the email content.
 
 {
-  "borrower_name": "full name of the person applying for the mortgage (the borrower/applicant) if mentioned, else null — do NOT use names of children, dependents, solicitors, valuers, or other third parties",
-  "co_borrower_name": "full name of the second mortgage applicant (joint borrower) if mentioned, else null — do NOT use names of children or dependents",
-  "client_email": "the borrower/applicant's own personal email address if explicitly mentioned in the email body (e.g. 'john@gmail.com'), else null — do NOT use the sender's email",
-  "application_ref": "any lender or portal reference number mentioned in the subject line OR body (e.g. 92806275, 61720822, NPDH-260526-009, B50007177) — check the Subject field carefully as these numbers very commonly appear there, else null",
+  "borrower_name": null,
+  "co_borrower_name": null,
+  "client_email": null,
+  "application_ref": null,
   "event_type": "document_received | document_requested | status_enquiry | milestone | new_enquiry | other",
-  "documents_received": ["documents explicitly sent or attached in THIS email e.g. payslip, gift letter, bank statements"],
-  "documents_mentioned": ["documents referenced but not necessarily sent"],
-  "loan_amount": numeric euros or null,
-  "property_address": "address if mentioned else null",
+  "documents_received": [],
+  "documents_mentioned": [],
+  "loan_amount": null,
+  "property_address": null,
   "phase_signal": "initial_enquiry | aip | full_application | underwriting | letter_of_offer | drawdown | null",
-  "lender": "one of: haven | nua | ptsb | bank_of_ireland | avant | null — only set if a lender is clearly mentioned",
-  "borrower_type": "paye | self_employed | contract | null — only set if clearly indicated"
+  "lender": "aib | avant | bank_of_ireland | ebs | haven | irishlife | nua | ptsb | null",
+  "borrower_type": "paye | self_employed | contract | null"
 }`
       }]
     });

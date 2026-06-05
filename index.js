@@ -4929,16 +4929,24 @@ app.get("/api/portal/mortgage-applications/:id/details", requireTenant, async (r
 
   const stateUpdates = {};
 
-  // ── Auto-load lender checklist if lender + borrower_type known but no docs outstanding ──
-  if (app.lender && app.borrower_type && !(app.missing_documents?.length)) {
-    const checklist = getLenderChecklist(app.lender, app.borrower_type);
-    if (checklist) {
-      const already = app.received_documents || [];
-      stateUpdates.missing_documents = checklist.filter(
-        doc => !already.some(r => r.toLowerCase().includes(doc.toLowerCase().split(" ")[0]))
-      );
-      app.missing_documents = stateUpdates.missing_documents;
-      console.log(`[mortgage-details] Auto-loaded checklist for ${app.lender}/${app.borrower_type}: ${stateUpdates.missing_documents.length} items`);
+  // ── Auto-load checklist if none exists yet ────────────────────────────────
+  // If lender + borrower_type are both known, load the specific checklist and persist it.
+  // Otherwise fall back to the generic checklist for display only (not persisted),
+  // so Cormac always sees something useful even for brand-new clients.
+  if (!(app.missing_documents?.length)) {
+    const specificChecklist = getLenderChecklist(app.lender, app.borrower_type);
+    const checklist = specificChecklist || GENERIC_CHECKLIST;
+    const already = app.received_documents || [];
+    const filtered = checklist.filter(
+      doc => !already.some(r => r.toLowerCase().includes(doc.toLowerCase().split(" ")[0]))
+    );
+    app.missing_documents = filtered; // always update the in-memory app for this response
+    if (specificChecklist) {
+      // Only persist when we have a real lender-specific checklist
+      stateUpdates.missing_documents = filtered;
+      console.log(`[mortgage-details] Auto-loaded checklist for ${app.lender}/${app.borrower_type}: ${filtered.length} items`);
+    } else {
+      console.log(`[mortgage-details] Using generic checklist for display (lender/borrower_type not yet set): ${filtered.length} items`);
     }
   }
 
@@ -4980,12 +4988,13 @@ Return ONLY the summary text — no labels, no formatting.`;
   // ── Generate summary + next action in a single call for consistency ──────────
   // Generating both together guarantees they can never contradict each other.
 
-  const docsOutstanding = (app.missing_documents || []).join(", ") || "None";
-  const docsReceived    = (app.received_documents || []).join(", ") || "None recorded";
-  const phaseLabel      = PHASE_LABELS[app.current_phase] || app.current_phase || "Unknown";
-  const lenderLabel     = LENDER_LABELS[app.lender] || app.lender || "Not yet determined";
-  const allDocsIn       = (app.missing_documents || []).length === 0 && (app.received_documents || []).length > 0;
-  const lateStage       = ["underwriting","letter_of_offer","drawdown"].includes(app.current_phase);
+  const docsOutstanding   = (app.missing_documents || []).join(", ") || "None";
+  const docsReceived      = (app.received_documents || []).join(", ") || "None recorded";
+  const phaseLabel        = PHASE_LABELS[app.current_phase] || app.current_phase || "Unknown";
+  const lenderLabel       = LENDER_LABELS[app.lender] || app.lender || "Not yet determined";
+  const allDocsIn         = (app.missing_documents || []).length === 0 && (app.received_documents || []).length > 0;
+  const lateStage         = ["underwriting","letter_of_offer","drawdown"].includes(app.current_phase);
+  const usingGenericDocs  = !app.lender || !app.borrower_type; // checklist is generic, not lender-specific
 
   let nextAction = null;
   try {
@@ -5002,7 +5011,7 @@ Borrower Type: ${app.borrower_type || "Unknown"}
 Loan Amount: ${app.loan_amount ? "€" + Number(app.loan_amount).toLocaleString("en-IE") : "Unknown"}
 Property: ${app.property_address || "Not yet identified"}
 Documents Received: ${docsReceived}
-Documents Outstanding: ${docsOutstanding}
+Documents Outstanding: ${docsOutstanding}${usingGenericDocs ? " (generic list — lender/borrower type not yet confirmed)" : ""}
 All Documents Complete: ${allDocsIn ? "YES — do not recommend chasing documents" : "NO"}
 Late Stage (underwriting/offer/drawdown): ${lateStage ? "YES — application is with lender, focus on lender-side actions" : "NO"}
 Conflict Flags: ${(app.conflict_flags || []).join("; ") || "None"}
@@ -5014,6 +5023,8 @@ RULES:
 - If Phase is Underwriting, the application is already with the lender awaiting their review — next action should reflect this
 - If Phase is Letter of Offer or Drawdown, focus on those stages
 - The summary and next_action must tell the same story — they must not contradict each other
+- If the lender or borrower type is "Not yet determined / Unknown", the broker (AOM) should confirm these details with the client as a priority
+- If Documents Outstanding shows "(generic list)", note in your summary that the checklist is provisional until the lender is confirmed
 - Be specific and practical — avoid vague advice
 
 Return ONLY valid JSON:
@@ -5053,7 +5064,7 @@ Return ONLY valid JSON:
     await supabase.from("mortgage_application_states").update(stateUpdates).eq("id", id);
   }
 
-  res.json({ application: app, next_action: nextAction });
+  res.json({ application: app, next_action: nextAction, checklist_is_generic: usingGenericDocs });
 });
 
 // ── Portal: recent chat logs ──────────────────────────────────────────────────
@@ -7875,8 +7886,115 @@ const LENDER_CHECKLISTS = {
       "Photo ID",
       "Proof of address (last 6 months)"
     ]
+  },
+  aib: {
+    paye: [
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "Salary certificate",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    self_employed: [
+      "2 years audited accounts",
+      "2 years Form 11 tax returns",
+      "Notice of Assessment (last 2 years)",
+      "Accountant's reference letter",
+      "6 months business bank statements",
+      "6 months personal bank statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    contract: [
+      "Current contract (showing end date and rate)",
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ]
+  },
+  ebs: {
+    // EBS is an AIB subsidiary — requirements are effectively the same
+    paye: [
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "Salary certificate",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    self_employed: [
+      "2 years audited accounts",
+      "2 years Form 11 tax returns",
+      "Notice of Assessment (last 2 years)",
+      "Accountant's reference letter",
+      "6 months business bank statements",
+      "6 months personal bank statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    contract: [
+      "Current contract (showing end date and rate)",
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ]
+  },
+  irishlife: {
+    paye: [
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "Salary certificate",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    self_employed: [
+      "2 years audited accounts",
+      "2 years Form 11 tax returns",
+      "Notice of Assessment (last 2 years)",
+      "Accountant's reference letter",
+      "6 months business bank statements",
+      "6 months personal bank statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ],
+    contract: [
+      "Current contract (showing end date and rate)",
+      "3 months payslips",
+      "P60 / Employment Detail Summary (last 2 years)",
+      "6 months current account statements",
+      "6 months savings account statements",
+      "Photo ID",
+      "Proof of address (last 6 months)"
+    ]
   }
 };
+
+// Generic checklist — used for display when lender / borrower type are not yet known.
+// Covers documents required by virtually every Irish lender regardless of borrower type.
+// This is NEVER persisted to the DB; it's a placeholder until Cormac sets the lender field.
+const GENERIC_CHECKLIST = [
+  "Photo ID",
+  "Proof of address (last 6 months)",
+  "6 months current account statements",
+  "6 months savings account statements",
+  "3 months payslips (or 2 years audited accounts if self-employed)",
+  "P60 / Employment Detail Summary (last 2 years)",
+  "Salary certificate (if PAYE)"
+];
 
 // Returns the checklist for a given lender + borrower_type, or null if unknown
 function getLenderChecklist(lender, borrowerType) {
@@ -8161,27 +8279,53 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
   }
 
   // Auto-populate missing_documents from lender checklist when both lender
-  // and borrower_type are known for the first time
+  // and borrower_type are known for the first time.
+  // We do a fresh DB read here (rather than relying on the state snapshot taken at function
+  // entry) to minimise the race window when several emails arrive concurrently — e.g. when
+  // Haven's portal fires one notification per document upload in rapid succession.
   const effectiveLender       = updates.lender       || state.lender;
   const effectiveBorrowerType = updates.borrower_type || state.borrower_type;
-  const alreadyHasChecklist   = (state.missing_documents || []).length > 0;
 
-  if (effectiveLender && effectiveBorrowerType && !alreadyHasChecklist) {
-    const checklist = getLenderChecklist(effectiveLender, effectiveBorrowerType);
-    if (checklist) {
-      const alreadyReceived = state.received_documents || [];
-      updates.missing_documents = checklist.filter(
-        doc => !alreadyReceived.some(r => r.toLowerCase().includes(doc.toLowerCase().split(" ")[0]))
-      );
-      console.log(`[email-context] Checklist loaded for ${effectiveLender}/${effectiveBorrowerType}: ${updates.missing_documents.length} docs outstanding`);
-      // Log as a milestone event
-      events.push({
-        application_id: state.id,
-        event_type:     "milestone",
-        description:    `Document checklist loaded: ${effectiveLender} / ${effectiveBorrowerType} (${updates.missing_documents.length} items outstanding)`,
-        from_address:   from,
-        email_subject:  subject
-      });
+  if (effectiveLender && effectiveBorrowerType) {
+    const { data: freshCheck } = await supabase
+      .from("mortgage_application_states")
+      .select("missing_documents")
+      .eq("id", state.id)
+      .single();
+    const alreadyHasChecklist = (freshCheck?.missing_documents || []).length > 0;
+
+    if (!alreadyHasChecklist) {
+      const checklist = getLenderChecklist(effectiveLender, effectiveBorrowerType);
+      if (checklist) {
+        const alreadyReceived = state.received_documents || [];
+        const outstanding = checklist.filter(
+          doc => !alreadyReceived.some(r => r.toLowerCase().includes(doc.toLowerCase().split(" ")[0]))
+        );
+        // Write the checklist immediately with a conditional filter — only succeeds if
+        // missing_documents is still empty in the DB (another concurrent write hasn't beaten us).
+        const { data: written } = await supabase
+          .from("mortgage_application_states")
+          .update({ missing_documents: outstanding })
+          .eq("id", state.id)
+          .filter("missing_documents", "eq", "[]")
+          .select("id")
+          .maybeSingle();
+
+        if (written) {
+          // We won the race — record it in updates and log the milestone
+          updates.missing_documents = outstanding;
+          console.log(`[email-context] Checklist loaded for ${effectiveLender}/${effectiveBorrowerType}: ${outstanding.length} docs outstanding`);
+          events.push({
+            application_id: state.id,
+            event_type:     "milestone",
+            description:    `Document checklist loaded: ${effectiveLender} / ${effectiveBorrowerType} (${outstanding.length} items outstanding)`,
+            from_address:   from,
+            email_subject:  subject
+          });
+        } else {
+          console.log(`[email-context] Checklist already set by concurrent request — skipping`);
+        }
+      }
     }
   }
 
@@ -8228,7 +8372,9 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
   await supabase.from("mortgage_application_states").update(updates).eq("id", state.id);
 
   // Log event row
-  if (entities.event_type && entities.event_type !== "other") {
+  // Skip document_received here — already logged above with the specific document names.
+  // Logging it again would create a duplicate event for the same email.
+  if (entities.event_type && entities.event_type !== "other" && entities.event_type !== "document_received") {
     events.push({
       application_id: state.id,
       event_type:     entities.event_type,
@@ -8307,11 +8453,14 @@ const PHASE_LABEL = {
   null:            "Unknown"
 };
 const LENDER_LABEL = {
-  haven:           "Haven",
-  ptsb:            "PTSB",
+  aib:             "AIB",
+  avant:           "Avant Money",
   bank_of_ireland: "Bank of Ireland",
-  avant:           "Avant",
-  nua:             "NUA Money"
+  ebs:             "EBS",
+  haven:           "Haven",
+  irishlife:       "Irish Life",
+  nua:             "Nua Money",
+  ptsb:            "PTSB"
 };
 
 function phaseColor(phase) {

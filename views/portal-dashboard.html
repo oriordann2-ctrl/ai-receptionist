@@ -875,6 +875,16 @@
         <div class="detail-meta-grid" id="detailMetaGrid"></div>
       </div>
 
+      <!-- Missing-info banner (shown when lender or borrower type unset) -->
+      <div id="detailMissingInfoBanner" style="display:none;margin-bottom:16px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:12px 16px;display:flex;align-items:flex-start;gap:10px;">
+        <span style="font-size:18px;line-height:1.2;flex-shrink:0;">⚠️</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:4px;">Action needed — checklist may be incomplete</div>
+          <div id="detailMissingInfoText" style="font-size:13px;color:#78350f;line-height:1.5;"></div>
+        </div>
+        <button onclick="switchTab('edit')" style="flex-shrink:0;background:#f59e0b;border:none;border-radius:7px;color:white;font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer;font-family:inherit;white-space:nowrap;">Edit →</button>
+      </div>
+
       <!-- AI Summary -->
       <div class="detail-section" id="detailSummarySection">
         <div class="detail-section-title">AI Summary</div>
@@ -885,7 +895,7 @@
       <div class="detail-section" id="detailDocsSection">
         <div class="detail-section-title">Documents Received</div>
         <div class="detail-doc-list" id="detailDocsReceived"></div>
-        <div class="detail-section-title" style="margin-top:12px;">Documents Outstanding</div>
+        <div class="detail-section-title" style="margin-top:12px;">Documents Outstanding <span id="genericChecklistNote" style="display:none;font-size:11px;font-weight:400;color:#f59e0b;background:#fef3c7;border:1px solid #fde68a;border-radius:5px;padding:2px 7px;margin-left:6px;vertical-align:middle;">generic list — set lender to confirm</span></div>
         <div class="detail-doc-list" id="detailDocsMissing"></div>
       </div>
 
@@ -1136,11 +1146,17 @@
         var name = esc(a.borrower_name || '—');
         var subName = a.co_borrower_name ? '<div style="font-size:11px;color:#6b7280;margin-top:2px;">+ ' + esc(a.co_borrower_name) + '</div>' : '';
         var email = a.client_email ? '<div style="font-size:11px;color:#9ca3af;margin-top:1px;">' + esc(a.client_email) + '</div>' : '';
-        var lender = a.lender ? '<span class="mort-badge mort-badge-lender">' + esc(LENDER_LABELS[a.lender]||a.lender) + '</span>' : '<span style="color:#d1d5db;">—</span>';
+        var needsInfo = !a.lender || !a.borrower_type;
+        var lender = a.lender
+          ? '<span class="mort-badge mort-badge-lender">' + esc(LENDER_LABELS[a.lender]||a.lender) + '</span>'
+          : '<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:2px 8px;">⚠ Not set</span>';
         var phase  = a.current_phase ? '<span class="mort-badge mort-badge-phase">' + esc(PHASE_LABELS[a.current_phase]||a.current_phase) + '</span>' : '<span style="color:#d1d5db;">—</span>';
         var ref    = a.application_ref ? '<span style="font-family:monospace;font-size:12px;">' + esc(a.application_ref) + '</span>' : '<span style="color:#d1d5db;">—</span>';
+        var btypePill = !a.borrower_type
+          ? '<span style="display:inline-block;font-size:10px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle;">type?</span>'
+          : '';
         return '<tr>'
-          + '<td><div style="font-weight:600;color:#111827;">' + name + '</div>' + subName + email + '</td>'
+          + '<td><div style="font-weight:600;color:#111827;">' + name + btypePill + '</div>' + subName + email + '</td>'
           + '<td>' + lender + '</td>'
           + '<td>' + phase + '</td>'
           + '<td>' + ref + '</td>'
@@ -1207,6 +1223,18 @@
       document.getElementById('detailMetaGrid').innerHTML = meta.map(function(m) {
         return '<div class="detail-meta-item"><div class="detail-meta-label">' + esc(m.label) + '</div><div class="detail-meta-value">' + esc(m.value) + '</div></div>';
       }).join('');
+
+      // Missing-info banner
+      var missingFields = [];
+      if (!a.lender)        missingFields.push('Lender is not set — needed to load the correct document checklist');
+      if (!a.borrower_type) missingFields.push('Borrower type is not set (PAYE / Self Employed / Contract)');
+      var bannerEl = document.getElementById('detailMissingInfoBanner');
+      if (missingFields.length) {
+        document.getElementById('detailMissingInfoText').innerHTML = missingFields.map(function(f){ return '• ' + f; }).join('<br>');
+        bannerEl.style.display = 'flex';
+      } else {
+        bannerEl.style.display = 'none';
+      }
 
       // Summary
       var summaryEl = document.getElementById('detailSummary');
@@ -1283,6 +1311,9 @@
             document.getElementById('detailDocsMissing').innerHTML = miss.length
               ? miss.map(function(d){ return '<span class="detail-doc-badge detail-doc-missing">' + esc(d) + '</span>'; }).join('')
               : '<span style="font-size:13px;color:#9ca3af;">None outstanding</span>';
+            // Show amber badge when using generic (non-lender-specific) checklist
+            var genericNote = document.getElementById('genericChecklistNote');
+            if (genericNote) genericNote.style.display = data.checklist_is_generic ? 'inline' : 'none';
           }
           if (data.next_action) renderNextAction(data.next_action);
           else document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#9ca3af;">No recommendation available.</div>';
@@ -1367,6 +1398,9 @@
             document.getElementById('detailDocsMissing').innerHTML = miss.length
               ? miss.map(function(d){ return '<span class="detail-doc-badge detail-doc-missing">' + esc(d) + '</span>'; }).join('')
               : '<span style="font-size:13px;color:#9ca3af;">None outstanding</span>';
+            // Show amber badge when using generic (non-lender-specific) checklist
+            var genericNote = document.getElementById('genericChecklistNote');
+            if (genericNote) genericNote.style.display = data.checklist_is_generic ? 'inline' : 'none';
           }
           if (data.next_action) renderNextAction(data.next_action);
           else document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#9ca3af;">No recommendation available.</div>';

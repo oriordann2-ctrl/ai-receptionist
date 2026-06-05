@@ -331,13 +331,15 @@
   function addWorkflowMsg(text) {
     var div = document.createElement("div");
     div.className = "sprimal-msg sprimal-bot";
-    var tagRe = /(\[warn\][\s\S]*?\[\/warn\]|\[b\][\s\S]*?\[\/b\]|\[link\][\s\S]*?\[\/link\])/;
+    // Supports: [warn]...[/warn]  [b]...[/b]  [link]url[/link]  [link=url]Label[/link]
+    var tagRe = /(\[warn\][\s\S]*?\[\/warn\]|\[b\][\s\S]*?\[\/b\]|\[link(?:=[^\]]+)?\][\s\S]*?\[\/link\])/;
     var parts = text.split(tagRe);
     parts.forEach(function (part) {
       if (!part) return;
-      var warnM = part.match(/^\[warn\]([\s\S]*?)\[\/warn\]$/);
-      var boldM = part.match(/^\[b\]([\s\S]*?)\[\/b\]$/);
-      var linkM = part.match(/^\[link\]([\s\S]*?)\[\/link\]$/);
+      var warnM  = part.match(/^\[warn\]([\s\S]*?)\[\/warn\]$/);
+      var boldM  = part.match(/^\[b\]([\s\S]*?)\[\/b\]$/);
+      var linkM  = part.match(/^\[link\]([\s\S]*?)\[\/link\]$/);         // [link]url[/link]
+      var linkLM = part.match(/^\[link=([^\]]+)\]([\s\S]*?)\[\/link\]$/);// [link=url]Label[/link]
       if (warnM) {
         var span = document.createElement("span");
         span.style.color = "#ef4444";
@@ -348,6 +350,16 @@
         var strong = document.createElement("strong");
         strong.textContent = boldM[1];
         div.appendChild(strong);
+      } else if (linkLM) {
+        var href  = linkLM[1].trim();
+        var label = linkLM[2].trim();
+        var a = document.createElement("a");
+        a.href = href.startsWith("http") ? href : "https://" + href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = label;
+        a.style.cssText = "color:#2563eb;font-weight:600;text-decoration:underline;";
+        div.appendChild(a);
       } else if (linkM) {
         var raw = linkM[1].trim();
         var a = document.createElement("a");

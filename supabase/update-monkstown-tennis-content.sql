@@ -76,7 +76,9 @@ BEGIN
     '🥇 Club Championships — annual singles & doubles' || chr(10) ||
     '🌙 Social match play sessions — regular club nights' || chr(10) ||
     '🏸 Croquet — available for members' || chr(10) || chr(10) ||
-    'Follow us on Instagram @monkstowntennisclub or Twitter @MonkstownLTCC for fixtures and updates.'
+    'Follow us for the latest fixtures and updates:' || chr(10) ||
+    '[link=https://instagram.com/monkstowntennisclub]📸 Instagram — @monkstowntennisclub[/link]' || chr(10) ||
+    '[link=https://twitter.com/MonkstownLTCC]🐦 Twitter — @MonkstownLTCC[/link]'
   WHERE workflow_id = v_flow_events AND step_order = 1;
 
   -- ── Find Us ───────────────────────────────────────────────────────────────

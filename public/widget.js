@@ -59,7 +59,7 @@
     "#sprimal-send{width:38px;height:38px;flex-shrink:0;background:#111827;color:#fff;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;padding:0;}",
     "#sprimal-send:hover{background:#1f2937;}",
     "#sprimal-send:disabled{background:#bfdbfe;cursor:not-allowed;}",
-    "#sprimal-choices{padding:8px 12px 10px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid #dbeafe;background:#fff;flex-shrink:0;}",
+    "#sprimal-choices{padding:4px 0 6px;display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start;max-width:92%;}",
     ".sprimal-choice{background:#fff;border:1.5px solid #111827;border-radius:20px;padding:8px 18px;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer;color:#111827;font-weight:500;transition:background .12s,color .12s;white-space:nowrap;line-height:1.3;}",
     ".sprimal-choice:hover{background:#111827;color:#fff;}",
     ".sprimal-choice-ai{border:1.5px dashed #d1d5db;color:#6b7280;font-weight:400;}",
@@ -319,13 +319,8 @@
     });
     container.appendChild(aiBtn);
 
-    // Insert between #sprimal-messages and #sprimal-footer
-    var footer = document.getElementById("sprimal-footer");
-    if (footer) {
-      panel.insertBefore(container, footer);
-    } else {
-      panel.appendChild(container);
-    }
+    // Append inside the scrollable messages area — flows inline like AOM
+    messages.appendChild(container);
     messages.scrollTop = messages.scrollHeight;
   }
 
@@ -366,8 +361,7 @@
         aiBtn2.textContent = "🤖 Ask something else";
         aiBtn2.addEventListener("click", function () { clearChoices(); enableTextInput(); });
         container.appendChild(aiBtn2);
-        var footer2 = document.getElementById("sprimal-footer");
-        if (footer2) panel.insertBefore(container, footer2); else panel.appendChild(container);
+        messages.appendChild(container);
         messages.scrollTop = messages.scrollHeight;
       }, 300);
 

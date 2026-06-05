@@ -187,6 +187,15 @@
         sessionStorage.removeItem(MSG_STORE);
         return false;
       }
+      // Only restore if the user actually typed something — otherwise restart
+      // the workflow fresh (avoids restoring a blank AI-mode state from button-only sessions)
+      var hasUserMsg = data.items.some(function (item) {
+        return item.cls && item.cls.indexOf("sprimal-user") !== -1;
+      });
+      if (!hasUserMsg) {
+        sessionStorage.removeItem(MSG_STORE);
+        return false;
+      }
       data.items.forEach(function (item) {
         var div = document.createElement("div");
         div.className = item.cls;

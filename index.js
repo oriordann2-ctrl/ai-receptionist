@@ -8150,6 +8150,24 @@ async function findOrCreateApplicationState(from, entities, isStaffOrSystem = fa
     }
   }
 
+  // 4. Borrower name — last resort for lender/system emails where no email or ref
+  //    could be matched. Prevents duplicate rows when a lender portal (e.g. Haven)
+  //    sends document notifications that reference the borrower by name but don't
+  //    include their personal email address. Only used for staff/system senders.
+  if (isStaffOrSystem && entities.borrower_name) {
+    const { data: byName } = await supabase
+      .from("mortgage_application_states")
+      .select("*")
+      .ilike("borrower_name", entities.borrower_name.trim())
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (byName) {
+      console.log(`[email-context] Matched by borrower_name: ${entities.borrower_name}`);
+      return byName;
+    }
+  }
+
   // ── No existing row found — decide whether to create ──────────────────────
 
   // Noise gate — require at least some mortgage signal before creating anything

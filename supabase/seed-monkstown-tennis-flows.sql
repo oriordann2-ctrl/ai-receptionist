@@ -157,7 +157,6 @@ BEGIN
   -- ── Choices: Find Us ──────────────────────────────────────────────────────
   INSERT INTO public.workflow_choices (step_id, choice_order, label, action_type, action_value)
   VALUES
-    (v_step_loc_1, 1, '🎾 Membership info',  'switch_flow', v_flow_membership::text),
-    (v_step_loc_1, 2, '← Back to menu',      'switch_flow', v_flow_main::text);
+    (v_step_loc_1, 1, '← Back to main menu', 'switch_flow', v_flow_main::text);
 
 END $$;

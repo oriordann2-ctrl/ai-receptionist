@@ -4490,7 +4490,14 @@ app.post(
       const tagsRaw        = (req.body.tags            || "").trim();
       const juniorAccess   = req.body.junior_accessible !== "false";
       const ext            = req.file.originalname.split(".").pop().toLowerCase();
-      const safePart       = (s) => s.replace(/[\/\\:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
+      // Strip characters invalid in Supabase Storage keys (apostrophes, quotes, etc.)
+      const safePart       = (s) => s
+        .replace(/[\/\\:*?"<>|'`]/g, "")   // remove invalid/problematic chars
+        .replace(/\s+/g, "-")              // spaces → hyphens
+        .replace(/-{2,}/g, "-")            // collapse multiple hyphens
+        .replace(/^-|-$/g, "")             // trim leading/trailing hyphens
+        .trim()
+        .slice(0, 80);                     // cap length
       const structuredName = description
         ? `${safePart(document_type)} - ${safePart(description)}.${ext}`
         : req.file.originalname;

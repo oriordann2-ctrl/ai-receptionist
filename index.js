@@ -7766,7 +7766,7 @@ async function findOrCreateApplicationState(from, entities, isStaffOrSystem = fa
   const appRef      = (entities.application_ref || "").trim() || null;
 
   // ── Lookup priority ────────────────────────────────────────────────────────
-  // 1. client_email extracted from body → strongest signal
+  // 1. client_email extracted from body → strongest signal (always try)
   if (clientEmail) {
     const { data: byClientEmail } = await supabase
       .from("mortgage_application_states")
@@ -7781,7 +7781,7 @@ async function findOrCreateApplicationState(from, entities, isStaffOrSystem = fa
     }
   }
 
-  // 2. Application reference number (lender ref like 92806275)
+  // 2. Application reference number (always try)
   if (appRef) {
     const { data: byRef } = await supabase
       .from("mortgage_application_states")
@@ -7796,7 +7796,7 @@ async function findOrCreateApplicationState(from, entities, isStaffOrSystem = fa
     }
   }
 
-  // 3. Sender email — only valid when the sender IS the client (not staff/system)
+  // 3. Sender email as client identity — only when sender IS the client
   if (!isStaffOrSystem) {
     const { data: bySender } = await supabase
       .from("mortgage_application_states")
@@ -7811,14 +7811,9 @@ async function findOrCreateApplicationState(from, entities, isStaffOrSystem = fa
     }
   }
 
-  // ── Staff/system with no match — do NOT create a new row ──────────────────
-  // These emails cover multiple clients; creating a row would mix cases.
-  if (isStaffOrSystem) {
-    console.log(`[email-context] Staff/system email (${senderEmail}) — no existing application found, skipping state creation`);
-    return null;
-  }
+  // ── No existing row found — decide whether to create ──────────────────────
 
-  // ── Noise gate — don't create rows for clearly non-mortgage emails ─────────
+  // Noise gate — require at least some mortgage signal before creating anything
   const hasSignal =
     entities.borrower_name ||
     entities.lender ||
@@ -7827,23 +7822,36 @@ async function findOrCreateApplicationState(from, entities, isStaffOrSystem = fa
     (entities.event_type && entities.event_type !== "other");
 
   if (!hasSignal) {
-    console.log(`[email-context] Noise gate — no mortgage signal for ${senderEmail}, skipping`);
+    console.log(`[email-context] Noise gate — no mortgage signal from ${senderEmail}, skipping`);
     return null;
   }
 
-  // ── Create new state — sender is a direct client ───────────────────────────
-  const { data: lead } = await supabase
-    .from("mortgage_leads")
-    .select("id, name, email")
-    .eq("email", senderEmail)
-    .maybeSingle();
+  // Staff/system sender: only create if we extracted client identity from the email body.
+  // We may legitimately first hear about a client via a lender or broker system email —
+  // as long as we can identify who the client is, we create the row keyed on that identity.
+  if (isStaffOrSystem) {
+    if (!clientEmail && !appRef) {
+      console.log(`[email-context] Staff/system email (${senderEmail}) — no client identity extracted, skipping`);
+      return null;
+    }
+    console.log(`[email-context] Staff/system email (${senderEmail}) — creating state from extracted identity: client_email=${clientEmail}, appRef=${appRef}`);
+  }
+
+  // ── Create new state ───────────────────────────────────────────────────────
+  // For direct client emails: sender IS the client → client_email = senderEmail
+  // For staff/system emails: client_email comes from extracted entities (sender is just the trigger)
+  const resolvedClientEmail = isStaffOrSystem ? clientEmail : senderEmail;
+
+  const { data: lead } = resolvedClientEmail
+    ? await supabase.from("mortgage_leads").select("id, name, email").eq("email", resolvedClientEmail).maybeSingle()
+    : { data: null };
 
   const { data: newState } = await supabase
     .from("mortgage_application_states")
     .insert({
       lead_id:           lead?.id                   || null,
-      sender_email:      senderEmail,
-      client_email:      senderEmail,               // sender IS the client
+      sender_email:      senderEmail,               // who triggered creation (audit trail)
+      client_email:      resolvedClientEmail,       // the actual borrower's email
       application_ref:   appRef,
       borrower_name:     entities.borrower_name     || lead?.name || null,
       co_borrower_name:  entities.co_borrower_name  || null,
@@ -7860,7 +7868,7 @@ async function findOrCreateApplicationState(from, entities, isStaffOrSystem = fa
     .select()
     .single();
 
-  console.log(`[email-context] New application state created for client: ${senderEmail}`);
+  console.log(`[email-context] New application state created — client: ${resolvedClientEmail || "unknown"}, triggered by: ${senderEmail}`);
   return newState;
 }
 
@@ -8772,7 +8780,8 @@ async function pollGmailInbox() {
   ];
 
   const CONTEXT_ONLY_DOMAINS = [
-    "@aom.onlineapplication.io",      // AOM online application portal — all automated notifications
+    "@aom.onlineapplication.io",      // AOM online application portal (subdomain variant)
+    "@onlineapplication.io",          // AOM online application portal — all automated notifications
     "@aom.ie",                        // AOM colleagues — case updates, doc requests, milestones
     "@ptsb.ie",                       // PTSB staff — lender communications, never auto-reply
     "@boi.com",                       // Bank of Ireland staff

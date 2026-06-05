@@ -7736,7 +7736,7 @@ const LENDER_CHECKLISTS = {
     paye: [
       "3 months payslips",
       "P60 / Employment Detail Summary (last 2 years)",
-      "Salary certificate",
+      "Certificate of income / Salary certificate",
       "6 months current account statements",
       "6 months savings account statements",
       "Photo ID",
@@ -7767,7 +7767,7 @@ const LENDER_CHECKLISTS = {
     paye: [
       "3 months payslips",
       "P60 / Employment Detail Summary (last 2 years)",
-      "Salary certificate",
+      "Certificate of income / Salary certificate",
       "6 months current account statements",
       "6 months savings account statements",
       "Photo ID",
@@ -7798,7 +7798,7 @@ const LENDER_CHECKLISTS = {
     paye: [
       "3 months payslips",
       "P60 / Employment Detail Summary (most recent)",
-      "Salary certificate",
+      "Certificate of income / Salary certificate",
       "6 months current account statements",
       "6 months savings account statements",
       "Photo ID",
@@ -7829,7 +7829,7 @@ const LENDER_CHECKLISTS = {
     paye: [
       "3 months payslips",
       "P60 / Employment Detail Summary (last 2 years)",
-      "Salary certificate",
+      "Certificate of income / Salary certificate",
       "6 months current account statements",
       "6 months savings account statements",
       "Photo ID",
@@ -7860,7 +7860,7 @@ const LENDER_CHECKLISTS = {
     paye: [
       "3 months payslips",
       "P60 / Employment Detail Summary (last 2 years)",
-      "Salary certificate",
+      "Certificate of income / Salary certificate",
       "6 months current account statements",
       "6 months savings account statements",
       "Photo ID",
@@ -7891,7 +7891,7 @@ const LENDER_CHECKLISTS = {
     paye: [
       "3 months payslips",
       "P60 / Employment Detail Summary (last 2 years)",
-      "Salary certificate",
+      "Certificate of income / Salary certificate",
       "6 months current account statements",
       "6 months savings account statements",
       "Photo ID",
@@ -7923,7 +7923,7 @@ const LENDER_CHECKLISTS = {
     paye: [
       "3 months payslips",
       "P60 / Employment Detail Summary (last 2 years)",
-      "Salary certificate",
+      "Certificate of income / Salary certificate",
       "6 months current account statements",
       "6 months savings account statements",
       "Photo ID",
@@ -7954,7 +7954,7 @@ const LENDER_CHECKLISTS = {
     paye: [
       "3 months payslips",
       "P60 / Employment Detail Summary (last 2 years)",
-      "Salary certificate",
+      "Certificate of income / Salary certificate",
       "6 months current account statements",
       "6 months savings account statements",
       "Photo ID",
@@ -7993,7 +7993,7 @@ const GENERIC_CHECKLIST = [
   "6 months savings account statements",
   "3 months payslips (or 2 years audited accounts if self-employed)",
   "P60 / Employment Detail Summary (last 2 years)",
-  "Salary certificate (if PAYE)"
+  "Certificate of income / Salary certificate (if PAYE)"
 ];
 
 // Returns the checklist for a given lender + borrower_type, or null if unknown

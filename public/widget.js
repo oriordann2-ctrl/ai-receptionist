@@ -57,6 +57,11 @@
     "#sprimal-send{background:#111827;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;font-family:Arial,sans-serif;white-space:nowrap;}",
     "#sprimal-send:hover{background:#1f2937;}",
     "#sprimal-send:disabled{background:#9ca3af;cursor:not-allowed;}",
+    "#sprimal-choices{padding:8px 12px 10px;display:flex;flex-direction:column;gap:6px;border-top:1px solid #f0f0f0;background:#fff;flex-shrink:0;}",
+    ".sprimal-choice{background:#f3f4f6;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px 14px;font-size:13px;font-family:Arial,sans-serif;cursor:pointer;text-align:left;color:#111827;font-weight:500;transition:background .12s,border-color .12s;line-height:1.3;}",
+    ".sprimal-choice:hover{background:#e5e7eb;border-color:#9ca3af;}",
+    ".sprimal-choice-ai{background:none;border:1.5px dashed #d1d5db;color:#6b7280;font-weight:400;}",
+    ".sprimal-choice-ai:hover{background:#f9fafb;border-color:#9ca3af;color:#374151;}",
     "@media(max-width:640px){#sprimal-panel{width:100vw;max-width:100vw;right:0;left:0;bottom:0;height:75vh;max-height:75vh;border-radius:20px 20px 0 0;}#sprimal-panel.sprimal-hidden{transform:translateY(100%);}#sprimal-btn{bottom:88px;right:16px;}}",
   ].join("");
   document.head.appendChild(style);
@@ -131,6 +136,22 @@
   var isOpen    = false;
   var hasOpened = false;
 
+  // ── Workflow state ────────────────────────────────────────────────────────
+  var wfSteps = [];   // sorted array of workflow steps (each has .workflow_choices)
+  var wfMode  = false; // true while widget is in button-menu mode
+
+  // Pre-fetch active workflow in background (non-AOM only)
+  if (clubId !== "aom") {
+    fetch(BACKEND + "/api/workflow/" + clubId)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.workflow && Array.isArray(d.workflow.workflow_steps) && d.workflow.workflow_steps.length) {
+          wfSteps = d.workflow.workflow_steps.slice().sort(function (a, b) { return a.step_order - b.step_order; });
+        }
+      })
+      .catch(function () { /* silently ignore */ });
+  }
+
   // ── Fetch tenant config and update branding ───────────────────────────────
   if (clubId !== "aom") {
     fetch(BACKEND + "/api/tenant-config/" + clubId)
@@ -192,6 +213,117 @@
     badge.style.display = "none";
   }
 
+  // ── Workflow helpers ──────────────────────────────────────────────────────
+
+  // Remove the choice-buttons container from the panel
+  function clearChoices() {
+    var el = document.getElementById("sprimal-choices");
+    if (el) el.parentNode.removeChild(el);
+  }
+
+  // Switch from button-menu mode → text input mode
+  function enableTextInput() {
+    wfMode = false;
+    clearChoices();
+    var footer = document.getElementById("sprimal-footer");
+    if (footer) footer.style.display = "flex";
+    if (input) { input.value = ""; input.focus(); }
+  }
+
+  // Render a workflow step: bot message + choice buttons
+  function showWorkflowStep(step) {
+    if (!step) return;
+    addMsg(step.bot_message, "bot");
+
+    var choices = (step.workflow_choices || []).slice().sort(function (a, b) { return a.choice_order - b.choice_order; });
+
+    clearChoices();
+    var container = document.createElement("div");
+    container.id  = "sprimal-choices";
+
+    choices.forEach(function (ch) {
+      var btn = document.createElement("button");
+      btn.className = "sprimal-choice";
+      btn.textContent = ch.label;
+      btn.addEventListener("click", function () { handleChoice(ch); });
+      container.appendChild(btn);
+    });
+
+    // Always offer AI fallback
+    var aiBtn = document.createElement("button");
+    aiBtn.className = "sprimal-choice sprimal-choice-ai";
+    aiBtn.textContent = "🤖 Ask something else";
+    aiBtn.addEventListener("click", function () {
+      clearChoices();
+      enableTextInput();
+    });
+    container.appendChild(aiBtn);
+
+    // Insert between #sprimal-messages and #sprimal-footer
+    var footer = document.getElementById("sprimal-footer");
+    if (footer) {
+      panel.insertBefore(container, footer);
+    } else {
+      panel.appendChild(container);
+    }
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  // Handle a button press in the workflow
+  function handleChoice(choice) {
+    addMsg(choice.label, "user");  // echo the user's selection
+    clearChoices();
+
+    var type = choice.action_type;
+    var val  = choice.action_value || "";
+
+    if (type === "next_step") {
+      var order   = parseInt(val, 10);
+      var nextStep = wfSteps.find(function (s) { return s.step_order === order; });
+      if (nextStep) {
+        showWorkflowStep(nextStep);
+      } else {
+        addMsg("I can help with that! Feel free to type your question below.", "bot");
+        enableTextInput();
+      }
+
+    } else if (type === "message") {
+      addMsg(val || "Thank you!", "bot");
+      // Offer a restart button after terminal message
+      setTimeout(function () {
+        var container = document.createElement("div");
+        container.id  = "sprimal-choices";
+        var restartBtn = document.createElement("button");
+        restartBtn.className = "sprimal-choice sprimal-choice-ai";
+        restartBtn.textContent = "↩ Back to menu";
+        restartBtn.addEventListener("click", function () {
+          clearChoices();
+          if (wfSteps.length) showWorkflowStep(wfSteps[0]);
+        });
+        container.appendChild(restartBtn);
+        var aiBtn2 = document.createElement("button");
+        aiBtn2.className = "sprimal-choice sprimal-choice-ai";
+        aiBtn2.textContent = "🤖 Ask something else";
+        aiBtn2.addEventListener("click", function () { clearChoices(); enableTextInput(); });
+        container.appendChild(aiBtn2);
+        var footer2 = document.getElementById("sprimal-footer");
+        if (footer2) panel.insertBefore(container, footer2); else panel.appendChild(container);
+        messages.scrollTop = messages.scrollHeight;
+      }, 300);
+
+    } else if (type === "url") {
+      if (val) window.open(val, "_blank");
+      addMsg("Opening that page for you…", "bot");
+      setTimeout(function () {
+        if (wfSteps.length) showWorkflowStep(wfSteps[0]);
+      }, 800);
+
+    } else if (type === "ai_fallback") {
+      addMsg("Sure! What would you like to know?", "bot");
+      enableTextInput();
+    }
+  }
+
   // ── Send message ─────────────────────────────────────────────────────────
   function send() {
     var text = input.value.trim();
@@ -234,9 +366,18 @@
       // iframe already preloaded — nothing to do
     } else {
       if (!hasOpened) {
-        var greeting = "Hi there 👋 I'm Maeve, your " + clubName + " assistant.\n\nI can answer questions about the club — memberships, facilities, schedules, and more.\n\nWhat would you like to know?";
-        addMsg(greeting, "bot");
-        setTimeout(function () { if (input) input.focus(); }, 100);
+        if (wfSteps.length) {
+          // Workflow mode: hide footer text input, show button menu
+          wfMode = true;
+          var footer = document.getElementById("sprimal-footer");
+          if (footer) footer.style.display = "none";
+          showWorkflowStep(wfSteps[0]);
+        } else {
+          // Standard AI mode: show greeting + text input
+          var greeting = "Hi there 👋 I'm " + botName + ", your " + clubName + " assistant.\n\nWhat would you like to know?";
+          addMsg(greeting, "bot");
+          setTimeout(function () { if (input) input.focus(); }, 100);
+        }
       }
     }
     hasOpened = true;
@@ -255,9 +396,9 @@
 
   if (closeBtn) closeBtn.addEventListener("click", closePanel);
 
-  sendBtn.addEventListener("click", send);
+  if (sendBtn) sendBtn.addEventListener("click", send);
 
-  input.addEventListener("keydown", function (e) {
+  if (input) input.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();

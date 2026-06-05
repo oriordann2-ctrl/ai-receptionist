@@ -622,6 +622,25 @@
     </details>
   </div>
 
+  <!-- ── Chat Flows ── -->
+  <div class="card" style="padding:0;">
+    <details id="workflowDetails">
+      <summary class="analytics-summary">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🗂️</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Chat Flows</div>
+            <div style="font-size:13px;color:#6b7280;">Build button-driven menus for your chat widget — with AI fallback</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="workflowBody">
+        <div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>
+      </div>
+    </details>
+  </div>
+
   <!-- ── Section: Knowledge & Insights ── -->
   <div class="section-group-label">📚 Knowledge &amp; Insights</div>
 
@@ -1477,6 +1496,352 @@
   })();
 
   // ── Knowledge Base Assistant ─────────────────────────────────────────────────
+  // ── Chat Workflow Builder ─────────────────────────────────────────────────────
+  (function () {
+    var details  = document.getElementById("workflowDetails");
+    var body     = document.getElementById("workflowBody");
+    if (!details || !body) return;
+
+    var workflows    = [];   // full list loaded from API
+    var editingId    = null; // workflow id being edited, or null
+    var editingSteps = [];   // [{bot_message, choices:[{label,action_type,action_value}]}]
+
+    function esc(s) {
+      return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // ── Sync in-flight DOM values → editingSteps ────────────────────────────
+    function syncDom() {
+      document.querySelectorAll(".wf-msg").forEach(function (el) {
+        var si = parseInt(el.getAttribute("data-si"), 10);
+        if (!isNaN(si) && editingSteps[si]) editingSteps[si].bot_message = el.value;
+      });
+      document.querySelectorAll(".wf-clabel").forEach(function (el) {
+        var si = parseInt(el.getAttribute("data-si"), 10);
+        var ci = parseInt(el.getAttribute("data-ci"), 10);
+        if (!isNaN(si) && !isNaN(ci) && editingSteps[si] && editingSteps[si].choices[ci])
+          editingSteps[si].choices[ci].label = el.value;
+      });
+      document.querySelectorAll(".wf-cval").forEach(function (el) {
+        var si = parseInt(el.getAttribute("data-si"), 10);
+        var ci = parseInt(el.getAttribute("data-ci"), 10);
+        if (!isNaN(si) && !isNaN(ci) && editingSteps[si] && editingSteps[si].choices[ci])
+          editingSteps[si].choices[ci].action_value = el.value;
+      });
+      document.querySelectorAll(".wf-ctype").forEach(function (el) {
+        var si = parseInt(el.getAttribute("data-si"), 10);
+        var ci = parseInt(el.getAttribute("data-ci"), 10);
+        if (!isNaN(si) && !isNaN(ci) && editingSteps[si] && editingSteps[si].choices[ci])
+          editingSteps[si].choices[ci].action_type = el.value;
+      });
+      var nameEl = document.getElementById("wfNameInput");
+      if (nameEl) {
+        var wf = workflows.find(function (w) { return w.id === editingId; });
+        if (wf) wf._pendingName = nameEl.value;
+      }
+    }
+
+    // ── API helpers ──────────────────────────────────────────────────────────
+    function loadWorkflows() {
+      body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>';
+      fetch("/api/portal/workflows")
+        .then(function (r) { return r.json(); })
+        .then(function (data) { workflows = data.workflows || []; renderList(); })
+        .catch(function () { body.innerHTML = '<div style="color:#dc2626;padding:16px 20px;">Failed to load chat flows.</div>'; });
+    }
+
+    // ── Render: flow list ────────────────────────────────────────────────────
+    function renderList() {
+      var html = '<div style="padding:16px 20px;">';
+
+      if (workflows.length === 0) {
+        html += '<div style="text-align:center;padding:24px 0;font-size:14px;color:#9ca3af;">No chat flows yet — create one to add button menus to your widget.</div>';
+      } else {
+        html += '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">';
+        workflows.forEach(function (wf) {
+          var stepCount = (wf.workflow_steps || []).length;
+          var active    = wf.is_active;
+          html += '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid '
+            + (active ? '#bbf7d0' : '#e5e7eb')
+            + ';border-radius:10px;background:' + (active ? '#f0fdf4' : '#fafafa') + ';">';
+          html += '<div style="flex:1;min-width:0;">';
+          html += '<div style="font-size:14px;font-weight:600;color:#111827;">' + esc(wf.name) + '</div>';
+          html += '<div style="font-size:12px;color:#9ca3af;margin-top:2px;">' + stepCount + ' step' + (stepCount !== 1 ? 's' : '') + '</div>';
+          html += '</div>';
+          if (active) {
+            html += '<span style="background:#16a34a;color:white;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;">Active</span>';
+          } else {
+            html += '<button onclick="wfActivate(\'' + wf.id + '\')" style="background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:#16a34a;cursor:pointer;font-family:inherit;white-space:nowrap;">Set Active</button>';
+          }
+          if (active) {
+            html += '<button onclick="wfDeactivate(\'' + wf.id + '\')" style="background:#fef2f2;border:1px solid #fca5a5;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:#dc2626;cursor:pointer;font-family:inherit;white-space:nowrap;">Deactivate</button>';
+          }
+          html += '<button onclick="wfEdit(\'' + wf.id + '\')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:#2563eb;cursor:pointer;font-family:inherit;">Edit</button>';
+          html += '<button onclick="wfDelete(\'' + wf.id + '\')" style="background:#fef2f2;border:1px solid #fecaca;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:#dc2626;cursor:pointer;font-family:inherit;">Delete</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+
+      html += '<button onclick="wfNew()" style="background:#0f172a;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">+ New Chat Flow</button>';
+      html += '</div>';
+      body.innerHTML = html;
+    }
+
+    // ── Render: step editor ──────────────────────────────────────────────────
+    function renderEditor() {
+      var wf   = workflows.find(function (w) { return w.id === editingId; }) || {};
+      var name = wf._pendingName !== undefined ? wf._pendingName : (wf.name || "");
+
+      var html = '<div style="padding:16px 20px;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">';
+      html += '<button onclick="wfCancelEdit()" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:13px;font-family:inherit;padding:0;">← Back</button>';
+      html += '<span style="color:#d1d5db;">|</span>';
+      html += '<span style="font-size:14px;font-weight:600;color:#111827;">Editing: ' + esc(name || 'New Flow') + '</span>';
+      html += '</div>';
+
+      // Flow name
+      html += '<div style="margin-bottom:18px;">';
+      html += '<label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Flow Name</label>';
+      html += '<input id="wfNameInput" type="text" value="' + esc(name) + '" oninput="var wf=workflows.find(function(w){return w.id===editingId;});if(wf)wf._pendingName=this.value;" '
+        + 'style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;" '
+        + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />';
+      html += '</div>';
+
+      // Steps
+      html += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Steps</div>';
+
+      editingSteps.forEach(function (step, si) {
+        html += renderStepHtml(step, si);
+      });
+
+      html += '<button onclick="wfAddStep()" style="width:100%;background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:8px;padding:9px;font-size:13px;color:#64748b;cursor:pointer;font-family:inherit;margin-top:4px;">+ Add Step</button>';
+
+      html += '<div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb;">';
+      html += '<button onclick="wfSave()" style="background:#0f172a;color:white;border:none;border-radius:8px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;" id="wfSaveBtn">Save Flow</button>';
+      html += '<button onclick="wfCancelEdit()" style="background:white;border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 18px;font-size:14px;color:#374151;cursor:pointer;font-family:inherit;">Cancel</button>';
+      html += '</div>';
+      html += '</div>';
+
+      body.innerHTML = html;
+
+      // Expose workflows/editingId to inline handlers
+      window.workflows   = workflows;
+      window.editingId   = editingId;
+      window.editingSteps = editingSteps;
+    }
+
+    function renderStepHtml(step, si) {
+      var html = '<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:12px;background:#fafafa;">';
+
+      // Step header
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+      html += '<div style="background:#0f172a;color:white;border-radius:6px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;padding:0 5px;">' + (si + 1) + '</div>';
+      html += '<span style="flex:1;font-size:13px;font-weight:600;color:#374151;">Step ' + (si + 1) + '</span>';
+      if (si > 0) {
+        html += '<button onclick="wfRemoveStep(' + si + ')" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;padding:0 4px;" title="Remove step">&times;</button>';
+      }
+      html += '</div>';
+
+      // Bot message textarea
+      html += '<div style="margin-bottom:10px;">';
+      html += '<label style="display:block;font-size:11px;font-weight:600;color:#6b7280;margin-bottom:4px;">Bot says…</label>';
+      html += '<textarea class="wf-msg" data-si="' + si + '" oninput="editingSteps[' + si + '].bot_message=this.value" '
+        + 'style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;color:#0f172a;outline:none;resize:vertical;min-height:72px;" '
+        + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'">'
+        + esc(step.bot_message || '') + '</textarea>';
+      html += '</div>';
+
+      // Choices
+      html += '<div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px;">Buttons</div>';
+      (step.choices || []).forEach(function (ch, ci) {
+        html += renderChoiceHtml(si, ci, ch);
+      });
+      html += '<button onclick="wfAddChoice(' + si + ')" style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:7px;padding:6px 12px;font-size:12px;color:#64748b;cursor:pointer;font-family:inherit;margin-top:4px;">+ Add Button</button>';
+
+      html += '</div>';
+      return html;
+    }
+
+    function renderChoiceHtml(si, ci, ch) {
+      var showValue   = ch.action_type !== "ai_fallback";
+      var placeholder = { next_step: "step number (e.g. 2)", url: "https://...", message: "message to show" }[ch.action_type] || "";
+
+      var html = '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
+
+      // Label
+      html += '<input type="text" class="wf-clabel" data-si="' + si + '" data-ci="' + ci + '" placeholder="Button label" value="' + esc(ch.label || '') + '" '
+        + 'oninput="editingSteps[' + si + '].choices[' + ci + '].label=this.value" '
+        + 'style="flex:2;min-width:100px;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;outline:none;" '
+        + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />';
+
+      // Action type
+      html += '<select class="wf-ctype" data-si="' + si + '" data-ci="' + ci + '" '
+        + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_type=this.value;wfRerender()" '
+        + 'style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
+      var typeLabels = { next_step: "→ Next step", message: "💬 Show message", url: "🔗 Open link", ai_fallback: "🤖 Ask AI" };
+      ["next_step", "message", "url", "ai_fallback"].forEach(function (t) {
+        html += '<option value="' + t + '"' + (ch.action_type === t ? " selected" : "") + ">" + typeLabels[t] + "</option>";
+      });
+      html += "</select>";
+
+      // Action value (hidden for ai_fallback)
+      if (showValue) {
+        html += '<input type="text" class="wf-cval" data-si="' + si + '" data-ci="' + ci + '" placeholder="' + esc(placeholder) + '" value="' + esc(ch.action_value || '') + '" '
+          + 'oninput="editingSteps[' + si + '].choices[' + ci + '].action_value=this.value" '
+          + 'style="flex:2;min-width:80px;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;outline:none;" '
+          + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />';
+      }
+
+      // Remove button
+      html += '<button onclick="wfRemoveChoice(' + si + ',' + ci + ')" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;flex-shrink:0;" title="Remove">&times;</button>';
+      html += '</div>';
+      return html;
+    }
+
+    // ── Public actions (called by inline onclick) ────────────────────────────
+    window.wfNew = function () {
+      fetch("/api/portal/workflows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "New Flow" }) })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.workflow) return;
+          var wf = Object.assign({ workflow_steps: [] }, data.workflow);
+          workflows.unshift(wf);
+          editingId    = wf.id;
+          editingSteps = [{ bot_message: "", choices: [] }];
+          window.editingSteps = editingSteps;
+          renderEditor();
+        });
+    };
+
+    window.wfEdit = function (id) {
+      var wf = workflows.find(function (w) { return w.id === id; });
+      if (!wf) return;
+      editingId = id;
+      var sorted = (wf.workflow_steps || []).slice().sort(function (a, b) { return a.step_order - b.step_order; });
+      editingSteps = sorted.length
+        ? sorted.map(function (step) {
+            return {
+              bot_message: step.bot_message || "",
+              choices: (step.workflow_choices || []).slice()
+                .sort(function (a, b) { return a.choice_order - b.choice_order; })
+                .map(function (c) { return { label: c.label, action_type: c.action_type, action_value: c.action_value || "" }; })
+            };
+          })
+        : [{ bot_message: "", choices: [] }];
+      window.editingSteps = editingSteps;
+      renderEditor();
+    };
+
+    window.wfCancelEdit = function () {
+      editingId    = null;
+      editingSteps = [];
+      loadWorkflows();
+    };
+
+    window.wfDelete = function (id) {
+      var wf = workflows.find(function (w) { return w.id === id; });
+      if (!wf || !confirm('Delete flow "' + (wf.name || "") + '"? This cannot be undone.')) return;
+      fetch("/api/portal/workflows/" + id, { method: "DELETE" })
+        .then(function (r) { return r.json(); })
+        .then(function () {
+          workflows = workflows.filter(function (w) { return w.id !== id; });
+          renderList();
+        });
+    };
+
+    window.wfActivate = function (id) {
+      fetch("/api/portal/workflows/" + id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_active: true }) })
+        .then(function (r) { return r.json(); })
+        .then(function () { workflows.forEach(function (w) { w.is_active = (w.id === id); }); renderList(); });
+    };
+
+    window.wfDeactivate = function (id) {
+      fetch("/api/portal/workflows/" + id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_active: false }) })
+        .then(function (r) { return r.json(); })
+        .then(function () { workflows.forEach(function (w) { if (w.id === id) w.is_active = false; }); renderList(); });
+    };
+
+    window.wfAddStep = function () {
+      editingSteps.push({ bot_message: "", choices: [] });
+      window.editingSteps = editingSteps;
+      renderEditor();
+    };
+
+    window.wfRemoveStep = function (si) {
+      editingSteps.splice(si, 1);
+      window.editingSteps = editingSteps;
+      renderEditor();
+    };
+
+    window.wfAddChoice = function (si) {
+      editingSteps[si].choices.push({ label: "", action_type: "message", action_value: "" });
+      window.editingSteps = editingSteps;
+      renderEditor();
+    };
+
+    window.wfRemoveChoice = function (si, ci) {
+      editingSteps[si].choices.splice(ci, 1);
+      window.editingSteps = editingSteps;
+      renderEditor();
+    };
+
+    window.wfRerender = function () {
+      renderEditor();
+    };
+
+    window.wfSave = function () {
+      if (!editingId) return;
+      var btn = document.getElementById("wfSaveBtn");
+      if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+
+      var wf   = workflows.find(function (w) { return w.id === editingId; }) || {};
+      var nameEl = document.getElementById("wfNameInput");
+      var name = nameEl ? nameEl.value.trim() : (wf.name || "");
+
+      // Update workflow name
+      fetch("/api/portal/workflows/" + editingId, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name || wf.name })
+      })
+      .then(function () {
+        var payload = editingSteps.map(function (step, i) {
+          return {
+            step_order:  i + 1,
+            bot_message: step.bot_message || "",
+            choices:     step.choices.filter(function (c) { return c.label && c.label.trim(); }).map(function (c, ci) {
+              return { label: c.label.trim(), action_type: c.action_type || "message", action_value: c.action_value || null, choice_order: ci };
+            })
+          };
+        });
+        return fetch("/api/portal/workflows/" + editingId + "/steps", {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ steps: payload })
+        });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          editingId    = null;
+          editingSteps = [];
+          loadWorkflows();
+        } else {
+          if (btn) { btn.disabled = false; btn.textContent = "Save Flow"; }
+          alert("Save failed: " + (data.error || "Unknown error"));
+        }
+      })
+      .catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = "Save Flow"; }
+        alert("Save failed. Please try again.");
+      });
+    };
+
+    // ── Open trigger ─────────────────────────────────────────────────────────
+    details.addEventListener("toggle", function () {
+      if (details.open) loadWorkflows();
+    });
+  })();
+
   window.portalAskKB = function() {
     var question  = document.getElementById("portalKbQuestion").value.trim();
     var answerBox = document.getElementById("portalKbAnswer");

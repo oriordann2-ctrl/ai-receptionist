@@ -9400,6 +9400,132 @@ function startEmailPolling() {
   setInterval(pollGmailInbox, 2 * 60 * 1000);
 }
 
+// ─── Chat Workflow Builder ─────────────────────────────────────────────────────
+
+// Public: fetch the active workflow for a club (called by the widget on open)
+app.get("/api/workflow/:clubId", async (req, res) => {
+  const { clubId } = req.params;
+  try {
+    const { data: workflow } = await supabase
+      .from("chat_workflows")
+      .select("id, name, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value))")
+      .eq("club_id", clubId)
+      .eq("is_active", true)
+      .maybeSingle();
+    res.json({ workflow: workflow || null });
+  } catch (err) {
+    res.json({ workflow: null });
+  }
+});
+
+// Portal: list all workflows for the logged-in tenant
+app.get("/api/portal/workflows", requireTenant, async (req, res) => {
+  const clubId = req.session.tenantId;
+  const { data, error } = await supabase
+    .from("chat_workflows")
+    .select("id, name, is_active, created_at, updated_at, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value))")
+    .eq("club_id", clubId)
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ workflows: data || [] });
+});
+
+// Portal: create a new (empty) workflow
+app.post("/api/portal/workflows", requireTenant, async (req, res) => {
+  const clubId = req.session.tenantId;
+  const { name } = req.body;
+  const { data, error } = await supabase
+    .from("chat_workflows")
+    .insert({ club_id: clubId, name: name || "New Flow" })
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ workflow: data });
+});
+
+// Portal: update workflow metadata (name / is_active)
+app.put("/api/portal/workflows/:id", requireTenant, async (req, res) => {
+  const clubId = req.session.tenantId;
+  const { id }   = req.params;
+  const { name, is_active } = req.body;
+
+  // If activating this workflow, deactivate all others for this club first
+  if (is_active === true) {
+    await supabase.from("chat_workflows").update({ is_active: false }).eq("club_id", clubId);
+  }
+
+  const updates = { updated_at: new Date().toISOString() };
+  if (name      !== undefined) updates.name      = name;
+  if (is_active !== undefined) updates.is_active = is_active;
+
+  const { data, error } = await supabase
+    .from("chat_workflows")
+    .update(updates)
+    .eq("id", id)
+    .eq("club_id", clubId)
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ workflow: data });
+});
+
+// Portal: delete a workflow (cascades to steps and choices)
+app.delete("/api/portal/workflows/:id", requireTenant, async (req, res) => {
+  const clubId = req.session.tenantId;
+  const { id } = req.params;
+  const { error } = await supabase
+    .from("chat_workflows")
+    .delete()
+    .eq("id", id)
+    .eq("club_id", clubId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// Portal: replace all steps + choices for a workflow (full overwrite on save)
+app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
+  const clubId = req.session.tenantId;
+  const { id }   = req.params;
+  const { steps } = req.body; // [{step_order, bot_message, choices:[{label,action_type,action_value,choice_order}]}]
+
+  // Verify the workflow belongs to this tenant
+  const { data: wf } = await supabase.from("chat_workflows").select("id").eq("id", id).eq("club_id", clubId).single();
+  if (!wf) return res.status(404).json({ error: "Workflow not found" });
+
+  try {
+    // Delete existing steps (choices cascade automatically)
+    await supabase.from("workflow_steps").delete().eq("workflow_id", id);
+
+    for (const step of (steps || [])) {
+      const { data: newStep, error: stepErr } = await supabase
+        .from("workflow_steps")
+        .insert({ workflow_id: id, step_order: step.step_order, bot_message: step.bot_message || "" })
+        .select("id")
+        .single();
+      if (stepErr) throw stepErr;
+
+      const validChoices = (step.choices || []).filter(c => c.label && c.label.trim());
+      if (newStep && validChoices.length) {
+        const { error: chErr } = await supabase.from("workflow_choices").insert(
+          validChoices.map((c, i) => ({
+            step_id:      newStep.id,
+            choice_order: c.choice_order ?? i,
+            label:        c.label.trim(),
+            action_type:  c.action_type || "message",
+            action_value: c.action_value || null
+          }))
+        );
+        if (chErr) throw chErr;
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[workflow] Save error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

@@ -8358,6 +8358,26 @@ async function updateApplicationState(state, entities, cleanedBody, from, subjec
     }
   }
 
+  // Auto-advance to underwriting when a lender/system email completes the checklist.
+  // Conditions: there was a non-empty checklist before this email, this email reduced it to
+  // zero, the phase hasn't already reached underwriting or beyond, and the confirmation came
+  // from a lender/portal (context-only sender) — not from the client claiming docs are sent.
+  const hadChecklist        = (state.missing_documents || []).length > 0;
+  const nowComplete         = updates.missing_documents !== undefined && updates.missing_documents.length === 0;
+  const preUnderwritingPhase = ["initial_enquiry", "aip", "full_application"].includes(state.current_phase || "initial_enquiry");
+
+  if (hadChecklist && nowComplete && preUnderwritingPhase && isContextOnlySender(from)) {
+    updates.current_phase = "underwriting";
+    console.log(`[email-context] Auto-advancing ${state.borrower_name || state.id} to Underwriting — all checklist docs confirmed by lender`);
+    events.push({
+      application_id: state.id,
+      event_type:     "milestone",
+      description:    "Advanced to Underwriting — all checklist documents confirmed received by lender",
+      from_address:   from,
+      email_subject:  subject
+    });
+  }
+
   // Running summary
   if (cleanedBody) {
     updates.running_summary = await updateRunningSummary(state.running_summary, cleanedBody, from, subject, entities);

@@ -1,10 +1,6 @@
 -- ─── Seed Ora Fitness Cork Chat Flows ────────────────────────────────────────
 -- Run once in Supabase SQL editor.
 --
--- BEFORE RUNNING: replace 'orafitnesscork' below with the actual tenant ID
--- from your tenants table if different. Check with:
---   SELECT id, name FROM public.tenants WHERE name ILIKE '%ora%';
---
 -- After running, Orla logs into her portal → Chat Flows and edits the
 -- [FILL IN] sections with her real class names, prices, and booking link.
 -- None of the flows are active until she sets one live.
@@ -12,7 +8,7 @@
 
 DO $$
 DECLARE
-  v_club_id TEXT := 'orafitnesscork'; -- ← replace if needed
+  v_club_id TEXT := 'ora-fitness-cork';
 
   -- Flow IDs
   v_flow_main        UUID;

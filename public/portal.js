@@ -486,6 +486,16 @@
     var body = document.getElementById("settingsBody");
     if (!body) return;
     body.innerHTML = ''
+      // AI Assistant Description
+      + '<div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
+      + '<div class="toggle-label" style="margin-bottom:4px;">AI Assistant Description</div>'
+      + '<div class="toggle-sub" style="margin-bottom:10px;">Tells Maeve what your business does — makes her responses more accurate and relevant to your customers.</div>'
+      + '<textarea id="bizDesc" rows="2" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;" placeholder="e.g. a claims solutions provider covering motor, property, and liability insurance">' + (d.business_description || '') + '</textarea>'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
+      + '<button onclick="saveBizDesc()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save description</button>'
+      + '<span id="bizDescStatus" style="font-size:13px;color:#6b7280;"></span>'
+      + '</div>'
+      + '</div>'
       // AI Receptionist toggle
       + '<div class="toggle-row">'
       + '<div class="toggle-info"><div class="toggle-label">AI Receptionist</div>'
@@ -548,6 +558,25 @@
         if (el) el.checked = !value;
         alert("Could not save setting: " + err.message);
       });
+  };
+
+  window.saveBizDesc = function() {
+    var val    = ((document.getElementById("bizDesc") || {}).value || "").trim();
+    var status = document.getElementById("bizDescStatus");
+    if (status) status.textContent = "Saving…";
+    fetch("/api/portal/settings", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ business_description: val })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success) throw new Error(d.error || "save failed");
+      if (status) { status.textContent = "Saved ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
   };
 
   function applyTrainStaffVisibility(on) {

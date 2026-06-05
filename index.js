@@ -2365,15 +2365,16 @@ Do not ask more than one question at a time.
   }
 }
 
-async function generateGenericReply(message, tenantName) {
+async function generateGenericReply(message, tenantName, businessDesc) {
   try {
     const orgName = tenantName || "the organisation";
+    const descClause = businessDesc ? `, ${businessDesc}` : "";
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant for ${orgName}. The user is already on the ${orgName} website or chat — never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so clearly and suggest they contact ${orgName} directly — never guess, invent details, or use placeholder text like "[insert X here]". Do not mention mortgages, brokers, or financial products.`
+          content: `You are Maeve, a helpful AI assistant for ${orgName}${descClause}. The user is already on the ${orgName} website or chat — never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so clearly and suggest they contact ${orgName} directly — never guess, invent details, or use placeholder text like "[insert X here]". Do not mention mortgages, brokers, or financial products unless they are relevant to this business.`
         },
         {
           role: "user",
@@ -3431,6 +3432,41 @@ app.post("/api/signup", async (req, res) => {
                 }
               } catch (colorErr) {
                 console.log(`[signup] Brand colour extraction failed: ${colorErr.message}`);
+              }
+
+              // Generate AI business description from homepage text
+              try {
+                const pageText = homepageHtml
+                  .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+                  .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+                  .replace(/<[^>]+>/g, " ")
+                  .replace(/\s+/g, " ")
+                  .trim()
+                  .slice(0, 1500);
+                if (pageText.length > 100) {
+                  const descResp = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: [
+                      {
+                        role: "system",
+                        content: "Write a concise one-sentence description of what this business does in 10-20 words. Start with a lowercase letter, no company name, no full stop. Example: 'a tennis club in Cork offering memberships, coaching sessions, and court bookings'"
+                      },
+                      {
+                        role: "user",
+                        content: `Business name: ${name}\nWebsite text:\n${pageText}`
+                      }
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 60
+                  });
+                  const desc = (descResp.choices[0].message.content || "").trim().replace(/\.$/, "").replace(/^["']|["']$/g, "");
+                  if (desc) {
+                    await supabase.from("tenants").update({ business_description: desc }).eq("id", tenantId);
+                    console.log(`[signup] Business description stored for ${tenantId}: ${desc}`);
+                  }
+                }
+              } catch (descErr) {
+                console.log(`[signup] Business description extraction failed: ${descErr.message}`);
               }
             }
           } catch (fetchErr) {
@@ -5476,13 +5512,14 @@ DOCUMENT KNOWLEDGE:\n${documentContext || "None"}`
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled")
+    .select("ai_enabled, train_staff_enabled, business_description")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
   res.json({
-    ai_enabled:           data?.ai_enabled           ?? true,
-    train_staff_enabled:  data?.train_staff_enabled  ?? false
+    ai_enabled:            data?.ai_enabled           ?? true,
+    train_staff_enabled:   data?.train_staff_enabled  ?? false,
+    business_description:  data?.business_description ?? ""
   });
 });
 
@@ -5498,8 +5535,9 @@ function sendStaffEmail(to, subject, html) {
 
 app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   const updates = {};
-  if (typeof req.body.ai_enabled          === "boolean") updates.ai_enabled          = req.body.ai_enabled;
-  if (typeof req.body.train_staff_enabled === "boolean") updates.train_staff_enabled = req.body.train_staff_enabled;
+  if (typeof req.body.ai_enabled           === "boolean") updates.ai_enabled           = req.body.ai_enabled;
+  if (typeof req.body.train_staff_enabled  === "boolean") updates.train_staff_enabled  = req.body.train_staff_enabled;
+  if (typeof req.body.business_description === "string")  updates.business_description = req.body.business_description.slice(0, 300);
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 
   const tenantId   = req.tenant.tenantId;
@@ -5789,15 +5827,17 @@ app.post("/chat", async (req, res) => {
     // ── Look up this tenant's business mode, name and feature flags ──────────
     let effectiveMode = businessMode; // global default ('mortgage')
     let tenantDisplayName = null;
+    let tenantBusinessDesc = null;
     try {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name, ai_enabled")
+        .select("business_mode, name, ai_enabled, business_description")
         .eq("id", tenantId)
         .maybeSingle();
       if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
       if (tenantData?.name) tenantDisplayName = tenantData.name;
       else tenantDisplayName = tenantId.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      if (tenantData?.business_description) tenantBusinessDesc = tenantData.business_description;
       // Respect AI Receptionist on/off toggle (null/undefined = enabled by default)
       if (tenantData?.ai_enabled === false) {
         return res.json({ reply: "The AI assistant is currently unavailable. Please contact us directly." });
@@ -6465,9 +6505,11 @@ Use plain numbers where possible.
         const context = contextParts.join("\n\n---\n\n");
 
         try {
+          const _org     = tenantDisplayName || "this organisation";
+          const _descBit = tenantBusinessDesc ? ", " + tenantBusinessDesc : "";
           const sysPrompt = eboContext
-            ? "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly."
-            : "You are a helpful assistant for " + (tenantDisplayName || "this organisation") + ". Answer ONLY using the provided knowledge base context. If the answer is not in the context, say so clearly — for example: 'I don't have that information, please check the website or contact " + (tenantDisplayName || "us") + " directly.' Never invent, guess, or use placeholder text like '[insert location here]'. Keep answers friendly and concise.";
+            ? "You are Maeve, a helpful AI assistant for " + _org + _descBit + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly."
+            : "You are Maeve, a helpful AI assistant for " + _org + _descBit + ". Answer ONLY using the provided knowledge base context. If the answer is not in the context, say so clearly — for example: 'I don't have that information, please check the website or contact " + _org + " directly.' Never invent, guess, or use placeholder text like '[insert location here]'. Keep answers friendly and concise.";
 
           const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -6485,7 +6527,7 @@ Use plain numbers where possible.
           if (!kbUnsure) {
             result.reply = kbReply;
           } else {
-            const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName);
+            const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName, tenantBusinessDesc);
             result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
           }
         } catch (err) {
@@ -6493,7 +6535,7 @@ Use plain numbers where possible.
           result.reply = "Sorry — I couldn't access the knowledge base right now.";
         }
       } else {
-        const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName);
+        const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName, tenantBusinessDesc);
         result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
       }
 

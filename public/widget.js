@@ -519,8 +519,35 @@
 
     } else if (type === "url") {
       if (val) window.open(val, "_blank");
-      addMsg("Opening that page for you 👍\n\nFeel free to ask me anything else — I'm still here!", "bot");
-      setTimeout(function () { enableTextInput(); showBackToMenu(); }, 300);
+      addMsg("Opening that page for you 👍\n\nIs there anything else I can help with?", "bot");
+      setTimeout(function () {
+        clearChoices();
+        var urlChoices = document.createElement("div");
+        urlChoices.id = "sprimal-choices";
+        // Back to main menu — only if we have the root flow
+        if (rootFlowId && wfFlowMap[rootFlowId]) {
+          var backBtn = document.createElement("button");
+          backBtn.className = "sprimal-choice sprimal-choice-ai";
+          backBtn.textContent = "↩ Back to main menu";
+          backBtn.addEventListener("click", function () {
+            clearChoices();
+            wfSteps = wfFlowMap[rootFlowId];
+            wfMode = true;
+            var footer = document.getElementById("sprimal-footer");
+            if (footer) footer.style.display = "none";
+            showWorkflowStep(wfSteps[0]);
+          });
+          urlChoices.appendChild(backBtn);
+        }
+        // Always offer free-text fallback
+        var askBtn = document.createElement("button");
+        askBtn.className = "sprimal-choice sprimal-choice-ai";
+        askBtn.textContent = "💬 Ask a question";
+        askBtn.addEventListener("click", function () { clearChoices(); enableTextInput(); });
+        urlChoices.appendChild(askBtn);
+        messages.appendChild(urlChoices);
+        messages.scrollTop = messages.scrollHeight;
+      }, 300);
 
     } else if (type === "switch_flow") {
       var targetSteps = wfFlowMap[val];

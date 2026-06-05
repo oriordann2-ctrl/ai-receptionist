@@ -61,7 +61,8 @@ async function extractPdfText(filePath) {
 
   const data = new Uint8Array(fs.readFileSync(filePath));
 
-  const loadingTask = pdfjsLib.getDocument({ data });
+  // verbosity 0 = errors only — suppresses font/TT warnings that don't affect extraction
+  const loadingTask = pdfjsLib.getDocument({ data, verbosity: 0 });
   const pdf = await loadingTask.promise;
 
   let text = "";

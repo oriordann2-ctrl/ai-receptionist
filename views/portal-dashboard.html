@@ -1146,7 +1146,8 @@
         var name = esc(a.borrower_name || '—');
         var subName = a.co_borrower_name ? '<div style="font-size:11px;color:#6b7280;margin-top:2px;">+ ' + esc(a.co_borrower_name) + '</div>' : '';
         var email = a.client_email ? '<div style="font-size:11px;color:#9ca3af;margin-top:1px;">' + esc(a.client_email) + '</div>' : '';
-        var needsInfo = !a.lender || !a.borrower_type;
+        var needsInfo  = !a.lender || !a.borrower_type;
+        var rowBg      = (a.lender && a.borrower_type) ? 'background:#f0fdf4;' : '';
         var lender = a.lender
           ? '<span class="mort-badge mort-badge-lender">' + esc(LENDER_LABELS[a.lender]||a.lender) + '</span>'
           : '<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:2px 8px;">⚠ Not set</span>';
@@ -1155,7 +1156,7 @@
         var btypePill = !a.borrower_type
           ? '<span style="display:inline-block;font-size:10px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle;">type?</span>'
           : '';
-        return '<tr>'
+        return '<tr style="' + rowBg + '">'
           + '<td><div style="font-weight:600;color:#111827;">' + name + btypePill + '</div>' + subName + email + '</td>'
           + '<td>' + lender + '</td>'
           + '<td>' + phase + '</td>'

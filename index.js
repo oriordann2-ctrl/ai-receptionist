@@ -9402,20 +9402,22 @@ function startEmailPolling() {
 
 // ─── Chat Workflow Builder ─────────────────────────────────────────────────────
 
-// Public: fetch the active workflow for a club (called by the widget on open)
+// Public: fetch all flows for a club — widget uses the active one as entry point
+// and keeps all others in a lookup map for switch_flow navigation.
 app.get("/api/workflow/:clubId", async (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
   const { clubId } = req.params;
   try {
-    const { data: workflow } = await supabase
+    const { data: flows } = await supabase
       .from("chat_workflows")
-      .select("id, name, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value))")
+      .select("id, name, is_active, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value))")
       .eq("club_id", clubId)
-      .eq("is_active", true)
-      .maybeSingle();
-    res.json({ workflow: workflow || null });
+      .order("created_at", { ascending: true });
+    const allFlows   = flows || [];
+    const rootFlow   = allFlows.find(function (f) { return f.is_active; }) || null;
+    res.json({ workflow: rootFlow, allFlows: allFlows });
   } catch (err) {
-    res.json({ workflow: null });
+    res.json({ workflow: null, allFlows: [] });
   }
 });
 

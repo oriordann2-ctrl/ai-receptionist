@@ -137,16 +137,24 @@
   var hasOpened = false;
 
   // ── Workflow state ────────────────────────────────────────────────────────
-  var wfSteps = [];   // sorted array of workflow steps (each has .workflow_choices)
-  var wfMode  = false; // true while widget is in button-menu mode
+  var wfSteps   = [];  // sorted steps for the currently-active flow
+  var wfFlowMap = {};  // { flowId: sortedSteps[] } — all flows pre-fetched for switch_flow
+  var wfMode    = false;
 
-  // Pre-fetch active workflow in background (non-AOM only)
+  // Pre-fetch all flows in background (non-AOM only)
   if (clubId !== "aom") {
     fetch(BACKEND + "/api/workflow/" + clubId)
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d.workflow && Array.isArray(d.workflow.workflow_steps) && d.workflow.workflow_steps.length) {
-          wfSteps = d.workflow.workflow_steps.slice().sort(function (a, b) { return a.step_order - b.step_order; });
+        // Build lookup map for all flows
+        (d.allFlows || []).forEach(function (f) {
+          if (f.workflow_steps && f.workflow_steps.length) {
+            wfFlowMap[f.id] = f.workflow_steps.slice().sort(function (a, b) { return a.step_order - b.step_order; });
+          }
+        });
+        // Entry point = the active (root) flow
+        if (d.workflow && d.workflow.workflow_steps && d.workflow.workflow_steps.length) {
+          wfSteps = wfFlowMap[d.workflow.id] || [];
         }
       })
       .catch(function () { /* silently ignore */ });
@@ -317,6 +325,16 @@
       setTimeout(function () {
         if (wfSteps.length) showWorkflowStep(wfSteps[0]);
       }, 800);
+
+    } else if (type === "switch_flow") {
+      var targetSteps = wfFlowMap[val];
+      if (targetSteps && targetSteps.length) {
+        wfSteps = targetSteps;
+        showWorkflowStep(wfSteps[0]);
+      } else {
+        addMsg("Let me help you with that! Feel free to type your question below.", "bot");
+        enableTextInput();
+      }
 
     } else if (type === "ai_fallback") {
       addMsg("Sure! What would you like to know?", "bot");

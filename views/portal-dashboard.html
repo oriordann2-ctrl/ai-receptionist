@@ -1664,7 +1664,6 @@
     }
 
     function renderChoiceHtml(si, ci, ch) {
-      var showValue   = ch.action_type !== "ai_fallback";
       var placeholder = { next_step: "step number (e.g. 2)", url: "https://...", message: "message to show" }[ch.action_type] || "";
 
       var html = '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
@@ -1677,16 +1676,36 @@
 
       // Action type
       html += '<select class="wf-ctype" data-si="' + si + '" data-ci="' + ci + '" '
-        + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_type=this.value;wfRerender()" '
+        + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_type=this.value;editingSteps[' + si + '].choices[' + ci + '].action_value=\'\';wfRerender()" '
         + 'style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
-      var typeLabels = { next_step: "→ Next step", message: "💬 Show message", url: "🔗 Open link", ai_fallback: "🤖 Ask AI" };
-      ["next_step", "message", "url", "ai_fallback"].forEach(function (t) {
+      var typeLabels = { next_step: "→ Next step", message: "💬 Show message", url: "🔗 Open link", switch_flow: "🔀 Switch flow", ai_fallback: "🤖 Ask AI" };
+      ["next_step", "message", "url", "switch_flow", "ai_fallback"].forEach(function (t) {
         html += '<option value="' + t + '"' + (ch.action_type === t ? " selected" : "") + ">" + typeLabels[t] + "</option>";
       });
       html += "</select>";
 
-      // Action value (hidden for ai_fallback)
-      if (showValue) {
+      // Action value field — varies by type
+      if (ch.action_type === "switch_flow") {
+        // Dropdown of other flows
+        var otherFlows = workflows.filter(function (w) { return w.id !== editingId; });
+        if (otherFlows.length === 0) {
+          html += '<span style="font-size:12px;color:#9ca3af;padding:0 4px;white-space:nowrap;">No other flows yet</span>';
+        } else {
+          html += '<select class="wf-cval" data-si="' + si + '" data-ci="' + ci + '" '
+            + 'oninput="editingSteps[' + si + '].choices[' + ci + '].action_value=this.value" '
+            + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_value=this.value" '
+            + 'style="flex:2;min-width:100px;padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
+          otherFlows.forEach(function (wf) {
+            html += '<option value="' + wf.id + '"' + (ch.action_value === wf.id ? " selected" : "") + ">" + esc(wf.name) + "</option>";
+          });
+          html += "</select>";
+          // Sync default selection into editingSteps if not yet set
+          if (!ch.action_value && otherFlows.length) {
+            ch.action_value = otherFlows[0].id;
+            editingSteps[si].choices[ci].action_value = otherFlows[0].id;
+          }
+        }
+      } else if (ch.action_type !== "ai_fallback") {
         html += '<input type="text" class="wf-cval" data-si="' + si + '" data-ci="' + ci + '" placeholder="' + esc(placeholder) + '" value="' + esc(ch.action_value || '') + '" '
           + 'oninput="editingSteps[' + si + '].choices[' + ci + '].action_value=this.value" '
           + 'style="flex:2;min-width:80px;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;outline:none;" '

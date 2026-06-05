@@ -257,6 +257,49 @@
     return div;
   }
 
+  // Workflow bot messages — supports safe inline markup from DB content:
+  //   [warn]...[/warn]  → light red + bold  (warnings)
+  //   [b]...[/b]        → bold              (key info)
+  //   [link]url[/link]  → clickable link    (URLs)
+  // Everything else is plain text — no XSS risk.
+  function addWorkflowMsg(text) {
+    var div = document.createElement("div");
+    div.className = "sprimal-msg sprimal-bot";
+    var tagRe = /(\[warn\][\s\S]*?\[\/warn\]|\[b\][\s\S]*?\[\/b\]|\[link\][\s\S]*?\[\/link\])/;
+    var parts = text.split(tagRe);
+    parts.forEach(function (part) {
+      if (!part) return;
+      var warnM = part.match(/^\[warn\]([\s\S]*?)\[\/warn\]$/);
+      var boldM = part.match(/^\[b\]([\s\S]*?)\[\/b\]$/);
+      var linkM = part.match(/^\[link\]([\s\S]*?)\[\/link\]$/);
+      if (warnM) {
+        var span = document.createElement("span");
+        span.style.color = "#ef4444";
+        span.style.fontWeight = "600";
+        span.textContent = warnM[1];
+        div.appendChild(span);
+      } else if (boldM) {
+        var strong = document.createElement("strong");
+        strong.textContent = boldM[1];
+        div.appendChild(strong);
+      } else if (linkM) {
+        var raw = linkM[1].trim();
+        var a = document.createElement("a");
+        a.href = raw.startsWith("http") ? raw : "https://" + raw;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = raw;
+        a.style.cssText = "color:#2563eb;font-weight:600;text-decoration:underline;word-break:break-all;";
+        div.appendChild(a);
+      } else {
+        div.appendChild(document.createTextNode(part));
+      }
+    });
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return div;
+  }
+
   function showTyping() {
     var el = document.createElement("div");
     el.className = "sprimal-msg sprimal-bot sprimal-typing";
@@ -299,7 +342,7 @@
   // Render a workflow step: bot message + choice buttons
   function showWorkflowStep(step) {
     if (!step) return;
-    addMsg(step.bot_message, "bot");
+    addWorkflowMsg(step.bot_message);
 
     var choices = (step.workflow_choices || []).slice().sort(function (a, b) { return a.choice_order - b.choice_order; });
 
@@ -392,10 +435,8 @@
 
     } else if (type === "url") {
       if (val) window.open(val, "_blank");
-      addMsg("Opening that page for you…", "bot");
-      setTimeout(function () {
-        if (wfSteps.length) showWorkflowStep(wfSteps[0]);
-      }, 800);
+      addMsg("Opening that page for you 👍\n\nFeel free to ask me anything else — I'm still here!", "bot");
+      setTimeout(function () { enableTextInput(); }, 300);
 
     } else if (type === "switch_flow") {
       var targetSteps = wfFlowMap[val];

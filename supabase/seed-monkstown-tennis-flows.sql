@@ -133,7 +133,7 @@ BEGIN
   -- ── Choices: Membership Step 2 (pricing shown, next action) ──────────────
   INSERT INTO public.workflow_choices (step_id, choice_order, label, action_type, action_value)
   VALUES
-    (v_step_memb_2, 1, '✅ I''d like to join', 'ai_fallback',  null),
+    (v_step_memb_2, 1, '✅ I''d like to join', 'url',         'https://www.monkstowntennisclub.com/become-a-member'),
     (v_step_memb_2, 2, '← Back to menu',       'switch_flow',  v_flow_main::text);
 
   -- ── Choices: Coaching & Camps ─────────────────────────────────────────────

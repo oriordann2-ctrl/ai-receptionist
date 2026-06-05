@@ -22,16 +22,18 @@ BEGIN
   SELECT id INTO v_flow_location   FROM public.chat_workflows WHERE club_id = v_club_id AND name = 'Find Us'          LIMIT 1;
 
   -- ── Membership Step 2 (prices) ────────────────────────────────────────────
-  -- Prices are not listed on the website — [FILL IN] left for the club to add
   UPDATE public.workflow_steps
   SET bot_message =
     'Here''s an overview of our membership options:' || chr(10) || chr(10) ||
-    '🎾 Adult — €[price] per year' || chr(10) ||
-    '👨‍👩‍👧 Family — €[price] per year' || chr(10) ||
-    '🧒 Junior (under 18) — €[price] per year' || chr(10) ||
-    '🌟 Student — €[price] per year' || chr(10) || chr(10) ||
+    '🎾 Single — €180 per year' || chr(10) ||
+    '👨‍👩‍👧 Family — €300 per year' || chr(10) ||
+    '🧒 Junior (under 18) — €70 per year' || chr(10) ||
+    '🌟 Student — €80 per year' || chr(10) || chr(10) ||
     'Membership includes full access to all courts, club nights, and social events.' || chr(10) || chr(10) ||
-    'To join or renew, visit our website or email us at secretary@monkstowntennisclub.com'
+    '[warn]⚠️ Please note: we are currently not accepting new members — applications will be placed on a waiting list.[/warn]' || chr(10) || chr(10) ||
+    'You can still submit an application form at:' || chr(10) ||
+    '[link]https://www.monkstowntennisclub.com/become-a-member[/link]' || chr(10) ||
+    'Or email [b]secretary@monkstowntennisclub.com[/b]'
   WHERE workflow_id = v_flow_membership AND step_order = 2;
 
   -- ── Coaching & Camps ──────────────────────────────────────────────────────

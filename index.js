@@ -4055,11 +4055,12 @@ app.get("/api/admin/seed-aom-flows", async (req, res) => {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  // Idempotency: skip if AOM flows already exist
+  // Idempotency: skip only if the named main menu flow already exists
   const { data: existing } = await supabase
     .from("chat_workflows")
     .select("id")
     .eq("club_id", "aom")
+    .eq("name", "AOM — Main Menu")
     .limit(1);
 
   if (existing && existing.length > 0) {

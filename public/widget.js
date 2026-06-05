@@ -55,6 +55,9 @@
     "#sprimal-online-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;}",
     "#sprimal-close{background:rgba(255,255,255,0.12);border:none;border-radius:50%;cursor:pointer;color:#e2e8f0;font-size:16px;line-height:1;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;}",
     "#sprimal-close:hover{background:rgba(255,255,255,0.22);color:#fff;}",
+    "#sprimal-end{background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;font-family:" + FONT + ";font-weight:500;padding:4px 6px;border-radius:8px;transition:color .15s,background .15s;flex-shrink:0;white-space:nowrap;}",
+    "#sprimal-end:hover{color:#e2e8f0;background:rgba(255,255,255,0.08);}",
+    "#sprimal-end.sprimal-end-confirm{color:#fca5a5;font-weight:600;}",
     "#sprimal-messages{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:8px;background:#f8f9fc;}",
     "#sprimal-messages::-webkit-scrollbar{width:4px;}",
     "#sprimal-messages::-webkit-scrollbar-track{background:transparent;}",
@@ -138,6 +141,7 @@
       '    </div>',
       '  </div>',
       '  <div id="sprimal-header-right">',
+      '    <button id="sprimal-end" aria-label="End chat">End chat</button>',
       '    <div id="sprimal-online-dot"></div>',
       '    <button id="sprimal-close" aria-label="Close chat">&times;</button>',
       '  </div>',
@@ -158,6 +162,7 @@
   var input     = document.getElementById("sprimal-input");
   var sendBtn   = document.getElementById("sprimal-send");
   var closeBtn  = document.getElementById("sprimal-close");
+  var endBtn    = document.getElementById("sprimal-end");
   var badge     = document.getElementById("sprimal-badge");
   var iframe    = document.getElementById("sprimal-iframe");
   var iframeLoader = document.getElementById("sprimal-iframe-loader");
@@ -663,6 +668,53 @@
     isOpen = false;
     panel.classList.add("sprimal-hidden");
     btn.style.display = "flex"; // always restore button on close
+  }
+
+  // ── End chat — clears history and restarts the flow ───────────────────────
+  function endChat() {
+    try { sessionStorage.removeItem(MSG_STORE); } catch(e) {}
+    // Clear all message content
+    while (messages && messages.firstChild) messages.removeChild(messages.firstChild);
+    clearChoices();
+    // Reset to root flow and show greeting
+    if (rootFlowId && wfFlowMap[rootFlowId]) wfSteps = wfFlowMap[rootFlowId];
+    if (wfSteps.length) {
+      wfMode = true;
+      var footer = document.getElementById("sprimal-footer");
+      if (footer) footer.style.display = "none";
+      addMsg("Hi there 👋 I'm " + botName + ", your " + clubName + " assistant.", "bot");
+      showWorkflowStep(wfSteps[0]);
+    } else {
+      var footer = document.getElementById("sprimal-footer");
+      if (footer) footer.style.display = "flex";
+      addMsg("Hi there 👋 I'm " + botName + ", your " + clubName + " assistant.\n\nWhat would you like to know?", "bot");
+    }
+  }
+
+  // Double-tap confirmation on End chat button
+  var endConfirmPending = false;
+  var endConfirmTimer   = null;
+  if (endBtn) {
+    endBtn.addEventListener("click", function () {
+      if (endConfirmPending) {
+        // Second tap — go ahead
+        clearTimeout(endConfirmTimer);
+        endConfirmPending = false;
+        endBtn.textContent = "End chat";
+        endBtn.classList.remove("sprimal-end-confirm");
+        endChat();
+      } else {
+        // First tap — ask to confirm
+        endConfirmPending = true;
+        endBtn.textContent = "Tap again to end";
+        endBtn.classList.add("sprimal-end-confirm");
+        endConfirmTimer = setTimeout(function () {
+          endConfirmPending = false;
+          endBtn.textContent = "End chat";
+          endBtn.classList.remove("sprimal-end-confirm");
+        }, 3000);
+      }
+    });
   }
 
   // ── Events ────────────────────────────────────────────────────────────────

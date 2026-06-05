@@ -1760,7 +1760,27 @@
 
     window.wfDelete = function (id) {
       var wf = workflows.find(function (w) { return w.id === id; });
-      if (!wf || !confirm('Delete flow "' + (wf.name || "") + '"? This cannot be undone.')) return;
+      if (!wf) return;
+
+      // Check if any other flow references this one via a switch_flow button
+      var referencedBy = [];
+      workflows.forEach(function (other) {
+        if (other.id === id) return;
+        (other.workflow_steps || []).forEach(function (step) {
+          (step.workflow_choices || []).forEach(function (ch) {
+            if (ch.action_type === "switch_flow" && ch.action_value === id) {
+              if (!referencedBy.includes(other.name)) referencedBy.push(other.name);
+            }
+          });
+        });
+      });
+
+      var msg = 'Delete flow "' + (wf.name || "") + '"? This cannot be undone.';
+      if (referencedBy.length) {
+        msg = '⚠️ Warning: "' + (wf.name || "") + '" is linked to by:\n  • ' + referencedBy.join('\n  • ')
+          + '\n\nThose "Switch flow" buttons will stop working if you delete it.\n\nDelete anyway?';
+      }
+      if (!confirm(msg)) return;
       fetch("/api/portal/workflows/" + id, { method: "DELETE" })
         .then(function (r) { return r.json(); })
         .then(function () {

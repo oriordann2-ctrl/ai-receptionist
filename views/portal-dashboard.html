@@ -1289,33 +1289,41 @@
       switchTab('details');
       document.getElementById('mortDetailsModal').classList.add('open');
 
-      // Fetch full details + next action from server
-      // The server may auto-generate summary and load doc checklist — always use response data
+      // Two parallel fetches for fast perceived load:
+      // 1. ?quick=1  — returns stored DB data immediately (~200ms), no AI call
+      // 2. full call — generates AI recommendation in background (~2s), updates only Next Action
+
+      function applyDetailsData(data) {
+        if (!data.application) return;
+        var idx = apps.findIndex(function(x){ return x.id === id; });
+        if (idx !== -1) apps[idx] = Object.assign(apps[idx], data.application);
+        var app = data.application;
+        var summaryEl = document.getElementById('detailSummary');
+        summaryEl.textContent = app.running_summary || 'No summary recorded yet — will populate as emails are processed.';
+        summaryEl.style.color = app.running_summary ? '#374151' : '#9ca3af';
+        var recv = app.received_documents || [];
+        var miss = app.missing_documents  || [];
+        document.getElementById('detailDocsReceived').innerHTML = recv.length
+          ? recv.map(function(d){ return '<span class="detail-doc-badge detail-doc-received">' + esc(d) + '</span>'; }).join('')
+          : '<span style="font-size:13px;color:#9ca3af;">None recorded</span>';
+        document.getElementById('detailDocsMissing').innerHTML = miss.length
+          ? miss.map(function(d){ return '<span class="detail-doc-badge detail-doc-missing">' + esc(d) + '</span>'; }).join('')
+          : '<span style="font-size:13px;color:#9ca3af;">None outstanding</span>';
+        var genericNote = document.getElementById('genericChecklistNote');
+        if (genericNote) genericNote.style.display = data.checklist_is_generic ? 'inline' : 'none';
+      }
+
+      // Fast fetch — stored data, no AI
+      fetch('/api/portal/mortgage-applications/' + id + '/details?quick=1')
+        .then(function(r){ return r.json(); })
+        .then(function(data){ applyDetailsData(data); })
+        .catch(function(){});
+
+      // AI fetch — generates recommendation, updates only the Next Action box
       fetch('/api/portal/mortgage-applications/' + id + '/details')
         .then(function(r){ return r.json(); })
         .then(function(data){
-          // Update local cache with any server-side enrichments
-          if (data.application) {
-            var idx = apps.findIndex(function(x){ return x.id === id; });
-            if (idx !== -1) apps[idx] = Object.assign(apps[idx], data.application);
-            // Re-render summary and docs from server response (may now be populated)
-            var app = data.application;
-            var summaryEl = document.getElementById('detailSummary');
-            summaryEl.textContent = app.running_summary || 'No summary recorded yet — will populate as emails are processed.';
-            summaryEl.style.color = app.running_summary ? '#374151' : '#9ca3af';
-
-            var recv = app.received_documents || [];
-            var miss = app.missing_documents  || [];
-            document.getElementById('detailDocsReceived').innerHTML = recv.length
-              ? recv.map(function(d){ return '<span class="detail-doc-badge detail-doc-received">' + esc(d) + '</span>'; }).join('')
-              : '<span style="font-size:13px;color:#9ca3af;">None recorded</span>';
-            document.getElementById('detailDocsMissing').innerHTML = miss.length
-              ? miss.map(function(d){ return '<span class="detail-doc-badge detail-doc-missing">' + esc(d) + '</span>'; }).join('')
-              : '<span style="font-size:13px;color:#9ca3af;">None outstanding</span>';
-            // Show amber badge when using generic (non-lender-specific) checklist
-            var genericNote = document.getElementById('genericChecklistNote');
-            if (genericNote) genericNote.style.display = data.checklist_is_generic ? 'inline' : 'none';
-          }
+          applyDetailsData(data); // also update summary in case it was just generated
           if (data.next_action) renderNextAction(data.next_action);
           else document.getElementById('detailNextAction').innerHTML = '<div style="font-size:13px;color:#9ca3af;">No recommendation available.</div>';
         })

@@ -42,8 +42,8 @@
     "#sprimal-header-sub{font-size:12px;color:#93c5fd;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin-top:1px;}",
     "#sprimal-header-right{display:flex;align-items:center;gap:10px;}",
     "#sprimal-online-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;}",
-    "#sprimal-close{background:none;border:none;cursor:pointer;color:#9ca3af;font-size:20px;line-height:1;padding:0 2px;}",
-    "#sprimal-close:hover{color:#fff;}",
+    "#sprimal-close{background:rgba(255,255,255,0.12);border:none;border-radius:50%;cursor:pointer;color:#e2e8f0;font-size:16px;line-height:1;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;}",
+    "#sprimal-close:hover{background:rgba(255,255,255,0.22);color:#fff;}",
     "#sprimal-messages{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:10px;background:#f0f4ff;}",
     ".sprimal-msg{max-width:82%;padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;word-wrap:break-word;white-space:pre-wrap;}",
     ".sprimal-bot{background:#fff;color:#111827;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.08);}",
@@ -188,8 +188,32 @@
           avatar.innerHTML = "";
           avatar.appendChild(img);
         }
+        // Apply brand colour if available
+        if (config.brand_color) {
+          applyBrandColor(config.brand_color);
+        }
       })
       .catch(function () { /* silently keep defaults */ });
+  }
+
+  // ── Brand colour — inject dynamic CSS ────────────────────────────────────
+  function applyBrandColor(color) {
+    var el = document.getElementById("sprimal-brand-style");
+    if (!el) {
+      el = document.createElement("style");
+      el.id = "sprimal-brand-style";
+      document.head.appendChild(el);
+    }
+    el.textContent = [
+      "#sprimal-header{background:" + color + "!important;}",
+      "#sprimal-send{background:" + color + "!important;}",
+      "#sprimal-send:hover{background:" + color + ";filter:brightness(0.88)!important;}",
+      "#sprimal-send:disabled{background:" + color + ";opacity:0.4!important;}",
+      ".sprimal-user{background:" + color + "!important;}",
+      ".sprimal-choice{border-color:" + color + "!important;color:" + color + "!important;}",
+      ".sprimal-choice:hover{background:" + color + "!important;color:#fff!important;}",
+      "#sprimal-input:focus{border-color:" + color + "!important;}",
+    ].join("");
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

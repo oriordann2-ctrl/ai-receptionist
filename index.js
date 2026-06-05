@@ -3420,6 +3420,18 @@ app.post("/api/signup", async (req, res) => {
               const homepageHtml = await homepageRes.text();
               logoUrl = extractFaviconUrl(homepageHtml, website);
               if (logoUrl) console.log(`[signup] Logo found in HTML for ${tenantId}: ${logoUrl}`);
+
+              // Extract brand colour from <meta name="theme-color">
+              try {
+                const tcMatch = homepageHtml.match(/<meta[^>]+name=["']theme-color["'][^>]+content=["'](#[0-9a-fA-F]{3,8})["']/i)
+                             || homepageHtml.match(/<meta[^>]+content=["'](#[0-9a-fA-F]{3,8})["'][^>]+name=["']theme-color["']/i);
+                if (tcMatch) {
+                  await supabase.from("tenants").update({ brand_color: tcMatch[1] }).eq("id", tenantId);
+                  console.log(`[signup] Brand colour stored for ${tenantId}: ${tcMatch[1]}`);
+                }
+              } catch (colorErr) {
+                console.log(`[signup] Brand colour extraction failed: ${colorErr.message}`);
+              }
             }
           } catch (fetchErr) {
             console.log(`[signup] Homepage fetch failed for ${tenantId} (${fetchErr.message}) — will try Clearbit`);
@@ -5605,15 +5617,15 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
 
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name, logo_url, website")
+    .select("id, name, logo_url, website, brand_color")
     .eq("id", tenantId)
     .maybeSingle();
 
   if (error || !data) {
-    return res.json({ id: tenantId, name: null, logo_url: null });
+    return res.json({ id: tenantId, name: null, logo_url: null, brand_color: null });
   }
 
-  res.json({ id: data.id, name: data.name, logo_url: data.logo_url || null });
+  res.json({ id: data.id, name: data.name, logo_url: data.logo_url || null, brand_color: data.brand_color || null });
 });
 
 // ── Favicon proxy — serves tenant logo through our own domain ─────────────────

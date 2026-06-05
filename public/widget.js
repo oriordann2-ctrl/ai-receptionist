@@ -147,6 +147,7 @@
   var wfSteps   = [];  // sorted steps for the currently-active flow
   var wfFlowMap = {};  // { flowId: sortedSteps[] } — all flows pre-fetched for switch_flow
   var wfMode    = false;
+  var brandColor = "#111827"; // updated when tenant config loads
 
   // Pre-fetch all flows in background (non-AOM only)
   if (clubId !== "aom") {
@@ -190,6 +191,7 @@
         }
         // Apply brand colour if available
         if (config.brand_color) {
+          brandColor = config.brand_color;
           applyBrandColor(config.brand_color);
         }
       })
@@ -280,11 +282,30 @@
     var container = document.createElement("div");
     container.id  = "sprimal-choices";
 
+    // Shared selection handler — fades unselected buttons, fills selected one
+    function selectAndProceed(btn, allBtns, action) {
+      allBtns.forEach(function (b) {
+        b.disabled = true;
+        b.style.opacity = "0.4";
+        b.style.cursor = "default";
+      });
+      btn.style.opacity = "1";
+      btn.style.background = brandColor;
+      btn.style.color = "#fff";
+      btn.style.borderColor = brandColor;
+      setTimeout(action, 280);
+    }
+
+    var allBtns = [];
+
     choices.forEach(function (ch) {
       var btn = document.createElement("button");
       btn.className = "sprimal-choice";
       btn.textContent = ch.label;
-      btn.addEventListener("click", function () { handleChoice(ch); });
+      allBtns.push(btn);
+      btn.addEventListener("click", function () {
+        selectAndProceed(btn, allBtns, function () { handleChoice(ch); });
+      });
       container.appendChild(btn);
     });
 
@@ -292,9 +313,9 @@
     var aiBtn = document.createElement("button");
     aiBtn.className = "sprimal-choice sprimal-choice-ai";
     aiBtn.textContent = "🤖 Ask something else";
+    allBtns.push(aiBtn);
     aiBtn.addEventListener("click", function () {
-      clearChoices();
-      enableTextInput();
+      selectAndProceed(aiBtn, allBtns, function () { clearChoices(); enableTextInput(); });
     });
     container.appendChild(aiBtn);
 

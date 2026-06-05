@@ -218,6 +218,7 @@
           loadDocuments();
         } else {
           status.className = "upload-status error";
+          status.style.whiteSpace = "pre-line";
           status.textContent = "❌ " + (data.error || "Upload failed.");
         }
       })

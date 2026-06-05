@@ -4479,7 +4479,9 @@ app.post(
 
       if (!extractedText || extractedText.trim().length < 20) {
         fs.unlink(req.file.path, () => {});
-        return res.status(400).json({ error: "Could not extract text from this file. Please check it is not empty or image-only." });
+        return res.status(400).json({
+          error: "This file appears to be a scanned image — no readable text could be extracted from it.\n\nTo add it to the knowledge base, please try one of these:\n• Open the PDF in Word (File → Open) and save as .docx\n• Copy and paste the text into a plain .txt file\n• If you have the original document, upload that instead"
+        });
       }
 
       // Build structured filename: "Document Type - Description.ext"

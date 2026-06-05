@@ -4924,9 +4924,65 @@ app.get("/api/portal/mortgage-applications/:id/details", requireTenant, async (r
     .single();
   if (error || !app) return res.status(404).json({ error: "Application not found." });
 
-  // Generate next action recommendation via Claude
   const LENDER_LABELS = { aib:"AIB", avant:"Avant Money", bank_of_ireland:"Bank of Ireland", ebs:"EBS", haven:"Haven", irishlife:"Irish Life", nua:"Nua Money", ptsb:"PTSB" };
   const PHASE_LABELS  = { initial_enquiry:"Initial Enquiry", aip:"AIP", full_application:"Full Application", underwriting:"Underwriting", letter_of_offer:"Letter of Offer", drawdown:"Drawdown" };
+
+  const stateUpdates = {};
+
+  // ── Auto-load lender checklist if lender + borrower_type known but no docs outstanding ──
+  if (app.lender && app.borrower_type && !(app.missing_documents?.length)) {
+    const checklist = getLenderChecklist(app.lender, app.borrower_type);
+    if (checklist) {
+      const already = app.received_documents || [];
+      stateUpdates.missing_documents = checklist.filter(
+        doc => !already.some(r => r.toLowerCase().includes(doc.toLowerCase().split(" ")[0]))
+      );
+      app.missing_documents = stateUpdates.missing_documents;
+      console.log(`[mortgage-details] Auto-loaded checklist for ${app.lender}/${app.borrower_type}: ${stateUpdates.missing_documents.length} items`);
+    }
+  }
+
+  // ── Auto-generate running summary if none exists ───────────────────────────
+  if (!app.running_summary) {
+    try {
+      const summaryPrompt =
+`You are an assistant for AOM (At Once Mortgages), an Irish mortgage brokerage.
+Based on the structured application data below, write a concise 2-4 sentence summary of where this mortgage application stands. Be specific about what is known and what is still outstanding.
+
+Borrower: ${app.borrower_name || "Unknown"}${app.co_borrower_name ? " & " + app.co_borrower_name : ""}
+Lender: ${LENDER_LABELS[app.lender] || app.lender || "Not yet determined"}
+Phase: ${PHASE_LABELS[app.current_phase] || app.current_phase || "Unknown"}
+Borrower Type: ${app.borrower_type || "Unknown"}
+Loan Amount: ${app.loan_amount ? "€" + Number(app.loan_amount).toLocaleString("en-IE") : "Unknown"}
+Property: ${app.property_address || "Not yet identified"}
+Documents Received: ${(app.received_documents || []).join(", ") || "None recorded"}
+Documents Outstanding: ${(app.missing_documents || []).join(", ") || "None recorded"}
+Broker Notes: ${app.manual_notes || "None"}
+
+Return ONLY the summary text — no labels, no formatting.`;
+
+      const summaryResp = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 200,
+        messages: [{ role: "user", content: summaryPrompt }]
+      });
+      const generatedSummary = summaryResp.content[0]?.text?.trim() || null;
+      if (generatedSummary) {
+        stateUpdates.running_summary = generatedSummary;
+        app.running_summary = generatedSummary;
+        console.log(`[mortgage-details] Auto-generated summary for ${app.borrower_name || app.id}`);
+      }
+    } catch (summaryErr) {
+      console.warn("[mortgage-details] Summary generation failed:", summaryErr.message);
+    }
+  }
+
+  // Persist any auto-generated updates
+  if (Object.keys(stateUpdates).length) {
+    await supabase.from("mortgage_application_states").update(stateUpdates).eq("id", id);
+  }
+
+  // ── Generate next action recommendation via Claude ─────────────────────────
 
   let nextAction = null;
   try {

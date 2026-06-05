@@ -12,9 +12,10 @@
     var scripts = document.getElementsByTagName("script");
     return scripts[scripts.length - 1];
   })();
-  var clubId   = (scriptTag && scriptTag.getAttribute("data-club-id"))   || "aom";
-  var botName  = (scriptTag && scriptTag.getAttribute("data-bot-name"))  || "Maeve";
-  var clubName = (scriptTag && scriptTag.getAttribute("data-club-name")) || "At Once Mortgages";
+  var clubId     = (scriptTag && scriptTag.getAttribute("data-club-id"))     || "aom";
+  var botName    = (scriptTag && scriptTag.getAttribute("data-bot-name"))    || "Maeve";
+  var clubName   = (scriptTag && scriptTag.getAttribute("data-club-name"))   || "At Once Mortgages";
+  var fullscreen = (scriptTag && scriptTag.getAttribute("data-fullscreen")) === "true";
 
   // ── Session IDs ──────────────────────────────────────────────────────────
   var userId = "user-" + Math.random().toString(36).slice(2, 10);
@@ -67,6 +68,20 @@
     "@media(max-width:640px){#sprimal-panel{width:100vw;max-width:100vw;right:0;left:0;bottom:0;height:75vh;max-height:75vh;border-radius:20px 20px 0 0;}#sprimal-panel.sprimal-hidden{transform:translateY(100%);}#sprimal-btn{bottom:88px;right:16px;}}",
   ].join("");
   document.head.appendChild(style);
+
+  // ── Fullscreen override (QR / standalone page) ───────────────────────────
+  if (fullscreen) {
+    var fsStyle = document.createElement("style");
+    fsStyle.textContent = [
+      "html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#111827;}",
+      "#sprimal-btn{display:none!important;}",
+      "#sprimal-panel{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;",
+      "max-width:100%!important;max-height:100%!important;bottom:0!important;right:0!important;",
+      "border-radius:0!important;box-shadow:none!important;}",
+      "#sprimal-close{display:none!important;}",
+    ].join("");
+    document.head.appendChild(fsStyle);
+  }
 
   // ── Launcher button ──────────────────────────────────────────────────────
   var btn = document.createElement("button");
@@ -164,8 +179,18 @@
         if (d.workflow && d.workflow.workflow_steps && d.workflow.workflow_steps.length) {
           wfSteps = wfFlowMap[d.workflow.id] || [];
         }
+        // Fullscreen mode: auto-open now that wfSteps is ready
+        if (fullscreen && !hasOpened) openPanel();
       })
-      .catch(function () { /* silently ignore */ });
+      .catch(function () {
+        // Fullscreen mode: open even if workflow fetch failed (AI mode)
+        if (fullscreen && !hasOpened) openPanel();
+      });
+  }
+
+  // Fullscreen with AOM: open immediately
+  if (fullscreen && clubId === "aom") {
+    setTimeout(openPanel, 50);
   }
 
   // ── Fetch tenant config and update branding ───────────────────────────────
@@ -471,8 +496,14 @@
   });
 
   // ── Show badge after 5 seconds if not opened ─────────────────────────────
-  setTimeout(function () {
-    if (!hasOpened) showBadge();
-  }, 5000);
+  if (!fullscreen) {
+    setTimeout(function () {
+      if (!hasOpened) showBadge();
+    }, 5000);
+  }
+
+  // ── Fullscreen: auto-open (triggered by workflow fetch completing below) ──
+  // openPanel() is called at the end of the workflow fetch .then()/.catch()
+  // so wfSteps is guaranteed to be populated before the panel opens.
 
 })();

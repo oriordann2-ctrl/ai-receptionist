@@ -849,96 +849,26 @@
     </div>
   </div>
 
-  <!-- Edit Application Modal -->
-  <div class="modal-overlay" id="mortModal" onclick="if(event.target===this)closeMortModal()">
-    <div class="modal-box">
-      <div class="modal-title" id="mortModalTitle">Edit Application</div>
-      <input type="hidden" id="mortEditId" />
-      <div class="modal-row">
-        <div class="modal-field">
-          <label>Borrower Name</label>
-          <input type="text" id="mortEditBorrower" placeholder="Full name" />
-        </div>
-        <div class="modal-field">
-          <label>Co-Borrower Name</label>
-          <input type="text" id="mortEditCoBorrower" placeholder="Full name (if joint)" />
-        </div>
-      </div>
-      <div class="modal-row">
-        <div class="modal-field">
-          <label>Client Email</label>
-          <input type="email" id="mortEditClientEmail" placeholder="borrower@gmail.com" />
-        </div>
-        <div class="modal-field">
-          <label>Application Ref</label>
-          <input type="text" id="mortEditAppRef" placeholder="e.g. 92806275" />
-        </div>
-      </div>
-      <div class="modal-row">
-        <div class="modal-field">
-          <label>Lender</label>
-          <select id="mortEditLender">
-            <option value="">— Unknown —</option>
-            <option value="aib">AIB</option>
-            <option value="avant">Avant Money</option>
-            <option value="bank_of_ireland">Bank of Ireland</option>
-            <option value="ebs">EBS</option>
-            <option value="haven">Haven</option>
-            <option value="irishlife">Irish Life</option>
-            <option value="nua">Nua Money</option>
-            <option value="ptsb">PTSB</option>
-          </select>
-        </div>
-        <div class="modal-field">
-          <label>Phase</label>
-          <select id="mortEditPhase">
-            <option value="">— Unknown —</option>
-            <option value="initial_enquiry">Initial Enquiry</option>
-            <option value="aip">AIP</option>
-            <option value="full_application">Full Application</option>
-            <option value="underwriting">Underwriting</option>
-            <option value="letter_of_offer">Letter of Offer</option>
-            <option value="drawdown">Drawdown</option>
-          </select>
-        </div>
-      </div>
-      <div class="modal-row">
-        <div class="modal-field">
-          <label>Borrower Type</label>
-          <select id="mortEditBorrowerType">
-            <option value="">— Unknown —</option>
-            <option value="paye">PAYE</option>
-            <option value="self_employed">Self Employed</option>
-            <option value="contract">Contract</option>
-          </select>
-        </div>
-        <div class="modal-field">
-          <label>Loan Amount (€)</label>
-          <input type="number" id="mortEditLoanAmount" placeholder="e.g. 320000" min="0" />
-        </div>
-      </div>
-      <div class="modal-field">
-        <label>Property Address</label>
-        <input type="text" id="mortEditPropertyAddress" placeholder="Full address" />
-      </div>
-      <div class="modal-error" id="mortModalError"></div>
-      <div class="modal-actions">
-        <button class="btn-modal-cancel" onclick="closeMortModal()">Cancel</button>
-        <button class="btn-modal-save" id="mortSaveBtn" onclick="saveMortApp()">Save Changes</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Details Modal -->
+  <!-- Combined Details / Edit Modal -->
   <div class="modal-overlay" id="mortDetailsModal" onclick="if(event.target===this)closeMortDetails()">
     <div class="modal-box detail-modal-box">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;gap:12px;">
         <div>
           <div class="modal-title" id="detailModalTitle" style="margin-bottom:4px;">Client Details</div>
           <div id="detailModalSub" style="font-size:13px;color:#6b7280;"></div>
         </div>
         <button onclick="closeMortDetails()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af;padding:0;line-height:1;flex-shrink:0;">✕</button>
       </div>
+
+      <!-- Tabs -->
+      <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:20px;">
+        <button id="tabDetailsBtn" onclick="switchTab('details')" style="background:none;border:none;border-bottom:2px solid #1e40af;margin-bottom:-2px;padding:10px 18px;font-size:14px;font-weight:700;color:#1e40af;cursor:pointer;font-family:inherit;">Details</button>
+        <button id="tabEditBtn"    onclick="switchTab('edit')"    style="background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;padding:10px 18px;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;font-family:inherit;">Edit</button>
+      </div>
+
+      <!-- Details Tab -->
+      <div id="tabDetailsPane">
 
       <!-- Meta grid -->
       <div class="detail-section">
@@ -988,8 +918,87 @@
 
       <div class="modal-actions">
         <button class="btn-modal-cancel" onclick="closeMortDetails()">Close</button>
-        <button class="btn-modal-save" style="background:#374151;" onclick="switchToEdit()">Edit Application</button>
       </div>
+
+      </div><!-- /tabDetailsPane -->
+
+      <!-- Edit Tab -->
+      <div id="tabEditPane" style="display:none;">
+        <input type="hidden" id="mortEditId" />
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>Borrower Name</label>
+            <input type="text" id="mortEditBorrower" placeholder="Full name" />
+          </div>
+          <div class="modal-field">
+            <label>Co-Borrower Name</label>
+            <input type="text" id="mortEditCoBorrower" placeholder="Full name (if joint)" />
+          </div>
+        </div>
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>Client Email</label>
+            <input type="email" id="mortEditClientEmail" placeholder="borrower@gmail.com" />
+          </div>
+          <div class="modal-field">
+            <label>Application Ref</label>
+            <input type="text" id="mortEditAppRef" placeholder="e.g. 92806275" />
+          </div>
+        </div>
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>Lender</label>
+            <select id="mortEditLender">
+              <option value="">— Unknown —</option>
+              <option value="aib">AIB</option>
+              <option value="avant">Avant Money</option>
+              <option value="bank_of_ireland">Bank of Ireland</option>
+              <option value="ebs">EBS</option>
+              <option value="haven">Haven</option>
+              <option value="irishlife">Irish Life</option>
+              <option value="nua">Nua Money</option>
+              <option value="ptsb">PTSB</option>
+            </select>
+          </div>
+          <div class="modal-field">
+            <label>Phase</label>
+            <select id="mortEditPhase">
+              <option value="">— Unknown —</option>
+              <option value="initial_enquiry">Initial Enquiry</option>
+              <option value="aip">AIP</option>
+              <option value="full_application">Full Application</option>
+              <option value="underwriting">Underwriting</option>
+              <option value="letter_of_offer">Letter of Offer</option>
+              <option value="drawdown">Drawdown</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>Borrower Type</label>
+            <select id="mortEditBorrowerType">
+              <option value="">— Unknown —</option>
+              <option value="paye">PAYE</option>
+              <option value="self_employed">Self Employed</option>
+              <option value="contract">Contract</option>
+            </select>
+          </div>
+          <div class="modal-field">
+            <label>Loan Amount (€)</label>
+            <input type="number" id="mortEditLoanAmount" placeholder="e.g. 320000" min="0" />
+          </div>
+        </div>
+        <div class="modal-field">
+          <label>Property Address</label>
+          <input type="text" id="mortEditPropertyAddress" placeholder="Full address" />
+        </div>
+        <div class="modal-error" id="mortModalError"></div>
+        <div class="modal-actions">
+          <button class="btn-modal-cancel" onclick="closeMortDetails()">Cancel</button>
+          <button class="btn-modal-save" id="mortSaveBtn" onclick="saveMortApp()">Save Changes</button>
+        </div>
+      </div><!-- /tabEditPane -->
+
     </div>
   </div>
 
@@ -1137,14 +1146,38 @@
           + '<td>' + ref + '</td>'
           + '<td style="font-size:12px;color:#6b7280;white-space:nowrap;">' + esc(fmtDate(a.updated_at)) + '</td>'
           + '<td style="white-space:nowrap;display:flex;gap:6px;">'
-          + '<button class="btn-edit-app" onclick="openMortDetails(\'' + esc(a.id) + '\')" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;">Details</button>'
-          + '<button class="btn-edit-app" onclick="openMortModal(\'' + esc(a.id) + '\')">Edit</button>'
+          + '<button class="btn-edit-app" onclick="openMortDetails(\'' + esc(a.id) + '\')" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;">View / Edit</button>'
+          + '<button class="btn-edit-app" onclick="deleteMortApp(\'' + esc(a.id) + '\',\'' + esc(a.borrower_name||'this client') + '\')" style="background:#fef2f2;border-color:#fca5a5;color:#dc2626;">Delete</button>'
           + '</td>'
           + '</tr>';
       }).join('');
     }
 
     var detailCurrentId = null;
+
+    window.switchTab = function(tab) {
+      var isDetails = tab === 'details';
+      document.getElementById('tabDetailsPane').style.display = isDetails ? 'block' : 'none';
+      document.getElementById('tabEditPane').style.display    = isDetails ? 'none'  : 'block';
+      document.getElementById('tabDetailsBtn').style.borderBottomColor = isDetails ? '#1e40af' : 'transparent';
+      document.getElementById('tabDetailsBtn').style.color              = isDetails ? '#1e40af' : '#6b7280';
+      document.getElementById('tabDetailsBtn').style.fontWeight         = isDetails ? '700'     : '600';
+      document.getElementById('tabEditBtn').style.borderBottomColor    = isDetails ? 'transparent' : '#1e40af';
+      document.getElementById('tabEditBtn').style.color                 = isDetails ? '#6b7280' : '#1e40af';
+      document.getElementById('tabEditBtn').style.fontWeight            = isDetails ? '600'     : '700';
+    };
+
+    window.deleteMortApp = function(id, name) {
+      if (!confirm('Delete application for ' + name + '?\n\nThis permanently removes all their application state data and cannot be undone.')) return;
+      fetch('/api/portal/mortgage-applications/' + id, { method: 'DELETE' })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.error) { alert('Failed to delete: ' + data.error); return; }
+          apps = apps.filter(function(x){ return x.id !== id; });
+          renderTable();
+        })
+        .catch(function(){ alert('Something went wrong. Please try again.'); });
+    };
 
     window.openMortDetails = function(id) {
       detailCurrentId = id;
@@ -1209,6 +1242,22 @@
       document.getElementById('detailNotesSaveBtn').disabled = false;
       document.getElementById('detailNotesSaveBtn').textContent = 'Save Note';
 
+      // Populate edit tab fields too so they're ready
+      document.getElementById('mortEditId').value              = a.id;
+      document.getElementById('mortEditBorrower').value        = a.borrower_name || '';
+      document.getElementById('mortEditCoBorrower').value      = a.co_borrower_name || '';
+      document.getElementById('mortEditClientEmail').value     = a.client_email || '';
+      document.getElementById('mortEditAppRef').value          = a.application_ref || '';
+      document.getElementById('mortEditLender').value          = a.lender || '';
+      document.getElementById('mortEditPhase').value           = a.current_phase || '';
+      document.getElementById('mortEditBorrowerType').value    = a.borrower_type || '';
+      document.getElementById('mortEditLoanAmount').value      = a.loan_amount || '';
+      document.getElementById('mortEditPropertyAddress').value = a.property_address || '';
+      document.getElementById('mortModalError').style.display  = 'none';
+      document.getElementById('mortSaveBtn').disabled          = false;
+      document.getElementById('mortSaveBtn').textContent       = 'Save Changes';
+
+      switchTab('details');
       document.getElementById('mortDetailsModal').classList.add('open');
 
       // Fetch full details + next action from server
@@ -1236,6 +1285,16 @@
     window.closeMortDetails = function() {
       document.getElementById('mortDetailsModal').classList.remove('open');
       detailCurrentId = null;
+    };
+
+    // openMortModal kept for backward compatibility — opens directly on Edit tab
+    window.openMortModal = function(id) {
+      openMortDetails(id);
+      switchTab('edit');
+    };
+
+    window.switchToEdit = function() {
+      switchTab('edit');
     };
 
     window.saveNotes = function() {
@@ -1281,33 +1340,6 @@
         });
     };
 
-    window.switchToEdit = function() {
-      if (!detailCurrentId) return;
-      closeMortDetails();
-      openMortModal(detailCurrentId);
-    };
-
-    window.openMortModal = function(id) {
-      var a = apps.find(function(x){ return x.id === id; });
-      if (!a) return;
-      document.getElementById('mortEditId').value             = a.id;
-      document.getElementById('mortModalTitle').textContent   = 'Edit: ' + (a.borrower_name || 'Unknown Client');
-      document.getElementById('mortEditBorrower').value       = a.borrower_name || '';
-      document.getElementById('mortEditCoBorrower').value     = a.co_borrower_name || '';
-      document.getElementById('mortEditClientEmail').value    = a.client_email || '';
-      document.getElementById('mortEditAppRef').value         = a.application_ref || '';
-      document.getElementById('mortEditLender').value         = a.lender || '';
-      document.getElementById('mortEditPhase').value          = a.current_phase || '';
-      document.getElementById('mortEditBorrowerType').value   = a.borrower_type || '';
-      document.getElementById('mortEditLoanAmount').value     = a.loan_amount || '';
-      document.getElementById('mortEditPropertyAddress').value = a.property_address || '';
-      document.getElementById('mortModalError').style.display = 'none';
-      document.getElementById('mortModal').classList.add('open');
-    };
-
-    window.closeMortModal = function() {
-      document.getElementById('mortModal').classList.remove('open');
-    };
 
     window.saveMortApp = function() {
       var id  = document.getElementById('mortEditId').value;
@@ -1338,7 +1370,7 @@
         var idx = apps.findIndex(function(x){ return x.id === id; });
         if (idx !== -1) apps[idx] = Object.assign(apps[idx], data.application);
         renderTable();
-        closeMortModal();
+        closeMortDetails();
       })
       .catch(function(){
         btn.disabled = false; btn.textContent = 'Save Changes';

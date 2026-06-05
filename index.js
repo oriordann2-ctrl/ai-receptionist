@@ -4894,6 +4894,23 @@ app.put("/api/portal/mortgage-applications/:id", requireTenant, async (req, res)
   res.json({ application: data });
 });
 
+// ── Portal: Delete Mortgage Application ──────────────────────────────────────
+app.delete("/api/portal/mortgage-applications/:id", requireTenant, async (req, res) => {
+  if (!process.env.AOM_TENANT_ID || req.tenant.tenantId !== process.env.AOM_TENANT_ID) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: "Missing application id." });
+  try {
+    await supabase.from("application_events").delete().eq("application_id", id);
+    const { error } = await supabase.from("mortgage_application_states").delete().eq("id", id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete application: " + err.message });
+  }
+});
+
 // ── Portal: Mortgage Application Details + AI Next Action ────────────────────
 app.get("/api/portal/mortgage-applications/:id/details", requireTenant, async (req, res) => {
   if (!process.env.AOM_TENANT_ID || req.tenant.tenantId !== process.env.AOM_TENANT_ID) {

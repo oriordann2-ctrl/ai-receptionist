@@ -6731,7 +6731,8 @@ async function runCurrentStep(convo, userInput) {
         };
       }
 
-      state.collected.booking_date = isToday ? "Today" : "Tomorrow";
+      // Use the human-readable date label (e.g. "Today", "Thursday 12 June")
+      state.collected.booking_date = isToday ? "Today" : dateLabel;
 
       const isMulti  = step.multi_select || false;
       const maxSel   = step.max_select   || 3;

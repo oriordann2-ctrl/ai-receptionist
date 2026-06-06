@@ -866,12 +866,16 @@
           }
           // Back to menu — replay root flow without a network call
           if (value === "__menu__") {
+            console.log("[menu] rootFlowId:", rootFlowId, "wfFlowMap keys:", Object.keys(wfFlowMap), "steps:", wfFlowMap[rootFlowId] ? wfFlowMap[rootFlowId].length : "MISSING");
             if (rootFlowId && wfFlowMap[rootFlowId]) {
               wfSteps = wfFlowMap[rootFlowId];
               wfMode  = true;
               var footer = document.getElementById("sprimal-footer");
               if (footer) footer.style.display = "none";
+              console.log("[menu] calling showWorkflowStep with step:", wfSteps[0]);
               setTimeout(function () { showWorkflowStep(wfSteps[0]); }, 280);
+            } else {
+              console.log("[menu] condition FAILED — rootFlowId:", rootFlowId, "wfFlowMap[rootFlowId]:", wfFlowMap[rootFlowId]);
             }
             return;
           }

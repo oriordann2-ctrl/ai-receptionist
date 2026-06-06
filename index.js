@@ -6424,9 +6424,38 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     else if (contact.includes("@")) coachEmail = contact;
   }
 
-  const notifLines = Object.entries(collected)
-    .filter(([k, v]) => v && !k.startsWith("_"))
-    .map(([k, v]) => `• ${k.replace(/_/g, " ")}: ${v}`).join("\n");
+
+  // ── Build WhatsApp message body ───────────────────────────────────────────
+  // EBO booking URL built from integration club_id if available
+  const eboCfg = EBO_CONFIG[tenantId];
+  const eboUrl = eboCfg ? `https://ebookingonline.net/box/${eboCfg.clubId}` : null;
+
+  // Capitalise field key: "session_type" → "Session type"
+  const fmtKey = k => k.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase());
+
+  // General fields — skip fields handled specially below
+  const SKIP_WA = new Set(["preferred_coach", "preferred_slots", "preferred_slot", "booking_date"]);
+  const generalLines = Object.entries(collected)
+    .filter(([k, v]) => v && !k.startsWith("_") && !SKIP_WA.has(k))
+    .map(([k, v]) => `*${fmtKey(k)}:* ${v}`)
+    .join("\n");
+
+  // Slots — one per line, each with EBO booking link below it
+  const slotsSection = (() => {
+    const raw = collected.preferred_slots || collected.preferred_slot || "";
+    if (!raw) return "";
+    const slots = raw.split(" | ").map(s => s.trim()).filter(Boolean);
+    const lines = slots.map(s => eboUrl ? `• ${s}\n  ${eboUrl}` : `• ${s}`).join("\n");
+    return `*Preferred slots:*\n${lines}`;
+  })();
+
+  const waBody = [
+    `🎾 *New ${agentName}*`,
+    `Hi ${coachName || "Coach"}! A new enquiry came in via the club website:\n`,
+    generalLines,
+    slotsSection,
+    `_Sent by Sprimal_`
+  ].filter(Boolean).join("\n");
 
   // ── WhatsApp → coach (if phone number configured) ─────────────────────────
   if (coachPhone) {
@@ -6434,7 +6463,6 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     const twilioCfg = TWILIO_CONFIG[tenantId];
     if (twilioCfg) {
       try {
-        const waBody = `🎾 *New ${agentName} Enquiry*\n\nHi ${coachName}! A new enquiry has come in via the club website:\n\n${notifLines}\n\n_Sent by Sprimal_`;
         const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
         await twilio.messages.create({ from: twilioCfg.from, to: `whatsapp:${coachPhone}`, body: waBody });
         console.log(`[Twilio] WhatsApp sent to ${coachPhone} for tenant ${tenantId}`);

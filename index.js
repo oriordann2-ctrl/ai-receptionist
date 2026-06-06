@@ -6504,6 +6504,16 @@ async function runCurrentStep(convo, userInput) {
       const types  = step.static_choices ||
         (state.tenantConfig[step.choices_key] || "")
           .split("\n").map(s => s.trim().replace(/,+$/, "")).filter(Boolean);
+
+      // No choices — show intro and immediately advance to the next step
+      if (!types.length) {
+        state.stepId     = step.default_next;
+        state.skillState = null;
+        const nextResult = await runCurrentStep(convo, null);
+        if (intro && nextResult.reply) nextResult.reply = `${intro}\n\n${nextResult.reply}`;
+        return nextResult;
+      }
+
       const prompt = step.prompt || "What would you like?";
       const reply  = intro ? `${intro}\n\n${prompt}` : prompt;
       return { reply, choices: types };
@@ -6786,6 +6796,17 @@ async function runCurrentStep(convo, userInput) {
       state.stepId = step.next;
       return runCurrentStep(convo, null);
     }
+  }
+
+  // ── Message step ────────────────────────────────────────────────────────────
+  // Displays a final message with an optional external-URL button, then ends the flow.
+  if (step.type === "message") {
+    const text   = fillTemplate(step.message || state.tenantConfig[step.message_key] || "", state.collected);
+    const urlRaw = step.url_key ? (state.tenantConfig[step.url_key] || "") : (step.url || "");
+    const url    = fillTemplate(urlRaw, state.collected);
+    const choices = url ? [{ label: step.url_label || "Book online →", value: `__url__${url}` }] : [];
+    convo.agentState = null; // flow ends here
+    return { reply: text, choices };
   }
 
   // Unknown step type

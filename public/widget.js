@@ -843,10 +843,24 @@
           btn.textContent = label;
         }
 
+        // External link button — style with an arrow icon
+        if (typeof value === "string" && value.startsWith("__url__")) {
+          btn.style.cssText = "display:inline-flex;align-items:center;gap:6px;";
+          var arrSpan = document.createElement("span");
+          arrSpan.textContent = "↗";
+          arrSpan.style.cssText = "font-size:12px;";
+          btn.appendChild(arrSpan);
+        }
+
         allBtns.push(btn);
         btn.addEventListener("click", function () {
           allBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
           btn.style.opacity = "1";
+          // External URL — open in new tab, don't send to bot
+          if (typeof value === "string" && value.startsWith("__url__")) {
+            window.open(value.slice(7), "_blank", "noopener,noreferrer");
+            return;
+          }
           if (!secondary) { btn.style.background = brandColor; btn.style.color = "#fff"; btn.style.borderColor = brandColor; }
           setTimeout(function () { sendAgentMessage(value, label); }, 280);
         });

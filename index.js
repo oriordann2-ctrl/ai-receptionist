@@ -6604,19 +6604,30 @@ async function runCurrentStep(convo, userInput) {
         state.skillState = null;
         return runCurrentStep(convo, null);
       }
-      if (userInput.toLowerCase() === "tomorrow") {
-        state.collected.day_choice = "Tomorrow";
+      // Date selected from day picker — store and show courts for that date
+      if (userInput.startsWith("__date__")) {
+        state.collected._avail_date      = userInput.slice(8); // "YYYY-MM-DD"
+        state.collected._avail_date_label = userInput.slice(8);
         delete state.collected.__no_slots__;
         return runCurrentStep(convo, null);
       }
-      // Slot selected — store and advance
+      // Back to day picker
+      if (userInput === "__back_to_days__") {
+        delete state.collected._avail_date;
+        delete state.collected._avail_date_label;
+        delete state.collected.__no_slots__;
+        return runCurrentStep(convo, null);
+      }
+      // Slot(s) confirmed — store and advance
       state.collected[step.collect_field] = userInput;
       state.stepId     = step.next;
       state.skillState = null;
+      delete state.collected._avail_date;
+      delete state.collected._avail_date_label;
       return runCurrentStep(convo, null);
     }
 
-    // userInput === null — fetch availability and build courts-with-slots response
+    // userInput === null — show day picker first, then courts once a day is chosen
     await loadEboConfigFromDb(state.tenantId);
     const eboCfg = EBO_CONFIG[state.tenantId];
     if (!eboCfg) {
@@ -6626,14 +6637,39 @@ async function runCurrentStep(convo, userInput) {
       };
     }
 
-    const dayChoice = (state.collected.day_choice || "today").toLowerCase();
-    const isToday   = !dayChoice.includes("tomorrow");
-    const now       = new Date();
-    const irishFmt  = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" });
-    const checkDate = isToday
-      ? irishFmt.format(now)
-      : irishFmt.format(new Date(now.getTime() + 86400000));
-    const dateLabel = isToday ? "today" : "tomorrow";
+    const now      = new Date();
+    const irishFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" });
+
+    // ── Day picker — shown until user selects a date ──────────────────────
+    if (!state.collected._avail_date) {
+      const dayChoices = [];
+      for (let i = 0; i < 5; i++) {
+        const d         = new Date(now.getTime() + i * 86400000);
+        const isoDate   = irishFmt.format(d);
+        const dayLabel  = i === 0 ? "Today"
+          : i === 1 ? "Tomorrow"
+          : new Intl.DateTimeFormat("en-GB", {
+              timeZone: "Europe/Dublin", weekday: "short", day: "numeric", month: "short"
+            }).format(d);
+        dayChoices.push({ label: dayLabel, value: `__date__${isoDate}` });
+      }
+      const isMulti = step.multi_select || false;
+      const maxSel  = step.max_select   || 3;
+      return {
+        reply: isMulti
+          ? `Which day suits you? 📅 You can pick up to ${maxSel} slots — or fewer if you prefer.`
+          : "Which day would you like to play? 📅",
+        choices: dayChoices
+      };
+    }
+
+    // ── Slots for chosen date ─────────────────────────────────────────────
+    const checkDate = state.collected._avail_date;
+    const isToday   = checkDate === irishFmt.format(now);
+    const dateLabel = isToday ? "today"
+      : new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/Dublin", weekday: "long", day: "numeric", month: "long"
+        }).format(new Date(checkDate + "T12:00:00"));
 
     try {
       const bookings = await fetchEboBookings(state.tenantId, checkDate);

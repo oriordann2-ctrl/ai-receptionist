@@ -622,12 +622,17 @@
     }
   }
 
+  // Persists across day-switches so selections accumulate across dates
+  var agentSelectedSlots = [];
+
   // Render agent choice buttons (returned from /chat agentChoices array).
   // Choices may be strings, {label,value,badge?,secondary?} objects, or
   // {label,value,badge,slots:[]} objects — the last form triggers the court accordion.
   function showAgentChoices(choices, opts) {
-    var multiSelect = opts && opts.multiSelect;
-    var maxSelect   = (opts && opts.maxSelect) || 3;
+    var multiSelect  = opts && opts.multiSelect;
+    var maxSelect    = (opts && opts.maxSelect) || 3;
+    var resetSlots   = opts && opts.resetSlots;
+    if (resetSlots) agentSelectedSlots = [];
 
     clearChoices();
     var container = document.createElement("div");
@@ -639,8 +644,8 @@
       // ── Court accordion: court buttons on top, slot panel below ────────────
       var courtBtns       = [];
       var currentSlotBtns = [];
-      // Multi-select: track selected slots across all courts
-      var selectedSlots   = []; // [{label, value}]
+      // Use module-level array so selections survive day switches
+      var selectedSlots   = agentSelectedSlots;
 
       var courtRow = document.createElement("div");
       courtRow.style.cssText = "display:flex;flex-wrap:wrap;gap:7px;";
@@ -655,24 +660,24 @@
       if (multiSelect) {
         msFooter = document.createElement("div");
         msFooter.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed #e5e7eb;width:100%;";
+
         msCounter = document.createElement("span");
-        msCounter.style.cssText = "font-size:12px;color:#6b7280;font-family:" + FONT + ";";
+        msCounter.style.cssText = "font-size:13px;font-weight:600;font-family:" + FONT + ";color:#9ca3af;transition:color 0.2s;";
         msCounter.textContent = "0 of " + maxSelect + " selected";
+
         msConfirm = document.createElement("button");
         msConfirm.className = "sprimal-choice";
         msConfirm.textContent = "Confirm →";
         msConfirm.disabled = true;
-        msConfirm.style.opacity = "0.4";
-        msConfirm.style.padding = "6px 14px";
-        msConfirm.style.fontSize = "13px";
+        msConfirm.style.cssText = "opacity:0.35;padding:6px 16px;font-size:13px;font-weight:600;";
         msConfirm.addEventListener("click", function () {
           if (!selectedSlots.length) return;
-          // Lock everything
           courtBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
           currentSlotBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
           msConfirm.disabled = true; msConfirm.style.opacity = "0.4";
           var displayText = selectedSlots.map(function (s) { return s.label; }).join(", ");
           var value       = selectedSlots.map(function (s) { return s.value; }).join(" | ");
+          agentSelectedSlots = []; // reset after confirming
           setTimeout(function () { sendAgentMessage(value, displayText); }, 280);
         });
         msFooter.appendChild(msCounter);
@@ -681,9 +686,11 @@
 
       function updateCounter() {
         if (!msCounter) return;
-        msCounter.textContent = selectedSlots.length + " of " + maxSelect + " selected";
-        msConfirm.disabled    = selectedSlots.length === 0;
-        msConfirm.style.opacity = selectedSlots.length ? "1" : "0.4";
+        var n = selectedSlots.length;
+        msCounter.textContent   = n + " of " + maxSelect + " selected";
+        msCounter.style.color   = n > 0 ? "#16a34a" : "#9ca3af";
+        msConfirm.disabled      = n === 0;
+        msConfirm.style.opacity = n > 0 ? "1" : "0.35";
       }
 
       choices.forEach(function (choice) {
@@ -725,13 +732,22 @@
             choice.slots.forEach(function (slot) {
               var slotBtn = document.createElement("button");
               slotBtn.className = "sprimal-choice";
-              slotBtn.textContent = slot.label;
+              slotBtn.style.cssText = "display:inline-flex;align-items:center;gap:5px;";
+
+              var slotLabel = document.createElement("span");
+              slotLabel.textContent = slot.label;
+              slotBtn.appendChild(slotLabel);
+
               // Restore selected state if this slot was previously picked
               var alreadySelected = selectedSlots.some(function (s) { return s.value === slot.value; });
               if (alreadySelected) {
                 slotBtn.style.background  = brandColor;
                 slotBtn.style.color       = "#fff";
                 slotBtn.style.borderColor = brandColor;
+                var tick = document.createElement("span");
+                tick.textContent = "✓";
+                tick.style.cssText = "font-size:11px;font-weight:700;";
+                slotBtn.appendChild(tick);
               }
               currentSlotBtns.push(slotBtn);
 
@@ -744,12 +760,19 @@
                     slotBtn.style.background  = "";
                     slotBtn.style.color       = "";
                     slotBtn.style.borderColor = "";
+                    // Remove tick if present
+                    var t = slotBtn.querySelector("span:last-child");
+                    if (t && t.textContent === "✓") slotBtn.removeChild(t);
                   } else if (selectedSlots.length < maxSelect) {
                     // Select
                     selectedSlots.push({ label: slot.label, value: slot.value });
                     slotBtn.style.background  = brandColor;
                     slotBtn.style.color       = "#fff";
                     slotBtn.style.borderColor = brandColor;
+                    var tick = document.createElement("span");
+                    tick.textContent = "✓";
+                    tick.style.cssText = "font-size:11px;font-weight:700;";
+                    slotBtn.appendChild(tick);
                   }
                   updateCounter();
                 });
@@ -768,6 +791,20 @@
             });
 
             slotPanel.appendChild(slotBtnRow);
+            if (multiSelect) {
+              // "Change day" link lets user go back to the day picker without losing selections
+              var changeDayBtn = document.createElement("button");
+              changeDayBtn.className = "sprimal-choice sprimal-choice-ai";
+              changeDayBtn.textContent = "← Change day";
+              changeDayBtn.style.cssText = "margin-top:6px;font-size:12px;padding:5px 12px;";
+              changeDayBtn.addEventListener("click", function () {
+                courtBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+                currentSlotBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+                changeDayBtn.disabled = true;
+                setTimeout(function () { sendAgentMessage("__back_to_days__", "← Change day"); }, 200);
+              });
+              slotPanel.appendChild(changeDayBtn);
+            }
             if (multiSelect && msFooter) slotPanel.appendChild(msFooter);
             slotPanel.style.display = "flex";
             updateCounter();

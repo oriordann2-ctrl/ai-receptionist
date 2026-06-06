@@ -79,14 +79,18 @@ async function detectBusinessType(name, description, pageText) {
 
 // ── Extract structured info from crawled pages (tennis clubs) ─────────────────
 async function extractTennisClubInfo(pages, websiteUrl) {
-  // Sort pages so membership/coaching/contact pages come first
-  const priority = ["membership", "join", "coaching", "lessons", "contact", "find", "about", "location", "fees"];
+  // Sort pages so the most info-rich pages come first.
+  // Scoring: URL keyword match + page-text keyword match (catches /tennis, /about-us, etc.)
+  const priority = ["membership", "join", "coaching", "lessons", "tennis", "coach", "contact", "find", "about", "location", "fees", "programme", "program", "camp", "junior"];
   const sorted = [...pages].sort((a, b) => {
-    const aScore = priority.filter(k => a.url.toLowerCase().includes(k)).length;
-    const bScore = priority.filter(k => b.url.toLowerCase().includes(k)).length;
-    return bScore - aScore;
+    const score = (p) => {
+      const urlLower  = p.url.toLowerCase();
+      const textLower = p.text.toLowerCase().slice(0, 500); // first 500 chars of page text
+      return priority.filter(k => urlLower.includes(k) || textLower.includes(k)).length;
+    };
+    return score(b) - score(a);
   });
-  const combined = sorted.slice(0, 6).map(p => `--- ${p.url} ---\n${p.text}`).join("\n\n").slice(0, 4500);
+  const combined = sorted.slice(0, 8).map(p => `--- ${p.url} ---\n${p.text}`).join("\n\n").slice(0, 6000);
 
   try {
     const resp = await openai.chat.completions.create({
@@ -96,7 +100,7 @@ async function extractTennisClubInfo(pages, websiteUrl) {
         { role: "user",   content: combined }
       ],
       temperature: 0,
-      max_tokens: 600,
+      max_tokens: 900,
       response_format: { type: "json_object" }
     });
     const info = JSON.parse(resp.choices[0].message.content || "{}");

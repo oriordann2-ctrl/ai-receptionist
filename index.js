@@ -6413,43 +6413,49 @@ function advanceLeadCaptureSkill(agentState, message) {
 async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId, agentName, collected, agentConfig) {
   const replyTime   = agentConfig.reply_time || "soon";
 
-  // ── WhatsApp notification (Twilio) ──────────────────────────────────────────
-  // If a coach was selected in "Name | +353XXXXXXX" format, extract their number.
-  // Otherwise fall back to agentConfig.notification_phone if set.
-  await loadTwilioConfigFromDb(tenantId);
-  const twilioCfg = TWILIO_CONFIG[tenantId];
-  if (twilioCfg) {
-    let toPhone = null;
-    // Try to extract phone from collected.preferred_coach ("Name | +353...")
-    if (collected.preferred_coach && collected.preferred_coach.includes(" | ")) {
-      const parts = collected.preferred_coach.split(" | ");
-      const raw   = parts[parts.length - 1].trim();
-      if (raw.startsWith("+")) toPhone = `whatsapp:${raw}`;
-    }
-    // Fall back to a fixed notification_phone in agent config
-    if (!toPhone && agentConfig.notification_phone) {
-      const raw = agentConfig.notification_phone.trim();
-      toPhone = raw.startsWith("whatsapp:") ? raw : `whatsapp:${raw}`;
-    }
-    if (toPhone) {
+  // ── Extract coach contact (phone → WhatsApp, email → email) ─────────────────
+  // Format in coaches config: "Name | +353XXXXXXX"  or  "Name | coach@email.com"
+  const coachName  = collected.preferred_coach ? collected.preferred_coach.split(" | ")[0].trim() : null;
+  let   coachPhone = null;
+  let   coachEmail = null;
+  if (collected.preferred_coach && collected.preferred_coach.includes(" | ")) {
+    const contact = collected.preferred_coach.split(" | ").pop().trim();
+    if (contact.startsWith("+"))    coachPhone = contact;
+    else if (contact.includes("@")) coachEmail = contact;
+  }
+
+  const notifLines = Object.entries(collected)
+    .filter(([k, v]) => v && !k.startsWith("_"))
+    .map(([k, v]) => `• ${k.replace(/_/g, " ")}: ${v}`).join("\n");
+
+  // ── WhatsApp → coach (if phone number configured) ─────────────────────────
+  if (coachPhone) {
+    await loadTwilioConfigFromDb(tenantId);
+    const twilioCfg = TWILIO_CONFIG[tenantId];
+    if (twilioCfg) {
       try {
-        const coachName = collected.preferred_coach
-          ? collected.preferred_coach.split(" | ")[0].trim()
-          : "Coach";
-        const lines = Object.entries(collected)
-          .filter(([k, v]) => v && !k.startsWith("_"))
-          .map(([k, v]) => `• ${k.replace(/_/g, " ")}: ${v}`).join("\n");
-        const waBody = `🎾 *New ${agentName} Enquiry*\n\nHi ${coachName}! A new enquiry has come in via the club website:\n\n${lines}\n\n_Sent by Sprimal_`;
+        const waBody = `🎾 *New ${agentName} Enquiry*\n\nHi ${coachName}! A new enquiry has come in via the club website:\n\n${notifLines}\n\n_Sent by Sprimal_`;
         const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
-        await twilio.messages.create({ from: twilioCfg.from, to: toPhone, body: waBody });
-        console.log(`[Twilio] WhatsApp sent to ${toPhone} for tenant ${tenantId}`);
+        await twilio.messages.create({ from: twilioCfg.from, to: `whatsapp:${coachPhone}`, body: waBody });
+        console.log(`[Twilio] WhatsApp sent to ${coachPhone} for tenant ${tenantId}`);
       } catch (err) {
         console.error(`[Twilio] WhatsApp send failed for ${tenantId}:`, err.message);
       }
     }
   }
 
-  // ── Email notification ───────────────────────────────────────────────────────
+  // ── Email → coach (if email address configured) ───────────────────────────
+  if (coachEmail) {
+    const coachSubject = fillTemplate(`New ${agentName} enquiry from {{name}}`, collected);
+    const coachRows = Object.entries(collected)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `<tr><td style="padding:6px 12px;font-weight:600;color:#374151;text-transform:capitalize;">${k.replace(/_/g, " ")}</td><td style="padding:6px 12px;color:#111827;">${v}</td></tr>`)
+      .join("");
+    const coachHtml = `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;"><h2 style="color:#0f172a;margin-bottom:4px;">New ${agentName} Enquiry</h2><p style="color:#6b7280;font-size:14px;margin-bottom:16px;">Hi ${coachName}, a new enquiry has come in via the club website.</p><table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:8px;overflow:hidden;">${coachRows}</table><p style="color:#9ca3af;font-size:12px;margin-top:20px;">Sent by Sprimal</p></div>`;
+    sendStaffEmail(coachEmail, coachSubject, coachHtml);
+  }
+
+  // ── Club notification email (always sent if notification_email set) ────────
   const notifyEmail = agentConfig.notification_email;
   const subject     = fillTemplate(
     agentConfig.email_subject || `New ${agentName} enquiry from {{name}}`,

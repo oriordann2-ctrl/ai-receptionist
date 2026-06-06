@@ -3209,6 +3209,32 @@ function extractInternalLinks(html, baseUrl) {
   return [...links];
 }
 
+// Extract internal links from Jina Reader markdown output (used when HTML is a bot-protection page)
+// Jina returns markdown with links as [text](url) or bare https://same-domain/path
+function extractLinksFromJinaText(jinaText, baseUrl) {
+  const base = new URL(baseUrl);
+  const links = new Set();
+  // Markdown links: [text](url)
+  const mdRe = /\[([^\]]*)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/g;
+  // Bare URLs in text
+  const bareRe = /https?:\/\/[^\s"')>]+/g;
+  const addUrl = (href) => {
+    try {
+      if (href.startsWith("mailto:") || href.startsWith("tel:")) return;
+      const resolved = new URL(href, base.href);
+      if (resolved.hostname !== base.hostname) return;
+      if (!["http:", "https:"].includes(resolved.protocol)) return;
+      if (/\.(pdf|jpg|jpeg|png|gif|svg|ico|css|js|woff|woff2|ttf|zip|xml|json)$/i.test(resolved.pathname)) return;
+      resolved.hash = "";
+      links.add(resolved.href.replace(/\/$/, ""));
+    } catch {}
+  };
+  let m;
+  while ((m = mdRe.exec(jinaText)) !== null) addUrl(m[2]);
+  while ((m = bareRe.exec(jinaText)) !== null) addUrl(m[0]);
+  return [...links];
+}
+
 async function fetchSitemapUrls(rootUrl) {
   const base = rootUrl.replace(/\/$/, "");
   const urls = [];
@@ -3356,11 +3382,16 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
         if (jinaText) {
           console.log(`[crawler] Jina Reader: imported ${url} (${jinaText.length} chars)`);
           pages.push({ url, title, text: jinaText });
-          // Also extract links from original HTML for further crawling
-          const links = extractInternalLinks(html, url);
-          for (const link of links) {
+          // Extract links from both the original HTML and the Jina markdown.
+          // When HTML is a bot-protection page, extractInternalLinks finds nothing —
+          // extractLinksFromJinaText catches the real navigation links instead.
+          const htmlLinks  = extractInternalLinks(html, url);
+          const jinaLinks  = extractLinksFromJinaText(jinaText, url);
+          const allLinks   = [...new Set([...htmlLinks, ...jinaLinks])];
+          for (const link of allLinks) {
             if (!visited.has(link) && !queue.includes(link)) queue.push(link);
           }
+          console.log(`[crawler] Jina link discovery: ${htmlLinks.length} from HTML, ${jinaLinks.length} from Jina text`);
         } else {
           console.log(`[crawler] Skip ${url}: ${reason}, Jina also failed (${text.length} chars)`);
         }

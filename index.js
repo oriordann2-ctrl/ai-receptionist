@@ -6489,15 +6489,28 @@ async function runCurrentStep(convo, userInput) {
 
 // ── Agent API endpoints ───────────────────────────────────────────────────────
 
-// GET /api/portal/agent-definitions — all agent definitions (library)
+// GET /api/portal/agent-definitions — agent definitions filtered by tenant business_type
 app.get("/api/portal/agent-definitions", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
   try {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("business_type")
+      .eq("id", tenantId)
+      .maybeSingle();
+    const bizType = tenant?.business_type || "other";
+
     const { data, error } = await supabase
       .from("agent_definitions")
-      .select("id, name, description, version, skill_ids, config_schema")
+      .select("id, name, description, version, skill_ids, config_schema, business_types")
       .order("name");
     if (error) throw error;
-    res.json(data || []);
+
+    // Filter: show agent if business_types is null (universal) OR includes this tenant's type
+    const filtered = (data || []).filter(d =>
+      !d.business_types || d.business_types.includes(bizType)
+    );
+    res.json(filtered);
   } catch (err) {
     console.error("[agent-defs] GET error:", err.message);
     res.status(500).json({ error: "Failed to load agent definitions" });

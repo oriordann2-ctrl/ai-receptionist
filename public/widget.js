@@ -863,13 +863,12 @@
           }
           // Back to menu — replay root flow without a network call
           if (value === "__menu__") {
-            clearChoices();
             if (rootFlowId && wfFlowMap[rootFlowId]) {
               wfSteps = wfFlowMap[rootFlowId];
               wfMode  = true;
               var footer = document.getElementById("sprimal-footer");
               if (footer) footer.style.display = "none";
-              showWorkflowStep(wfSteps[0]);
+              setTimeout(function () { showWorkflowStep(wfSteps[0]); }, 280);
             }
             return;
           }

@@ -56,6 +56,166 @@ const brokerEmail = process.env.BROKER_EMAIL;
 
 const mammoth = require("mammoth");
 
+// ── Business type detection ───────────────────────────────────────────────────
+async function detectBusinessType(name, description, pageText) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: `Classify this business into exactly one category. Reply with ONLY the category key, nothing else.\nCategories:\n- tennis_club\n- fitness_studio\n- golf_club\n- other` },
+        { role: "user",   content: `Name: ${name}\nDescription: ${description}\nPage text: ${pageText.slice(0, 600)}` }
+      ],
+      temperature: 0,
+      max_tokens: 10
+    });
+    const raw  = (resp.choices[0].message.content || "other").trim().toLowerCase().replace(/[^a-z_]/g, "");
+    const valid = ["tennis_club", "fitness_studio", "golf_club"];
+    return valid.includes(raw) ? raw : "other";
+  } catch (e) {
+    console.error("[biz-type] Detection failed:", e.message);
+    return "other";
+  }
+}
+
+// ── Extract structured info from crawled pages (tennis clubs) ─────────────────
+async function extractTennisClubInfo(pages, websiteUrl) {
+  // Sort pages so membership/coaching/contact pages come first
+  const priority = ["membership", "join", "coaching", "lessons", "contact", "find", "about", "location", "fees"];
+  const sorted = [...pages].sort((a, b) => {
+    const aScore = priority.filter(k => a.url.toLowerCase().includes(k)).length;
+    const bScore = priority.filter(k => b.url.toLowerCase().includes(k)).length;
+    return bScore - aScore;
+  });
+  const combined = sorted.slice(0, 6).map(p => `--- ${p.url} ---\n${p.text}`).join("\n\n").slice(0, 4500);
+
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: `Extract structured info from this tennis club website. Return ONLY valid JSON. Use null for anything not found.\n{\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "membership_prices": "formatted price list e.g. '🎾 Adult — €X/year\\n👨‍👩‍👧 Family — €X/year' or null",\n  "membership_url": "URL of join/membership page or null",\n  "court_booking_url": "URL of court booking page or null",\n  "coaches": "comma-separated coach names or null",\n  "coaching_summary": "brief coaching programme summary or null",\n  "events_summary": "brief events/leagues summary or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
+        { role: "user",   content: combined }
+      ],
+      temperature: 0,
+      max_tokens: 600,
+      response_format: { type: "json_object" }
+    });
+    const info = JSON.parse(resp.choices[0].message.content || "{}");
+    console.log("[tennis-seed] Extracted info:", JSON.stringify(info));
+    return info;
+  } catch (e) {
+    console.error("[tennis-seed] Info extraction failed:", e.message);
+    return {};
+  }
+}
+
+// ── Seed tennis club chat flows ───────────────────────────────────────────────
+async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
+  // Idempotency — skip if flows already exist
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[tennis-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+
+  const v = (val) => (val && val !== "null") ? val : null; // null-safe getter
+
+  // IDs
+  const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fCoach = crypto.randomUUID();
+  const fBook = crypto.randomUUID(), fEvt  = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const sMain = crypto.randomUUID(), sMemb1 = crypto.randomUUID(), sMemb2 = crypto.randomUUID();
+  const sCoach = crypto.randomUUID(), sBook = crypto.randomUUID(), sEvt = crypto.randomUUID(), sLoc = crypto.randomUUID();
+
+  const membershipUrl = v(info.membership_url)    || websiteUrl;
+  const bookingUrl    = v(info.court_booking_url) || websiteUrl;
+  const contactEmail  = v(info.email)             || "[FILL IN: email]";
+
+  // Build messages — use crawled data where available, [FILL IN] otherwise
+  const pricesBlock = v(info.membership_prices)
+    ? info.membership_prices
+    : "🎾 Adult — €[price] per year\n👨‍👩‍👧 Family — €[price] per year\n🧒 Junior (under 18) — €[price] per year\n🌟 Student — €[price] per year";
+
+  const memb2Msg = `Here's an overview of our membership options:\n\n${pricesBlock}\n\nMembership includes full access to all courts, club nights, and social events.\n\nTo join, visit [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\nOr email [b]${contactEmail}[/b]`;
+
+  const coachMsg = v(info.coaching_summary)
+    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}\n\nTo enquire, email [b]${contactEmail}[/b]`
+    : `We offer coaching for all ages and levels:\n\n🎾 Adult group lessons — [FILL IN: days/times]\n🧒 Junior coaching — [FILL IN: days/times]\n☀️ Summer camps — [FILL IN: dates]\n\nTo enquire, email [b]${contactEmail}[/b]`;
+
+  let evtMsg = v(info.events_summary)
+    ? `There's always something on at ${name}! 🏆\n\n${info.events_summary}`
+    : `There's always something on at ${name}! 🏆\n\n🎾 Winter League — team competitions\n🏆 Club Championships — annual singles & doubles\n🌙 Social club nights\n\n[FILL IN: add your events and leagues]`;
+  if (v(info.social_instagram) || v(info.social_twitter)) {
+    evtMsg += "\n\nFollow us for the latest updates:";
+    if (v(info.social_instagram)) evtMsg += `\n[link=https://instagram.com/${info.social_instagram}]📸 Instagram — @${info.social_instagram}[/link]`;
+    if (v(info.social_twitter))   evtMsg += `\n[link=https://twitter.com/${info.social_twitter}]🐦 Twitter — @${info.social_twitter}[/link]`;
+  }
+
+  const locLines = [
+    `📍 ${name}`,
+    v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null,
+    "",
+    v(info.email) ? `📧 [b]${info.email}[/b]` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ].filter(l => l !== null).join("\n");
+
+  // Insert flows
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain,  club_id: tenantId, name: "Main Menu",        is_active: false },
+    { id: fMemb,  club_id: tenantId, name: "Membership",       is_active: false },
+    { id: fCoach, club_id: tenantId, name: "Coaching & Camps", is_active: false },
+    { id: fBook,  club_id: tenantId, name: "Book a Court",     is_active: false },
+    { id: fEvt,   club_id: tenantId, name: "Events & Leagues", is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",          is_active: false },
+  ]);
+  if (fErr) { console.error("[tennis-seed] Flow insert error:", fErr.message); return false; }
+
+  // Insert steps
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there 👋 Welcome to ${name}!\n\nWhat can I help you with today?` },
+    { id: sMemb1, workflow_id: fMemb,  step_order: 1, bot_message: `Great — we have membership options for all ages and levels.\n\nAre you looking to join as an adult, a junior, or a family?` },
+    { id: sMemb2, workflow_id: fMemb,  step_order: 2, bot_message: memb2Msg },
+    { id: sCoach, workflow_id: fCoach, step_order: 1, bot_message: coachMsg },
+    { id: sBook,  workflow_id: fBook,  step_order: 1, bot_message: `Our courts are available to all members, with lighting for evening play.\n\n📱 Book online:\n[link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nNeed help? Email [b]${contactEmail}[/b]` },
+    { id: sEvt,   workflow_id: fEvt,   step_order: 1, bot_message: evtMsg },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+  ]);
+  if (sErr) { console.error("[tennis-seed] Step insert error:", sErr.message); return false; }
+
+  // Insert choices
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    // Main menu
+    { step_id: sMain, choice_order: 1, label: "🎾 Membership",       action_type: "switch_flow", action_value: fMemb  },
+    { step_id: sMain, choice_order: 2, label: "🏫 Coaching & camps", action_type: "switch_flow", action_value: fCoach },
+    { step_id: sMain, choice_order: 3, label: "📅 Book a court",     action_type: "switch_flow", action_value: fBook  },
+    { step_id: sMain, choice_order: 4, label: "🏆 Events & leagues", action_type: "switch_flow", action_value: fEvt   },
+    { step_id: sMain, choice_order: 5, label: "📍 Find us",          action_type: "switch_flow", action_value: fLoc   },
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",   action_type: "ai_fallback",  action_value: null   },
+    // Membership step 1
+    { step_id: sMemb1, choice_order: 1, label: "Adult",            action_type: "next_step",   action_value: "2" },
+    { step_id: sMemb1, choice_order: 2, label: "Family",           action_type: "next_step",   action_value: "2" },
+    { step_id: sMemb1, choice_order: 3, label: "Junior / Student", action_type: "next_step",   action_value: "2" },
+    // Membership step 2
+    { step_id: sMemb2, choice_order: 1, label: "✅ I'd like to join", action_type: "url",         action_value: membershipUrl },
+    { step_id: sMemb2, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain         },
+    // Coaching
+    { step_id: sCoach, choice_order: 1, label: "✅ I'd like to book", action_type: "ai_fallback", action_value: null  },
+    { step_id: sCoach, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain },
+    // Booking
+    { step_id: sBook, choice_order: 1, label: "📅 Book now",         action_type: "url",         action_value: bookingUrl },
+    { step_id: sBook, choice_order: 2, label: "💬 I have a question",action_type: "ai_fallback", action_value: null       },
+    { step_id: sBook, choice_order: 3, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain      },
+    // Events
+    { step_id: sEvt, choice_order: 1, label: "🎾 I'd like to enter", action_type: "ai_fallback", action_value: null  },
+    { step_id: sEvt, choice_order: 2, label: "← Back to menu",       action_type: "switch_flow", action_value: fMain },
+    // Find Us
+    { step_id: sLoc, choice_order: 1, label: "← Back to main menu", action_type: "switch_flow", action_value: fMain },
+  ]);
+  if (cErr) { console.error("[tennis-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[tennis-seed] ✅ Seeded 6 tennis club flows for ${tenantId} (${name})`);
+  return true;
+}
+
 async function extractPdfText(filePath) {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
@@ -3535,6 +3695,23 @@ app.post("/api/signup", async (req, res) => {
         }
 
         console.log(`[signup] Imported ${imported} pages for ${tenantId}`);
+
+        // ── Detect business type + auto-seed template flows ──────────────────
+        try {
+          const allText   = pages.map(p => p.text).join(" ").slice(0, 2000);
+          const { data: td } = await supabase.from("tenants").select("business_description").eq("id", tenantId).single();
+          const bizDesc   = td?.business_description || "";
+          const bizType   = await detectBusinessType(name, bizDesc, allText);
+          await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
+          console.log(`[signup] Business type: ${bizType} for ${tenantId}`);
+
+          if (bizType === "tennis_club") {
+            const info    = await extractTennisClubInfo(pages, website);
+            await seedTennisClubFlows(tenantId, name, website, info);
+          }
+        } catch (seedErr) {
+          console.error(`[signup] Flow seed error for ${tenantId}:`, seedErr.message);
+        }
       }
 
       // Send welcome email via Resend
@@ -5518,6 +5695,54 @@ DOCUMENT KNOWLEDGE:\n${documentContext || "None"}`
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Portal: feature settings ──────────────────────────────────────────────────
+
+// ── Retroactively seed flows for existing tennis club tenants ─────────────────
+app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { data: tenant } = await supabase.from("tenants").select("name, website, business_description, business_type").eq("id", tenantId).maybeSingle();
+  if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+
+  try {
+    // Gather already-crawled pages from documents table
+    const { data: docs } = await supabase
+      .from("documents")
+      .select("stored_filename, original_filename")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "Website Content");
+
+    // Re-fetch page text from chunks (we have embeddings but need raw text)
+    // Simpler: just use the website directly with extractTennisClubInfo via a fresh light crawl
+    const website = tenant.website;
+    if (!website) return res.status(400).json({ error: "No website on file for this tenant" });
+
+    // Detect type if not already set
+    let bizType = tenant.business_type;
+    if (!bizType || bizType === "other") {
+      const { data: chunks } = await supabase.from("document_chunks").select("content").eq("tenant_id", tenantId).limit(20);
+      const sampleText = (chunks || []).map(c => c.content).join(" ").slice(0, 2000);
+      bizType = await detectBusinessType(tenant.name, tenant.business_description || "", sampleText);
+      await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
+    }
+
+    if (bizType !== "tennis_club") {
+      return res.status(400).json({ error: `Business type is '${bizType}' — only tennis_club is supported for auto-seeding right now.` });
+    }
+
+    // Light crawl of key pages for info extraction
+    const pages = await crawlWebsite(website, 12);
+    const info  = await extractTennisClubInfo(pages, website);
+    const seeded = await seedTennisClubFlows(tenantId, tenant.name, website, info);
+
+    if (seeded) {
+      res.json({ success: true, message: "Tennis club flows seeded — visit Chat Flows in the portal to review and activate." });
+    } else {
+      res.json({ success: false, message: "Flows already exist for this tenant. Delete them first if you want to re-seed." });
+    }
+  } catch (err) {
+    console.error("[seed-flows] Error:", err.message);
+    res.status(500).json({ error: "Seeding failed: " + err.message });
+  }
+});
 
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase

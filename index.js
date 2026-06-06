@@ -92,7 +92,7 @@ async function extractTennisClubInfo(pages, websiteUrl) {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: `Extract structured info from this tennis club website. Return ONLY valid JSON. Use null for anything not found.\n{\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "membership_prices": "formatted price list e.g. '🎾 Adult — €X/year\\n👨‍👩‍👧 Family — €X/year' or null",\n  "membership_url": "URL of join/membership page or null",\n  "court_booking_url": "URL of court booking page or null",\n  "coaches": "comma-separated coach names or null",\n  "coaching_summary": "brief coaching programme summary or null",\n  "events_summary": "brief events/leagues summary or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
+        { role: "system", content: `Extract structured info from this tennis club website. Return ONLY valid JSON. Use null for anything not found.\n{\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "membership_prices": "formatted price list e.g. '🎾 Adult — €X/year\\n👨‍👩‍👧 Family — €X/year' or null",\n  "membership_url": "URL of join/membership page or null",\n  "court_booking_url": "URL of court booking page or null",\n  "coaches": "formatted list of coaches with contact info, one per line, e.g. '🎾 Martin Cusack — 085 8734558\\n🎾 Aisling O Riordan — 085 1939086' or null",\n  "coaching_summary": "brief 1-2 sentence summary of coaching programmes offered (adult, junior, camps etc) or null",\n  "events_summary": "brief events/leagues summary or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
         { role: "user",   content: combined }
       ],
       temperature: 0,
@@ -136,9 +136,10 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
 
   const memb2Msg = `Here's an overview of our membership options:\n\n${pricesBlock}\n\nMembership includes full access to all courts, club nights, and social events.\n\nTo join, visit [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\nOr email [b]${contactEmail}[/b]`;
 
+  const coachesBlock   = v(info.coaches) ? `\n\n${info.coaches}` : "";
   const coachMsg = v(info.coaching_summary)
-    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}\n\nTo enquire, email [b]${contactEmail}[/b]`
-    : `We offer coaching for all ages and levels:\n\n🎾 Adult group lessons — [FILL IN: days/times]\n🧒 Junior coaching — [FILL IN: days/times]\n☀️ Summer camps — [FILL IN: dates]\n\nTo enquire, email [b]${contactEmail}[/b]`;
+    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}${coachesBlock}\n\nTo enquire, email [b]${contactEmail}[/b]`
+    : `We offer coaching for all ages and levels:\n\n🎾 Adult group lessons — [FILL IN: days/times]\n🧒 Junior coaching — [FILL IN: days/times]\n☀️ Summer camps — [FILL IN: dates]${coachesBlock}\n\nTo enquire, email [b]${contactEmail}[/b]`;
 
   let evtMsg = v(info.events_summary)
     ? `There's always something on at ${name}! 🏆\n\n${info.events_summary}`
@@ -5779,10 +5780,55 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
       return res.status(400).json({ error: `Business type is '${bizType}' — only tennis_club is supported for auto-seeding right now.` });
     }
 
-    // Light crawl of key pages for info extraction
+    // Crawl site — used for both flow seeding and knowledge base refresh
     const pages = await crawlWebsite(website, 12);
     const info  = await extractTennisClubInfo(pages, website);
     const seeded = await seedTennisClubFlows(tenantId, tenant.name, website, info);
+
+    // Always refresh the knowledge base with the newly crawled pages.
+    // Delete old website content docs + chunks first, then insert fresh ones.
+    try {
+      const { data: oldDocs } = await supabase
+        .from("documents")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("document_type", "Website Content");
+
+      if (oldDocs && oldDocs.length > 0) {
+        const oldIds = oldDocs.map(d => d.id);
+        await supabase.from("knowledge_chunks").delete().in("document_id", oldIds);
+        await supabase.from("documents").delete().in("id", oldIds);
+        console.log(`[seed-flows] Cleared ${oldIds.length} old website docs for ${tenantId}`);
+      }
+
+      let kbImported = 0;
+      for (const page of pages) {
+        try {
+          const { data: doc, error: insertError } = await supabase
+            .from("documents")
+            .insert({
+              original_filename: page.title,
+              stored_filename:   page.url,
+              mimetype:          "text/html",
+              document_type:     "Website Content",
+              tags:              ["website"],
+              metadata_complete: true,
+              junior_accessible: true,
+              storage_path:      page.url,
+              tenant_id:         tenantId
+            })
+            .select().single();
+          if (insertError) { console.error(`[seed-flows] Doc insert:`, insertError.message); continue; }
+          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId);
+          kbImported++;
+        } catch (kbErr) {
+          console.error(`[seed-flows] KB page error:`, kbErr.message);
+        }
+      }
+      console.log(`[seed-flows] Refreshed KB: ${kbImported} pages for ${tenantId}`);
+    } catch (kbErr) {
+      console.error(`[seed-flows] KB refresh failed (non-fatal):`, kbErr.message);
+    }
 
     if (seeded) {
       res.json({ success: true, message: "Tennis club flows seeded — visit Chat Flows in the portal to review and activate." });

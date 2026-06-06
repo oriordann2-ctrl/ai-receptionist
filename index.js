@@ -6457,13 +6457,42 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     return `*Preferred slots:*\n${lines}`;
   })();
 
+  // First name only for greeting
+  const coachFirstName = coachName ? coachName.trim().split(" ")[0] : "Coach";
+
+  // Shorten date: "Monday 8 June" → "Mon 8 Jun"
+  const shortenDate = s => s
+    .replace(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/g, d => d.slice(0,3))
+    .replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/g, d => d.slice(0,3));
+
+  // Emoji map for field keys
+  const fieldEmoji = { name: "👤", email: "📧", phone: "📱", session_type: "🎓", child_age: "👶" };
+
+  const generalLinesWA = Object.entries(collected)
+    .filter(([k, v]) => v && !k.startsWith("_") && !SKIP_WA.has(k))
+    .map(([k, v]) => `${fieldEmoji[k] || "•"} *${fmtKey(k)}:* ${v}`)
+    .join("\n");
+
+  const slotsSectionWA = (() => {
+    const raw = collected.preferred_slots || collected.preferred_slot || "";
+    if (!raw) return "";
+    const slots = raw.split(" | ").map(s => shortenDate(s.trim())).filter(Boolean);
+    const urlShort = eboUrl ? eboUrl.replace(/https?:\/\//, "") : null;
+    const lines = slots.map(s => urlShort ? `→ ${s} · ${urlShort}` : `→ ${s}`).join("\n");
+    return `📅 *Preferred slots:*\n${lines}`;
+  })();
+
   const waBody = [
     `🎾 *New ${agentName}*`,
-    `Hi ${coachName || "Coach"}! A new enquiry came in via the club website:\n`,
-    generalLines,
-    slotsSection,
-    `_Sent by ${clubName}_`
-  ].filter(Boolean).join("\n");
+    `Hi ${coachFirstName}! 👋`,
+    "",
+    generalLinesWA,
+    "",
+    slotsSectionWA,
+    "",
+    `_Sent by ${clubName}_`,
+    `_Powered by Sprimal · sprimal.com_`
+  ].filter(s => s !== undefined).join("\n");
 
   // ── WhatsApp → coach (if phone number configured) ─────────────────────────
   if (coachPhone) {

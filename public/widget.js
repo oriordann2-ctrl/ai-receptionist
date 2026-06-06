@@ -609,7 +609,7 @@
           hideTyping();
           if (data.reply) addMsg(data.reply, "bot");
           if (data.agentChoices && data.agentChoices.length) {
-            showAgentChoices(data.agentChoices);
+            showAgentChoices(data.agentChoices, { multiSelect: data.multiSelect, maxSelect: data.maxSelect });
           } else {
             enableTextInput();
           }
@@ -625,7 +625,10 @@
   // Render agent choice buttons (returned from /chat agentChoices array).
   // Choices may be strings, {label,value,badge?,secondary?} objects, or
   // {label,value,badge,slots:[]} objects — the last form triggers the court accordion.
-  function showAgentChoices(choices) {
+  function showAgentChoices(choices, opts) {
+    var multiSelect = opts && opts.multiSelect;
+    var maxSelect   = (opts && opts.maxSelect) || 3;
+
     clearChoices();
     var container = document.createElement("div");
     container.id  = "sprimal-choices";
@@ -634,15 +637,54 @@
 
     if (isAccordion) {
       // ── Court accordion: court buttons on top, slot panel below ────────────
-      var courtBtns      = [];
+      var courtBtns       = [];
       var currentSlotBtns = [];
-      var activeBtn      = null;
+      // Multi-select: track selected slots across all courts
+      var selectedSlots   = []; // [{label, value}]
 
       var courtRow = document.createElement("div");
       courtRow.style.cssText = "display:flex;flex-wrap:wrap;gap:7px;";
 
       var slotPanel = document.createElement("div");
-      slotPanel.style.cssText = "display:none;flex-wrap:wrap;gap:7px;padding-top:10px;margin-top:6px;border-top:1.5px solid #e5e7eb;width:100%;";
+      slotPanel.style.cssText = "display:none;flex-direction:column;gap:0;padding-top:10px;margin-top:6px;border-top:1.5px solid #e5e7eb;width:100%;";
+
+      // Multi-select footer (counter + confirm button) — built once, moved into slotPanel
+      var msFooter = null;
+      var msCounter = null;
+      var msConfirm = null;
+      if (multiSelect) {
+        msFooter = document.createElement("div");
+        msFooter.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed #e5e7eb;width:100%;";
+        msCounter = document.createElement("span");
+        msCounter.style.cssText = "font-size:12px;color:#6b7280;font-family:" + FONT + ";";
+        msCounter.textContent = "0 of " + maxSelect + " selected";
+        msConfirm = document.createElement("button");
+        msConfirm.className = "sprimal-choice";
+        msConfirm.textContent = "Confirm →";
+        msConfirm.disabled = true;
+        msConfirm.style.opacity = "0.4";
+        msConfirm.style.padding = "6px 14px";
+        msConfirm.style.fontSize = "13px";
+        msConfirm.addEventListener("click", function () {
+          if (!selectedSlots.length) return;
+          // Lock everything
+          courtBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+          currentSlotBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+          msConfirm.disabled = true; msConfirm.style.opacity = "0.4";
+          var displayText = selectedSlots.map(function (s) { return s.label; }).join(", ");
+          var value       = selectedSlots.map(function (s) { return s.value; }).join(" | ");
+          setTimeout(function () { sendAgentMessage(value, displayText); }, 280);
+        });
+        msFooter.appendChild(msCounter);
+        msFooter.appendChild(msConfirm);
+      }
+
+      function updateCounter() {
+        if (!msCounter) return;
+        msCounter.textContent = selectedSlots.length + " of " + maxSelect + " selected";
+        msConfirm.disabled    = selectedSlots.length === 0;
+        msConfirm.style.opacity = selectedSlots.length ? "1" : "0.4";
+      }
 
       choices.forEach(function (choice) {
         var btn = document.createElement("button");
@@ -673,31 +715,62 @@
             btn.style.background  = brandColor;
             btn.style.color       = "#fff";
             btn.style.borderColor = brandColor;
-            activeBtn = btn;
 
             // Rebuild slot panel for this court
+            var slotBtnRow = document.createElement("div");
+            slotBtnRow.style.cssText = "display:flex;flex-wrap:wrap;gap:7px;";
             while (slotPanel.firstChild) slotPanel.removeChild(slotPanel.firstChild);
             currentSlotBtns = [];
 
             choice.slots.forEach(function (slot) {
               var slotBtn = document.createElement("button");
-              slotBtn.className   = "sprimal-choice";
+              slotBtn.className = "sprimal-choice";
               slotBtn.textContent = slot.label;
-              currentSlotBtns.push(slotBtn);
-              slotBtn.addEventListener("click", function () {
-                // Lock all interactive elements
-                courtBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
-                currentSlotBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
-                slotBtn.style.opacity    = "1";
-                slotBtn.style.background = brandColor;
-                slotBtn.style.color      = "#fff";
+              // Restore selected state if this slot was previously picked
+              var alreadySelected = selectedSlots.some(function (s) { return s.value === slot.value; });
+              if (alreadySelected) {
+                slotBtn.style.background  = brandColor;
+                slotBtn.style.color       = "#fff";
                 slotBtn.style.borderColor = brandColor;
-                setTimeout(function () { sendAgentMessage(slot.value, slot.label); }, 280);
-              });
-              slotPanel.appendChild(slotBtn);
+              }
+              currentSlotBtns.push(slotBtn);
+
+              if (multiSelect) {
+                slotBtn.addEventListener("click", function () {
+                  var idx = selectedSlots.findIndex(function (s) { return s.value === slot.value; });
+                  if (idx >= 0) {
+                    // Deselect
+                    selectedSlots.splice(idx, 1);
+                    slotBtn.style.background  = "";
+                    slotBtn.style.color       = "";
+                    slotBtn.style.borderColor = "";
+                  } else if (selectedSlots.length < maxSelect) {
+                    // Select
+                    selectedSlots.push({ label: slot.label, value: slot.value });
+                    slotBtn.style.background  = brandColor;
+                    slotBtn.style.color       = "#fff";
+                    slotBtn.style.borderColor = brandColor;
+                  }
+                  updateCounter();
+                });
+              } else {
+                slotBtn.addEventListener("click", function () {
+                  courtBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+                  currentSlotBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+                  slotBtn.style.opacity     = "1";
+                  slotBtn.style.background  = brandColor;
+                  slotBtn.style.color       = "#fff";
+                  slotBtn.style.borderColor = brandColor;
+                  setTimeout(function () { sendAgentMessage(slot.value, slot.label); }, 280);
+                });
+              }
+              slotBtnRow.appendChild(slotBtn);
             });
 
+            slotPanel.appendChild(slotBtnRow);
+            if (multiSelect && msFooter) slotPanel.appendChild(msFooter);
             slotPanel.style.display = "flex";
+            updateCounter();
             messages.scrollTop = messages.scrollHeight;
           });
         })(choice, btn);
@@ -764,7 +837,7 @@
         hideTyping();
         if (data.reply) addMsg(data.reply, "bot");
         if (data.agentChoices && data.agentChoices.length) {
-          showAgentChoices(data.agentChoices);
+          showAgentChoices(data.agentChoices, { multiSelect: data.multiSelect, maxSelect: data.maxSelect });
         } else {
           // Agent complete or asking for typed input
           enableTextInput();
@@ -804,7 +877,7 @@
         sendBtn.disabled = false;
         // If agent returned choices, show them; otherwise stay in text mode
         if (data.agentChoices && data.agentChoices.length) {
-          showAgentChoices(data.agentChoices);
+          showAgentChoices(data.agentChoices, { multiSelect: data.multiSelect, maxSelect: data.maxSelect });
         } else {
           input.focus();
           showBackToMenu();

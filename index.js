@@ -6693,14 +6693,21 @@ async function runCurrentStep(convo, userInput) {
 
       state.collected.booking_date = isToday ? "Today" : "Tomorrow";
 
+      const isMulti  = step.multi_select || false;
+      const maxSel   = step.max_select   || 3;
+
       // ── No court IDs known (no bookings yet today) — flat slot list ───────
       if (!allCourtIds.length) {
         return {
-          reply: `Here are available slots ${dateLabel} 🎾 Which works best for you?`,
+          reply: isMulti
+            ? `Here are available slots ${dateLabel} 🎾 Pick up to ${maxSel} times that suit you, then tap Confirm.`
+            : `Here are available slots ${dateLabel} 🎾 Which works best for you?`,
           choices: allFreeSlots.slice(0, 8).map(({ slot }) => {
             const endTime = toHHMM(toMins(slot) + slotMins);
             return { label: `${slot} – ${endTime}`, value: `${state.collected.booking_date} ${slot}–${endTime}` };
-          })
+          }),
+          multiSelect: isMulti,
+          maxSelect:   maxSel
         };
       }
 
@@ -6725,8 +6732,12 @@ async function runCurrentStep(convo, userInput) {
         .filter(c => c.slots.length > 0);
 
       return {
-        reply: `Here are the courts available ${dateLabel} 🎾 Tap a court to see its free slots.`,
-        choices: courtsWithSlots
+        reply: isMulti
+          ? `Here are the courts available ${dateLabel} 🎾 Tap a court, then pick up to ${maxSel} slots that suit you.`
+          : `Here are the courts available ${dateLabel} 🎾 Tap a court to see its free slots.`,
+        choices:     courtsWithSlots,
+        multiSelect: isMulti,
+        maxSelect:   maxSel
       };
 
     } catch (err) {
@@ -7062,7 +7073,7 @@ app.post("/chat", async (req, res) => {
         if (agentResult) {
           addChatLog({ userId, conversationId, tenantId, sender: "customer", message: message || `[started agent: ${agentTrigger}]`, timestamp: new Date() });
           addChatLog({ userId, conversationId, tenantId, sender: "bot",      message: agentResult.reply,  timestamp: new Date() });
-          return res.json({ reply: agentResult.reply, agentChoices: agentResult.choices || [] });
+          return res.json({ reply: agentResult.reply, agentChoices: agentResult.choices || [], multiSelect: agentResult.multiSelect || false, maxSelect: agentResult.maxSelect || 3 });
         }
       } catch (agentErr) {
         console.error("[agent] Error:", agentErr.message);

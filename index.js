@@ -5131,6 +5131,19 @@ app.delete("/api/admin/tenants/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   if (!id) return res.status(400).json({ error: "Missing tenant id." });
   try {
+    // Delete workflow choices first (depend on steps), then steps (depend on workflows), then workflows
+    const { data: workflows } = await supabase.from("chat_workflows").select("id").eq("club_id", id);
+    if (workflows && workflows.length > 0) {
+      const workflowIds = workflows.map(w => w.id);
+      const { data: wfSteps } = await supabase.from("workflow_steps").select("id").in("workflow_id", workflowIds);
+      if (wfSteps && wfSteps.length > 0) {
+        const stepIds = wfSteps.map(s => s.id);
+        await supabase.from("workflow_choices").delete().in("step_id", stepIds);
+      }
+      await supabase.from("workflow_steps").delete().in("workflow_id", workflowIds);
+      await supabase.from("chat_workflows").delete().eq("club_id", id);
+    }
+
     const steps = [
       supabase.from("approved_answers").delete().eq("tenant_id", id),
       supabase.from("chat_logs").delete().eq("tenant_id", id),

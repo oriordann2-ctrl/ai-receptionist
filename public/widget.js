@@ -494,15 +494,18 @@
       container.appendChild(btn);
     });
 
-    // Always offer AI fallback
-    var aiBtn = document.createElement("button");
-    aiBtn.className = "sprimal-choice sprimal-choice-ai";
-    aiBtn.textContent = "🤖 Ask something else";
-    allBtns.push(aiBtn);
-    aiBtn.addEventListener("click", function () {
-      selectAndProceed(aiBtn, allBtns, function () { clearChoices(); enableTextInput(); });
-    });
-    container.appendChild(aiBtn);
+    // Only add AI fallback button if no configured choice already handles it
+    var hasAiFallback = choices.some(function (ch) { return ch.action_type === "ai_fallback"; });
+    if (!hasAiFallback) {
+      var aiBtn = document.createElement("button");
+      aiBtn.className = "sprimal-choice sprimal-choice-ai";
+      aiBtn.textContent = "🤖 Ask something else";
+      allBtns.push(aiBtn);
+      aiBtn.addEventListener("click", function () {
+        selectAndProceed(aiBtn, allBtns, function () { clearChoices(); enableTextInput(); });
+      });
+      container.appendChild(aiBtn);
+    }
 
     // Append inside the scrollable messages area — flows inline like AOM
     messages.appendChild(container);

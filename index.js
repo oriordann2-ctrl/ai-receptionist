@@ -63,7 +63,7 @@ const INTG_ENC_KEY = process.env.INTEGRATION_ENCRYPTION_KEY
   : null;
 
 // Fields encrypted before storing in tenant_integrations.config
-const INTG_SENSITIVE_FIELDS = ["username", "password"];
+const INTG_SENSITIVE_FIELDS = ["username", "password", "account_sid", "auth_token"];
 
 function encryptField(plaintext) {
   if (!INTG_ENC_KEY) return plaintext; // no key → store as-is (dev mode)
@@ -337,6 +337,19 @@ const INTEGRATION_CATALOG = [
     ]
   },
   {
+    provider:       "twilio",
+    name:           "Twilio WhatsApp",
+    logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#F22F46;display:flex;align-items:center;justify-content:center;margin:0 auto;"><svg viewBox="0 0 24 24" style="width:32px;height:32px;fill:white;"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2.571c5.196 0 9.429 4.233 9.429 9.429S17.196 21.429 12 21.429 2.571 17.196 2.571 12 6.804 2.571 12 2.571zm-2.571 5.143a2.571 2.571 0 1 0 0 5.143 2.571 2.571 0 0 0 0-5.143zm5.142 0a2.571 2.571 0 1 0 0 5.143 2.571 2.571 0 0 0 0-5.143zm-5.142 5.715a2.571 2.571 0 1 0 0 5.142 2.571 2.571 0 0 0 0-5.142zm5.142 0a2.571 2.571 0 1 0 0 5.142 2.571 2.571 0 0 0 0-5.142z"/></svg></div>',
+    description:    "Send WhatsApp messages to coaches and staff",
+    business_types: null,
+    coming_soon:    false,
+    fields: [
+      { key: "account_sid",  label: "Account SID",          type: "text",     placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", required: true,  hint: "From twilio.com/console — starts with AC" },
+      { key: "auth_token",   label: "Auth Token",           type: "password", placeholder: "••••••••",                           required: true,  hint: "From twilio.com/console — keep this secret" },
+      { key: "from_number",  label: "WhatsApp From number", type: "text",     placeholder: "whatsapp:+14155238886",               required: true,  hint: "Your Twilio WhatsApp-enabled number in whatsapp:+E.164 format" }
+    ]
+  },
+  {
     provider:       "stripe",
     name:           "Stripe",
     logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#635BFF;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:28px;font-family:sans-serif;margin:0 auto;">S</div>',
@@ -479,6 +492,34 @@ async function loadEboConfigFromDb(tenantId) {
     }
   } catch (err) {
     console.error(`[EBO] DB config load failed for ${tenantId}:`, err.message);
+  }
+}
+
+// ── Twilio WhatsApp Integration ───────────────────────────────────────────────
+// Per-tenant Twilio config cache — populated from tenant_integrations table
+const TWILIO_CONFIG = {};
+
+async function loadTwilioConfigFromDb(tenantId) {
+  if (TWILIO_CONFIG[tenantId]) return;
+  try {
+    const { data } = await supabase
+      .from("tenant_integrations")
+      .select("config, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "twilio")
+      .maybeSingle();
+    if (data?.is_active && data.config?.account_sid) {
+      const cfg = decryptIntgConfig(data.config);
+      if (!cfg.auth_token || !cfg.from_number) return;
+      TWILIO_CONFIG[tenantId] = {
+        accountSid: cfg.account_sid,
+        authToken:  cfg.auth_token,
+        from:       cfg.from_number
+      };
+      console.log(`[Twilio] Config loaded from DB for ${tenantId}`);
+    }
+  } catch (err) {
+    console.error(`[Twilio] DB config load failed for ${tenantId}:`, err.message);
   }
 }
 
@@ -6901,6 +6942,11 @@ app.put("/api/portal/integrations/:provider", requireTenant, async (req, res) =>
       console.log(`[EBO] Config updated from portal for ${tenantId}`);
     }
 
+    // Clear Twilio cache so next use picks up new credentials
+    if (provider === "twilio") {
+      delete TWILIO_CONFIG[tenantId];
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error("[integrations] PUT error:", err.message);
@@ -6923,6 +6969,9 @@ app.delete("/api/portal/integrations/:provider", requireTenant, async (req, res)
     if (provider === "ebookingonline") {
       delete EBO_CONFIG[tenantId];
       delete eboTokenCache[tenantId];
+    }
+    if (provider === "twilio") {
+      delete TWILIO_CONFIG[tenantId];
     }
 
     res.json({ success: true });

@@ -857,25 +857,21 @@
 
         allBtns.push(btn);
         btn.addEventListener("click", function () {
-          allBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
-          btn.style.opacity = "1";
-          // External URL — open in new tab, don't send to bot
+          // External URL — open in new tab, leave other buttons (e.g. Back to menu) active
           if (typeof value === "string" && value.startsWith("__url__")) {
             window.open(value.slice(7), "_blank", "noopener,noreferrer");
             return;
           }
+          allBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+          btn.style.opacity = "1";
           // Back to menu — replay root flow without a network call
           if (value === "__menu__") {
-            console.log("[menu] rootFlowId:", rootFlowId, "wfFlowMap keys:", Object.keys(wfFlowMap), "steps:", wfFlowMap[rootFlowId] ? wfFlowMap[rootFlowId].length : "MISSING");
             if (rootFlowId && wfFlowMap[rootFlowId]) {
               wfSteps = wfFlowMap[rootFlowId];
               wfMode  = true;
               var footer = document.getElementById("sprimal-footer");
               if (footer) footer.style.display = "none";
-              console.log("[menu] calling showWorkflowStep with step:", wfSteps[0]);
               setTimeout(function () { showWorkflowStep(wfSteps[0]); }, 280);
-            } else {
-              console.log("[menu] condition FAILED — rootFlowId:", rootFlowId, "wfFlowMap[rootFlowId]:", wfFlowMap[rootFlowId]);
             }
             return;
           }

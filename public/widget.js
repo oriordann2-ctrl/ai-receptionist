@@ -595,7 +595,82 @@
     } else if (type === "ai_fallback") {
       addMsg("Sure! What would you like to know?", "bot");
       enableTextInput();
+
+    } else if (type === "agent") {
+      // Start an agent session — send trigger to backend, show response + agent choices
+      showTyping();
+      fetch(BACKEND + "/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userId, conversationId: conversationId, message: "", clubId: clubId, agentTrigger: val })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          hideTyping();
+          if (data.reply) addMsg(data.reply, "bot");
+          if (data.agentChoices && data.agentChoices.length) {
+            showAgentChoices(data.agentChoices);
+          } else {
+            enableTextInput();
+          }
+        })
+        .catch(function () {
+          hideTyping();
+          addMsg("Sorry, I couldn't connect. Please try again.", "bot");
+          enableTextInput();
+        });
     }
+  }
+
+  // Render agent choice buttons (returned from /chat agentChoices array)
+  function showAgentChoices(choices) {
+    clearChoices();
+    var container = document.createElement("div");
+    container.id  = "sprimal-choices";
+    var allBtns   = [];
+    choices.forEach(function (label) {
+      var btn = document.createElement("button");
+      btn.className   = "sprimal-choice";
+      btn.textContent = label;
+      allBtns.push(btn);
+      btn.addEventListener("click", function () {
+        allBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+        btn.style.opacity = "1"; btn.style.background = brandColor; btn.style.color = "#fff"; btn.style.borderColor = brandColor;
+        setTimeout(function () { sendAgentMessage(label); }, 280);
+      });
+      container.appendChild(btn);
+    });
+    messages.appendChild(container);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  // Send a message as part of an active agent session
+  function sendAgentMessage(text) {
+    clearChoices();
+    addMsg(text, "user");
+    showTyping();
+    fetch(BACKEND + "/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: userId, conversationId: conversationId, message: text, clubId: clubId })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        hideTyping();
+        if (data.reply) addMsg(data.reply, "bot");
+        if (data.agentChoices && data.agentChoices.length) {
+          showAgentChoices(data.agentChoices);
+        } else {
+          // Agent complete or asking for typed input
+          enableTextInput();
+          if (!data.agentChoices) showBackToMenu();
+        }
+      })
+      .catch(function () {
+        hideTyping();
+        addMsg("Sorry, I couldn't connect. Please try again.", "bot");
+        enableTextInput();
+      });
   }
 
   // ── Send message ─────────────────────────────────────────────────────────
@@ -622,8 +697,13 @@
         hideTyping();
         addMsg(data.reply || "Sorry, something went wrong.", "bot");
         sendBtn.disabled = false;
-        input.focus();
-        showBackToMenu();
+        // If agent returned choices, show them; otherwise stay in text mode
+        if (data.agentChoices && data.agentChoices.length) {
+          showAgentChoices(data.agentChoices);
+        } else {
+          input.focus();
+          showBackToMenu();
+        }
       })
       .catch(function () {
         hideTyping();

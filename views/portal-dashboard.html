@@ -641,6 +641,60 @@
     </details>
   </div>
 
+  <!-- ── Section: Agents ── -->
+  <div class="section-group-label">⚡ Agents</div>
+
+  <!-- Agent Library card -->
+  <div class="card">
+    <details class="analytics-details" id="agentsDetails">
+      <summary class="analytics-summary" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:20px;">🤖</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Agent Library</div>
+            <div style="font-size:13px;color:#6b7280;">Activate pre-built agents that run multi-step workflows in your chat widget</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="agentsBody">
+        <div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Agent Config Panel (hidden, slides in) -->
+  <div id="agentConfigOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:32px;max-width:520px;width:94%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
+        <div>
+          <div id="agentConfigTitle" style="font-size:17px;font-weight:700;color:#111827;"></div>
+          <div id="agentConfigSub" style="font-size:13px;color:#6b7280;margin-top:2px;"></div>
+        </div>
+        <button onclick="closeAgentConfig()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;line-height:1;">&times;</button>
+      </div>
+      <div id="agentConfigFields" style="display:flex;flex-direction:column;gap:16px;"></div>
+      <div style="margin-top:24px;display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="closeAgentConfig()" style="padding:9px 20px;border-radius:9px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;cursor:pointer;color:#374151;">Cancel</button>
+        <button id="agentConfigSaveBtn" onclick="saveAgentConfig()" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent Leads Panel (hidden) -->
+  <div id="agentLeadsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:32px;max-width:700px;width:96%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
+        <div>
+          <div id="agentLeadsTitle" style="font-size:17px;font-weight:700;color:#111827;"></div>
+          <div style="font-size:13px;color:#6b7280;margin-top:2px;">Enquiries captured by this agent</div>
+        </div>
+        <button onclick="closeAgentLeads()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;line-height:1;">&times;</button>
+      </div>
+      <div id="agentLeadsBody"></div>
+    </div>
+  </div>
+
   <!-- ── Section: Knowledge & Insights ── -->
   <div class="section-group-label">📚 Knowledge &amp; Insights</div>
 
@@ -1904,6 +1958,295 @@
     details.addEventListener("toggle", function () {
       if (details.open) loadWorkflows();
     });
+  })();
+
+  // ── Agents Library ────────────────────────────────────────────────────────
+  (function () {
+    var details   = document.getElementById("agentsDetails");
+    var body      = document.getElementById("agentsBody");
+    var activeTenantAgentId = null; // for config panel
+
+    function esc(s) {
+      return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    function loadAgents() {
+      body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>';
+      Promise.all([
+        fetch("/api/portal/agent-definitions").then(function(r){ return r.json(); }),
+        fetch("/api/portal/agents").then(function(r){ return r.json(); })
+      ]).then(function(results) {
+        var allDefs   = results[0] || [];
+        var myAgents  = results[1] || [];
+
+        // Map active by agent_id
+        var activeMap = {};
+        myAgents.forEach(function(ta) { activeMap[ta.agent_id] = ta; });
+
+        var available = allDefs.filter(function(d) { return !activeMap[d.id]; });
+        var active    = allDefs.filter(function(d) { return  activeMap[d.id]; });
+
+        var html = "";
+
+        // ── Active agents ─────────────────────────────────────────────────────
+        if (active.length) {
+          html += '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px;">Active Agents</div>';
+          active.forEach(function(def) {
+            var ta = activeMap[def.id];
+            html += '<div style="border:1.5px solid #d1fae5;border-radius:12px;padding:16px 18px;margin-bottom:14px;background:#f0fdf4;">'
+              + '<div style="display:flex;align-items:flex-start;gap:14px;">'
+              + '<div style="flex:1;">'
+              + '<div style="font-weight:700;color:#111827;font-size:14px;margin-bottom:3px;">' + esc(def.name) + '</div>'
+              + '<div style="font-size:13px;color:#6b7280;line-height:1.5;">' + esc(def.description) + '</div>'
+              + '</div>'
+              + '<div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">'
+              + '<button onclick="openAgentConfig(\'' + esc(ta.id) + '\',\'' + esc(def.id) + '\')" style="padding:6px 14px;border-radius:8px;border:1.5px solid #2563eb;background:#fff;color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;">Configure</button>'
+              + '<button onclick="openAgentLeads(\'' + esc(ta.id) + '\',\'' + esc(def.name) + '\')" style="padding:6px 14px;border-radius:8px;border:1.5px solid #7c3aed;background:#fff;color:#7c3aed;font-size:13px;font-weight:600;cursor:pointer;">Leads</button>'
+              + '<label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">'
+              + '<input type="checkbox" ' + (ta.is_active ? "checked" : "") + ' onchange="toggleAgent(\'' + esc(ta.id) + '\',this.checked)" style="opacity:0;width:0;height:0;position:absolute;">'
+              + '<span style="position:absolute;inset:0;border-radius:34px;background:' + (ta.is_active ? "#2563eb" : "#d1d5db") + ';transition:background 0.2s;" id="toggle-' + esc(ta.id) + '"></span>'
+              + '<span style="position:absolute;left:' + (ta.is_active ? "20px" : "2px") + ';top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s;" id="thumb-' + esc(ta.id) + '"></span>'
+              + '</label>'
+              + '</div>'
+              + '</div>'
+              + '</div>';
+          });
+          html += '<div style="height:20px;"></div>';
+        }
+
+        // ── Available agents ──────────────────────────────────────────────────
+        if (available.length) {
+          html += '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px;">Available Agents</div>';
+          available.forEach(function(def) {
+            html += '<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:16px 18px;margin-bottom:14px;background:#fafafa;">'
+              + '<div style="display:flex;align-items:flex-start;gap:14px;">'
+              + '<div style="flex:1;">'
+              + '<div style="font-weight:700;color:#111827;font-size:14px;margin-bottom:3px;">' + esc(def.name) + '</div>'
+              + '<div style="font-size:13px;color:#6b7280;line-height:1.5;">' + esc(def.description) + '</div>'
+              + '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">'
+              + (def.skill_ids || []).map(function(s) {
+                  return '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;">' + esc(s.replace(/_/g," ")) + '</span>';
+                }).join("")
+              + '</div>'
+              + '</div>'
+              + '<button onclick="activateAgent(\'' + esc(def.id) + '\')" style="flex-shrink:0;padding:8px 18px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Activate</button>'
+              + '</div>'
+              + '</div>';
+          });
+        }
+
+        if (!available.length && !active.length) {
+          html = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No agents in the library yet.</div>';
+        }
+
+        body.innerHTML = html;
+      }).catch(function() {
+        body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#dc2626;">Failed to load agents.</div>';
+      });
+    }
+
+    window.activateAgent = function(agentId) {
+      fetch("/api/portal/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent_id: agentId })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) { alert("Error: " + data.error); return; }
+        loadAgents(); // refresh — then immediately open configure
+        // slight delay to let DOM repaint
+        setTimeout(function() {
+          if (data.id) openAgentConfig(data.id, agentId);
+        }, 400);
+      }).catch(function() { alert("Something went wrong."); });
+    };
+
+    window.toggleAgent = function(tenantAgentId, isActive) {
+      var track = document.getElementById("toggle-" + tenantAgentId);
+      var thumb = document.getElementById("thumb-"  + tenantAgentId);
+      if (track) track.style.background = isActive ? "#2563eb" : "#d1d5db";
+      if (thumb) thumb.style.left       = isActive ? "20px" : "2px";
+      fetch("/api/portal/agents/" + tenantAgentId, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: isActive })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) alert("Error: " + data.error);
+      }).catch(function() { alert("Something went wrong."); });
+    };
+
+    // ── Config panel ──────────────────────────────────────────────────────────
+    var configSchema = null;
+    var configValues = {};
+
+    window.openAgentConfig = function(tenantAgentId, agentId) {
+      activeTenantAgentId = tenantAgentId;
+      var overlay = document.getElementById("agentConfigOverlay");
+
+      // Fetch agent definition + current config
+      Promise.all([
+        fetch("/api/portal/agent-definitions").then(function(r){ return r.json(); }),
+        fetch("/api/portal/agents").then(function(r){ return r.json(); })
+      ]).then(function(results) {
+        var defs    = results[0] || [];
+        var myList  = results[1] || [];
+        var def     = defs.find(function(d){ return d.id === agentId; }) || {};
+        var ta      = myList.find(function(x){ return x.id === tenantAgentId; }) || {};
+        configSchema = (def.config_schema && def.config_schema.fields) ? def.config_schema.fields : [];
+        configValues = ta.config || {};
+
+        document.getElementById("agentConfigTitle").textContent = def.name || "Configure Agent";
+        document.getElementById("agentConfigSub").textContent   = def.description || "";
+
+        var fieldsHtml = "";
+        configSchema.forEach(function(field) {
+          var val = configValues[field.key] !== undefined ? configValues[field.key] : "";
+          fieldsHtml += '<div>';
+          fieldsHtml += '<label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">'
+            + esc(field.label)
+            + (field.required ? ' <span style="color:#dc2626;">*</span>' : "")
+            + '</label>';
+
+          if (field.type === "textarea" || field.type === "multiline") {
+            fieldsHtml += '<textarea id="agentField_' + esc(field.key) + '" rows="' + (field.type === "multiline" ? 5 : 3) + '" placeholder="' + esc(field.placeholder || "") + '" '
+              + 'style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;resize:vertical;box-sizing:border-box;">'
+              + esc(val)
+              + '</textarea>';
+          } else {
+            fieldsHtml += '<input id="agentField_' + esc(field.key) + '" type="' + esc(field.type || "text") + '" value="' + esc(val) + '" placeholder="' + esc(field.placeholder || "") + '" '
+              + 'style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;box-sizing:border-box;" />';
+          }
+
+          if (field.hint) {
+            fieldsHtml += '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">' + esc(field.hint) + '</div>';
+          }
+          fieldsHtml += '</div>';
+        });
+
+        document.getElementById("agentConfigFields").innerHTML = fieldsHtml;
+        overlay.style.display = "flex";
+      });
+    };
+
+    window.closeAgentConfig = function() {
+      document.getElementById("agentConfigOverlay").style.display = "none";
+      activeTenantAgentId = null;
+    };
+
+    window.saveAgentConfig = function() {
+      if (!activeTenantAgentId || !configSchema) return;
+      var btn = document.getElementById("agentConfigSaveBtn");
+      var newConfig = {};
+      var valid = true;
+      configSchema.forEach(function(field) {
+        var el  = document.getElementById("agentField_" + field.key);
+        if (!el) return;
+        var val = el.value.trim();
+        if (field.required && !val) {
+          el.style.borderColor = "#dc2626";
+          valid = false;
+        } else {
+          el.style.borderColor = "#e2e8f0";
+          newConfig[field.key] = val;
+        }
+      });
+      if (!valid) { alert("Please fill in all required fields."); return; }
+
+      btn.disabled = true; btn.textContent = "Saving…";
+      fetch("/api/portal/agents/" + activeTenantAgentId, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: newConfig })
+      }).then(function(r){ return r.json(); }).then(function(data) {
+        btn.disabled = false; btn.textContent = "Save Configuration";
+        if (data.error) { alert("Error: " + data.error); return; }
+        closeAgentConfig();
+        loadAgents();
+      }).catch(function() {
+        btn.disabled = false; btn.textContent = "Save Configuration";
+        alert("Something went wrong.");
+      });
+    };
+
+    // ── Leads panel ───────────────────────────────────────────────────────────
+    window.openAgentLeads = function(tenantAgentId, agentName) {
+      var overlay = document.getElementById("agentLeadsOverlay");
+      var leadsBody = document.getElementById("agentLeadsBody");
+      document.getElementById("agentLeadsTitle").textContent = agentName + " — Leads";
+      leadsBody.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>';
+      overlay.style.display = "flex";
+
+      fetch("/api/portal/agent-leads?agent_instance_id=" + encodeURIComponent(tenantAgentId))
+        .then(function(r){ return r.json(); })
+        .then(function(leads) {
+          if (!leads || !leads.length) {
+            leadsBody.innerHTML = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No leads captured yet.</div>';
+            return;
+          }
+          var table = '<div style="overflow-x:auto;">'
+            + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+            + '<thead><tr style="border-bottom:2px solid #e5e7eb;">'
+            + '<th style="text-align:left;padding:8px 10px;color:#6b7280;font-weight:600;">Date</th>'
+            + '<th style="text-align:left;padding:8px 10px;color:#6b7280;font-weight:600;">Name</th>'
+            + '<th style="text-align:left;padding:8px 10px;color:#6b7280;font-weight:600;">Email</th>'
+            + '<th style="text-align:left;padding:8px 10px;color:#6b7280;font-weight:600;">Type</th>'
+            + '<th style="text-align:left;padding:8px 10px;color:#6b7280;font-weight:600;">Status</th>'
+            + '</tr></thead><tbody>';
+
+          leads.forEach(function(lead) {
+            var d = lead.data || {};
+            var dateStr = lead.created_at ? new Date(lead.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) : "—";
+            var statusColor = { new: "#2563eb", contacted: "#d97706", closed: "#16a34a" }[lead.status] || "#6b7280";
+            table += '<tr style="border-bottom:1px solid #f3f4f6;">'
+              + '<td style="padding:10px 10px;color:#374151;">' + esc(dateStr) + '</td>'
+              + '<td style="padding:10px 10px;color:#111827;font-weight:500;">' + esc(d.name || "—") + '</td>'
+              + '<td style="padding:10px 10px;color:#374151;">' + esc(d.email || "—") + '</td>'
+              + '<td style="padding:10px 10px;color:#374151;">' + esc(d.session_type || d.type || "—") + '</td>'
+              + '<td style="padding:10px 10px;">'
+              + '<select onchange="updateLeadStatus(\'' + esc(lead.id) + '\',this.value)" '
+              + 'style="padding:4px 8px;border-radius:8px;border:1.5px solid ' + statusColor + ';color:' + statusColor + ';font-size:12px;font-weight:600;background:#fff;cursor:pointer;">'
+              + ['new','contacted','closed'].map(function(s) {
+                  return '<option value="' + s + '"' + (lead.status===s?" selected":"") + '>' + s.charAt(0).toUpperCase()+s.slice(1) + '</option>';
+                }).join("")
+              + '</select>'
+              + '</td>'
+              + '</tr>';
+          });
+
+          table += '</tbody></table></div>';
+          leadsBody.innerHTML = table;
+        }).catch(function() {
+          leadsBody.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#dc2626;">Failed to load leads.</div>';
+        });
+    };
+
+    window.closeAgentLeads = function() {
+      document.getElementById("agentLeadsOverlay").style.display = "none";
+    };
+
+    window.updateLeadStatus = function(leadId, status) {
+      fetch("/api/portal/agent-leads/" + leadId, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: status })
+      }).then(function(r){ return r.json(); }).then(function(data) {
+        if (data.error) alert("Error: " + data.error);
+      }).catch(function() { alert("Something went wrong."); });
+    };
+
+    // Close overlays on backdrop click
+    document.getElementById("agentConfigOverlay").addEventListener("click", function(e) {
+      if (e.target === this) closeAgentConfig();
+    });
+    document.getElementById("agentLeadsOverlay").addEventListener("click", function(e) {
+      if (e.target === this) closeAgentLeads();
+    });
+
+    // Open trigger
+    details.addEventListener("toggle", function() {
+      if (details.open) loadAgents();
+    });
+
+    window._reloadAgents = loadAgents; // expose for external refresh
   })();
 
   window.portalAskKB = function() {

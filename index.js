@@ -6194,6 +6194,438 @@ app.get("/api/tenant-favicon/:tenantId", async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Skills & Agent Library ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Resolve {{variable}} placeholders in a template string from a data object
+function fillTemplate(template, data) {
+  if (!template) return "";
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] ?? "");
+}
+
+// Validate an email address
+function isValidEmail(str) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str.trim());
+}
+
+// ── Lead Capture skill engine ─────────────────────────────────────────────────
+// Runs as a sub-state machine inside an agent step.
+// agentState.skillState = { fieldIndex: number, fields: [...], data: {} }
+// Returns { reply, choices, done, data }
+
+function startLeadCaptureSkill(agentState, skillDef) {
+  const fields = skillDef.config_schema.fields || [];
+  agentState.skillState = { fieldIndex: 0, fields, data: {} };
+  const first = fields[0];
+  return { reply: first.prompt, choices: [], done: false };
+}
+
+function advanceLeadCaptureSkill(agentState, message) {
+  const state  = agentState.skillState;
+  const fields = state.fields;
+  const idx    = state.fieldIndex;
+  const field  = fields[idx];
+  const trimmed = message.trim();
+  const lower   = trimmed.toLowerCase();
+
+  // Handle skip for optional fields
+  if (lower === "skip" && !field.required) {
+    state.data[field.key] = null;
+    state.fieldIndex++;
+  } else if (!trimmed) {
+    // Empty answer for required field — re-ask politely
+    if (field.required) {
+      return { reply: `I just need ${field.label} to continue — could you share that?`, choices: [], done: false };
+    }
+    state.data[field.key] = null;
+    state.fieldIndex++;
+  } else if (field.validation === "email" && !isValidEmail(trimmed)) {
+    return { reply: "That doesn't look like a valid email address — could you double-check it?", choices: [], done: false };
+  } else {
+    state.data[field.key] = trimmed;
+    state.fieldIndex++;
+  }
+
+  // Advance to next field
+  if (state.fieldIndex < fields.length) {
+    const next = fields[state.fieldIndex];
+    return { reply: next.prompt, choices: [], done: false };
+  }
+
+  // All fields collected
+  return { reply: null, choices: [], done: true, data: state.data };
+}
+
+// ── Notify & Confirm skill engine ─────────────────────────────────────────────
+// Single-turn — runs once, sends email, stores lead, returns confirmation.
+
+async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId, agentName, collected, agentConfig) {
+  // Build email
+  const notifyEmail = agentConfig.notification_email;
+  const replyTime   = agentConfig.reply_time || "soon";
+  const subject     = fillTemplate(
+    agentConfig.email_subject || `New ${agentName} enquiry from {{name}}`,
+    { ...collected, reply_time: replyTime }
+  );
+
+  // Build HTML email body
+  const rows = Object.entries(collected)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `<tr><td style="padding:6px 12px;font-weight:600;color:#374151;text-transform:capitalize;">${k.replace(/_/g, " ")}</td><td style="padding:6px 12px;color:#111827;">${v}</td></tr>`)
+    .join("");
+  const htmlBody = `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;margin-bottom:4px;">New ${agentName} Enquiry</h2>
+      <p style="color:#6b7280;font-size:14px;margin-bottom:16px;">Via your Sprimal chat widget</p>
+      <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:8px;overflow:hidden;">
+        ${rows}
+      </table>
+      <p style="color:#9ca3af;font-size:12px;margin-top:20px;">Sent by Sprimal · <a href="https://app.sprimal.com" style="color:#6b7280;">app.sprimal.com</a></p>
+    </div>`;
+
+  if (notifyEmail) sendStaffEmail(notifyEmail, subject, htmlBody);
+
+  // Store lead in skill_leads — keyed by tenant_agent instance UUID so leads panel can filter
+  await supabase.from("skill_leads").insert({
+    tenant_id: tenantId,
+    agent_id:  tenantAgentInstanceId || agentId,
+    data:      collected,
+    status:    "new"
+  });
+
+  // Build chat confirmation
+  const confirmTmpl = agentConfig.confirmation_message
+    || `Thanks {{name}}! We'll be in touch within {{reply_time}}. 😊`;
+  const confirmMsg = fillTemplate(confirmTmpl, { ...collected, reply_time: replyTime });
+
+  return { reply: confirmMsg, choices: [], done: true };
+}
+
+// ── Agent state machine ───────────────────────────────────────────────────────
+
+// Start a new agent session for this user. Called when agentTrigger is received.
+async function startAgent(userId, agentId, tenantId) {
+  const convo = ensureConversation(userId);
+
+  // Load agent definition
+  const { data: agentDef, error: agentErr } = await supabase
+    .from("agent_definitions")
+    .select("*")
+    .eq("id", agentId)
+    .maybeSingle();
+  if (agentErr || !agentDef) return { reply: "Sorry, I couldn't start that process. Please try again.", choices: [] };
+
+  // Load tenant config
+  const { data: tenantAgent } = await supabase
+    .from("tenant_agents")
+    .select("id, config, is_active")
+    .eq("tenant_id", tenantId)
+    .eq("agent_id", agentId)
+    .maybeSingle();
+
+  if (!tenantAgent || !tenantAgent.is_active) {
+    return { reply: "This feature isn't available right now. Please contact us directly.", choices: [] };
+  }
+
+  const config = tenantAgent.config || {};
+
+  // Load skill definitions
+  const { data: skillDefs } = await supabase
+    .from("skill_definitions")
+    .select("*")
+    .in("id", agentDef.skill_ids || []);
+  const skillMap = {};
+  (skillDefs || []).forEach(s => { skillMap[s.id] = s; });
+
+  // Set initial agent state
+  const firstStep = (agentDef.steps || [])[0];
+  convo.agentState = {
+    agentId,
+    tenantAgentInstanceId: tenantAgent.id,  // UUID of tenant_agents row — used for lead storage
+    agentName:  agentDef.name,
+    agentDef,
+    tenantConfig: config,
+    skillMap,
+    stepId:     firstStep?.id || null,
+    collected:  {},
+    skillState: null,
+    tenantId
+  };
+
+  // Run the first step immediately (greeting)
+  return runCurrentStep(convo, null);
+}
+
+// Process a user message against the active agent state.
+async function handleAgentMessage(userId, message, tenantId) {
+  const convo = ensureConversation(userId);
+  const state  = convo.agentState;
+  if (!state) return null;
+
+  const trimmed = message.trim();
+  const lower   = trimmed.toLowerCase();
+
+  // Cancel at any time
+  if (/^(cancel|stop|exit|quit|never mind|no thanks)$/i.test(lower)) {
+    convo.agentState = null;
+    return { reply: "No problem at all — let me know if there's anything else I can help with! 😊", choices: [] };
+  }
+
+  return runCurrentStep(convo, trimmed);
+}
+
+// Core dispatcher — runs the current step with the given user input (null on start).
+async function runCurrentStep(convo, userInput) {
+  const state  = convo.agentState;
+  const steps  = state.agentDef.steps || [];
+  const step   = steps.find(s => s.id === state.stepId);
+
+  if (!step) {
+    convo.agentState = null;
+    return { reply: "Something went wrong. Please try again.", choices: [] };
+  }
+
+  // ── Greeting step ─────────────────────────────────────────────────────────
+  if (step.type === "greeting") {
+    if (userInput === null) {
+      // First call — show greeting + choices
+      const intro   = fillTemplate(state.tenantConfig[step.message_key] || "", state.collected);
+      const types   = (state.tenantConfig[step.choices_key] || "")
+        .split("\n").map(s => s.trim()).filter(Boolean);
+      const prompt  = step.prompt || "What would you like?";
+      const reply   = intro ? `${intro}\n\n${prompt}` : prompt;
+      return { reply, choices: types };
+    }
+
+    // User has responded — store their choice
+    state.collected[step.collect_field] = userInput;
+
+    // Check branches (e.g. Junior → ask child age)
+    const lower = userInput.toLowerCase();
+    let nextId  = step.default_next;
+    for (const branch of (step.branches || [])) {
+      if (lower.includes(branch.if_value_contains.toLowerCase())) {
+        nextId = branch.next;
+        break;
+      }
+    }
+
+    state.stepId     = nextId;
+    state.skillState = null;
+    return runCurrentStep(convo, null);
+  }
+
+  // ── Collect step ──────────────────────────────────────────────────────────
+  if (step.type === "collect") {
+    if (userInput === null) {
+      return { reply: step.prompt, choices: [] };
+    }
+
+    // Validate and store
+    const trimmed = userInput.trim();
+    if (!trimmed) {
+      return { reply: `Could you share ${step.collect_field.replace(/_/g, " ")}? It helps us get things set up for you.`, choices: [] };
+    }
+    state.collected[step.collect_field] = trimmed;
+    state.stepId     = step.next;
+    state.skillState = null;
+    return runCurrentStep(convo, null);
+  }
+
+  // ── Skill step ────────────────────────────────────────────────────────────
+  if (step.type === "skill") {
+    const skillDef = state.skillMap[step.skill_id];
+    if (!skillDef) {
+      state.stepId = step.next;
+      return runCurrentStep(convo, null);
+    }
+
+    // ── lead_capture skill ────────────────────────────────────────────────
+    if (step.skill_id === "lead_capture") {
+      // First entry — initialise skill state
+      if (!state.skillState) {
+        const result = startLeadCaptureSkill(state, skillDef);
+        return result;
+      }
+
+      // Subsequent messages — advance skill
+      const result = advanceLeadCaptureSkill(state, userInput);
+      if (!result.done) return result;
+
+      // Skill complete — merge collected data and advance to next step
+      Object.assign(state.collected, result.data || {});
+      state.stepId     = step.next;
+      state.skillState = null;
+      return runCurrentStep(convo, null);
+    }
+
+    // ── notify_and_confirm skill ──────────────────────────────────────────
+    if (step.skill_id === "notify_and_confirm") {
+      const result = await runNotifyAndConfirmSkill(
+        state.tenantId,
+        state.agentId,
+        state.tenantAgentInstanceId,
+        state.agentName,
+        state.collected,
+        state.tenantConfig
+      );
+      // Agent complete — clear state
+      convo.agentState = null;
+      return result;
+    }
+
+    // Unknown skill — skip
+    state.stepId = step.next;
+    return runCurrentStep(convo, null);
+  }
+
+  // Unknown step type
+  convo.agentState = null;
+  return { reply: "Something went wrong. Please try again.", choices: [] };
+}
+
+// ── Agent API endpoints ───────────────────────────────────────────────────────
+
+// GET /api/portal/agent-definitions — all agent definitions (library)
+app.get("/api/portal/agent-definitions", requireTenant, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("agent_definitions")
+      .select("id, name, description, version, skill_ids, config_schema")
+      .order("name");
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error("[agent-defs] GET error:", err.message);
+    res.status(500).json({ error: "Failed to load agent definitions" });
+  }
+});
+
+// GET /api/portal/agents — this tenant's activated agent instances
+app.get("/api/portal/agents", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  try {
+    const { data, error } = await supabase
+      .from("tenant_agents")
+      .select("id, agent_id, is_active, config, created_at, updated_at")
+      .eq("tenant_id", tenantId)
+      .order("created_at");
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error("[agents] GET error:", err.message);
+    res.status(500).json({ error: "Failed to load agents" });
+  }
+});
+
+// POST /api/portal/agents — activate an agent for this tenant
+app.post("/api/portal/agents", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { agent_id } = req.body;
+  if (!agent_id) return res.status(400).json({ error: "agent_id required" });
+  try {
+    const { data, error } = await supabase
+      .from("tenant_agents")
+      .upsert(
+        { tenant_id: tenantId, agent_id, is_active: false, config: {}, updated_at: new Date().toISOString() },
+        { onConflict: "tenant_id,agent_id" }
+      )
+      .select("id, agent_id, is_active, config")
+      .single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error("[agents] POST error:", err.message);
+    res.status(500).json({ error: "Failed to activate agent" });
+  }
+});
+
+// PUT /api/portal/agents/:tenantAgentId — update config and/or is_active
+app.put("/api/portal/agents/:tenantAgentId", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { tenantAgentId } = req.params;
+  const updates = {};
+  if (req.body.config    !== undefined) updates.config    = req.body.config;
+  if (req.body.is_active !== undefined) updates.is_active = req.body.is_active;
+  if (!Object.keys(updates).length) return res.status(400).json({ error: "Nothing to update" });
+  updates.updated_at = new Date().toISOString();
+  try {
+    const { error } = await supabase
+      .from("tenant_agents")
+      .update(updates)
+      .eq("id", tenantAgentId)
+      .eq("tenant_id", tenantId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[agents] PUT error:", err.message);
+    res.status(500).json({ error: "Failed to update agent" });
+  }
+});
+
+// DELETE /api/portal/agents/:tenantAgentId — remove agent instance
+app.delete("/api/portal/agents/:tenantAgentId", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { tenantAgentId } = req.params;
+  try {
+    const { error } = await supabase
+      .from("tenant_agents")
+      .delete()
+      .eq("id", tenantAgentId)
+      .eq("tenant_id", tenantId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[agents] DELETE error:", err.message);
+    res.status(500).json({ error: "Failed to remove agent" });
+  }
+});
+
+// GET /api/portal/agent-leads — leads for a tenant_agent instance
+// ?agent_instance_id=<tenant_agents.id>
+app.get("/api/portal/agent-leads", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { agent_instance_id } = req.query;
+  try {
+    let query = supabase
+      .from("skill_leads")
+      .select("id, agent_id, data, status, created_at")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (agent_instance_id) query = query.eq("agent_id", agent_instance_id);
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error("[agent-leads] GET error:", err.message);
+    res.status(500).json({ error: "Failed to load leads" });
+  }
+});
+
+// PUT /api/portal/agent-leads/:leadId — update lead status
+app.put("/api/portal/agent-leads/:leadId", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { leadId } = req.params;
+  const { status } = req.body;
+  if (!["new", "contacted", "closed"].includes(status)) return res.status(400).json({ error: "Invalid status" });
+  try {
+    const { error } = await supabase
+      .from("skill_leads")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", leadId)
+      .eq("tenant_id", tenantId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[agent-leads] PUT error:", err.message);
+    res.status(500).json({ error: "Failed to update lead status" });
+  }
+});
+
 // ── CORS for the public chat endpoint (widget embeds on external sites) ───────
 app.use("/chat", (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -6205,7 +6637,7 @@ app.use("/chat", (req, res, next) => {
 
 app.post("/chat", async (req, res) => {
   try {
-    const { userId, conversationId, message, voiceMode, clubId, workflowContext } = req.body;
+    const { userId, conversationId, message, voiceMode, clubId, workflowContext, agentTrigger } = req.body;
     const tenantId = clubId || "aom";
 
     // ── Look up this tenant's business mode, name and feature flags ──────────
@@ -6232,6 +6664,29 @@ app.post("/chat", async (req, res) => {
     if (effectiveMode === "general") {
       const convo = ensureConversation(userId);
       convo.consentGiven = true;
+    }
+
+    // ── Agent engine intercept ─────────────────────────────────────────────
+    // Must run before the GDPR gate so agents can run in general mode without
+    // consent friction (they collect data explicitly with user participation).
+    if (agentTrigger || ensureConversation(userId).agentState) {
+      try {
+        let agentResult;
+        if (agentTrigger) {
+          agentResult = await startAgent(userId, agentTrigger, tenantId);
+        } else {
+          agentResult = await handleAgentMessage(userId, message, tenantId);
+        }
+        if (agentResult) {
+          addChatLog({ userId, conversationId, tenantId, sender: "customer", message: message || `[started agent: ${agentTrigger}]`, timestamp: new Date() });
+          addChatLog({ userId, conversationId, tenantId, sender: "bot",      message: agentResult.reply,  timestamp: new Date() });
+          return res.json({ reply: agentResult.reply, agentChoices: agentResult.choices || [] });
+        }
+      } catch (agentErr) {
+        console.error("[agent] Error:", agentErr.message);
+        ensureConversation(userId).agentState = null;
+        return res.json({ reply: "Something went wrong — please try again.", agentChoices: [] });
+      }
     }
 
     if (!userId || !message) {

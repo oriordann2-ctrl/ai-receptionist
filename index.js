@@ -282,13 +282,12 @@ const INTEGRATION_CATALOG = [
     business_types: ["tennis_club", "squash_club", "badminton_club"],
     coming_soon:    false,
     fields: [
-      { key: "club_id",      label: "Club ID",              type: "text",     placeholder: "e.g. 304",           required: true,  hint: "Found in your EBO admin URL — e.g. ebookingonline.net/admin/304/..." },
-      { key: "username",     label: "API Username",         type: "text",     placeholder: "e.g. Monk5jQ9%H",    required: true,  hint: "From EBO Admin → API Credentials page (not your login email)" },
-      { key: "password",     label: "API Password",         type: "password", placeholder: "••••••••",            required: true,  hint: "From EBO Admin → API Credentials page" },
-      { key: "open_time",    label: "Courts open",          type: "text",     placeholder: "08:00",               required: false, hint: "First bookable slot — 24h format. Default: 08:00" },
-      { key: "close_time",   label: "Courts close",         type: "text",     placeholder: "22:00",               required: false, hint: "Last slot must end by this time — 24h format. Default: 22:00" },
-      { key: "slot_minutes", label: "Slot duration (mins)", type: "text",     placeholder: "60",                  required: false, hint: "Length of each court booking in minutes. Default: 60" },
-      { key: "court_count",  label: "Number of courts",    type: "text",     placeholder: "4",                   required: false, hint: "Total bookable courts — used when no bookings exist for a day" }
+      { key: "club_id",      label: "Club ID",              type: "text",     placeholder: "e.g. 304",        required: true,  hint: "Found in your EBO admin URL — e.g. ebookingonline.net/admin/304/..." },
+      { key: "username",     label: "API Username",         type: "text",     placeholder: "e.g. Monk5jQ9%H", required: true,  hint: "From EBO Admin → API Credentials page (not your login email)" },
+      { key: "password",     label: "API Password",         type: "password", placeholder: "••••••••",         required: true,  hint: "From EBO Admin → API Credentials page" },
+      { key: "open_time",    label: "Courts open",          type: "text",     placeholder: "08:00",            required: false, hint: "First bookable slot, 24h format — only change if your club opens before 8am or after 9am" },
+      { key: "close_time",   label: "Courts close",         type: "text",     placeholder: "22:00",            required: false, hint: "Last slot must end by this time, 24h format — e.g. 23:00 if courts close at 11pm" },
+      { key: "slot_minutes", label: "Slot duration (mins)", type: "text",     placeholder: "60",               required: false, hint: "Length of each court booking — e.g. 60 or 75. Check your EBO booking page to confirm" }
     ]
   },
   {
@@ -435,8 +434,7 @@ async function loadEboConfigFromDb(tenantId) {
         password:    data.config.password,
         openTime:    data.config.open_time    || "08:00",
         closeTime:   data.config.close_time   || "22:00",
-        slotMinutes: parseInt(data.config.slot_minutes || "60", 10),
-        courtCount:  parseInt(data.config.court_count  || "1",  10)
+        slotMinutes: parseInt(data.config.slot_minutes || "60", 10)
       };
       console.log(`[EBO] Config loaded from DB for ${tenantId}`);
     }
@@ -6732,8 +6730,7 @@ app.put("/api/portal/integrations/:provider", requireTenant, async (req, res) =>
         password:    config.password,
         openTime:    config.open_time    || "08:00",
         closeTime:   config.close_time   || "22:00",
-        slotMinutes: parseInt(config.slot_minutes || "60", 10),
-        courtCount:  parseInt(config.court_count  || "1",  10)
+        slotMinutes: parseInt(config.slot_minutes || "60", 10)
       };
       delete eboTokenCache[tenantId];
       console.log(`[EBO] Config updated from portal for ${tenantId}`);

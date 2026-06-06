@@ -6413,6 +6413,14 @@ function advanceLeadCaptureSkill(agentState, message) {
 async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId, agentName, collected, agentConfig) {
   const replyTime   = agentConfig.reply_time || "soon";
 
+  // ── Fetch tenant branding (used in both WhatsApp footer and email) ────────
+  let clubName    = agentName;
+  let clubWebsite = null;
+  try {
+    const { data: tenantRow } = await supabase.from("tenants").select("name, website").eq("id", tenantId).maybeSingle();
+    if (tenantRow) { clubName = tenantRow.name || clubName; clubWebsite = tenantRow.website || null; }
+  } catch (_) {}
+
   // ── Extract coach contact (phone → WhatsApp, email → email) ─────────────────
   // Format in coaches config: "Name | +353XXXXXXX"  or  "Name | coach@email.com"
   const coachName  = collected.preferred_coach ? collected.preferred_coach.split(" | ")[0].trim() : null;
@@ -6478,14 +6486,6 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     const coachHtml    = buildEmailHtml(`New ${agentName}`, `Hi ${coachName}, a new enquiry has come in via the club website.`, collected);
     sendStaffEmail(coachEmail, coachSubject, coachHtml);
   }
-
-  // ── Fetch tenant branding for email footer ───────────────────────
-  let clubName    = agentName;
-  let clubWebsite = null;
-  try {
-    const { data: tenantRow } = await supabase.from("tenants").select("name, website").eq("id", tenantId).maybeSingle();
-    if (tenantRow) { clubName = tenantRow.name || clubName; clubWebsite = tenantRow.website || null; }
-  } catch (_) {}
 
   const emailFooter = `
     <p style="color:#6b7280;font-size:13px;margin-top:24px;">

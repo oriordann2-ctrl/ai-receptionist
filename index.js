@@ -3322,11 +3322,26 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
       const title = extractPageTitle(html);
       const text  = extractTextFromHtml(html);
 
-      if (text.length < 80) {
-        // Fallback: use Jina Reader to render JS-heavy pages (Wix, Squarespace, etc.)
+      // Detect bot-protection / JS-gated pages — either too short OR containing
+      // known challenge phrases (Cloudflare "One moment", etc.)
+      const BOT_PROTECTION_PHRASES = [
+        "one moment, please",
+        "please wait while your request is being verified",
+        "checking your browser",
+        "enable javascript and cookies",
+        "ddos protection by cloudflare",
+        "ray id:",
+        "cf-browser-verification"
+      ];
+      const textLower = text.toLowerCase();
+      const isBotProtected = BOT_PROTECTION_PHRASES.some(p => textLower.includes(p));
+
+      if (text.length < 80 || isBotProtected) {
+        const reason = isBotProtected ? "bot-protection page detected" : "text too short";
+        // Fallback: use Jina Reader to bypass JS rendering and bot-protection pages
         let jinaText = null;
         try {
-          console.log(`[crawler] JS-rendered page detected — trying Jina Reader for ${url}`);
+          console.log(`[crawler] ${reason} — trying Jina Reader for ${url}`);
           const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
             headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
             signal: AbortSignal.timeout(20000)
@@ -3341,11 +3356,16 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
         if (jinaText) {
           console.log(`[crawler] Jina Reader: imported ${url} (${jinaText.length} chars)`);
           pages.push({ url, title, text: jinaText });
+          // Also extract links from original HTML for further crawling
+          const links = extractInternalLinks(html, url);
+          for (const link of links) {
+            if (!visited.has(link) && !queue.includes(link)) queue.push(link);
+          }
         } else {
-          console.log(`[crawler] Skip ${url}: text too short even after Jina (${text.length} chars)`);
+          console.log(`[crawler] Skip ${url}: ${reason}, Jina also failed (${text.length} chars)`);
         }
         continue;
-      } // skip near-empty pages
+      } // skip bot-protected / near-empty pages
 
       pages.push({ url, title, text });
 

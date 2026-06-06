@@ -6495,10 +6495,11 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     const raw = collected.preferred_slots || collected.preferred_slot || "";
     if (!raw) return "";
     const slots = raw.split(" | ").map(s => shortenDate(s.trim())).filter(Boolean);
-    const urlShort = eboUrl ? eboUrl.replace(/https?:\/\//, "") : null;
-    const lines = slots.map(s => urlShort ? `→ ${s} · ${urlShort}` : `→ ${s}`).join("\n");
+    const lines = slots.map(s => `→ ${s}`).join("\n");
     return `📅 *Preferred slots:*\n${lines}`;
   })();
+
+  const urlShort = eboUrl ? eboUrl.replace(/https?:\/\//, "") : null;
 
   const waBody = [
     `🎾 *New ${agentName}*`,
@@ -6507,6 +6508,7 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     generalLinesWA,
     "",
     slotsSectionWA,
+    urlShort ? `🔗 ${urlShort}` : "",
     "",
     `_Sent by ${clubName}_`,
     `_Powered by Sprimal · sprimal.com_`

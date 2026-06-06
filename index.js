@@ -6649,19 +6649,32 @@ async function runCurrentStep(convo, userInput) {
       const allSlots = [];
       for (let t = openMins; t + slotMins <= closeMins; t += slotMins) allSlots.push(toHHMM(t));
 
-      // Derive court count from bookings (unique court IDs), fallback to config or 1
-      const courtIds    = [...new Set(bookings.map(b => String(b.court_id)).filter(Boolean))];
-      const totalCourts = courtIds.length || eboCfg.courtCount || 1;
+      // Derive court list from bookings (unique court IDs seen today), sorted numerically
+      const allCourtIds = [...new Set(bookings.map(b => String(b.court_id)).filter(Boolean))]
+        .sort((a, b) => Number(a) - Number(b));
+      const totalCourts = allCourtIds.length || eboCfg.courtCount || 1;
 
-      // Count bookings per slot start time
-      const bookedBySlot = {};
+      // Track which court IDs are booked at each slot start time
+      const bookedCourtsPerSlot = {};
       bookings.forEach(b => {
         const hhmm = String(b.time || "").slice(11, 16);
-        if (hhmm) bookedBySlot[hhmm] = (bookedBySlot[hhmm] || 0) + 1;
+        const cid  = String(b.court_id || "");
+        if (hhmm && cid) {
+          if (!bookedCourtsPerSlot[hhmm]) bookedCourtsPerSlot[hhmm] = new Set();
+          bookedCourtsPerSlot[hhmm].add(cid);
+        }
       });
 
-      // A slot is available if at least one court is free
-      let freeSlots = allSlots.filter(s => (bookedBySlot[s] || 0) < totalCourts);
+      // A slot is available if at least one court is free; compute which courts are free
+      let freeSlots = allSlots
+        .map(s => {
+          const booked    = bookedCourtsPerSlot[s] || new Set();
+          const freeCourts = allCourtIds.filter(id => !booked.has(id));
+          // If no court IDs known (no bookings at all today), assume all courts free
+          const freeCount = allCourtIds.length ? freeCourts.length : totalCourts;
+          return { slot: s, freeCourts, freeCount };
+        })
+        .filter(({ freeCount }) => freeCount > 0);
 
       // Today: filter out slots that have already passed or start within 30 min
       if (isToday) {
@@ -6670,7 +6683,7 @@ async function runCurrentStep(convo, userInput) {
         }).format(now);
         const [ih, im] = irishTime.split(":").map(Number);
         const nowMins  = ih * 60 + im;
-        freeSlots = freeSlots.filter(s => toMins(s) > nowMins + 30);
+        freeSlots = freeSlots.filter(({ slot }) => toMins(slot) > nowMins + 30);
       }
 
       if (!freeSlots.length) {
@@ -6687,11 +6700,27 @@ async function runCurrentStep(convo, userInput) {
       // Store date label for confirmation message
       state.collected.booking_date = isToday ? "Today" : "Tomorrow";
 
-      // Show up to 6 slots as buttons
-      const slotChoices = freeSlots.slice(0, 6).map(s => ({
-        label: `${s} – ${toHHMM(toMins(s) + slotMins)}`,
-        value: `${state.collected.booking_date} ${s}–${toHHMM(toMins(s) + slotMins)}`
-      }));
+      // Show up to 8 slots as buttons, including which court(s) are free
+      const slotChoices = freeSlots.slice(0, 8).map(({ slot, freeCourts, freeCount }) => {
+        const endTime = toHHMM(toMins(slot) + slotMins);
+        // Court label: "Court 3" / "Courts 1 & 2" / "2 courts" (if IDs unknown)
+        let courtLabel = "";
+        if (allCourtIds.length) {
+          if (freeCourts.length === 1) {
+            courtLabel = ` · Court ${freeCourts[0]}`;
+          } else if (freeCourts.length === 2) {
+            courtLabel = ` · Courts ${freeCourts[0]} & ${freeCourts[1]}`;
+          } else {
+            courtLabel = ` · ${freeCourts.length} courts free`;
+          }
+        } else if (freeCount > 1) {
+          courtLabel = ` · ${freeCount} courts free`;
+        }
+        return {
+          label: `${slot} – ${endTime}${courtLabel}`,
+          value: `${state.collected.booking_date} ${slot}–${endTime}`
+        };
+      });
 
       return {
         reply: `Here are available slots ${dateLabel} 🎾 Which works best for you?`,

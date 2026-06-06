@@ -2343,11 +2343,9 @@
               + '<div style="margin-top:12px;">'
               + (intg.coming_soon
                   ? '<span style="font-size:11px;color:#9ca3af;font-weight:600;">🔒 Coming Soon</span>'
-                  : intg.connected && intg.system_configured
+                  : intg.connected
                     ? '<span style="font-size:11px;color:#16a34a;font-weight:700;">● Connected</span>'
-                    : intg.connected
-                      ? '<span style="font-size:11px;color:#16a34a;font-weight:700;">● Connected</span>'
-                      : '<span style="font-size:11px;color:#9ca3af;font-weight:600;">Not connected</span>')
+                    : '<span style="font-size:11px;color:#9ca3af;font-weight:600;">Not connected</span>')
               + '</div>'
               + '</div>';
           });
@@ -2375,9 +2373,7 @@
 
       var savedConfig = intg.saved_config || {};
       (function() {
-        var html = intg.system_configured
-          ? '<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px 14px;margin-bottom:4px;font-size:13px;color:#1d4ed8;">ℹ️ This integration is already configured by Sprimal for your club. You can override it below if your credentials change.</div>'
-          : "";
+        var html = "";
         currentFields.forEach(function(field) {
           var val = field.type === "password" ? "" : (savedConfig[field.key] || "");
           var ph  = field.type === "password" && intg.connected ? "••••••• (leave blank to keep existing)" : (field.placeholder || "");

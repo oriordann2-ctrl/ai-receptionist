@@ -313,18 +313,9 @@ const INTEGRATION_CATALOG = [
 // ── EBO (ebookingonline.net) Court Booking Integration ────────────────────────
 const EBO_BASE = "https://ebookingonline.net/api";
 
-// Map Sprimal tenant ID → EBO credentials + court schedule config
-const EBO_CONFIG = {
-  "monkstown-lawn-tennis-club": {
-    clubId:      process.env.EBO_MONKSTOWN_CLUB_ID || "304",
-    username:    process.env.EBO_MONKSTOWN_USERNAME,
-    password:    process.env.EBO_MONKSTOWN_PASSWORD,
-    openTime:    "08:00",  // first bookable slot start
-    closeTime:   "23:00",  // courts close (last slot must end by this)
-    slotMinutes: 75,       // each booking slot is 75 minutes
-    courtCount:  8         // fallback court count when no bookings exist for a day
-  }
-};
+// Per-tenant EBO config cache — populated from tenant_integrations table via loadEboConfigFromDb()
+// Do NOT hardcode club credentials here. Use the Integrations section in the portal instead.
+const EBO_CONFIG = {};
 
 // In-memory token cache: { [tenantId]: { token, expiresAt } }
 // Inflight map prevents parallel requests both triggering a refresh simultaneously
@@ -6686,18 +6677,7 @@ app.get("/api/portal/integrations", requireTenant, async (req, res) => {
     const connMap  = {};
     (connected || []).forEach(c => { connMap[c.provider] = c; });
 
-    // If EBO credentials are hardcoded for this tenant (e.g. Monkstown),
-    // mark the integration as connected even without a DB row
-    if (!connMap["ebookingonline"] && EBO_CONFIG[tenantId]) {
-      connMap["ebookingonline"] = {
-        is_active:   true,
-        config:      { club_id: EBO_CONFIG[tenantId].clubId }, // show club ID, omit password
-        updated_at:  null,
-        system_configured: true  // flag so portal can show appropriate label
-      };
-    }
-
-    const result = INTEGRATION_CATALOG
+const result = INTEGRATION_CATALOG
       .filter(i => !i.business_types || i.business_types.includes(bizType))
       .map(i => ({
         provider:     i.provider,
@@ -6706,10 +6686,9 @@ app.get("/api/portal/integrations", requireTenant, async (req, res) => {
         description:  i.description,
         coming_soon:  i.coming_soon || false,
         fields:       i.fields,
-        connected:          !!(connMap[i.provider]?.is_active),
-        system_configured:  !!(connMap[i.provider]?.system_configured),
-        updated_at:         connMap[i.provider]?.updated_at || null,
-        saved_config:       connMap[i.provider]?.config || {}
+        connected:    !!(connMap[i.provider]?.is_active),
+        updated_at:   connMap[i.provider]?.updated_at || null,
+        saved_config: connMap[i.provider]?.config || {}
       }));
 
     res.json(result);

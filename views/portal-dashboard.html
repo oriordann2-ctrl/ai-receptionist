@@ -2373,19 +2373,34 @@
 
       var savedConfig = intg.saved_config || {};
       (function() {
+        // Fields the server never sends back (credentials — must be re-entered to update)
+        var sensitiveKeys = ["username", "password"];
         var html = intg.connected
-          ? '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#15803d;">✓ Credentials already saved. Fill in the fields below only if you want to update them.</div>'
+          ? '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#15803d;">✓ Credentials already saved. Update only the fields you want to change.</div>'
           : "";
         currentFields.forEach(function(field) {
-          var val = ""; // never pre-fill — credentials should be re-entered to update
-          var ph  = field.type === "password" && intg.connected ? "leave blank to keep existing" : (field.placeholder || "");
-          html += '<div>'
+          var isSensitive = sensitiveKeys.indexOf(field.key) !== -1;
+          // Pre-fill non-sensitive fields from saved config; leave sensitive blank
+          var val = (!isSensitive && savedConfig[field.key] != null) ? savedConfig[field.key] : "";
+          // Password placeholder: show masked dots when connected, real placeholder otherwise
+          var ph;
+          if (field.type === "password") {
+            ph = intg.connected ? "••••••••" : (field.placeholder || "");
+          } else {
+            ph = val ? "" : (field.placeholder || "");
+          }
+          // Hint: append "leave blank to keep" reminder for sensitive fields when connected
+          var hint = field.hint || "";
+          if (isSensitive && intg.connected) {
+            hint = hint ? hint + " — Leave blank to keep your existing value." : "Leave blank to keep your existing value.";
+          }
+          html += '<div style="margin-bottom:4px;">'
             + '<label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">'
             + esc(field.label) + (field.required ? ' <span style="color:#dc2626;">*</span>' : "") + '</label>'
             + '<input id="intgField_' + esc(field.key) + '" type="' + esc(field.type) + '" value="' + esc(val) + '" placeholder="' + esc(ph) + '" '
             + 'style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;box-sizing:border-box;" '
             + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />'
-            + (field.hint ? '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">' + esc(field.hint) + '</div>' : '')
+            + (hint ? '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">' + esc(hint) + '</div>' : '')
             + '</div>';
         });
         document.getElementById("integrationConfigFields").innerHTML = html;
@@ -2408,8 +2423,10 @@
         var el  = document.getElementById("intgField_" + field.key);
         if (!el) return;
         var val = el.value.trim();
-        // Password: blank = keep existing (backend handles this by not overwriting if blank)
-        if (field.required && field.type !== "password" && !val) {
+        // Sensitive fields (username, password) are optional when already connected — backend keeps existing value if blank
+        var isSensitive = ["username", "password"].indexOf(field.key) !== -1;
+        var canSkip = isSensitive && currentConnected;
+        if (field.required && !canSkip && !val) {
           el.style.borderColor = "#dc2626"; valid = false;
         } else {
           el.style.borderColor = "#e2e8f0";

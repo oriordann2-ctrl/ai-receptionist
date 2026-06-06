@@ -328,8 +328,8 @@ const INTEGRATION_CATALOG = [
     business_types: ["tennis_club", "squash_club", "badminton_club"],
     coming_soon:    false,
     fields: [
-      { key: "club_id",      label: "Club ID",              type: "text",     placeholder: "e.g. 304",        required: true,  hint: "Found in your EBO admin URL — e.g. ebookingonline.net/admin/304/..." },
-      { key: "username",     label: "API Username",         type: "text",     placeholder: "e.g. Monk5jQ9%H", required: true,  hint: "From EBO Admin → API Credentials page (not your login email)" },
+      { key: "club_id",      label: "Club ID",              type: "text",     placeholder: "e.g. 100",        required: true,  hint: "Found in your EBO admin URL — e.g. ebookingonline.net/admin/100/..." },
+      { key: "username",     label: "API Username",         type: "text",     placeholder: "e.g. AbCd1234XY", required: true,  hint: "From EBO Admin → API Credentials page (not your login email)" },
       { key: "password",     label: "API Password",         type: "password", placeholder: "••••••••",         required: true,  hint: "From EBO Admin → API Credentials page" },
       { key: "open_time",    label: "Courts open",          type: "text",     placeholder: "08:00",            required: false, hint: "First bookable slot, 24h format — only change if your club opens before 8am or after 9am" },
       { key: "close_time",   label: "Courts close",         type: "text",     placeholder: "22:00",            required: false, hint: "Last slot must end by this time, 24h format — e.g. 23:00 if courts close at 11pm" },
@@ -6727,17 +6727,26 @@ app.get("/api/portal/integrations", requireTenant, async (req, res) => {
 
 const result = INTEGRATION_CATALOG
       .filter(i => !i.business_types || i.business_types.includes(bizType))
-      .map(i => ({
-        provider:     i.provider,
-        name:         i.name,
-        logo_html:    i.logo_html,
-        description:  i.description,
-        coming_soon:  i.coming_soon || false,
-        fields:       i.fields,
-        connected:    !!(connMap[i.provider]?.is_active),
-        updated_at:   connMap[i.provider]?.updated_at || null,
-        saved_config: connMap[i.provider]?.config || {}
-      }));
+      .map(i => {
+        // Decrypt config and strip sensitive fields before sending to browser
+        const rawConfig  = connMap[i.provider]?.config || {};
+        const decConfig  = decryptIntgConfig(rawConfig);
+        const publicConfig = {};
+        Object.entries(decConfig).forEach(([k, v]) => {
+          if (!INTG_SENSITIVE_FIELDS.includes(k)) publicConfig[k] = v;
+        });
+        return {
+          provider:     i.provider,
+          name:         i.name,
+          logo_html:    i.logo_html,
+          description:  i.description,
+          coming_soon:  i.coming_soon || false,
+          fields:       i.fields,
+          connected:    !!(connMap[i.provider]?.is_active),
+          updated_at:   connMap[i.provider]?.updated_at || null,
+          saved_config: publicConfig   // no credentials — only non-sensitive values
+        };
+      });
 
     res.json(result);
   } catch (err) {

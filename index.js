@@ -6408,12 +6408,49 @@ function advanceLeadCaptureSkill(agentState, message) {
 }
 
 // ── Notify & Confirm skill engine ─────────────────────────────────────────────
-// Single-turn — runs once, sends email, stores lead, returns confirmation.
+// Single-turn — runs once, sends notification (email and/or WhatsApp), stores lead, returns confirmation.
 
 async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId, agentName, collected, agentConfig) {
-  // Build email
-  const notifyEmail = agentConfig.notification_email;
   const replyTime   = agentConfig.reply_time || "soon";
+
+  // ── WhatsApp notification (Twilio) ──────────────────────────────────────────
+  // If a coach was selected in "Name | +353XXXXXXX" format, extract their number.
+  // Otherwise fall back to agentConfig.notification_phone if set.
+  await loadTwilioConfigFromDb(tenantId);
+  const twilioCfg = TWILIO_CONFIG[tenantId];
+  if (twilioCfg) {
+    let toPhone = null;
+    // Try to extract phone from collected.preferred_coach ("Name | +353...")
+    if (collected.preferred_coach && collected.preferred_coach.includes(" | ")) {
+      const parts = collected.preferred_coach.split(" | ");
+      const raw   = parts[parts.length - 1].trim();
+      if (raw.startsWith("+")) toPhone = `whatsapp:${raw}`;
+    }
+    // Fall back to a fixed notification_phone in agent config
+    if (!toPhone && agentConfig.notification_phone) {
+      const raw = agentConfig.notification_phone.trim();
+      toPhone = raw.startsWith("whatsapp:") ? raw : `whatsapp:${raw}`;
+    }
+    if (toPhone) {
+      try {
+        const coachName = collected.preferred_coach
+          ? collected.preferred_coach.split(" | ")[0].trim()
+          : "Coach";
+        const lines = Object.entries(collected)
+          .filter(([k, v]) => v && !k.startsWith("_"))
+          .map(([k, v]) => `• ${k.replace(/_/g, " ")}: ${v}`).join("\n");
+        const waBody = `🎾 *New ${agentName} Enquiry*\n\nHi ${coachName}! A new enquiry has come in via the club website:\n\n${lines}\n\n_Sent by Sprimal_`;
+        const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
+        await twilio.messages.create({ from: twilioCfg.from, to: toPhone, body: waBody });
+        console.log(`[Twilio] WhatsApp sent to ${toPhone} for tenant ${tenantId}`);
+      } catch (err) {
+        console.error(`[Twilio] WhatsApp send failed for ${tenantId}:`, err.message);
+      }
+    }
+  }
+
+  // ── Email notification ───────────────────────────────────────────────────────
+  const notifyEmail = agentConfig.notification_email;
   const subject     = fillTemplate(
     agentConfig.email_subject || `New ${agentName} enquiry from {{name}}`,
     { ...collected, reply_time: replyTime }
@@ -6582,8 +6619,17 @@ async function runCurrentStep(convo, userInput) {
   if (step.type === "collect") {
     if (userInput === null) {
       // Support choices_key for button-based collection (e.g. coach picker)
+      // Lines may be plain "Name" or "Name | +353XXXXXXX" — split into {label, value} objects
+      // so the button shows only the name but the full string (with phone) is stored.
+      const rawLines = step.static_choices
+        ? step.static_choices
+        : (state.tenantConfig[step.choices_key] || "").split("\n").map(s => s.trim().replace(/,+$/, "")).filter(Boolean);
       const choices = step.choices_key
-        ? (step.static_choices || (state.tenantConfig[step.choices_key] || "").split("\n").map(s => s.trim().replace(/,+$/, "")).filter(Boolean))
+        ? rawLines.map(line => {
+            const pipeIdx = line.indexOf(" | ");
+            if (pipeIdx !== -1) return { label: line.slice(0, pipeIdx).trim(), value: line.trim() };
+            return line;
+          })
         : [];
       return { reply: step.prompt, choices };
     }

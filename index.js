@@ -6454,7 +6454,7 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     `Hi ${coachName || "Coach"}! A new enquiry came in via the club website:\n`,
     generalLines,
     slotsSection,
-    `_Sent by Sprimal_`
+    `_Sent by ${clubName}_`
   ].filter(Boolean).join("\n");
 
   // ── WhatsApp → coach (if phone number configured) ─────────────────────────
@@ -6475,13 +6475,53 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
   // ── Email → coach (if email address configured) ───────────────────────────
   if (coachEmail) {
     const coachSubject = fillTemplate(`New ${agentName} enquiry from {{name}}`, collected);
-    const coachRows = Object.entries(collected)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `<tr><td style="padding:6px 12px;font-weight:600;color:#374151;text-transform:capitalize;">${k.replace(/_/g, " ")}</td><td style="padding:6px 12px;color:#111827;">${v}</td></tr>`)
-      .join("");
-    const coachHtml = `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;"><h2 style="color:#0f172a;margin-bottom:4px;">New ${agentName} Enquiry</h2><p style="color:#6b7280;font-size:14px;margin-bottom:16px;">Hi ${coachName}, a new enquiry has come in via the club website.</p><table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:8px;overflow:hidden;">${coachRows}</table><p style="color:#9ca3af;font-size:12px;margin-top:20px;">Sent by Sprimal</p></div>`;
+    const coachHtml    = buildEmailHtml(`New ${agentName}`, `Hi ${coachName}, a new enquiry has come in via the club website.`, collected);
     sendStaffEmail(coachEmail, coachSubject, coachHtml);
   }
+
+  // ── Fetch tenant branding for email footer ───────────────────────
+  let clubName    = agentName;
+  let clubWebsite = null;
+  try {
+    const { data: tenantRow } = await supabase.from("tenants").select("name, website").eq("id", tenantId).maybeSingle();
+    if (tenantRow) { clubName = tenantRow.name || clubName; clubWebsite = tenantRow.website || null; }
+  } catch (_) {}
+
+  const emailFooter = `
+    <p style="color:#6b7280;font-size:13px;margin-top:24px;">
+      Sent by <a href="${clubWebsite || '#'}" style="color:#111827;font-weight:600;text-decoration:none;">${clubName}</a>
+    </p>
+    <p style="color:#bbb;font-size:11px;margin-top:2px;">
+      Built by <a href="https://www.sprimal.com" style="color:#bbb;">Sprimal</a>
+    </p>`;
+
+  // ── Shared HTML email builder ────────────────────────────────────────────────
+  const buildEmailHtml = (title, subtitle, data) => {
+    const SKIP_E = new Set(["preferred_slots", "preferred_slot", "booking_date"]);
+    const fmtE   = k => k.replace(/_/g, " ").replace(/^\w/, ch => ch.toUpperCase());
+    const generalRows = Object.entries(data)
+      .filter(([k, v]) => v && !SKIP_E.has(k))
+      .map(([k, v]) => `<tr><td style="padding:7px 14px;font-weight:600;color:#374151;white-space:nowrap;">${fmtE(k)}</td><td style="padding:7px 14px;color:#111827;">${v}</td></tr>`)
+      .join("");
+    const rawSlots = data.preferred_slots || data.preferred_slot || "";
+    const slotsRow = rawSlots ? (() => {
+      const items = rawSlots.split(" | ").map(s => s.trim()).filter(Boolean)
+        .map(s => {
+          const link = eboUrl ? ` <a href="${eboUrl}" style="color:#2563eb;font-size:12px;margin-left:6px;">Book →</a>` : "";
+          return `<li style="margin:5px 0;">${s}${link}</li>`;
+        }).join("");
+      return `<tr><td style="padding:7px 14px;font-weight:600;color:#374151;vertical-align:top;">Preferred slots</td>
+        <td style="padding:7px 14px;"><ul style="margin:0;padding-left:18px;">${items}</ul></td></tr>`;
+    })() : "";
+    return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;">
+      <h2 style="color:#0f172a;margin-bottom:4px;">${title}</h2>
+      <p style="color:#6b7280;font-size:14px;margin-bottom:16px;">${subtitle}</p>
+      <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:8px;overflow:hidden;">
+        ${generalRows}${slotsRow}
+      </table>
+      ${emailFooter}
+    </div>`;
+  };
 
   // ── Club notification email (always sent if notification_email set) ────────
   const notifyEmail = agentConfig.notification_email;
@@ -6489,22 +6529,7 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     agentConfig.email_subject || `New ${agentName} enquiry from {{name}}`,
     { ...collected, reply_time: replyTime }
   );
-
-  // Build HTML email body
-  const rows = Object.entries(collected)
-    .filter(([, v]) => v)
-    .map(([k, v]) => `<tr><td style="padding:6px 12px;font-weight:600;color:#374151;text-transform:capitalize;">${k.replace(/_/g, " ")}</td><td style="padding:6px 12px;color:#111827;">${v}</td></tr>`)
-    .join("");
-  const htmlBody = `
-    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;">
-      <h2 style="color:#0f172a;margin-bottom:4px;">New ${agentName} Enquiry</h2>
-      <p style="color:#6b7280;font-size:14px;margin-bottom:16px;">Via your Sprimal chat widget</p>
-      <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:8px;overflow:hidden;">
-        ${rows}
-      </table>
-      <p style="color:#9ca3af;font-size:12px;margin-top:20px;">Sent by Sprimal · <a href="https://app.sprimal.com" style="color:#6b7280;">app.sprimal.com</a></p>
-    </div>`;
-
+  const htmlBody = buildEmailHtml(`New ${agentName}`, "Via your Sprimal chat widget", collected);
   if (notifyEmail) sendStaffEmail(notifyEmail, subject, htmlBody);
 
   // Store lead in skill_leads — keyed by tenant_agent instance UUID so leads panel can filter

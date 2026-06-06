@@ -282,7 +282,8 @@ const EBO_CONFIG = {
     password:    process.env.EBO_MONKSTOWN_PASSWORD,
     openTime:    "08:00",  // first bookable slot start
     closeTime:   "23:00",  // courts close (last slot must end by this)
-    slotMinutes: 75        // each booking slot is 75 minutes
+    slotMinutes: 75,       // each booking slot is 75 minutes
+    courtCount:  8         // fallback court count when no bookings exist for a day
   }
 };
 
@@ -6392,11 +6393,13 @@ async function runCurrentStep(convo, userInput) {
   if (step.type === "greeting") {
     if (userInput === null) {
       // First call — show greeting + choices
-      const intro   = fillTemplate(state.tenantConfig[step.message_key] || "", state.collected);
-      const types   = (state.tenantConfig[step.choices_key] || "")
-        .split("\n").map(s => s.trim()).filter(Boolean);
-      const prompt  = step.prompt || "What would you like?";
-      const reply   = intro ? `${intro}\n\n${prompt}` : prompt;
+      const intro  = fillTemplate(state.tenantConfig[step.message_key] || "", state.collected);
+      // static_choices in step def take priority over config-driven choices_key
+      const types  = step.static_choices ||
+        (state.tenantConfig[step.choices_key] || "")
+          .split("\n").map(s => s.trim()).filter(Boolean);
+      const prompt = step.prompt || "What would you like?";
+      const reply  = intro ? `${intro}\n\n${prompt}` : prompt;
       return { reply, choices: types };
     }
 
@@ -6480,6 +6483,117 @@ async function runCurrentStep(convo, userInput) {
     // Unknown skill — skip
     state.stepId = step.next;
     return runCurrentStep(convo, null);
+  }
+
+  // ── Availability check step ───────────────────────────────────────────────
+  // Fetches live court slots from EBO, shows them as choices, stores selection.
+  if (step.type === "availability_check") {
+    if (userInput !== null) {
+      // Handle "no slots" fallback choices
+      if (userInput === "__enquire__") {
+        // Skip directly to lead_capture
+        state.stepId = step.next;
+        state.skillState = null;
+        return runCurrentStep(convo, null);
+      }
+      if (userInput.toLowerCase() === "tomorrow") {
+        // Re-run availability check for tomorrow
+        state.collected.day_choice = "Tomorrow";
+        delete state.collected.__no_slots__;
+        return runCurrentStep(convo, null); // userInput=null re-entered
+      }
+      // Normal — user selected a time slot
+      state.collected[step.collect_field] = userInput;
+      state.stepId     = step.next;
+      state.skillState = null;
+      return runCurrentStep(convo, null);
+    }
+
+    // userInput === null — fetch availability and return slots as choices
+    const eboCfg = EBO_CONFIG[state.tenantId];
+    if (!eboCfg) {
+      // No EBO configured for this tenant — skip step gracefully
+      state.stepId = step.next;
+      return runCurrentStep(convo, null);
+    }
+
+    const dayChoice = (state.collected.day_choice || "today").toLowerCase();
+    const isToday   = !dayChoice.includes("tomorrow");
+    const now       = new Date();
+    const irishFmt  = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" });
+    const checkDate = isToday
+      ? irishFmt.format(now)
+      : irishFmt.format(new Date(now.getTime() + 86400000));
+    const dateLabel = isToday ? "today" : "tomorrow";
+
+    try {
+      const bookings = await fetchEboBookings(state.tenantId, checkDate);
+
+      function toMins(hhmm) { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; }
+      function toHHMM(mins) { return String(Math.floor(mins / 60)).padStart(2, "0") + ":" + String(mins % 60).padStart(2, "0"); }
+
+      const slotMins  = eboCfg.slotMinutes || 60;
+      const openMins  = toMins(eboCfg.openTime  || "08:00");
+      const closeMins = toMins(eboCfg.closeTime || "22:00");
+
+      const allSlots = [];
+      for (let t = openMins; t + slotMins <= closeMins; t += slotMins) allSlots.push(toHHMM(t));
+
+      // Derive court count from bookings (unique court IDs), fallback to config or 1
+      const courtIds    = [...new Set(bookings.map(b => String(b.court_id)).filter(Boolean))];
+      const totalCourts = courtIds.length || eboCfg.courtCount || 1;
+
+      // Count bookings per slot start time
+      const bookedBySlot = {};
+      bookings.forEach(b => {
+        const hhmm = String(b.time || "").slice(11, 16);
+        if (hhmm) bookedBySlot[hhmm] = (bookedBySlot[hhmm] || 0) + 1;
+      });
+
+      // A slot is available if at least one court is free
+      let freeSlots = allSlots.filter(s => (bookedBySlot[s] || 0) < totalCourts);
+
+      // Today: filter out slots that have already passed or start within 30 min
+      if (isToday) {
+        const irishTime = new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false
+        }).format(now);
+        const [ih, im] = irishTime.split(":").map(Number);
+        const nowMins  = ih * 60 + im;
+        freeSlots = freeSlots.filter(s => toMins(s) > nowMins + 30);
+      }
+
+      if (!freeSlots.length) {
+        state.collected.__no_slots__ = dateLabel;
+        return {
+          reply: `Sorry, there don't seem to be any available slots ${dateLabel}. Would you like to check tomorrow or enquire directly with the club?`,
+          choices: [
+            { label: "Check Tomorrow",   value: "Tomorrow" },
+            { label: "Enquire Directly", value: "__enquire__" }
+          ]
+        };
+      }
+
+      // Store date label for confirmation message
+      state.collected.booking_date = isToday ? "Today" : "Tomorrow";
+
+      // Show up to 6 slots as buttons
+      const slotChoices = freeSlots.slice(0, 6).map(s => ({
+        label: `${s} – ${toHHMM(toMins(s) + slotMins)}`,
+        value: `${state.collected.booking_date} ${s}–${toHHMM(toMins(s) + slotMins)}`
+      }));
+
+      return {
+        reply: `Here are available slots ${dateLabel} 🎾 Which works best for you?`,
+        choices: slotChoices
+      };
+
+    } catch (err) {
+      console.error("[agent] availability_check error:", err.message);
+      // Fail gracefully — skip to next step
+      state.stepId = step.next;
+      return runCurrentStep(convo, null);
+    }
   }
 
   // Unknown step type

@@ -56,6 +56,52 @@ const brokerEmail = process.env.BROKER_EMAIL;
 
 const mammoth = require("mammoth");
 
+// ── Integration credential encryption (AES-256-GCM) ──────────────────────────
+// Key lives only in the server environment — never stored in Supabase.
+const INTG_ENC_KEY = process.env.INTEGRATION_ENCRYPTION_KEY
+  ? Buffer.from(process.env.INTEGRATION_ENCRYPTION_KEY, "hex")
+  : null;
+
+// Fields encrypted before storing in tenant_integrations.config
+const INTG_SENSITIVE_FIELDS = ["username", "password"];
+
+function encryptField(plaintext) {
+  if (!INTG_ENC_KEY) return plaintext; // no key → store as-is (dev mode)
+  const iv      = crypto.randomBytes(16);
+  const cipher  = crypto.createCipheriv("aes-256-gcm", INTG_ENC_KEY, iv);
+  const enc     = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag     = cipher.getAuthTag();
+  return "enc:" + JSON.stringify({
+    iv:  iv.toString("hex"),
+    d:   enc.toString("hex"),
+    tag: tag.toString("hex")
+  });
+}
+
+function decryptField(value) {
+  if (!INTG_ENC_KEY || !String(value).startsWith("enc:")) return value; // not encrypted
+  try {
+    const { iv, d, tag } = JSON.parse(value.slice(4));
+    const decipher = crypto.createDecipheriv("aes-256-gcm", INTG_ENC_KEY, Buffer.from(iv, "hex"));
+    decipher.setAuthTag(Buffer.from(tag, "hex"));
+    return decipher.update(Buffer.from(d, "hex")) + decipher.final("utf8");
+  } catch (e) {
+    return value; // fallback — return as-is if decryption fails
+  }
+}
+
+function encryptIntgConfig(config) {
+  const out = { ...config };
+  INTG_SENSITIVE_FIELDS.forEach(f => { if (out[f]) out[f] = encryptField(out[f]); });
+  return out;
+}
+
+function decryptIntgConfig(config) {
+  const out = { ...config };
+  INTG_SENSITIVE_FIELDS.forEach(f => { if (out[f]) out[f] = decryptField(out[f]); });
+  return out;
+}
+
 // ── Business type detection ───────────────────────────────────────────────────
 async function detectBusinessType(name, description, pageText) {
   try {
@@ -418,14 +464,16 @@ async function loadEboConfigFromDb(tenantId) {
       .eq("tenant_id", tenantId)
       .eq("provider", "ebookingonline")
       .maybeSingle();
-    if (data?.is_active && data.config?.club_id && data.config?.username && data.config?.password) {
+    if (data?.is_active && data.config?.club_id) {
+      const cfg = decryptIntgConfig(data.config);
+      if (!cfg.username || !cfg.password) return; // incomplete credentials
       EBO_CONFIG[tenantId] = {
-        clubId:      data.config.club_id,
-        username:    data.config.username,
-        password:    data.config.password,
-        openTime:    data.config.open_time    || "08:00",
-        closeTime:   data.config.close_time   || "22:00",
-        slotMinutes: parseInt(data.config.slot_minutes || "60", 10)
+        clubId:      cfg.club_id,
+        username:    cfg.username,
+        password:    cfg.password,
+        openTime:    cfg.open_time    || "08:00",
+        closeTime:   cfg.close_time   || "22:00",
+        slotMinutes: parseInt(cfg.slot_minutes || "60", 10)
       };
       console.log(`[EBO] Config loaded from DB for ${tenantId}`);
     }
@@ -6710,16 +6758,21 @@ app.put("/api/portal/integrations/:provider", requireTenant, async (req, res) =>
     // Merge with existing config so blank fields don't overwrite saved credentials
     const { data: existing } = await supabase.from("tenant_integrations")
       .select("config").eq("tenant_id", tenantId).eq("provider", provider).maybeSingle();
-    const mergedConfig = Object.assign({}, existing?.config || {});
-    Object.entries(config).forEach(([k, v]) => { if (v && v.trim()) mergedConfig[k] = v.trim(); });
+    // Decrypt existing before merging so we don't double-encrypt
+    const existingDecrypted = decryptIntgConfig(existing?.config || {});
+    const mergedConfig = Object.assign({}, existingDecrypted);
+    Object.entries(config).forEach(([k, v]) => { if (v && String(v).trim()) mergedConfig[k] = String(v).trim(); });
+
+    // Encrypt sensitive fields before storing
+    const encryptedConfig = encryptIntgConfig(mergedConfig);
 
     const { error } = await supabase.from("tenant_integrations").upsert(
-      { tenant_id: tenantId, provider, config: mergedConfig, is_active: true, updated_at: new Date().toISOString() },
+      { tenant_id: tenantId, provider, config: encryptedConfig, is_active: true, updated_at: new Date().toISOString() },
       { onConflict: "tenant_id,provider" }
     );
     if (error) throw error;
 
-    // Immediately update in-memory EBO_CONFIG + clear token cache so changes take effect
+    // Immediately update in-memory EBO_CONFIG using plaintext mergedConfig (pre-encryption)
     if (provider === "ebookingonline" && mergedConfig?.club_id && mergedConfig?.username && mergedConfig?.password) {
       EBO_CONFIG[tenantId] = {
         clubId:      mergedConfig.club_id,

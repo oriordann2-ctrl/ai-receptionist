@@ -6686,6 +6686,17 @@ app.get("/api/portal/integrations", requireTenant, async (req, res) => {
     const connMap  = {};
     (connected || []).forEach(c => { connMap[c.provider] = c; });
 
+    // If EBO credentials are hardcoded for this tenant (e.g. Monkstown),
+    // mark the integration as connected even without a DB row
+    if (!connMap["ebookingonline"] && EBO_CONFIG[tenantId]) {
+      connMap["ebookingonline"] = {
+        is_active:   true,
+        config:      { club_id: EBO_CONFIG[tenantId].clubId }, // show club ID, omit password
+        updated_at:  null,
+        system_configured: true  // flag so portal can show appropriate label
+      };
+    }
+
     const result = INTEGRATION_CATALOG
       .filter(i => !i.business_types || i.business_types.includes(bizType))
       .map(i => ({
@@ -6695,9 +6706,10 @@ app.get("/api/portal/integrations", requireTenant, async (req, res) => {
         description:  i.description,
         coming_soon:  i.coming_soon || false,
         fields:       i.fields,
-        connected:    !!(connMap[i.provider]?.is_active),
-        updated_at:   connMap[i.provider]?.updated_at || null,
-        saved_config: connMap[i.provider]?.config || {}
+        connected:          !!(connMap[i.provider]?.is_active),
+        system_configured:  !!(connMap[i.provider]?.system_configured),
+        updated_at:         connMap[i.provider]?.updated_at || null,
+        saved_config:       connMap[i.provider]?.config || {}
       }));
 
     res.json(result);

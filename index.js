@@ -271,6 +271,46 @@ function saveKnowledgeDocs(docs) {
   fs.writeFileSync(KNOWLEDGE_DOCS_FILE, JSON.stringify(docs, null, 2), "utf8");
 }
 
+// ── Integration Catalog ───────────────────────────────────────────────────────
+// Sprimal-defined integrations. Fields drive the configure modal in the portal.
+const INTEGRATION_CATALOG = [
+  {
+    provider:       "ebookingonline",
+    name:           "ebookingonline.net",
+    logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#0066cc;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:15px;font-family:sans-serif;margin:0 auto;letter-spacing:-0.5px;">EBO</div>',
+    description:    "Court booking & member management",
+    business_types: ["tennis_club", "squash_club", "badminton_club"],
+    coming_soon:    false,
+    fields: [
+      { key: "club_id",      label: "Club ID",              type: "text",     placeholder: "e.g. 304",          required: true,  hint: "Found in your EBO admin URL" },
+      { key: "username",     label: "Username",             type: "text",     placeholder: "admin@yourclub.com", required: true  },
+      { key: "password",     label: "Password",             type: "password", placeholder: "••••••••",           required: true  },
+      { key: "open_time",    label: "Courts open",          type: "text",     placeholder: "08:00",              required: false, hint: "24h format. Default: 08:00" },
+      { key: "close_time",   label: "Courts close",         type: "text",     placeholder: "22:00",              required: false, hint: "24h format. Default: 22:00" },
+      { key: "slot_minutes", label: "Slot duration (mins)", type: "text",     placeholder: "60",                 required: false, hint: "Length of each court booking" },
+      { key: "court_count",  label: "Number of courts",    type: "text",     placeholder: "4",                  required: false, hint: "Total bookable courts" }
+    ]
+  },
+  {
+    provider:       "stripe",
+    name:           "Stripe",
+    logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#635BFF;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:28px;font-family:sans-serif;margin:0 auto;">S</div>',
+    description:    "Accept payments and manage subscriptions",
+    business_types: null,
+    coming_soon:    true,
+    fields:         []
+  },
+  {
+    provider:       "mailchimp",
+    name:           "Mailchimp",
+    logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#FFE01B;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto;">🐒</div>',
+    description:    "Email marketing and newsletters",
+    business_types: null,
+    coming_soon:    true,
+    fields:         []
+  }
+];
+
 // ── EBO (ebookingonline.net) Court Booking Integration ────────────────────────
 const EBO_BASE = "https://ebookingonline.net/api";
 
@@ -378,11 +418,40 @@ function buildEboAvailabilitySummary(bookings, dateLabel, cfg) {
   return `${dateLabel}:\n${lines.join("\n")}`;
 }
 
+// Load EBO config from tenant_integrations table into EBO_CONFIG cache
+async function loadEboConfigFromDb(tenantId) {
+  if (EBO_CONFIG[tenantId]) return; // already loaded (hardcoded or previously fetched)
+  try {
+    const { data } = await supabase
+      .from("tenant_integrations")
+      .select("config, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "ebookingonline")
+      .maybeSingle();
+    if (data?.is_active && data.config?.club_id && data.config?.username && data.config?.password) {
+      EBO_CONFIG[tenantId] = {
+        clubId:      data.config.club_id,
+        username:    data.config.username,
+        password:    data.config.password,
+        openTime:    data.config.open_time    || "08:00",
+        closeTime:   data.config.close_time   || "22:00",
+        slotMinutes: parseInt(data.config.slot_minutes || "60", 10),
+        courtCount:  parseInt(data.config.court_count  || "1",  10)
+      };
+      console.log(`[EBO] Config loaded from DB for ${tenantId}`);
+    }
+  } catch (err) {
+    console.error(`[EBO] DB config load failed for ${tenantId}:`, err.message);
+  }
+}
+
 // Keywords that trigger a live EBO lookup
 const EBO_TRIGGER = /\b(court|book|available|availab|free slot|session|tennis|reserve|tonight|today|tomorrow|when|slot|time|play)\b/i;
 
 async function maybeGetEboContext(tenantId, message) {
-  if (!EBO_CONFIG[tenantId] || !EBO_TRIGGER.test(message)) return null;
+  if (!EBO_TRIGGER.test(message)) return null;
+  await loadEboConfigFromDb(tenantId); // no-op if already in EBO_CONFIG
+  if (!EBO_CONFIG[tenantId]) return null;
 
   try {
     // Use Irish time (Europe/Dublin) for date calculation so midnight doesn't
@@ -6510,29 +6579,11 @@ async function runCurrentStep(convo, userInput) {
     }
 
     // userInput === null — fetch availability and return slots as choices
-    // Build effective EBO config: hardcoded EBO_CONFIG takes priority,
-    // then fall back to credentials stored in the agent's portal config.
-    let eboCfg = EBO_CONFIG[state.tenantId];
-    if (!eboCfg && state.tenantConfig.ebo_club_id && state.tenantConfig.ebo_username && state.tenantConfig.ebo_password) {
-      eboCfg = {
-        clubId:      state.tenantConfig.ebo_club_id,
-        username:    state.tenantConfig.ebo_username,
-        password:    state.tenantConfig.ebo_password,
-        openTime:    state.tenantConfig.ebo_open_time    || "08:00",
-        closeTime:   state.tenantConfig.ebo_close_time   || "22:00",
-        slotMinutes: parseInt(state.tenantConfig.ebo_slot_minutes || "60", 10),
-        courtCount:  parseInt(state.tenantConfig.ebo_court_count  || "1",  10),
-        _dynamic: true   // flag so token cache uses a unique key
-      };
-      // Inject into EBO_CONFIG so getEboToken / fetchEboBookings work unchanged
-      if (!EBO_CONFIG[state.tenantId]) EBO_CONFIG[state.tenantId] = eboCfg;
-      // Seed token cache key
-      if (!eboTokenCache[state.tenantId]) {
-        // Will be populated on first getEboToken call
-      }
-    }
+    // Load from tenant_integrations if not already in EBO_CONFIG cache
+    await loadEboConfigFromDb(state.tenantId);
+    const eboCfg = EBO_CONFIG[state.tenantId];
     if (!eboCfg) {
-      // No EBO credentials anywhere — tell the visitor and collect details instead
+      // No EBO credentials — tell the visitor and fall through to lead capture
       return {
         reply: "Online court availability isn't connected yet for this club. Let me take your details and someone will confirm a time with you shortly.",
         choices: []
@@ -6622,6 +6673,102 @@ async function runCurrentStep(convo, userInput) {
   convo.agentState = null;
   return { reply: "Something went wrong. Please try again.", choices: [] };
 }
+
+// ── Integrations API endpoints ────────────────────────────────────────────────
+
+// GET /api/portal/integrations — catalog filtered by tenant business_type + connection status
+app.get("/api/portal/integrations", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  try {
+    const [{ data: tenant }, { data: connected }] = await Promise.all([
+      supabase.from("tenants").select("business_type").eq("id", tenantId).maybeSingle(),
+      supabase.from("tenant_integrations").select("provider, config, is_active, updated_at").eq("tenant_id", tenantId)
+    ]);
+    const bizType  = tenant?.business_type || "other";
+    const connMap  = {};
+    (connected || []).forEach(c => { connMap[c.provider] = c; });
+
+    const result = INTEGRATION_CATALOG
+      .filter(i => !i.business_types || i.business_types.includes(bizType))
+      .map(i => ({
+        provider:     i.provider,
+        name:         i.name,
+        logo_html:    i.logo_html,
+        description:  i.description,
+        coming_soon:  i.coming_soon || false,
+        fields:       i.fields,
+        connected:    !!(connMap[i.provider]?.is_active),
+        updated_at:   connMap[i.provider]?.updated_at || null,
+        saved_config: connMap[i.provider]?.config || {}
+      }));
+
+    res.json(result);
+  } catch (err) {
+    console.error("[integrations] GET error:", err.message);
+    res.status(500).json({ error: "Failed to load integrations" });
+  }
+});
+
+// PUT /api/portal/integrations/:provider — save / update integration config
+app.put("/api/portal/integrations/:provider", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { provider } = req.params;
+  const { config }   = req.body;
+  if (!INTEGRATION_CATALOG.find(i => i.provider === provider)) {
+    return res.status(400).json({ error: "Unknown integration provider" });
+  }
+  try {
+    const { error } = await supabase.from("tenant_integrations").upsert(
+      { tenant_id: tenantId, provider, config, is_active: true, updated_at: new Date().toISOString() },
+      { onConflict: "tenant_id,provider" }
+    );
+    if (error) throw error;
+
+    // Immediately update in-memory EBO_CONFIG + clear token cache so changes take effect
+    if (provider === "ebookingonline" && config?.club_id && config?.username && config?.password) {
+      EBO_CONFIG[tenantId] = {
+        clubId:      config.club_id,
+        username:    config.username,
+        password:    config.password,
+        openTime:    config.open_time    || "08:00",
+        closeTime:   config.close_time   || "22:00",
+        slotMinutes: parseInt(config.slot_minutes || "60", 10),
+        courtCount:  parseInt(config.court_count  || "1",  10)
+      };
+      delete eboTokenCache[tenantId];
+      console.log(`[EBO] Config updated from portal for ${tenantId}`);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[integrations] PUT error:", err.message);
+    res.status(500).json({ error: "Failed to save integration" });
+  }
+});
+
+// DELETE /api/portal/integrations/:provider — disconnect integration
+app.delete("/api/portal/integrations/:provider", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { provider } = req.params;
+  try {
+    const { error } = await supabase.from("tenant_integrations")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("tenant_id", tenantId)
+      .eq("provider", provider);
+    if (error) throw error;
+
+    // Remove from in-memory cache (only if not hardcoded)
+    if (provider === "ebookingonline" && EBO_CONFIG[tenantId]?._fromDb) {
+      delete EBO_CONFIG[tenantId];
+      delete eboTokenCache[tenantId];
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[integrations] DELETE error:", err.message);
+    res.status(500).json({ error: "Failed to disconnect integration" });
+  }
+});
 
 // ── Agent API endpoints ───────────────────────────────────────────────────────
 

@@ -171,7 +171,7 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
 
   // Insert steps
   const { error: sErr } = await supabase.from("workflow_steps").insert([
-    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there 👋 Welcome to ${name}!\n\nWhat can I help you with today?` },
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `What can I help you with today?` },
     { id: sMemb1, workflow_id: fMemb,  step_order: 1, bot_message: `Great — we have membership options for all ages and levels.\n\nAre you looking to join as an adult, a junior, or a family?` },
     { id: sMemb2, workflow_id: fMemb,  step_order: 2, bot_message: memb2Msg },
     { id: sCoach, workflow_id: fCoach, step_order: 1, bot_message: coachMsg },

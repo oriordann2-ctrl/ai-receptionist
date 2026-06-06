@@ -6707,21 +6707,27 @@ app.put("/api/portal/integrations/:provider", requireTenant, async (req, res) =>
     return res.status(400).json({ error: "Unknown integration provider" });
   }
   try {
+    // Merge with existing config so blank fields don't overwrite saved credentials
+    const { data: existing } = await supabase.from("tenant_integrations")
+      .select("config").eq("tenant_id", tenantId).eq("provider", provider).maybeSingle();
+    const mergedConfig = Object.assign({}, existing?.config || {});
+    Object.entries(config).forEach(([k, v]) => { if (v && v.trim()) mergedConfig[k] = v.trim(); });
+
     const { error } = await supabase.from("tenant_integrations").upsert(
-      { tenant_id: tenantId, provider, config, is_active: true, updated_at: new Date().toISOString() },
+      { tenant_id: tenantId, provider, config: mergedConfig, is_active: true, updated_at: new Date().toISOString() },
       { onConflict: "tenant_id,provider" }
     );
     if (error) throw error;
 
     // Immediately update in-memory EBO_CONFIG + clear token cache so changes take effect
-    if (provider === "ebookingonline" && config?.club_id && config?.username && config?.password) {
+    if (provider === "ebookingonline" && mergedConfig?.club_id && mergedConfig?.username && mergedConfig?.password) {
       EBO_CONFIG[tenantId] = {
-        clubId:      config.club_id,
-        username:    config.username,
-        password:    config.password,
-        openTime:    config.open_time    || "08:00",
-        closeTime:   config.close_time   || "22:00",
-        slotMinutes: parseInt(config.slot_minutes || "60", 10)
+        clubId:      mergedConfig.club_id,
+        username:    mergedConfig.username,
+        password:    mergedConfig.password,
+        openTime:    mergedConfig.open_time    || "08:00",
+        closeTime:   mergedConfig.close_time   || "22:00",
+        slotMinutes: parseInt(mergedConfig.slot_minutes || "60", 10)
       };
       delete eboTokenCache[tenantId];
       console.log(`[EBO] Config updated from portal for ${tenantId}`);

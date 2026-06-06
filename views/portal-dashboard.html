@@ -2373,10 +2373,12 @@
 
       var savedConfig = intg.saved_config || {};
       (function() {
-        var html = "";
+        var html = intg.connected
+          ? '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#15803d;">✓ Credentials already saved. Fill in the fields below only if you want to update them.</div>'
+          : "";
         currentFields.forEach(function(field) {
-          var val = field.type === "password" ? "" : (savedConfig[field.key] || "");
-          var ph  = field.type === "password" && intg.connected ? "••••••• (leave blank to keep existing)" : (field.placeholder || "");
+          var val = ""; // never pre-fill — credentials should be re-entered to update
+          var ph  = field.type === "password" && intg.connected ? "leave blank to keep existing" : (field.placeholder || "");
           html += '<div>'
             + '<label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">'
             + esc(field.label) + (field.required ? ' <span style="color:#dc2626;">*</span>' : "") + '</label>'

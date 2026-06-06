@@ -6270,6 +6270,23 @@ app.delete("/api/portal/approved-answers/:id", requireSeniorTenant, async (req, 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Universal booking redirect — /b/:tenantId → EBO or tenant website ────────
+app.get("/b/:tenantId", async (req, res) => {
+  const { tenantId } = req.params;
+  await loadEboConfigFromDb(tenantId);
+  const eboCfg = EBO_CONFIG[tenantId];
+  if (eboCfg) {
+    return res.redirect(302, `https://ebookingonline.net/box/${eboCfg.clubId}`);
+  }
+  // Fallback: redirect to tenant's own website if available
+  try {
+    const { data } = await supabase.from("tenants").select("website").eq("id", tenantId).maybeSingle();
+    if (data?.website) return res.redirect(302, data.website);
+  } catch (_) {}
+  res.status(404).send("Booking not available");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── Public tenant config — widget fetches this on load ───────────────────────
 app.get("/api/tenant-config/:tenantId", async (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -6436,7 +6453,8 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
   // ── Build WhatsApp message body ───────────────────────────────────────────
   // EBO booking URL built from integration club_id if available
   const eboCfg = EBO_CONFIG[tenantId];
-  const eboUrl = eboCfg ? `https://ebookingonline.net/box/${eboCfg.clubId}` : null;
+  // Always use the short redirect — it resolves the correct EBO URL (or tenant website) server-side
+  const eboUrl = `https://app.sprimal.com/b/${tenantId}`;
 
   // Capitalise field key: "session_type" → "Session type"
   const fmtKey = k => k.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase());

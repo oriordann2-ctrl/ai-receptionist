@@ -6532,7 +6532,7 @@ async function runCurrentStep(convo, userInput) {
     if (userInput === null) {
       // Support choices_key for button-based collection (e.g. coach picker)
       const choices = step.choices_key
-        ? (step.static_choices || (agentConfig[step.choices_key] || "").split("\n").map(s => s.trim()).filter(Boolean))
+        ? (step.static_choices || (state.tenantConfig[step.choices_key] || "").split("\n").map(s => s.trim()).filter(Boolean))
         : [];
       return { reply: step.prompt, choices };
     }

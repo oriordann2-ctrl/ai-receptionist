@@ -1556,6 +1556,10 @@
 
       if (workflows.length === 0) {
         html += '<div style="text-align:center;padding:24px 0;font-size:14px;color:#9ca3af;">No chat flows yet — create one to add button menus to your widget.</div>';
+        html += '<div style="text-align:center;margin-bottom:12px;">';
+        html += '<button onclick="wfAutoSeed()" style="background:#f0f9ff;border:1.5px solid #7dd3fc;color:#0369a1;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">✨ Generate template flows from my website</button>';
+        html += '<div style="font-size:12px;color:#9ca3af;margin-top:6px;">We\'ll crawl your website and build ready-to-edit flows automatically</div>';
+        html += '</div>';
       } else {
         html += '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">';
         workflows.forEach(function (wf) {
@@ -1717,6 +1721,27 @@
       html += '</div>';
       return html;
     }
+
+    // ── Auto-seed flows from website ─────────────────────────────────────────
+    window.wfAutoSeed = function () {
+      var btn = document.querySelector('[onclick="wfAutoSeed()"]');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Crawling your website…'; }
+
+      fetch("/api/portal/seed-flows", { method: "POST" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.success) {
+            loadWorkflows();
+          } else {
+            alert(data.message || data.error || "Could not generate flows.");
+            if (btn) { btn.disabled = false; btn.textContent = '✨ Generate template flows from my website'; }
+          }
+        })
+        .catch(function () {
+          alert("Something went wrong. Please try again.");
+          if (btn) { btn.disabled = false; btn.textContent = '✨ Generate template flows from my website'; }
+        });
+    };
 
     // ── Public actions (called by inline onclick) ────────────────────────────
     window.wfNew = function () {

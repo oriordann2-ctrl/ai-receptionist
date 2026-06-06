@@ -6804,7 +6804,10 @@ async function runCurrentStep(convo, userInput) {
     const text   = fillTemplate(step.message || state.tenantConfig[step.message_key] || "", state.collected);
     const urlRaw = step.url_key ? (state.tenantConfig[step.url_key] || "") : (step.url || "");
     const url    = fillTemplate(urlRaw, state.collected);
-    const choices = url ? [{ label: step.url_label || "Book online →", value: `__url__${url}` }] : [];
+    const choices = [];
+    if (url) choices.push({ label: step.url_label || "Book online →", value: `__url__${url}` });
+    // Always offer a way back to the main menu
+    choices.push({ label: "↩ Back to menu", value: "__menu__", secondary: true });
     convo.agentState = null; // flow ends here
     return { reply: text, choices };
   }

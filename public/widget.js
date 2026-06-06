@@ -861,6 +861,18 @@
             window.open(value.slice(7), "_blank", "noopener,noreferrer");
             return;
           }
+          // Back to menu — replay root flow without a network call
+          if (value === "__menu__") {
+            clearChoices();
+            if (rootFlowId && wfFlowMap[rootFlowId]) {
+              wfSteps = wfFlowMap[rootFlowId];
+              wfMode  = true;
+              var footer = document.getElementById("sprimal-footer");
+              if (footer) footer.style.display = "none";
+              showWorkflowStep(wfSteps[0]);
+            }
+            return;
+          }
           if (!secondary) { btn.style.background = brandColor; btn.style.color = "#fff"; btn.style.borderColor = brandColor; }
           setTimeout(function () { sendAgentMessage(value, label); }, 280);
         });

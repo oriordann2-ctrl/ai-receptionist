@@ -3240,16 +3240,47 @@ function extractLinksFromJinaText(jinaText, baseUrl) {
   return [...links];
 }
 
+// Common page paths that are important for clubs but often only in the nav menu
+// (not discoverable from homepage body text when nav is JS-rendered).
+// These are probed during every crawl — 404s are silently skipped.
+const PROBE_PATHS = [
+  "/contact", "/contact-us", "/about", "/about-us",
+  "/membership", "/members", "/join", "/fees", "/pricing",
+  "/coaching", "/lessons", "/tennis", "/facilities", "/courts",
+  "/events", "/leagues", "/news", "/location", "/find-us"
+];
+
 async function fetchSitemapUrls(rootUrl) {
   const base = rootUrl.replace(/\/$/, "");
   const urls = [];
+
+  // Helper to parse <loc> URLs from a sitemap XML string
+  const parseSitemapXml = (xml) => [...xml.matchAll(/<loc>\s*(https?:\/\/[^<]+)\s*<\/loc>/gi)]
+    .map(m => m[1].trim())
+    .filter(u => !u.endsWith(".xml"));
+
+  const BOT_PHRASES = ["one moment, please", "please wait while your request is being verified", "checking your browser"];
+
   try {
     const res = await fetch(base + "/sitemap.xml", {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
       signal: AbortSignal.timeout(8000)
     });
     if (!res.ok) return urls;
-    const xml = await res.text();
+    let xml = await res.text();
+
+    // If the sitemap is behind Cloudflare, try Jina Reader to get the real XML
+    const xmlLower = xml.toLowerCase();
+    if (BOT_PHRASES.some(p => xmlLower.includes(p))) {
+      console.log(`[crawler] Sitemap bot-protected — trying Jina Reader for ${base}/sitemap.xml`);
+      try {
+        const jinaRes = await fetch(`https://r.jina.ai/${base}/sitemap.xml`, {
+          headers: { "Accept": "text/plain" },
+          signal: AbortSignal.timeout(15000)
+        });
+        if (jinaRes.ok) xml = await jinaRes.text();
+      } catch {}
+    }
 
     // Handle sitemap index (points to child sitemaps)
     const childSitemaps = [...xml.matchAll(/<loc>\s*(https?:\/\/[^<]+sitemap[^<]*\.xml)\s*<\/loc>/gi)].map(m => m[1]);
@@ -3262,18 +3293,11 @@ async function fetchSitemapUrls(rootUrl) {
           });
           if (!childRes.ok) continue;
           const childXml = await childRes.text();
-          const childUrls = [...childXml.matchAll(/<loc>\s*(https?:\/\/[^<]+)\s*<\/loc>/gi)]
-            .map(m => m[1].trim())
-            .filter(u => !u.endsWith(".xml"));
-          urls.push(...childUrls);
+          urls.push(...parseSitemapXml(childXml));
         } catch {}
       }
     } else {
-      // Direct sitemap
-      const directUrls = [...xml.matchAll(/<loc>\s*(https?:\/\/[^<]+)\s*<\/loc>/gi)]
-        .map(m => m[1].trim())
-        .filter(u => !u.endsWith(".xml"));
-      urls.push(...directUrls);
+      urls.push(...parseSitemapXml(xml));
     }
   } catch {}
   return urls;
@@ -3320,6 +3344,17 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
 
   // Always include root
   if (!allUrls.includes(root)) allUrls.unshift(root);
+
+  // Probe common paths — catches contact/about/membership pages that only appear
+  // in JS-rendered nav menus and are therefore invisible to link extraction.
+  // Pages that don't exist will 404 and be silently skipped by the crawler.
+  if (sitemapUrls.length === 0) {
+    // Only probe when sitemap gave us nothing — avoids redundant fetches on Wix/Squarespace
+    for (const p of PROBE_PATHS) {
+      const probeUrl = root + p;
+      if (!allUrls.includes(probeUrl)) allUrls.push(probeUrl);
+    }
+  }
 
   // Priority pages first, noise pages only if budget allows
   const priorityUrls = allUrls.filter(u => !isCrawlNoise(u));
@@ -6839,7 +6874,7 @@ Use plain numbers where possible.
 
       // ── KB search + optional live EBO court availability (in parallel) ────────
       const [relevantDocs, eboContext] = await Promise.all([
-        findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId),
+        findRelevantKnowledgeChunks(trimmedMessage, 8, tenantId),
         maybeGetEboContext(tenantId, trimmedMessage)
       ]);
 

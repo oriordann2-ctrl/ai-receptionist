@@ -1559,6 +1559,7 @@
     var workflows    = [];   // full list loaded from API
     var editingId    = null; // workflow id being edited, or null
     var editingSteps = [];   // [{bot_message, choices:[{label,action_type,action_value}]}]
+    var wfAgentDefs  = [];   // agent definitions for the agent choice dropdown
 
     function esc(s) {
       return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1598,10 +1599,14 @@
     // ── API helpers ──────────────────────────────────────────────────────────
     function loadWorkflows() {
       body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>';
-      fetch("/api/portal/workflows")
-        .then(function (r) { return r.json(); })
-        .then(function (data) { workflows = data.workflows || []; renderList(); })
-        .catch(function () { body.innerHTML = '<div style="color:#dc2626;padding:16px 20px;">Failed to load chat flows.</div>'; });
+      Promise.all([
+        fetch("/api/portal/workflows").then(function(r){ return r.json(); }),
+        fetch("/api/portal/agent-definitions").then(function(r){ return r.json(); }).catch(function(){ return []; })
+      ]).then(function(results) {
+        workflows    = results[0].workflows || [];
+        wfAgentDefs  = Array.isArray(results[1]) ? results[1] : [];
+        renderList();
+      }).catch(function () { body.innerHTML = '<div style="color:#dc2626;padding:16px 20px;">Failed to load chat flows.</div>'; });
     }
 
     // ── Render: flow list ────────────────────────────────────────────────────
@@ -1736,14 +1741,24 @@
       html += '<select class="wf-ctype" data-si="' + si + '" data-ci="' + ci + '" '
         + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_type=this.value;editingSteps[' + si + '].choices[' + ci + '].action_value=\'\';wfRerender()" '
         + 'style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
-      var typeLabels = { next_step: "→ Next step", message: "💬 Show message", url: "🔗 Open link", switch_flow: "🔀 Switch flow", ai_fallback: "🤖 Ask AI" };
-      ["next_step", "message", "url", "switch_flow", "ai_fallback"].forEach(function (t) {
+      var typeLabels = { next_step: "→ Next step", message: "💬 Show message", url: "🔗 Open link", switch_flow: "🔀 Switch flow", ai_fallback: "🤖 Ask AI", agent: "⚡ Run Agent" };
+      ["next_step", "message", "url", "switch_flow", "ai_fallback", "agent"].forEach(function (t) {
         html += '<option value="' + t + '"' + (ch.action_type === t ? " selected" : "") + ">" + typeLabels[t] + "</option>";
       });
       html += "</select>";
 
       // Action value field — varies by type
-      if (ch.action_type === "switch_flow") {
+      if (ch.action_type === "agent") {
+        // Dropdown of available agent definitions
+        html += '<select class="wf-cval" data-si="' + si + '" data-ci="' + ci + '" '
+          + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_value=this.value" '
+          + 'style="flex:1;padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
+        html += '<option value="">— select agent —</option>';
+        wfAgentDefs.forEach(function(def) {
+          html += '<option value="' + esc(def.id) + '"' + (ch.action_value === def.id ? " selected" : "") + ">" + esc(def.name) + "</option>";
+        });
+        html += '</select>';
+      } else if (ch.action_type === "switch_flow") {
         // Dropdown of other flows
         var otherFlows = workflows.filter(function (w) { return w.id !== editingId; });
         if (otherFlows.length === 0) {

@@ -623,12 +623,15 @@
   }
 
   // Render agent choice buttons (returned from /chat agentChoices array)
+  // Each choice may be a plain string OR {label, value} object
   function showAgentChoices(choices) {
     clearChoices();
     var container = document.createElement("div");
     container.id  = "sprimal-choices";
     var allBtns   = [];
-    choices.forEach(function (label) {
+    choices.forEach(function (choice) {
+      var label = typeof choice === "string" ? choice : (choice.label || String(choice));
+      var value = typeof choice === "string" ? choice : (choice.value != null ? choice.value : label);
       var btn = document.createElement("button");
       btn.className   = "sprimal-choice";
       btn.textContent = label;
@@ -636,7 +639,7 @@
       btn.addEventListener("click", function () {
         allBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
         btn.style.opacity = "1"; btn.style.background = brandColor; btn.style.color = "#fff"; btn.style.borderColor = brandColor;
-        setTimeout(function () { sendAgentMessage(label); }, 280);
+        setTimeout(function () { sendAgentMessage(value, label); }, 280);
       });
       container.appendChild(btn);
     });
@@ -645,9 +648,10 @@
   }
 
   // Send a message as part of an active agent session
-  function sendAgentMessage(text) {
+  // displayText is what appears in the chat bubble; text is what goes to the backend
+  function sendAgentMessage(text, displayText) {
     clearChoices();
-    addMsg(text, "user");
+    addMsg(displayText || text, "user");
     showTyping();
     fetch(BACKEND + "/chat", {
       method: "POST",

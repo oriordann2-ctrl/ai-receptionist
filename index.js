@@ -6510,11 +6510,33 @@ async function runCurrentStep(convo, userInput) {
     }
 
     // userInput === null — fetch availability and return slots as choices
-    const eboCfg = EBO_CONFIG[state.tenantId];
+    // Build effective EBO config: hardcoded EBO_CONFIG takes priority,
+    // then fall back to credentials stored in the agent's portal config.
+    let eboCfg = EBO_CONFIG[state.tenantId];
+    if (!eboCfg && state.tenantConfig.ebo_club_id && state.tenantConfig.ebo_username && state.tenantConfig.ebo_password) {
+      eboCfg = {
+        clubId:      state.tenantConfig.ebo_club_id,
+        username:    state.tenantConfig.ebo_username,
+        password:    state.tenantConfig.ebo_password,
+        openTime:    state.tenantConfig.ebo_open_time    || "08:00",
+        closeTime:   state.tenantConfig.ebo_close_time   || "22:00",
+        slotMinutes: parseInt(state.tenantConfig.ebo_slot_minutes || "60", 10),
+        courtCount:  parseInt(state.tenantConfig.ebo_court_count  || "1",  10),
+        _dynamic: true   // flag so token cache uses a unique key
+      };
+      // Inject into EBO_CONFIG so getEboToken / fetchEboBookings work unchanged
+      if (!EBO_CONFIG[state.tenantId]) EBO_CONFIG[state.tenantId] = eboCfg;
+      // Seed token cache key
+      if (!eboTokenCache[state.tenantId]) {
+        // Will be populated on first getEboToken call
+      }
+    }
     if (!eboCfg) {
-      // No EBO configured for this tenant — skip step gracefully
-      state.stepId = step.next;
-      return runCurrentStep(convo, null);
+      // No EBO credentials anywhere — tell the visitor and collect details instead
+      return {
+        reply: "Online court availability isn't connected yet for this club. Let me take your details and someone will confirm a time with you shortly.",
+        choices: []
+      };
     }
 
     const dayChoice = (state.collected.day_choice || "today").toLowerCase();

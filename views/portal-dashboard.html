@@ -2314,6 +2314,7 @@
     var currentProvider  = null;
     var currentFields    = [];
     var currentConnected = false;
+    var allIntegrations  = []; // cache so cards can look up by provider
 
     function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
@@ -2322,19 +2323,20 @@
       fetch("/api/portal/integrations")
         .then(function(r){ return r.json(); })
         .then(function(list) {
-          if (!list || !list.length) {
+          allIntegrations = list || [];
+          if (!allIntegrations.length) {
             body.innerHTML = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No integrations available for your account type.</div>';
             return;
           }
           var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;padding:4px;">';
-          list.forEach(function(intg) {
-            var border = intg.connected ? '#bbf7d0' : '#e5e7eb';
-            var bg     = intg.connected ? '#f0fdf4' : '#fafafa';
-            var cursor = intg.coming_soon ? 'default' : 'pointer';
+          allIntegrations.forEach(function(intg) {
+            var border  = intg.connected ? '#bbf7d0' : '#e5e7eb';
+            var bg      = intg.connected ? '#f0fdf4' : '#fafafa';
+            var cursor  = intg.coming_soon ? 'default' : 'pointer';
             var opacity = intg.coming_soon ? '0.55' : '1';
-            var onclick = intg.coming_soon ? '' : 'onclick="openIntegrationConfig(' + JSON.stringify(intg).replace(/"/g,'&quot;') + ')"';
-            html += '<div ' + onclick + ' style="border-radius:14px;padding:20px 16px;text-align:center;cursor:' + cursor + ';border:2px solid ' + border + ';background:' + bg + ';opacity:' + opacity + ';transition:box-shadow 0.15s;" '
-              + (!intg.coming_soon ? 'onmouseover="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.10)\'" onmouseout="this.style.boxShadow=\'none\'"' : '') + '>'
+            var clickAttr = intg.coming_soon ? '' : 'onclick="openIntegrationConfig(\'' + esc(intg.provider) + '\')"';
+            var hoverAttr = intg.coming_soon ? '' : 'onmouseover="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.10)\'" onmouseout="this.style.boxShadow=\'none\'"';
+            html += '<div ' + clickAttr + ' ' + hoverAttr + ' style="border-radius:14px;padding:20px 16px;text-align:center;cursor:' + cursor + ';border:2px solid ' + border + ';background:' + bg + ';opacity:' + opacity + ';transition:box-shadow 0.15s;">'
               + intg.logo_html
               + '<div style="font-weight:700;font-size:13px;margin-top:10px;color:#111827;">' + esc(intg.name) + '</div>'
               + '<div style="font-size:11px;color:#6b7280;margin-top:4px;line-height:1.4;">' + esc(intg.description) + '</div>'
@@ -2355,8 +2357,9 @@
         });
     }
 
-    window.openIntegrationConfig = function(intg) {
-      if (typeof intg === "string") intg = JSON.parse(intg);
+    window.openIntegrationConfig = function(provider) {
+      var intg = allIntegrations.find(function(i){ return i.provider === provider; });
+      if (!intg) return;
       currentProvider  = intg.provider;
       currentFields    = intg.fields || [];
       currentConnected = intg.connected;
@@ -2369,7 +2372,7 @@
       disconnectBtn.style.display = intg.connected ? "block" : "none";
 
       var savedConfig = intg.saved_config || {};
-      (function(savedConfig) {
+      (function() {
         var html = "";
         currentFields.forEach(function(field) {
           var val = field.type === "password" ? "" : (savedConfig[field.key] || "");

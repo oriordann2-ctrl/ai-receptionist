@@ -6205,7 +6205,7 @@ app.use("/chat", (req, res, next) => {
 
 app.post("/chat", async (req, res) => {
   try {
-    const { userId, conversationId, message, voiceMode, clubId } = req.body;
+    const { userId, conversationId, message, voiceMode, clubId, workflowContext } = req.body;
     const tenantId = clubId || "aom";
 
     // ── Look up this tenant's business mode, name and feature flags ──────────
@@ -6885,6 +6885,13 @@ Use plain numbers where possible.
         contextParts.push("KNOWLEDGE BASE:\n" + relevantDocs.map(doc => `Source: ${doc.filename}\n${doc.text}`).join("\n\n"));
       }
 
+      // Prepend the last workflow message shown to the user as extra context.
+      // This lets the AI answer follow-up questions about what it just displayed
+      // (e.g. "who are the coaches?" after the Coaching step listed them).
+      if (workflowContext) {
+        contextParts.unshift("WHAT THE ASSISTANT JUST SHOWED THE USER:\n" + workflowContext);
+      }
+
       if (contextParts.length > 0) {
         const context = contextParts.join("\n\n---\n\n");
 
@@ -6892,8 +6899,8 @@ Use plain numbers where possible.
           const _org     = tenantDisplayName || "this organisation";
           const _descBit = tenantBusinessDesc ? ", " + tenantBusinessDesc : "";
           const sysPrompt = eboContext
-            ? "You are Maeve, a helpful AI assistant for " + _org + _descBit + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly."
-            : "You are Maeve, a helpful AI assistant for " + _org + _descBit + ". Answer ONLY using the provided knowledge base context. If the answer is not in the context, say so clearly — for example: 'I don't have that information, please check the website or contact " + _org + " directly.' Never invent, guess, or use placeholder text like '[insert location here]'. Keep answers friendly and concise.";
+            ? "You are Maeve, a helpful AI assistant for " + _org + _descBit + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE or WHAT THE ASSISTANT JUST SHOWED THE USER. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly."
+            : "You are Maeve, a helpful AI assistant for " + _org + _descBit + ". Answer using the provided context — prioritise WHAT THE ASSISTANT JUST SHOWED THE USER for follow-up questions, then the KNOWLEDGE BASE. If the answer is not in the context, say so clearly — for example: 'I don't have that information, please check the website or contact " + _org + " directly.' Never invent, guess, or use placeholder text like '[insert location here]'. Keep answers friendly and concise.";
 
           const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -6917,6 +6924,22 @@ Use plain numbers where possible.
         } catch (err) {
           console.error("Knowledge base OpenAI error (general mode):", err.message);
           result.reply = "Sorry — I couldn't access the knowledge base right now.";
+        }
+      } else if (workflowContext) {
+        // No KB results but we have what was just shown — answer from that alone
+        try {
+          const _org = tenantDisplayName || "this organisation";
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: "You are Maeve, a helpful AI assistant for " + _org + ". Answer the user's follow-up question using only WHAT THE ASSISTANT JUST SHOWED THE USER. Keep the answer friendly and concise." },
+              { role: "user",   content: "WHAT THE ASSISTANT JUST SHOWED THE USER:\n" + workflowContext + "\n\nUser question:\n" + trimmedMessage }
+            ],
+            temperature: 0.2
+          });
+          result.reply = stripHtml(completion.choices[0].message.content);
+        } catch {
+          result.reply = "I'm not sure about that — please contact us directly for more information.";
         }
       } else {
         const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName, tenantBusinessDesc);

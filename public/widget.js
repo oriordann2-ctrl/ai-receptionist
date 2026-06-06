@@ -231,6 +231,7 @@
   var wfFlowMap  = {};       // { flowId: sortedSteps[] } — all flows pre-fetched for switch_flow
   var wfMode     = false;
   var rootFlowId = null;     // ID of the entry-point (active) flow — used for "Back to menu"
+  var lastWorkflowMsg = null; // last workflow bot_message shown — passed as context to AI so it can answer follow-up questions
   var brandColor = "#111827"; // updated when tenant config loads
 
   // Pre-fetch all flows in background (non-AOM only)
@@ -457,6 +458,7 @@
   // Render a workflow step: bot message + choice buttons
   function showWorkflowStep(step) {
     if (!step) return;
+    lastWorkflowMsg = step.bot_message || null; // remember for AI follow-up context
     addWorkflowMsg(step.bot_message);
 
     var choices = (step.workflow_choices || []).slice().sort(function (a, b) { return a.choice_order - b.choice_order; });
@@ -607,10 +609,13 @@
     sendBtn.disabled = true;
     showTyping();
 
+    var payload = { userId: userId, conversationId: conversationId, message: text, clubId: clubId };
+    if (lastWorkflowMsg) { payload.workflowContext = lastWorkflowMsg; lastWorkflowMsg = null; }
+
     fetch(BACKEND + "/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: userId, conversationId: conversationId, message: text, clubId: clubId })
+      body: JSON.stringify(payload)
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {

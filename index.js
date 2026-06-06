@@ -6813,8 +6813,8 @@ app.delete("/api/portal/integrations/:provider", requireTenant, async (req, res)
       .eq("provider", provider);
     if (error) throw error;
 
-    // Remove from in-memory cache (only if not hardcoded)
-    if (provider === "ebookingonline" && EBO_CONFIG[tenantId]?._fromDb) {
+    // Clear from in-memory cache immediately so chat stops using old credentials
+    if (provider === "ebookingonline") {
       delete EBO_CONFIG[tenantId];
       delete eboTokenCache[tenantId];
     }

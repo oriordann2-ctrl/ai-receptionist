@@ -160,7 +160,7 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
 
   // Insert flows
   const { error: fErr } = await supabase.from("chat_workflows").insert([
-    { id: fMain,  club_id: tenantId, name: "Main Menu",        is_active: false },
+    { id: fMain,  club_id: tenantId, name: "Main Menu",        is_active: true  }, // auto-activate entry point
     { id: fMemb,  club_id: tenantId, name: "Membership",       is_active: false },
     { id: fCoach, club_id: tenantId, name: "Coaching & Camps", is_active: false },
     { id: fBook,  club_id: tenantId, name: "Book a Court",     is_active: false },

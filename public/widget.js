@@ -622,49 +622,128 @@
     }
   }
 
-  // Render agent choice buttons (returned from /chat agentChoices array)
-  // Each choice may be a plain string OR {label, value, badge?, secondary?} object
+  // Render agent choice buttons (returned from /chat agentChoices array).
+  // Choices may be strings, {label,value,badge?,secondary?} objects, or
+  // {label,value,badge,slots:[]} objects — the last form triggers the court accordion.
   function showAgentChoices(choices) {
     clearChoices();
     var container = document.createElement("div");
     container.id  = "sprimal-choices";
-    var allBtns   = [];
-    choices.forEach(function (choice) {
-      var label     = typeof choice === "string" ? choice : (choice.label || String(choice));
-      var value     = typeof choice === "string" ? choice : (choice.value != null ? choice.value : label);
-      var badge     = typeof choice === "object" ? choice.badge : null;
-      var secondary = typeof choice === "object" && choice.secondary;
 
-      var btn = document.createElement("button");
-      btn.className = secondary ? "sprimal-choice sprimal-choice-ai" : "sprimal-choice";
+    var isAccordion = choices.length > 0 && typeof choices[0] === "object" && Array.isArray(choices[0].slots);
 
-      if (badge != null) {
-        // Layout: label on left, badge pill on right
-        btn.style.display        = "inline-flex";
-        btn.style.alignItems     = "center";
-        btn.style.gap            = "8px";
-        btn.style.justifyContent = "space-between";
-        btn.style.minWidth       = "110px";
+    if (isAccordion) {
+      // ── Court accordion: court buttons on top, slot panel below ────────────
+      var courtBtns      = [];
+      var currentSlotBtns = [];
+      var activeBtn      = null;
+
+      var courtRow = document.createElement("div");
+      courtRow.style.cssText = "display:flex;flex-wrap:wrap;gap:7px;";
+
+      var slotPanel = document.createElement("div");
+      slotPanel.style.cssText = "display:none;flex-wrap:wrap;gap:7px;padding-top:10px;margin-top:6px;border-top:1.5px solid #e5e7eb;width:100%;";
+
+      choices.forEach(function (choice) {
+        var btn = document.createElement("button");
+        btn.className = "sprimal-choice";
+        btn.style.cssText = "display:inline-flex;align-items:center;gap:6px;";
+        courtBtns.push(btn);
+
         var labelSpan = document.createElement("span");
-        labelSpan.textContent = label;
-        var badgeEl = document.createElement("span");
-        badgeEl.textContent = badge;
-        badgeEl.style.cssText = "background:#f1f5f9;color:#475569;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;flex-shrink:0;";
+        labelSpan.textContent = choice.label;
         btn.appendChild(labelSpan);
-        btn.appendChild(badgeEl);
-      } else {
-        btn.textContent = label;
-      }
 
-      allBtns.push(btn);
-      btn.addEventListener("click", function () {
-        allBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
-        btn.style.opacity = "1";
-        if (!secondary) { btn.style.background = brandColor; btn.style.color = "#fff"; btn.style.borderColor = brandColor; }
-        setTimeout(function () { sendAgentMessage(value, label); }, 280);
+        // Green badge showing free-slot count
+        if (choice.badge != null) {
+          var badgeEl = document.createElement("span");
+          badgeEl.textContent = choice.badge;
+          badgeEl.style.cssText = "background:#dcfce7;color:#16a34a;font-size:11px;font-weight:700;border-radius:10px;padding:1px 6px;flex-shrink:0;";
+          btn.appendChild(badgeEl);
+        }
+
+        (function (choice, btn) {
+          btn.addEventListener("click", function () {
+            // Highlight selected court, reset others
+            courtBtns.forEach(function (cb) {
+              cb.style.background  = "";
+              cb.style.color       = "";
+              cb.style.borderColor = "";
+            });
+            btn.style.background  = brandColor;
+            btn.style.color       = "#fff";
+            btn.style.borderColor = brandColor;
+            activeBtn = btn;
+
+            // Rebuild slot panel for this court
+            while (slotPanel.firstChild) slotPanel.removeChild(slotPanel.firstChild);
+            currentSlotBtns = [];
+
+            choice.slots.forEach(function (slot) {
+              var slotBtn = document.createElement("button");
+              slotBtn.className   = "sprimal-choice";
+              slotBtn.textContent = slot.label;
+              currentSlotBtns.push(slotBtn);
+              slotBtn.addEventListener("click", function () {
+                // Lock all interactive elements
+                courtBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+                currentSlotBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+                slotBtn.style.opacity    = "1";
+                slotBtn.style.background = brandColor;
+                slotBtn.style.color      = "#fff";
+                slotBtn.style.borderColor = brandColor;
+                setTimeout(function () { sendAgentMessage(slot.value, slot.label); }, 280);
+              });
+              slotPanel.appendChild(slotBtn);
+            });
+
+            slotPanel.style.display = "flex";
+            messages.scrollTop = messages.scrollHeight;
+          });
+        })(choice, btn);
+
+        courtRow.appendChild(btn);
       });
-      container.appendChild(btn);
-    });
+
+      container.appendChild(courtRow);
+      container.appendChild(slotPanel);
+
+    } else {
+      // ── Flat choices (strings or {label,value,badge?,secondary?}) ──────────
+      var allBtns = [];
+      choices.forEach(function (choice) {
+        var label     = typeof choice === "string" ? choice : (choice.label || String(choice));
+        var value     = typeof choice === "string" ? choice : (choice.value != null ? choice.value : label);
+        var badge     = typeof choice === "object" ? choice.badge : null;
+        var secondary = typeof choice === "object" && choice.secondary;
+
+        var btn = document.createElement("button");
+        btn.className = secondary ? "sprimal-choice sprimal-choice-ai" : "sprimal-choice";
+
+        if (badge != null) {
+          btn.style.cssText = "display:inline-flex;align-items:center;gap:8px;justify-content:space-between;min-width:110px;";
+          var labelSpan = document.createElement("span");
+          labelSpan.textContent = label;
+          var badgeEl = document.createElement("span");
+          badgeEl.textContent = badge;
+          badgeEl.style.cssText = "background:#f1f5f9;color:#475569;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;flex-shrink:0;";
+          btn.appendChild(labelSpan);
+          btn.appendChild(badgeEl);
+        } else {
+          btn.textContent = label;
+        }
+
+        allBtns.push(btn);
+        btn.addEventListener("click", function () {
+          allBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
+          btn.style.opacity = "1";
+          if (!secondary) { btn.style.background = brandColor; btn.style.color = "#fff"; btn.style.borderColor = brandColor; }
+          setTimeout(function () { sendAgentMessage(value, label); }, 280);
+        });
+        container.appendChild(btn);
+      });
+    }
+
     messages.appendChild(container);
     messages.scrollTop = messages.scrollHeight;
   }

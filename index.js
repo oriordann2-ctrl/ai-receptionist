@@ -277,7 +277,7 @@ const INTEGRATION_CATALOG = [
   {
     provider:       "ebookingonline",
     name:           "ebookingonline.net",
-    logo_html:      '<img src="/images/ebo-logo.png" alt="ebookingonline.net" style="width:80px;height:56px;object-fit:contain;margin:0 auto;display:block;" onerror="this.outerHTML=\'<div style=&quot;width:56px;height:56px;border-radius:12px;background:#0066cc;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:15px;font-family:sans-serif;margin:0 auto;&quot;>EBO</div>\'" />',
+    logo_html:      '<img src="/images/ebooking_logo.png" alt="ebookingonline.net" style="width:80px;height:56px;object-fit:contain;margin:0 auto;display:block;" onerror="this.outerHTML=\'<div style=&quot;width:56px;height:56px;border-radius:12px;background:#0066cc;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:15px;font-family:sans-serif;margin:0 auto;&quot;>EBO</div>\'" />',
     description:    "Court booking & member management",
     business_types: ["tennis_club", "squash_club", "badminton_club"],
     coming_soon:    false,

@@ -6595,32 +6595,45 @@ async function runCurrentStep(convo, userInput) {
   // Fetches live court slots from EBO, shows them as choices, stores selection.
   if (step.type === "availability_check") {
     if (userInput !== null) {
-      // Handle "no slots" fallback choices
+      // Fallback: enquire directly
       if (userInput === "__enquire__") {
-        // Skip directly to lead_capture
         state.stepId = step.next;
         state.skillState = null;
         return runCurrentStep(convo, null);
       }
+      // Back to court list
+      if (userInput === "__back_to_courts__") {
+        delete state.collected._avail_sub;
+        delete state.collected._selected_court;
+        return runCurrentStep(convo, null);
+      }
+      // Check tomorrow
       if (userInput.toLowerCase() === "tomorrow") {
-        // Re-run availability check for tomorrow
         state.collected.day_choice = "Tomorrow";
         delete state.collected.__no_slots__;
-        return runCurrentStep(convo, null); // userInput=null re-entered
+        delete state.collected._avail_sub;
+        delete state.collected._selected_court;
+        return runCurrentStep(convo, null);
       }
-      // Normal — user selected a time slot
+      // Court selected — move to slot picker for that court
+      if (userInput.startsWith("__court__")) {
+        state.collected._selected_court = userInput.slice(9); // strip "__court__"
+        state.collected._avail_sub = "pick_slot";
+        return runCurrentStep(convo, null);
+      }
+      // Time slot selected — store and advance
       state.collected[step.collect_field] = userInput;
       state.stepId     = step.next;
       state.skillState = null;
+      delete state.collected._avail_sub;
+      delete state.collected._selected_court;
       return runCurrentStep(convo, null);
     }
 
-    // userInput === null — fetch availability and return slots as choices
-    // Load from tenant_integrations if not already in EBO_CONFIG cache
+    // userInput === null — fetch availability
     await loadEboConfigFromDb(state.tenantId);
     const eboCfg = EBO_CONFIG[state.tenantId];
     if (!eboCfg) {
-      // No EBO credentials — tell the visitor and fall through to lead capture
       return {
         reply: "Online court availability isn't connected yet for this club. Let me take your details and someone will confirm a time with you shortly.",
         choices: []
@@ -6649,7 +6662,7 @@ async function runCurrentStep(convo, userInput) {
       const allSlots = [];
       for (let t = openMins; t + slotMins <= closeMins; t += slotMins) allSlots.push(toHHMM(t));
 
-      // Derive court list from bookings (unique court IDs seen today), sorted numerically
+      // Derive court list from bookings (unique court IDs), sorted numerically
       const allCourtIds = [...new Set(bookings.map(b => String(b.court_id)).filter(Boolean))]
         .sort((a, b) => Number(a) - Number(b));
       const totalCourts = allCourtIds.length || eboCfg.courtCount || 1;
@@ -6665,71 +6678,108 @@ async function runCurrentStep(convo, userInput) {
         }
       });
 
-      // A slot is available if at least one court is free; compute which courts are free
-      let freeSlots = allSlots
+      // Build free-slot data for each time slot
+      let allFreeSlots = allSlots
         .map(s => {
-          const booked    = bookedCourtsPerSlot[s] || new Set();
+          const booked     = bookedCourtsPerSlot[s] || new Set();
           const freeCourts = allCourtIds.filter(id => !booked.has(id));
-          // If no court IDs known (no bookings at all today), assume all courts free
-          const freeCount = allCourtIds.length ? freeCourts.length : totalCourts;
+          const freeCount  = allCourtIds.length ? freeCourts.length : totalCourts;
           return { slot: s, freeCourts, freeCount };
         })
         .filter(({ freeCount }) => freeCount > 0);
 
-      // Today: filter out slots that have already passed or start within 30 min
+      // Today: strip past slots (within 30 min)
       if (isToday) {
         const irishTime = new Intl.DateTimeFormat("en-GB", {
           timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false
         }).format(now);
         const [ih, im] = irishTime.split(":").map(Number);
         const nowMins  = ih * 60 + im;
-        freeSlots = freeSlots.filter(({ slot }) => toMins(slot) > nowMins + 30);
+        allFreeSlots = allFreeSlots.filter(({ slot }) => toMins(slot) > nowMins + 30);
       }
 
-      if (!freeSlots.length) {
-        state.collected.__no_slots__ = dateLabel;
+      // Store date label for confirmation
+      state.collected.booking_date = isToday ? "Today" : "Tomorrow";
+
+      const subState = state.collected._avail_sub || "pick_court";
+
+      // ── Sub-state: pick a court ───────────────────────────────────────────
+      if (subState === "pick_court") {
+        if (!allFreeSlots.length) {
+          state.collected.__no_slots__ = dateLabel;
+          return {
+            reply: `Sorry, there don't seem to be any available slots ${dateLabel}. Would you like to check tomorrow or enquire directly with the club?`,
+            choices: [
+              { label: "Check Tomorrow",   value: "Tomorrow" },
+              { label: "Enquire Directly", value: "__enquire__" }
+            ]
+          };
+        }
+
+        // Count free slots per court
+        const freeSlotsByCourtId = {};
+        allFreeSlots.forEach(({ freeCourts }) => {
+          freeCourts.forEach(id => {
+            freeSlotsByCourtId[id] = (freeSlotsByCourtId[id] || 0) + 1;
+          });
+        });
+
+        // If court IDs are unknown (no bookings at all), skip court picker and go straight to slots
+        if (!allCourtIds.length) {
+          state.collected._avail_sub = "pick_slot";
+          state.collected._selected_court = "__all__";
+          return runCurrentStep(convo, null);
+        }
+
+        const courtChoices = allCourtIds
+          .filter(id => (freeSlotsByCourtId[id] || 0) > 0)
+          .map(id => ({
+            label: `Court ${id}`,
+            value: `__court__${id}`,
+            badge: freeSlotsByCourtId[id] || 0
+          }));
+
         return {
-          reply: `Sorry, there don't seem to be any available slots ${dateLabel}. Would you like to check tomorrow or enquire directly with the club?`,
+          reply: `Here are the courts with availability ${dateLabel} 🎾 Which court would you like?`,
+          choices: courtChoices
+        };
+      }
+
+      // ── Sub-state: pick a time slot for the selected court ────────────────
+      const selectedCourt = state.collected._selected_court;
+      let courtSlots = allFreeSlots;
+
+      if (selectedCourt && selectedCourt !== "__all__") {
+        courtSlots = allFreeSlots.filter(({ freeCourts }) => freeCourts.includes(selectedCourt));
+      }
+
+      if (!courtSlots.length) {
+        return {
+          reply: `No slots left for Court ${selectedCourt} ${dateLabel}. Choose another court?`,
           choices: [
-            { label: "Check Tomorrow",   value: "Tomorrow" },
+            { label: "← All courts", value: "__back_to_courts__", secondary: true },
             { label: "Enquire Directly", value: "__enquire__" }
           ]
         };
       }
 
-      // Store date label for confirmation message
-      state.collected.booking_date = isToday ? "Today" : "Tomorrow";
-
-      // Show up to 8 slots as buttons, including which court(s) are free
-      const slotChoices = freeSlots.slice(0, 8).map(({ slot, freeCourts, freeCount }) => {
+      const slotChoices = courtSlots.slice(0, 8).map(({ slot }) => {
         const endTime = toHHMM(toMins(slot) + slotMins);
-        // Court label: "Court 3" / "Courts 1 & 2" / "2 courts" (if IDs unknown)
-        let courtLabel = "";
-        if (allCourtIds.length) {
-          if (freeCourts.length === 1) {
-            courtLabel = ` · Court ${freeCourts[0]}`;
-          } else if (freeCourts.length === 2) {
-            courtLabel = ` · Courts ${freeCourts[0]} & ${freeCourts[1]}`;
-          } else {
-            courtLabel = ` · ${freeCourts.length} courts free`;
-          }
-        } else if (freeCount > 1) {
-          courtLabel = ` · ${freeCount} courts free`;
-        }
         return {
-          label: `${slot} – ${endTime}${courtLabel}`,
-          value: `${state.collected.booking_date} ${slot}–${endTime}`
+          label: `${slot} – ${endTime}`,
+          value: `${state.collected.booking_date} ${slot}–${endTime} Court ${selectedCourt}`
         };
       });
+      slotChoices.push({ label: "← All courts", value: "__back_to_courts__", secondary: true });
 
+      const courtName = selectedCourt && selectedCourt !== "__all__" ? `Court ${selectedCourt}` : "courts";
       return {
-        reply: `Here are available slots ${dateLabel} 🎾 Which works best for you?`,
+        reply: `Available slots for ${courtName} ${dateLabel} 🎾 Which works best for you?`,
         choices: slotChoices
       };
 
     } catch (err) {
       console.error("[agent] availability_check error:", err.message);
-      // Fail gracefully — skip to next step
       state.stepId = step.next;
       return runCurrentStep(convo, null);
     }

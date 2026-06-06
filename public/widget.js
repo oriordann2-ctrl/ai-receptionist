@@ -623,22 +623,44 @@
   }
 
   // Render agent choice buttons (returned from /chat agentChoices array)
-  // Each choice may be a plain string OR {label, value} object
+  // Each choice may be a plain string OR {label, value, badge?, secondary?} object
   function showAgentChoices(choices) {
     clearChoices();
     var container = document.createElement("div");
     container.id  = "sprimal-choices";
     var allBtns   = [];
     choices.forEach(function (choice) {
-      var label = typeof choice === "string" ? choice : (choice.label || String(choice));
-      var value = typeof choice === "string" ? choice : (choice.value != null ? choice.value : label);
+      var label     = typeof choice === "string" ? choice : (choice.label || String(choice));
+      var value     = typeof choice === "string" ? choice : (choice.value != null ? choice.value : label);
+      var badge     = typeof choice === "object" ? choice.badge : null;
+      var secondary = typeof choice === "object" && choice.secondary;
+
       var btn = document.createElement("button");
-      btn.className   = "sprimal-choice";
-      btn.textContent = label;
+      btn.className = secondary ? "sprimal-choice sprimal-choice-ai" : "sprimal-choice";
+
+      if (badge != null) {
+        // Layout: label on left, badge pill on right
+        btn.style.display        = "inline-flex";
+        btn.style.alignItems     = "center";
+        btn.style.gap            = "8px";
+        btn.style.justifyContent = "space-between";
+        btn.style.minWidth       = "110px";
+        var labelSpan = document.createElement("span");
+        labelSpan.textContent = label;
+        var badgeEl = document.createElement("span");
+        badgeEl.textContent = badge;
+        badgeEl.style.cssText = "background:#f1f5f9;color:#475569;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;flex-shrink:0;";
+        btn.appendChild(labelSpan);
+        btn.appendChild(badgeEl);
+      } else {
+        btn.textContent = label;
+      }
+
       allBtns.push(btn);
       btn.addEventListener("click", function () {
         allBtns.forEach(function (b) { b.disabled = true; b.style.opacity = "0.4"; });
-        btn.style.opacity = "1"; btn.style.background = brandColor; btn.style.color = "#fff"; btn.style.borderColor = brandColor;
+        btn.style.opacity = "1";
+        if (!secondary) { btn.style.background = brandColor; btn.style.color = "#fff"; btn.style.borderColor = brandColor; }
         setTimeout(function () { sendAgentMessage(value, label); }, 280);
       });
       container.appendChild(btn);

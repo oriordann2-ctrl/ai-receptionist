@@ -282,13 +282,13 @@ const INTEGRATION_CATALOG = [
     business_types: ["tennis_club", "squash_club", "badminton_club"],
     coming_soon:    false,
     fields: [
-      { key: "club_id",      label: "Club ID",              type: "text",     placeholder: "e.g. 304",          required: true,  hint: "Found in your EBO admin URL" },
-      { key: "username",     label: "Username",             type: "text",     placeholder: "admin@yourclub.com", required: true  },
-      { key: "password",     label: "Password",             type: "password", placeholder: "••••••••",           required: true  },
-      { key: "open_time",    label: "Courts open",          type: "text",     placeholder: "08:00",              required: false, hint: "24h format. Default: 08:00" },
-      { key: "close_time",   label: "Courts close",         type: "text",     placeholder: "22:00",              required: false, hint: "24h format. Default: 22:00" },
-      { key: "slot_minutes", label: "Slot duration (mins)", type: "text",     placeholder: "60",                 required: false, hint: "Length of each court booking" },
-      { key: "court_count",  label: "Number of courts",    type: "text",     placeholder: "4",                  required: false, hint: "Total bookable courts" }
+      { key: "club_id",      label: "Club ID",              type: "text",     placeholder: "e.g. 304",           required: true,  hint: "Found in your EBO admin URL — e.g. ebookingonline.net/admin/304/..." },
+      { key: "username",     label: "API Username",         type: "text",     placeholder: "e.g. Monk5jQ9%H",    required: true,  hint: "From EBO Admin → API Credentials page (not your login email)" },
+      { key: "password",     label: "API Password",         type: "password", placeholder: "••••••••",            required: true,  hint: "From EBO Admin → API Credentials page" },
+      { key: "open_time",    label: "Courts open",          type: "text",     placeholder: "08:00",               required: false, hint: "First bookable slot — 24h format. Default: 08:00" },
+      { key: "close_time",   label: "Courts close",         type: "text",     placeholder: "22:00",               required: false, hint: "Last slot must end by this time — 24h format. Default: 22:00" },
+      { key: "slot_minutes", label: "Slot duration (mins)", type: "text",     placeholder: "60",                  required: false, hint: "Length of each court booking in minutes. Default: 60" },
+      { key: "court_count",  label: "Number of courts",    type: "text",     placeholder: "4",                   required: false, hint: "Total bookable courts — used when no bookings exist for a day" }
     ]
   },
   {

@@ -3390,6 +3390,24 @@ function extractTextFromHtml(html) {
     .trim();
 }
 
+// Extract external booking/platform URLs from raw HTML before tags are stripped.
+// These URLs appear in href attributes and would be lost by extractTextFromHtml.
+// Appending them to page text makes them available to regexExtractFromPages.
+function extractExternalUrlsFromHtml(html) {
+  const patterns = [
+    /https?:\/\/(?:www\.)?ebookingonline\.net\/[^\s"'<>]+/gi,  // EBO
+    /https?:\/\/(?:www\.)?clubspark\.lta\.org\.uk\/[^\s"'<>]+/gi, // ClubSpark
+    /https?:\/\/(?:www\.)?lovealltennis\.com\/[^\s"'<>]+/gi,   // LoveAll
+    /https?:\/\/(?:www\.)?tennis\.ie\/[^\s"'<>]+/gi,           // Tennis Ireland
+  ];
+  const found = new Set();
+  for (const re of patterns) {
+    const matches = html.match(re) || [];
+    matches.forEach(m => found.add(m.split('"')[0].split("'")[0])); // trim trailing quotes
+  }
+  return [...found];
+}
+
 function extractPageTitle(html) {
   const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
   return m ? m[1].trim() : "Page";
@@ -3656,7 +3674,11 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
 
       const html  = await response.text();
       const title = extractPageTitle(html);
-      const text  = extractTextFromHtml(html);
+      const externalUrls = extractExternalUrlsFromHtml(html);
+      const rawText = extractTextFromHtml(html);
+      const text  = externalUrls.length
+        ? rawText + "\n\nBooking platform links: " + externalUrls.join(" ")
+        : rawText;
 
       // Detect bot-protection / JS-gated pages — either too short OR containing
       // known challenge phrases (Cloudflare "One moment", etc.)
@@ -3691,7 +3713,11 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
         }
         if (jinaText) {
           console.log(`[crawler] Jina Reader: imported ${url} (${jinaText.length} chars)`);
-          pages.push({ url, title, text: jinaText });
+          const jinaExternalUrls = extractExternalUrlsFromHtml(html);
+          const jinaFinalText = jinaExternalUrls.length
+            ? jinaText + "\n\nBooking platform links: " + jinaExternalUrls.join(" ")
+            : jinaText;
+          pages.push({ url, title, text: jinaFinalText });
           // Extract links from both the original HTML and the Jina markdown.
           // When HTML is a bot-protection page, extractInternalLinks finds nothing —
           // extractLinksFromJinaText catches the real navigation links instead.

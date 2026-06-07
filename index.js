@@ -6948,6 +6948,31 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
 // ── Agent field suggestion ────────────────────────────────────────────────────
 
 // Shared LLM extraction logic used by both the backfill and the portal API endpoint.
+// Reconstruct complete page texts for documents whose content mentions a keyword.
+// Returns full un-truncated text so the LLM never misses content deep in a page.
+async function getFullPageTextForKeyword(tenantId, keyword) {
+  // Find document IDs that have at least one chunk matching the keyword
+  const { data: matchingChunks } = await supabase
+    .from("knowledge_chunks")
+    .select("document_id")
+    .eq("tenant_id", tenantId)
+    .ilike("chunk_text", keyword);
+  if (!matchingChunks || !matchingChunks.length) return null;
+
+  const docIds = [...new Set(matchingChunks.map(c => c.document_id))];
+
+  // Get ALL chunks for those documents, in order
+  const { data: allChunks } = await supabase
+    .from("knowledge_chunks")
+    .select("chunk_text, chunk_index")
+    .eq("tenant_id", tenantId)
+    .in("document_id", docIds)
+    .order("chunk_index", { ascending: true });
+  if (!allChunks || !allChunks.length) return null;
+
+  return allChunks.map(c => c.chunk_text).join("\n");
+}
+
 async function suggestAgentField(fieldKey, knowledgeText) {
   let prompt = "";
   if (fieldKey === "coaches") {
@@ -6990,19 +7015,12 @@ async function backfillEmptyAgentFields(tenantId) {
     const defMap = {};
     defs.forEach(d => { defMap[d.id] = d; });
 
-    // Use coach-specific chunks — each up to 4000 chars, 30k total context
-    const { data: coachChunks } = await supabase
-      .from("knowledge_chunks").select("chunk_text")
-      .eq("tenant_id", tenantId).ilike("chunk_text", "%coach%").limit(20);
-    const allChunks = coachChunks || [];
-    if (!allChunks.length) {
+    // Reconstruct full page text for pages mentioning coaches — no size limits
+    const combined = await getFullPageTextForKeyword(tenantId, "%coach%");
+    if (!combined) {
       console.log(`[backfill] No knowledge chunks yet for ${tenantId} — skipping`);
       return;
     }
-    const seen = new Set();
-    const combined = allChunks
-      .filter(c => { if (seen.has(c.chunk_text)) return false; seen.add(c.chunk_text); return true; })
-      .map(c => c.chunk_text.slice(0, 4000)).join("\n\n").slice(0, 30000);
 
     for (const ta of tenantAgents) {
       const def = defMap[ta.agent_id];
@@ -7696,21 +7714,13 @@ app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async
 
   try {
     // Prioritise chunks mentioning the field keyword, then add general content
+    // Reconstruct full page text for relevant pages — no arbitrary size limits
     const keyword = field === "coaches" ? "%coach%" : "%";
-    const { data: keyChunks } = await supabase
-      .from("knowledge_chunks").select("chunk_text")
-      .eq("tenant_id", tenantId).ilike("chunk_text", keyword).limit(20);
-    const allChunks = keyChunks || [];
+    const combined = await getFullPageTextForKeyword(tenantId, keyword);
 
-    if (!allChunks.length) {
+    if (!combined) {
       return res.json({ suggestion: null, message: "No website content found yet — make sure the website crawl has completed." });
     }
-
-    const seen = new Set();
-    // Each chunk up to 4000 chars, 30k total — ensures deep content like coach bios is reached
-    const combined = allChunks
-      .filter(c => { if (seen.has(c.chunk_text)) return false; seen.add(c.chunk_text); return true; })
-      .map(c => c.chunk_text.slice(0, 4000)).join("\n\n").slice(0, 30000);
 
     const suggestion = await suggestAgentField(field, combined);
     if (suggestion === null && field !== "coaches") {

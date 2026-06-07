@@ -6992,14 +6992,14 @@ async function backfillEmptyAgentFields(tenantId) {
     // Load knowledge chunks once — shared across all agents
     const { data: chunks } = await supabase
       .from("knowledge_chunks")
-      .select("content")
+      .select("chunk_text")
       .eq("tenant_id", tenantId)
       .limit(60);
     if (!chunks || !chunks.length) {
       console.log(`[backfill] No knowledge chunks yet for ${tenantId} — skipping`);
       return;
     }
-    const combined = chunks.map(c => c.content).join("\n\n").slice(0, 8000);
+    const combined = chunks.map(c => c.chunk_text).join("\n\n").slice(0, 8000);
 
     for (const ta of tenantAgents) {
       const def = defMap[ta.agent_id];
@@ -7694,7 +7694,7 @@ app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async
   try {
     const { data: chunks } = await supabase
       .from("knowledge_chunks")
-      .select("content")
+      .select("chunk_text")
       .eq("tenant_id", tenantId)
       .limit(60);
 
@@ -7702,7 +7702,7 @@ app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async
       return res.json({ suggestion: null, message: "No website content found yet — make sure the website crawl has completed." });
     }
 
-    const combined = chunks.map(c => c.content).join("\n\n").slice(0, 8000);
+    const combined = chunks.map(c => c.chunk_text).join("\n\n").slice(0, 8000);
 
     const suggestion = await suggestAgentField(field, combined);
     if (suggestion === null && field !== "coaches") {

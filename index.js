@@ -306,11 +306,13 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     }
   } catch {}
 
+  const pricesBlock = v(info.membership_prices) ? `\n\n💰 Membership Rates\n${info.membership_prices}` : "";
+
   const membMsg = membershipForms.length
-    ? `To join ${name}, complete the appropriate application form:\n\n${membershipForms.map(f => `📋 [link=${f.url}]${f.label}[/link]`).join("\n")}\n\nQuestions? Email ${emailLink}`
+    ? `To join ${name}, complete the appropriate application form:\n\n${membershipForms.map(f => `📋 [link=${f.url}]${f.label}[/link]`).join("\n")}${pricesBlock}\n\nQuestions? Email ${emailLink}`
     : v(info.membership_url)
-      ? `To view membership options and join ${name}, visit:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch:\n📧 ${emailLink}`
-      : `Interested in joining ${name}? Get in touch and we'll send you all the details:\n\n📧 ${emailLink}`;
+      ? `To view membership options and join ${name}, visit:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]${pricesBlock}\n\nOr get in touch:\n📧 ${emailLink}`
+      : `Interested in joining ${name}? Get in touch and we'll send you all the details:${pricesBlock}\n\n📧 ${emailLink}`;
 
   // ── Coaching ─────────────────────────────────────────────────────────────────
   // Parse coaches — LLM returns [{name, phone, email}] or a JSON string
@@ -3796,11 +3798,25 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
     }
   }
 
-  // Hard-block URLs that are always duplicates (WordPress raw post IDs etc.)
+  // Hard-block URLs that are always duplicates or system pages
+  const HARD_BLOCK_PATTERNS = [
+    /\/wp-login\.php/i,
+    /\/wp-admin(\/|$)/i,
+    /\/wp-json(\/|$)/i,
+    /\/feed(\/|$)/i,
+    /\/xmlrpc\.php/i,
+    /\/cart(\/|$)/i,
+    /\/checkout(\/|$)/i,
+    /\/my-account(\/|$)/i,
+    /\/lost-password/i,
+    /\?action=lostpassword/i,
+    /\?redirect_to=/i,
+  ];
   function isBlockedUrl(u) {
     try {
       const sp = new URL(u).searchParams;
-      return sp.has("p") || sp.has("page_id");
+      if (sp.has("p") || sp.has("page_id")) return true;
+      return HARD_BLOCK_PATTERNS.some(re => re.test(u));
     } catch { return false; }
   }
   allUrls = allUrls.filter(u => !isBlockedUrl(u));

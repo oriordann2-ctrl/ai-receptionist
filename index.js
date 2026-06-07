@@ -3377,7 +3377,21 @@ app.get("/upload", (req, res) => {
 // ── Website import helpers ────────────────────────────────────────────────
 
 function extractTextFromHtml(html) {
-  return html
+  // Pull footer text first — it's stripped below but often contains the best
+  // contact info (address, eircode, email, phone). Prepend it so it survives.
+  const footerMatch = html.match(/<footer[^>]*>([\s\S]*?)<\/footer>/i);
+  const footerText = footerMatch
+    ? footerMatch[1]
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+        .replace(/<\/?(p|div|h[1-6]|li|br|tr|td|th|span|a)[^>]*>/gi, "\n")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+        .replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ").replace(/&[a-z]+;/g, " ")
+        .replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim()
+    : "";
+
+  const bodyText = html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
     .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, " ")
@@ -3390,6 +3404,8 @@ function extractTextFromHtml(html) {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+  return footerText ? `${bodyText}\n\n[Footer contact info]\n${footerText}` : bodyText;
 }
 
 // Extract external booking/platform URLs from raw HTML before tags are stripped.

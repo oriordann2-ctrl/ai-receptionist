@@ -174,6 +174,28 @@ async function detectBusinessType(name, description, pageText) {
 }
 
 // ── Extract structured info from crawled pages (tennis clubs) ─────────────────
+// Regex fallback extraction — finds emails, EBO URLs and phone numbers
+// from raw page text when the LLM extraction misses them.
+function regexExtractFromPages(pages) {
+  const allText = pages.map(p => p.text).join("\n");
+
+  // Emails — exclude obvious non-contact addresses
+  const emailRe = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+  const emails = [...new Set(allText.match(emailRe) || [])].filter(e =>
+    !/(sentry|example|sprimal|noreply|no-reply|w3c|schema\.org)/i.test(e)
+  );
+
+  // EBOonline booking URL
+  const eboMatch = allText.match(/ebookingonline\.net\/box\/(\d+)/i);
+  const eboUrl = eboMatch ? `https://ebookingonline.net/box/${eboMatch[1]}` : null;
+
+  // Irish phone numbers
+  const phoneRe = /(?:\+353|0)[\s\-]?(?:\d[\s\-]?){8,9}\d/g;
+  const phones = [...new Set((allText.match(phoneRe) || []).map(p => p.replace(/[\s\-]/g, " ").trim()))];
+
+  return { emails, eboUrl, phones };
+}
+
 async function extractTennisClubInfo(pages, websiteUrl) {
   // Sort pages so the most info-rich pages come first.
   // Scoring: URL keyword match + page-text keyword match (catches /tennis, /about-us, etc.)
@@ -200,11 +222,24 @@ async function extractTennisClubInfo(pages, websiteUrl) {
       response_format: { type: "json_object" }
     });
     const info = JSON.parse(resp.choices[0].message.content || "{}");
+
+    // Regex fallbacks — fill any gaps the LLM missed
+    const rx = regexExtractFromPages(pages);
+    if (!info.email && rx.emails.length)       info.email             = rx.emails[0];
+    if (!info.court_booking_url && rx.eboUrl)  info.court_booking_url = rx.eboUrl;
+    if (!info.phone && rx.phones.length)       info.phone             = rx.phones[0];
+
     console.log("[tennis-seed] Extracted info:", JSON.stringify(info));
     return info;
   } catch (e) {
+    // LLM failed — fall back to regex only
     console.error("[tennis-seed] Info extraction failed:", e.message);
-    return {};
+    const rx = regexExtractFromPages(pages);
+    return {
+      email: rx.emails[0] || null,
+      court_booking_url: rx.eboUrl || null,
+      phone: rx.phones[0] || null
+    };
   }
 }
 

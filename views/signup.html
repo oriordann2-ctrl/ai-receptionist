@@ -372,15 +372,16 @@
         <div id="error" class="error-msg"></div>
       </div>
 
-      <!-- ── Success state ── -->
+      <!-- ── Success state (email verification sent) ── -->
       <div class="success-state" id="successState">
         <div class="success-icon">
           <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <h2>You're all set!</h2>
-        <p>We're training your assistant on your website now.</p>
-        <p>Your embed code is on its way to<br><span class="success-email" id="successEmail"></span></p>
-        <p style="margin-top:20px;font-size:14px;color:#94a3b8;">This usually takes 2–3 minutes. Check your spam folder if you don't see it.</p>
+        <h2>Check your inbox!</h2>
+        <p>We've sent a confirmation link to</p>
+        <p><span class="success-email" id="successEmail"></span></p>
+        <p style="margin-top:16px;line-height:1.6;">Click the link in that email to verify your address and start training your assistant — it only takes a second.</p>
+        <p style="margin-top:16px;font-size:14px;color:#94a3b8;">Can't find it? Check your spam folder, or <a href="/signup" style="color:#1e40af;">try again</a>.</p>
       </div>
 
     </div>
@@ -492,7 +493,13 @@
 
         var data = await res.json();
 
-        if (data.success) {
+        if (data.requiresVerification) {
+          // Show "check your email" state
+          document.getElementById("formState").style.display = "none";
+          var successState = document.getElementById("successState");
+          successState.style.display = "block";
+          document.getElementById("successEmail").textContent = data.email || email;
+        } else if (data.success) {
           window.location.href = "/portal/dashboard?new=1";
         } else {
           setError(data.error || "Something went wrong. Please try again.");

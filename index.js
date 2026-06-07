@@ -152,6 +152,20 @@ function decryptIntgConfig(config) {
   return out;
 }
 
+// ── Signup protection ─────────────────────────────────────────────────────────
+const BLOCKED_DOMAINS = new Set([
+  "amazon.com","amazon.co.uk","amazon.ie","amazon.de","amazon.fr","amazon.ca","amazon.com.au",
+  "microsoft.com","google.com","google.ie","google.co.uk","google.com.au",
+  "facebook.com","instagram.com","twitter.com","x.com","tiktok.com",
+  "linkedin.com","youtube.com","netflix.com","spotify.com","pinterest.com",
+  "wikipedia.org","reddit.com","apple.com","ebay.com","etsy.com",
+  "bbc.com","bbc.co.uk","theguardian.com","irishtimes.com","rte.ie",
+  "gov.ie","gov.uk","hse.ie","ec.europa.eu",
+  "shopify.com","squarespace.com","wix.com","wordpress.com",
+]);
+
+const CRAWL_QUOTA_DOCS = 50; // max pages stored per tenant
+
 // ── Business type detection ───────────────────────────────────────────────────
 async function detectBusinessType(name, description, pageText) {
   try {
@@ -4011,16 +4025,206 @@ app.get("/api/check-url", async (req, res) => {
   }
 });
 
+// ── Background crawl (runs after email verification) ─────────────────────────
+async function startBackgroundCrawl({ tenantId, name, website, email, portalPassword }) {
+  try {
+    let imported = 0;
+
+    if (website) {
+      console.log(`[crawl] Starting background crawl for ${tenantId}: ${website}`);
+
+      // Extract logo + brand colour + description from homepage
+      try {
+        let logoUrl = null;
+
+        try {
+          const homepageRes = await fetch(website, {
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+            signal: AbortSignal.timeout(8000)
+          });
+          if (homepageRes.ok) {
+            const homepageHtml = await homepageRes.text();
+            logoUrl = extractFaviconUrl(homepageHtml, website);
+            if (logoUrl) console.log(`[crawl] Logo found in HTML for ${tenantId}: ${logoUrl}`);
+
+            // Brand colour
+            try {
+              const tcMatch = homepageHtml.match(/<meta[^>]+name=["']theme-color["'][^>]+content=["'](#[0-9a-fA-F]{3,8})["']/i)
+                           || homepageHtml.match(/<meta[^>]+content=["'](#[0-9a-fA-F]{3,8})["'][^>]+name=["']theme-color["']/i);
+              if (tcMatch) {
+                await supabase.from("tenants").update({ brand_color: tcMatch[1] }).eq("id", tenantId);
+                console.log(`[crawl] Brand colour stored for ${tenantId}: ${tcMatch[1]}`);
+              }
+            } catch {}
+
+            // AI business description
+            try {
+              const pageText = homepageHtml
+                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+                .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+                .replace(/<[^>]+>/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 1500);
+              if (pageText.length > 100) {
+                const descResp = await openai.chat.completions.create({
+                  model: "gpt-4o-mini",
+                  messages: [
+                    { role: "system", content: "Write a concise one-sentence description of what this business does in 10-20 words. Start with a lowercase letter, no company name, no full stop. Example: 'a tennis club in Cork offering memberships, coaching sessions, and court bookings'" },
+                    { role: "user", content: `Business name: ${name}\nWebsite text:\n${pageText}` }
+                  ],
+                  temperature: 0.3,
+                  max_tokens: 60
+                });
+                const desc = (descResp.choices[0].message.content || "").trim().replace(/\.$/, "").replace(/^["']|["']$/g, "");
+                if (desc) {
+                  await supabase.from("tenants").update({ business_description: desc }).eq("id", tenantId);
+                  console.log(`[crawl] Business description stored for ${tenantId}: ${desc}`);
+                }
+              }
+            } catch {}
+          }
+        } catch (fetchErr) {
+          console.log(`[crawl] Homepage fetch failed for ${tenantId} (${fetchErr.message}) — will try Clearbit`);
+        }
+
+        // Clearbit logo fallback
+        if (!logoUrl) {
+          try {
+            const domain = new URL(website).hostname.replace(/^www\./, "");
+            const clearbitUrl = `https://logo.clearbit.com/${domain}`;
+            const clearbitRes = await fetch(clearbitUrl, { signal: AbortSignal.timeout(6000) });
+            if (clearbitRes.ok && (clearbitRes.headers.get("content-type") || "").startsWith("image/")) {
+              logoUrl = clearbitUrl;
+              console.log(`[crawl] Logo found via Clearbit for ${tenantId}: ${logoUrl}`);
+            }
+          } catch {}
+        }
+
+        if (logoUrl) {
+          await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
+        }
+      } catch (err) {
+        console.error(`[crawl] Logo extraction error for ${tenantId}:`, err.message);
+      }
+
+      const pages = await crawlWebsite(website, 40);
+      console.log(`[crawl] Crawled ${pages.length} pages for ${tenantId}`);
+
+      for (const page of pages) {
+        // ── Storage quota guard ──────────────────────────────────────────────
+        if (imported >= CRAWL_QUOTA_DOCS) {
+          console.log(`[crawl] Quota reached (${CRAWL_QUOTA_DOCS} docs) for ${tenantId} — stopping crawl`);
+          break;
+        }
+
+        try {
+          const { data: existingDoc } = await supabase
+            .from("documents")
+            .select("id")
+            .eq("storage_path", page.url)
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
+          if (existingDoc) {
+            console.log(`[crawl] Skipping duplicate page: ${page.url}`);
+            continue;
+          }
+
+          const { data: doc, error: insertError } = await supabase
+            .from("documents")
+            .insert({
+              original_filename: page.title,
+              stored_filename:   page.url,
+              mimetype:          "text/html",
+              lender:            null,
+              document_type:     "Website Content",
+              effective_date:    null,
+              tags:              ["website"],
+              metadata_complete: true,
+              junior_accessible: true,
+              storage_path:      page.url,
+              tenant_id:         tenantId
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error(`[crawl] Doc insert error for ${tenantId}:`, insertError.message);
+            continue;
+          }
+
+          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId);
+          imported++;
+        } catch (err) {
+          console.error(`[crawl] Page import error for ${tenantId}:`, err.message);
+        }
+      }
+
+      console.log(`[crawl] Imported ${imported} pages for ${tenantId}`);
+
+      // ── Detect business type + auto-seed template flows ──────────────────
+      try {
+        const allText = pages.map(p => p.text).join(" ").slice(0, 2000);
+        const { data: td } = await supabase.from("tenants").select("business_description").eq("id", tenantId).single();
+        const bizDesc = td?.business_description || "";
+        const bizType = await detectBusinessType(name, bizDesc, allText);
+        await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
+        console.log(`[crawl] Business type: ${bizType} for ${tenantId}`);
+
+        if (bizType === "tennis_club") {
+          const info = await extractTennisClubInfo(pages, website);
+          await seedTennisClubFlows(tenantId, name, website, info);
+          await backfillEmptyAgentFields(tenantId);
+        }
+      } catch (seedErr) {
+        console.error(`[crawl] Flow seed error for ${tenantId}:`, seedErr.message);
+      }
+    }
+
+    // Send welcome email
+    if (process.env.RESEND_API_KEY) {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          from: "Sprimal <hello@sprimal.com>",
+          to: email,
+          bcc: ["hello@sprimal.com"],
+          subject: `Your Sprimal assistant is ready 🎉`,
+          html: buildWelcomeEmailHtml({ name, email, portalPassword, website, imported, tenantId })
+        })
+      }).catch(err => console.error("[crawl] Welcome email error:", err.message));
+
+      console.log(`[crawl] Welcome email sent to ${email}`);
+    }
+  } catch (err) {
+    console.error(`[crawl] Background task error for ${tenantId}:`, err.message);
+  }
+}
+
+// ── POST /api/signup ───────────────────────────────────────────────────────────
 app.post("/api/signup", async (req, res) => {
   const { name, email } = req.body;
-  // Normalize website URL: add https:// if no protocol is present
   let website = (req.body.website || "").trim() || null;
-  if (website && !/^https?:\/\//i.test(website)) {
-    website = "https://" + website;
-  }
+  if (website && !/^https?:\/\//i.test(website)) website = "https://" + website;
 
   if (!name || !email) {
     return res.status(400).json({ error: "Business name and email are required" });
+  }
+
+  // ── Layer 1: Domain blocklist ──────────────────────────────────────────────
+  if (website) {
+    try {
+      const domain = new URL(website).hostname.replace(/^www\./, "").toLowerCase();
+      if (BLOCKED_DOMAINS.has(domain)) {
+        return res.status(400).json({ error: "That website can't be used with Sprimal. Please sign up with your own business website." });
+      }
+    } catch {
+      return res.status(400).json({ error: "Please enter a valid website URL." });
+    }
   }
 
   // Generate URL-safe tenant slug from business name
@@ -4032,240 +4236,197 @@ app.post("/api/signup", async (req, res) => {
     .slice(0, 40);
 
   if (!tenantId) {
-    return res.status(400).json({ error: "Could not generate a valid tenant ID from the business name" });
+    return res.status(400).json({ error: "Could not generate a valid ID from the business name." });
   }
 
-  // Check for duplicate
+  // ── Check for duplicate ────────────────────────────────────────────────────
   const { data: existing } = await supabase
     .from("tenants")
-    .select("id")
+    .select("id, email_verified, email_verification_token, email")
     .eq("id", tenantId)
     .maybeSingle();
 
   if (existing) {
-    return res.status(409).json({ error: "A business with a similar name already exists. Please contact us." });
+    // If unverified, resend the verification email and let them know
+    if (existing.email_verified === false && existing.email_verification_token) {
+      const verifyUrl = `https://app.sprimal.com/verify-email/${existing.email_verification_token}`;
+      if (process.env.RESEND_API_KEY) {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "Sprimal <hello@sprimal.com>",
+            to: existing.email,
+            subject: "Confirm your email to activate Sprimal",
+            html: buildVerificationEmailHtml({ name: existing.email, email: existing.email, verifyUrl })
+          })
+        }).catch(() => {});
+      }
+      return res.json({ requiresVerification: true, email: existing.email });
+    }
+    return res.status(409).json({ error: "A business with a similar name already exists. Please contact us if this is a mistake." });
   }
 
-  // Create tenant record
+  // ── Layer 2: Generate verification token + create unverified tenant ────────
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+
   const { error: tenantError } = await supabase
     .from("tenants")
-    .insert({ id: tenantId, name, email, website: website || null, plan: "trial", business_mode: "general" });
+    .insert({
+      id: tenantId,
+      name,
+      email,
+      website: website || null,
+      plan: "trial",
+      business_mode: "general",
+      email_verified: false,
+      email_verification_token: verificationToken
+    });
 
   if (tenantError) {
     console.error("[signup] Tenant insert error:", tenantError);
     return res.status(500).json({ error: "Failed to create account. Please try again." });
   }
 
-  console.log(`[signup] Created tenant: ${tenantId} (${name})`);
+  console.log(`[signup] Created unverified tenant: ${tenantId} (${name}) — awaiting email verification`);
 
-  // Generate a portal password and store it
-  const portalPassword = crypto.randomBytes(5).toString("hex"); // 10-char e.g. "a3f9b2c1d4"
-  await supabase.from("tenants").update({ portal_password: portalPassword }).eq("id", tenantId);
+  // Send verification email
+  const verifyUrl = `https://app.sprimal.com/verify-email/${verificationToken}`;
+  if (process.env.RESEND_API_KEY) {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Sprimal <hello@sprimal.com>",
+        to: email,
+        subject: "Confirm your email to activate Sprimal ✅",
+        html: buildVerificationEmailHtml({ name, email, verifyUrl })
+      })
+    }).catch(err => console.error("[signup] Verification email error:", err.message));
+  } else {
+    // Dev mode: log the link so you can test without Resend
+    console.log(`[signup] [DEV] Verify link for ${tenantId}: ${verifyUrl}`);
+  }
 
-  // Auto-login: embed tenant data in a signed cookie (survives server restarts)
-  const signupToken = createTenantToken({ tenantId, tenantName: name, email, website: website || null });
+  res.json({ requiresVerification: true, email });
+});
+
+// ── GET /verify-email/:token ───────────────────────────────────────────────────
+app.get("/verify-email/:token", async (req, res) => {
+  const { token } = req.params;
+
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("*")
+    .eq("email_verification_token", token)
+    .maybeSingle();
+
+  if (!tenant) {
+    return res.status(400).send(`
+      <!DOCTYPE html><html><head><title>Sprimal</title>
+      <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc;}
+      .box{text-align:center;max-width:400px;padding:40px;}</style></head>
+      <body><div class="box">
+        <h2 style="color:#0f172a;">Link expired or already used</h2>
+        <p style="color:#64748b;margin-top:12px;">This verification link is no longer valid. Please <a href="/signup" style="color:#2563eb;">sign up again</a> or contact us at <a href="mailto:hello@sprimal.com">hello@sprimal.com</a>.</p>
+      </div></body></html>
+    `);
+  }
+
+  // Generate portal password + mark verified
+  const portalPassword = crypto.randomBytes(5).toString("hex");
+  await supabase.from("tenants").update({
+    email_verified: true,
+    email_verification_token: null,
+    portal_password: portalPassword
+  }).eq("id", tenant.id);
+
+  // Auto-login cookie
+  const signupToken = createTenantToken({
+    tenantId: tenant.id,
+    tenantName: tenant.name,
+    email: tenant.email,
+    website: tenant.website
+  });
   res.cookie("tenant_session", signupToken, {
     httpOnly: true,
-    secure:   true,   // required for HTTPS (Render) — without this Chrome discards the cookie
+    secure:   true,
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
 
-  // Respond immediately — don't make the user wait for the crawl
-  res.json({ success: true, tenantId });
+  console.log(`[verify] Email verified for ${tenant.id} — starting background crawl`);
 
-  // ── Fire-and-forget: crawl website + store chunks + send email ────────────
-  (async () => {
-    try {
-      let imported = 0;
+  // Fire-and-forget crawl
+  startBackgroundCrawl({
+    tenantId: tenant.id,
+    name: tenant.name,
+    website: tenant.website,
+    email: tenant.email,
+    portalPassword
+  });
 
-      if (website) {
-        console.log(`[signup] Starting background crawl for ${tenantId}: ${website}`);
-
-        // Extract logo from homepage before full crawl
-        try {
-          let logoUrl = null;
-
-          // Step 1: try fetching the homepage and extracting logo from HTML
-          try {
-            const homepageRes = await fetch(website, {
-              headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-              signal: AbortSignal.timeout(8000)
-            });
-            if (homepageRes.ok) {
-              const homepageHtml = await homepageRes.text();
-              logoUrl = extractFaviconUrl(homepageHtml, website);
-              if (logoUrl) console.log(`[signup] Logo found in HTML for ${tenantId}: ${logoUrl}`);
-
-              // Extract brand colour from <meta name="theme-color">
-              try {
-                const tcMatch = homepageHtml.match(/<meta[^>]+name=["']theme-color["'][^>]+content=["'](#[0-9a-fA-F]{3,8})["']/i)
-                             || homepageHtml.match(/<meta[^>]+content=["'](#[0-9a-fA-F]{3,8})["'][^>]+name=["']theme-color["']/i);
-                if (tcMatch) {
-                  await supabase.from("tenants").update({ brand_color: tcMatch[1] }).eq("id", tenantId);
-                  console.log(`[signup] Brand colour stored for ${tenantId}: ${tcMatch[1]}`);
-                }
-              } catch (colorErr) {
-                console.log(`[signup] Brand colour extraction failed: ${colorErr.message}`);
-              }
-
-              // Generate AI business description from homepage text
-              try {
-                const pageText = homepageHtml
-                  .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-                  .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-                  .replace(/<[^>]+>/g, " ")
-                  .replace(/\s+/g, " ")
-                  .trim()
-                  .slice(0, 1500);
-                if (pageText.length > 100) {
-                  const descResp = await openai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    messages: [
-                      {
-                        role: "system",
-                        content: "Write a concise one-sentence description of what this business does in 10-20 words. Start with a lowercase letter, no company name, no full stop. Example: 'a tennis club in Cork offering memberships, coaching sessions, and court bookings'"
-                      },
-                      {
-                        role: "user",
-                        content: `Business name: ${name}\nWebsite text:\n${pageText}`
-                      }
-                    ],
-                    temperature: 0.3,
-                    max_tokens: 60
-                  });
-                  const desc = (descResp.choices[0].message.content || "").trim().replace(/\.$/, "").replace(/^["']|["']$/g, "");
-                  if (desc) {
-                    await supabase.from("tenants").update({ business_description: desc }).eq("id", tenantId);
-                    console.log(`[signup] Business description stored for ${tenantId}: ${desc}`);
-                  }
-                }
-              } catch (descErr) {
-                console.log(`[signup] Business description extraction failed: ${descErr.message}`);
-              }
-            }
-          } catch (fetchErr) {
-            console.log(`[signup] Homepage fetch failed for ${tenantId} (${fetchErr.message}) — will try Clearbit`);
-          }
-
-          // Step 2: fallback to Clearbit Logo API if homepage blocked or returned no logo
-          if (!logoUrl) {
-            try {
-              const domain = new URL(website).hostname.replace(/^www\./, "");
-              const clearbitUrl = `https://logo.clearbit.com/${domain}`;
-              const clearbitRes = await fetch(clearbitUrl, { signal: AbortSignal.timeout(6000) });
-              if (clearbitRes.ok && (clearbitRes.headers.get("content-type") || "").startsWith("image/")) {
-                logoUrl = clearbitUrl;
-                console.log(`[signup] Logo found via Clearbit for ${tenantId}: ${logoUrl}`);
-              }
-            } catch (clearbitErr) {
-              console.log(`[signup] Clearbit logo lookup failed for ${tenantId}: ${clearbitErr.message}`);
-            }
-          }
-
-          if (logoUrl) {
-            await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
-            console.log(`[signup] Stored logo for ${tenantId}: ${logoUrl}`);
-          } else {
-            console.log(`[signup] No logo found for ${tenantId} — chat will use default Sprimal icon`);
-          }
-        } catch (err) {
-          console.error(`[signup] Logo extraction error for ${tenantId}:`, err.message);
-        }
-
-        const pages = await crawlWebsite(website, 40);
-        console.log(`[signup] Crawled ${pages.length} pages for ${tenantId}`);
-
-        for (const page of pages) {
-          try {
-            // Skip if this URL was already stored (guards against double-crawl edge cases)
-            const { data: existing } = await supabase
-              .from("documents")
-              .select("id")
-              .eq("storage_path", page.url)
-              .eq("tenant_id", tenantId)
-              .maybeSingle();
-            if (existing) {
-              console.log(`[signup] Skipping duplicate page: ${page.url}`);
-              continue;
-            }
-
-            const { data: doc, error: insertError } = await supabase
-              .from("documents")
-              .insert({
-                original_filename: page.title,
-                stored_filename:   page.url,
-                mimetype:          "text/html",
-                lender:            null,
-                document_type:     "Website Content",
-                effective_date:    null,
-                tags:              ["website"],
-                metadata_complete: true,
-                junior_accessible: true,
-                storage_path:      page.url,
-                tenant_id:         tenantId
-              })
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error(`[signup] Doc insert error for ${tenantId}:`, insertError.message);
-              continue;
-            }
-
-            await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId);
-            imported++;
-          } catch (err) {
-            console.error(`[signup] Page import error for ${tenantId}:`, err.message);
-          }
-        }
-
-        console.log(`[signup] Imported ${imported} pages for ${tenantId}`);
-
-        // ── Detect business type + auto-seed template flows ──────────────────
-        try {
-          const allText   = pages.map(p => p.text).join(" ").slice(0, 2000);
-          const { data: td } = await supabase.from("tenants").select("business_description").eq("id", tenantId).single();
-          const bizDesc   = td?.business_description || "";
-          const bizType   = await detectBusinessType(name, bizDesc, allText);
-          await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
-          console.log(`[signup] Business type: ${bizType} for ${tenantId}`);
-
-          if (bizType === "tennis_club") {
-            const info = await extractTennisClubInfo(pages, website);
-            await seedTennisClubFlows(tenantId, name, website, info);
-            // Backfill any empty agent fields using the fully-indexed knowledge base
-            await backfillEmptyAgentFields(tenantId);
-          }
-        } catch (seedErr) {
-          console.error(`[signup] Flow seed error for ${tenantId}:`, seedErr.message);
-        }
-      }
-
-      // Send welcome email via Resend
-      if (process.env.RESEND_API_KEY) {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            from: "Sprimal <hello@sprimal.com>",
-            to: email,
-            bcc: ["hello@sprimal.com"],
-            subject: `Your Sprimal assistant is ready 🎉`,
-            html: buildWelcomeEmailHtml({ name, email, portalPassword, website, imported, tenantId })
-          })
-        }).catch(err => console.error("[signup] Email send error:", err.message));
-
-        console.log(`[signup] Welcome email sent to ${email}`);
-      }
-    } catch (err) {
-      console.error(`[signup] Background task error for ${tenantId}:`, err.message);
-    }
-  })();
+  res.redirect("/portal/dashboard?new=1");
 });
+
+// ── Verification email builder ────────────────────────────────────────────────
+
+function buildVerificationEmailHtml({ name, email, verifyUrl }) {
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f1f5f9;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="520" style="max-width:520px;width:100%;">
+
+      <!-- HEADER -->
+      <tr><td align="center" bgcolor="#0f1f3d" style="background-color:#0f1f3d;border-radius:10px 10px 0 0;padding:22px 32px;">
+        <span style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;letter-spacing:-0.5px;">Sprimal</span>
+      </td></tr>
+
+      <!-- BODY -->
+      <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:40px;border-radius:0 0 10px 10px;text-align:center;">
+
+        <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#0f1f3d;margin:0 0 12px 0;">Confirm your email address</h1>
+        <p style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#374151;margin:0 0 28px 0;line-height:1.65;">
+          Hi ${name}! Click the button below to verify your email and start training your AI assistant.
+        </p>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 28px;">
+          <tr><td align="center" bgcolor="#2563eb" style="background-color:#2563eb;border-radius:8px;padding:0;">
+            <a href="${verifyUrl}" style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;padding:14px 32px;">
+              ✅ Confirm email &amp; activate
+            </a>
+          </td></tr>
+        </table>
+
+        <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#94a3b8;margin:0 0 8px 0;line-height:1.6;">
+          This link will expire in 24 hours. If you didn't sign up for Sprimal, you can safely ignore this email.
+        </p>
+        <p style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#cbd5e1;margin:0;">
+          Or copy this URL into your browser:<br>
+          <span style="color:#64748b;word-break:break-all;">${verifyUrl}</span>
+        </p>
+
+      </td></tr>
+
+      <!-- FOOTER -->
+      <tr><td align="center" style="padding:20px 0;">
+        <p style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;margin:0;">
+          Sprimal · <a href="https://app.sprimal.com" style="color:#94a3b8;">app.sprimal.com</a>
+        </p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Welcome email builder ─────────────────────────────────────────────────────
@@ -5357,6 +5518,16 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
   try { rootUrl = new URL(url).href.replace(/\/$/, ""); }
   catch { return res.status(400).json({ error: "Invalid URL" }); }
 
+  // Blocklist check
+  try {
+    const domain = new URL(rootUrl).hostname.replace(/^www\./, "").toLowerCase();
+    if (BLOCKED_DOMAINS.has(domain)) {
+      return res.status(400).json({ error: "That website can't be imported into Sprimal. Please use your own business website." });
+    }
+  } catch {
+    return res.status(400).json({ error: "Invalid URL" });
+  }
+
   // Respond immediately — crawl runs in background
   res.json({ success: true, message: "Import started — this takes 2–3 minutes." });
 
@@ -5367,6 +5538,10 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
       console.log(`[portal-import] Crawled ${pages.length} pages for ${tenantId}`);
       let imported = 0;
       for (const page of pages) {
+        if (imported >= CRAWL_QUOTA_DOCS) {
+          console.log(`[portal-import] Quota reached (${CRAWL_QUOTA_DOCS} docs) for ${tenantId} — stopping`);
+          break;
+        }
         try {
           const { data: doc, error: insertError } = await supabase
             .from("documents")

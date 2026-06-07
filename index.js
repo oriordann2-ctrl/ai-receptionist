@@ -257,61 +257,68 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
   // IDs
   const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fCoach = crypto.randomUUID();
   const fBook = crypto.randomUUID(), fEvt  = crypto.randomUUID(), fLoc   = crypto.randomUUID();
-  const sMain = crypto.randomUUID(), sMemb1 = crypto.randomUUID(), sMemb2 = crypto.randomUUID();
+  const sMain = crypto.randomUUID(), sMemb = crypto.randomUUID();
   const sCoach = crypto.randomUUID(), sBook = crypto.randomUUID(), sEvt = crypto.randomUUID(), sLoc = crypto.randomUUID();
 
   const membershipUrl = v(info.membership_url)    || websiteUrl;
   const bookingUrl    = v(info.court_booking_url) || websiteUrl;
   const contactEmail  = v(info.email)             || "[FILL IN: email]";
+  const emailLink     = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]`
+    : "[FILL IN: email]";
 
-  // Build messages — use crawled data where available, [FILL IN] otherwise
-  const pricesBlock = v(info.membership_prices)
-    ? info.membership_prices
-    : "🎾 Adult — €[price] per year\n👨‍👩‍👧 Family — €[price] per year\n🧒 Junior (under 18) — €[price] per year\n🌟 Student — €[price] per year";
+  // ── Membership — only state what we know; never assume tiers or prices ──────
+  const membMsg = v(info.membership_url)
+    ? `To view membership options and join ${name}, visit:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch:\n📧 ${emailLink}`
+    : `Interested in joining ${name}? Get in touch and we'll send you all the details:\n\n📧 ${emailLink}`;
 
-  const memb2Msg = `Here's an overview of our membership options:\n\n${pricesBlock}\n\nMembership includes full access to all courts, club nights, and social events.\n\nTo join, visit [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\nOr email [b]${contactEmail}[/b]`;
-
-  const coachesBlock   = v(info.coaches) ? `\n\n${info.coaches}` : "";
+  // ── Coaching ─────────────────────────────────────────────────────────────────
+  const coachesBlock = v(info.coaches) ? `\n\n${info.coaches}` : "";
   const coachMsg = v(info.coaching_summary)
-    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}${coachesBlock}\n\nTo enquire, email [b]${contactEmail}[/b]`
-    : `We offer coaching for all ages and levels:\n\n🎾 Adult group lessons — [FILL IN: days/times]\n🧒 Junior coaching — [FILL IN: days/times]\n☀️ Summer camps — [FILL IN: dates]${coachesBlock}\n\nTo enquire, email [b]${contactEmail}[/b]`;
+    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`
+    : `We offer coaching for all ages and levels.${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`;
 
+  // ── Events & Leagues ─────────────────────────────────────────────────────────
   let evtMsg = v(info.events_summary)
     ? `There's always something on at ${name}! 🏆\n\n${info.events_summary}`
-    : `There's always something on at ${name}! 🏆\n\n🎾 Winter League — team competitions\n🏆 Club Championships — annual singles & doubles\n🌙 Social club nights\n\n[FILL IN: add your events and leagues]`;
+    : `There's always something on at ${name}! 🏆\n\nFor the latest events, leagues, and fixtures visit:\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]`;
   if (v(info.social_instagram) || v(info.social_twitter)) {
     evtMsg += "\n\nFollow us for the latest updates:";
     if (v(info.social_instagram)) evtMsg += `\n[link=https://instagram.com/${info.social_instagram}]📸 Instagram — @${info.social_instagram}[/link]`;
     if (v(info.social_twitter))   evtMsg += `\n[link=https://twitter.com/${info.social_twitter}]🐦 Twitter — @${info.social_twitter}[/link]`;
   }
 
+  // ── Find Us — include Google Maps link ───────────────────────────────────────
+  const mapsQuery = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl   = `https://maps.google.com/?q=${mapsQuery}`;
   const locLines = [
     `📍 ${name}`,
     v(info.address) || "[FILL IN: address]",
     v(info.eircode) ? `Eircode: ${info.eircode}` : null,
     "",
-    v(info.email) ? `📧 [b]${info.email}[/b]` : "📧 [FILL IN: email]",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`,
+    "",
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
     v(info.phone) ? `📞 ${info.phone}` : null,
   ].filter(l => l !== null).join("\n");
 
   // Insert flows
   const { error: fErr } = await supabase.from("chat_workflows").insert([
-    { id: fMain,  club_id: tenantId, name: "Main Menu",        is_active: true  }, // auto-activate entry point
-    { id: fMemb,  club_id: tenantId, name: "Membership",       is_active: false },
-    { id: fCoach, club_id: tenantId, name: "Coaching & Camps", is_active: false },
-    { id: fBook,  club_id: tenantId, name: "Book a Court",     is_active: false },
-    { id: fEvt,   club_id: tenantId, name: "Events & Leagues", is_active: false },
-    { id: fLoc,   club_id: tenantId, name: "Find Us",          is_active: false },
+    { id: fMain,  club_id: tenantId, name: "Main Menu",           is_active: true  }, // auto-activate entry point
+    { id: fMemb,  club_id: tenantId, name: "Membership",          is_active: false },
+    { id: fCoach, club_id: tenantId, name: "Coaching & Camps",    is_active: false },
+    { id: fBook,  club_id: tenantId, name: "Court Availability",  is_active: false },
+    { id: fEvt,   club_id: tenantId, name: "Events & Leagues",    is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",             is_active: false },
   ]);
   if (fErr) { console.error("[tennis-seed] Flow insert error:", fErr.message); return false; }
 
   // Insert steps
   const { error: sErr } = await supabase.from("workflow_steps").insert([
     { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `What can I help you with today?` },
-    { id: sMemb1, workflow_id: fMemb,  step_order: 1, bot_message: `Great — we have membership options for all ages and levels.\n\nAre you looking to join as an adult, a junior, or a family?` },
-    { id: sMemb2, workflow_id: fMemb,  step_order: 2, bot_message: memb2Msg },
+    { id: sMemb,  workflow_id: fMemb,  step_order: 1, bot_message: membMsg },
     { id: sCoach, workflow_id: fCoach, step_order: 1, bot_message: coachMsg },
-    { id: sBook,  workflow_id: fBook,  step_order: 1, bot_message: `Our courts are available to all members, with lighting for evening play.\n\n📱 Book online:\n[link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nNeed help? Email [b]${contactEmail}[/b]` },
+    { id: sBook,  workflow_id: fBook,  step_order: 1, bot_message: `📅 Court Availability\n\nBook a court online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]` },
     { id: sEvt,   workflow_id: fEvt,   step_order: 1, bot_message: evtMsg },
     { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
   ]);
@@ -320,31 +327,26 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
   // Insert choices
   const { error: cErr } = await supabase.from("workflow_choices").insert([
     // Main menu
-    { step_id: sMain, choice_order: 1, label: "🎾 Membership",       action_type: "switch_flow", action_value: fMemb  },
-    { step_id: sMain, choice_order: 2, label: "🏫 Coaching & camps", action_type: "switch_flow", action_value: fCoach },
-    { step_id: sMain, choice_order: 3, label: "📅 Book a court",     action_type: "switch_flow", action_value: fBook  },
-    { step_id: sMain, choice_order: 4, label: "🏆 Events & leagues", action_type: "switch_flow", action_value: fEvt   },
-    { step_id: sMain, choice_order: 5, label: "📍 Find us",          action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain, choice_order: 6, label: "💬 Something else",   action_type: "ai_fallback",  action_value: null   },
-    // Membership step 1
-    { step_id: sMemb1, choice_order: 1, label: "Adult",            action_type: "next_step",   action_value: "2" },
-    { step_id: sMemb1, choice_order: 2, label: "Family",           action_type: "next_step",   action_value: "2" },
-    { step_id: sMemb1, choice_order: 3, label: "Junior / Student", action_type: "next_step",   action_value: "2" },
-    // Membership step 2
-    { step_id: sMemb2, choice_order: 1, label: "✅ I'd like to join", action_type: "url",         action_value: membershipUrl },
-    { step_id: sMemb2, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain         },
+    { step_id: sMain, choice_order: 1, label: "🎾 Membership",          action_type: "switch_flow", action_value: fMemb  },
+    { step_id: sMain, choice_order: 2, label: "🏫 Coaching & camps",    action_type: "switch_flow", action_value: fCoach },
+    { step_id: sMain, choice_order: 3, label: "📅 Court availability",  action_type: "switch_flow", action_value: fBook  },
+    { step_id: sMain, choice_order: 4, label: "🏆 Events & leagues",    action_type: "switch_flow", action_value: fEvt   },
+    { step_id: sMain, choice_order: 5, label: "📍 Find us",             action_type: "switch_flow", action_value: fLoc   },
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",      action_type: "ai_fallback",  action_value: null   },
+    // Membership — single step: link to website + email
+    { step_id: sMemb, choice_order: 1, label: "🌐 Visit website",   action_type: "url",         action_value: membershipUrl },
+    { step_id: sMemb, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain         },
     // Coaching
-    { step_id: sCoach, choice_order: 1, label: "✅ I'd like to book", action_type: "ai_fallback", action_value: null  },
+    { step_id: sCoach, choice_order: 1, label: "✉️ Send an enquiry", action_type: "ai_fallback", action_value: null  },
     { step_id: sCoach, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain },
-    // Booking
-    { step_id: sBook, choice_order: 1, label: "📅 Book now",         action_type: "url",         action_value: bookingUrl },
-    { step_id: sBook, choice_order: 2, label: "💬 I have a question",action_type: "ai_fallback", action_value: null       },
-    { step_id: sBook, choice_order: 3, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain      },
-    // Events
-    { step_id: sEvt, choice_order: 1, label: "🎾 I'd like to enter", action_type: "ai_fallback", action_value: null  },
-    { step_id: sEvt, choice_order: 2, label: "← Back to menu",       action_type: "switch_flow", action_value: fMain },
+    // Court availability — clean link, back button only
+    { step_id: sBook, choice_order: 1, label: "📅 Book now",      action_type: "url",         action_value: bookingUrl },
+    { step_id: sBook, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain      },
+    // Events — back to menu only (no chat)
+    { step_id: sEvt, choice_order: 1, label: "← Back to menu", action_type: "switch_flow", action_value: fMain },
     // Find Us
-    { step_id: sLoc, choice_order: 1, label: "← Back to main menu", action_type: "switch_flow", action_value: fMain },
+    { step_id: sLoc, choice_order: 1, label: "📍 Get directions", action_type: "url",         action_value: mapsUrl },
+    { step_id: sLoc, choice_order: 2, label: "← Back to menu",    action_type: "switch_flow", action_value: fMain  },
   ]);
   if (cErr) { console.error("[tennis-seed] Choice insert error:", cErr.message); return false; }
 

@@ -389,7 +389,43 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
   ]);
   if (cErr) { console.error("[tennis-seed] Choice insert error:", cErr.message); return false; }
 
-  console.log(`[tennis-seed] ✅ Seeded 6 tennis club flows for ${tenantId} (${name})`);
+  // ── Auto-activate agents for this tenant ─────────────────────────────────────
+  const coachesForAgent = coaches.length
+    ? coaches.map(c => `${c.name}${c.phone ? " | " + c.phone : ""}`).join("\n")
+    : null;
+
+  const agentsToInsert = [
+    {
+      tenant_id: tenantId,
+      agent_id:  "coaching_enquiry_agent",
+      is_active: true,
+      config: {
+        intro_message:        `Great! I can help you enquire about a coaching session at ${name}. Let me find out a bit more about what you're looking for.`,
+        coaches:              coachesForAgent,
+        reply_time:           "24 hours",
+        session_types:        "Adult 1-to-1\nAdult Group\nJunior\nSummer Camp",
+        notification_email:   contactEmail !== "[FILL IN: email]" ? contactEmail : null,
+        confirmation_message: `Thanks {{name}}! We've passed your preferred times on to {{preferred_coach}} — they'll be in touch within {{reply_time}} to confirm. 🎾`
+      }
+    }
+  ];
+
+  if (v(info.court_booking_url)) {
+    agentsToInsert.push({
+      tenant_id: tenantId,
+      agent_id:  "court_booking_enquiry_agent",
+      is_active: true,
+      config: {
+        intro_message:  "Sure! Let me check what courts are available for you!",
+        ebo_booking_url: info.court_booking_url
+      }
+    });
+  }
+
+  const { error: aErr } = await supabase.from("tenant_agents").insert(agentsToInsert);
+  if (aErr) console.error("[tennis-seed] Agent insert error:", aErr.message);
+
+  console.log(`[tennis-seed] ✅ Seeded 6 tennis club flows + ${agentsToInsert.length} agents for ${tenantId} (${name})`);
   return true;
 }
 

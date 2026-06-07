@@ -25,6 +25,8 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 
+const rateLimit = require("express-rate-limit");
+
 const app = express();
 
 // ── Stripe webhook — raw body required for signature verification ─────────────
@@ -79,6 +81,16 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+// ── Rate limiter for signup ───────────────────────────────────────────────────
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,                    // max 5 signup attempts per IP per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many signup attempts from this address. Please try again in an hour." }
+});
+
 // Redirect root to portal; admin is still accessible at /login or /admin
 app.get("/", (req, res) => res.redirect("/portal"));
 app.use(express.static(path.join(__dirname, "public")));
@@ -4206,7 +4218,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
 }
 
 // ── POST /api/signup ───────────────────────────────────────────────────────────
-app.post("/api/signup", async (req, res) => {
+app.post("/api/signup", signupLimiter, async (req, res) => {
   const { name, email } = req.body;
   let website = (req.body.website || "").trim() || null;
   if (website && !/^https?:\/\//i.test(website)) website = "https://" + website;
@@ -4270,6 +4282,8 @@ app.post("/api/signup", async (req, res) => {
   // ── Layer 2: Generate verification token + create unverified tenant ────────
   const verificationToken = crypto.randomBytes(32).toString("hex");
 
+  const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
   const { error: tenantError } = await supabase
     .from("tenants")
     .insert({
@@ -4280,7 +4294,8 @@ app.post("/api/signup", async (req, res) => {
       plan: "trial",
       business_mode: "general",
       email_verified: false,
-      email_verification_token: verificationToken
+      email_verification_token: verificationToken,
+      email_verification_expires_at: verificationExpiresAt
     });
 
   if (tenantError) {
@@ -4321,16 +4336,29 @@ app.get("/verify-email/:token", async (req, res) => {
     .eq("email_verification_token", token)
     .maybeSingle();
 
+  const errorPage = (message) => `
+    <!DOCTYPE html><html><head><title>Sprimal</title>
+    <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc;}
+    .box{text-align:center;max-width:400px;padding:40px;}</style></head>
+    <body><div class="box">
+      <h2 style="color:#0f172a;">Link expired or already used</h2>
+      <p style="color:#64748b;margin-top:12px;">${message}</p>
+    </div></body></html>
+  `;
+
   if (!tenant) {
-    return res.status(400).send(`
-      <!DOCTYPE html><html><head><title>Sprimal</title>
-      <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc;}
-      .box{text-align:center;max-width:400px;padding:40px;}</style></head>
-      <body><div class="box">
-        <h2 style="color:#0f172a;">Link expired or already used</h2>
-        <p style="color:#64748b;margin-top:12px;">This verification link is no longer valid. Please <a href="/signup" style="color:#2563eb;">sign up again</a> or contact us at <a href="mailto:hello@sprimal.com">hello@sprimal.com</a>.</p>
-      </div></body></html>
-    `);
+    return res.status(400).send(errorPage(
+      `This verification link is no longer valid. Please <a href="/signup" style="color:#2563eb;">sign up again</a> or contact us at <a href="mailto:hello@sprimal.com">hello@sprimal.com</a>.`
+    ));
+  }
+
+  // Check token hasn't expired
+  if (tenant.email_verification_expires_at && new Date(tenant.email_verification_expires_at) < new Date()) {
+    // Clean up the expired unverified tenant
+    await supabase.from("tenants").delete().eq("id", tenant.id);
+    return res.status(400).send(errorPage(
+      `This verification link expired after 24 hours. Please <a href="/signup" style="color:#2563eb;">sign up again</a> — it only takes a moment.`
+    ));
   }
 
   // Generate portal password + mark verified

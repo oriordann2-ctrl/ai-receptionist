@@ -5231,13 +5231,8 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
     // preventing large HTML blobs from being embedded in the page and freezing the browser.
     const chatLogsHtml = "";
 
-    // Auto-refresh every 8 s only while a crawl is genuinely in progress:
-    // website set + no docs yet + tenant created within the last 10 minutes
-    const tenantAgeMs = tenantCreatedAt ? (Date.now() - new Date(tenantCreatedAt).getTime()) : Infinity;
-    const crawlInProgress = (!docs || docs.length === 0) && req.tenant.website && tenantAgeMs < 10 * 60 * 1000;
-    const autoRefresh = crawlInProgress
-      ? '<meta http-equiv="refresh" content="8">'
-      : '';
+    // Auto-refresh removed — the F1 crawl-progress widget handles live updates via polling
+    const autoRefresh = '';
 
     // Mortgage tracker — only for AOM tenant
     let mortgageAppsScript = "var MORTGAGE_APPS = null;";
@@ -5311,13 +5306,9 @@ function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt) {
     // Case 2: Website URL exists, tenant signed up within the last 10 minutes — crawl may be in progress
     const tenantAgeMs = tenantCreatedAt ? (Date.now() - new Date(tenantCreatedAt).getTime()) : Infinity;
     if (tenantAgeMs < 10 * 60 * 1000) {
-      return '<div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">'
-        + '<div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:6px;">&#9203; Setting up your assistant&hellip;</div>'
-        + '<div style="font-size:13px;color:#a16207;line-height:1.6;">We\'re crawling your website and building your knowledge base. This takes 2&ndash;3 minutes.<br>This page refreshes automatically &mdash; no need to do anything.</div>'
-        + '<div style="margin-top:12px;height:4px;background:#fde68a;border-radius:2px;overflow:hidden;">'
-        + '<div style="height:100%;width:40%;background:#f59e0b;border-radius:2px;animation:prog 2s ease-in-out infinite alternate;"></div></div>'
-        + '</div>'
-        + '<style>@keyframes prog{from{width:20%}to{width:80%}}</style>';
+      return '<div style="margin-top:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 22px;color:#6b7280;font-size:13px;line-height:1.6;">'
+        + '&#8987; Your pages will appear here once the crawl finishes — keep an eye on the progress bar above.'
+        + '</div>';
     }
 
     // Case 3: Website URL exists but tenant is older than 10 minutes with no docs — crawl stalled or failed

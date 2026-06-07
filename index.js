@@ -3919,7 +3919,7 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
         continue;
       } // skip bot-protected / near-empty pages
 
-      pages.push({ url, title, text });
+      pages.push({ url, title, text, html });
 
       const links = extractInternalLinks(html, url);
       for (const link of links) {
@@ -4156,6 +4156,20 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
 
       const pages = await crawlWebsite(website, 40);
       console.log(`[crawl] Crawled ${pages.length} pages for ${tenantId}`);
+
+      // ── Extract logo from crawled HTML (avoids second fetch for sites that block it) ──
+      if (!logoUrl) {
+        const homepagePage = pages.find(p => {
+          try { return new URL(p.url).pathname.replace(/\/$/, "") === ""; } catch { return false; }
+        }) || pages[0];
+        if (homepagePage?.html) {
+          logoUrl = extractFaviconUrl(homepagePage.html, homepagePage.url);
+          if (logoUrl) console.log(`[crawl] Logo found from crawled HTML for ${tenantId}: ${logoUrl}`);
+        }
+        if (logoUrl) {
+          await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
+        }
+      }
 
       for (const page of pages) {
         // ── Storage quota guard ──────────────────────────────────────────────

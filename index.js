@@ -3677,7 +3677,9 @@ const PROBE_PATHS = [
   "/contact", "/contact-us", "/about", "/about-us",
   "/membership", "/members", "/join", "/fees", "/pricing",
   "/coaching", "/lessons", "/tennis", "/facilities", "/courts",
-  "/events", "/leagues", "/news", "/location", "/find-us"
+  "/events", "/leagues", "/news", "/location", "/find-us",
+  "/book", "/book-a-court", "/booking", "/court-booking", "/online-booking",
+  "/play", "/book-online"
 ];
 
 async function fetchSitemapUrls(rootUrl) {

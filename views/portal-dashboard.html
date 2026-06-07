@@ -2193,6 +2193,18 @@
               + 'style="margin-top:6px;padding:5px 12px;border-radius:7px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;">✨ Suggest from website</button>';
             fieldsHtml += '<span id="suggestStatus_' + esc(field.key) + '" style="font-size:12px;color:#059669;margin-left:8px;display:none;">✓ Suggested — please review before saving</span>';
           }
+
+          // EBO number helper — shown only for the ebo_booking_url field
+          if (field.key === "ebo_booking_url") {
+            fieldsHtml += '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+              + '<span style="font-size:12px;color:#64748b;">Use ebooking?</span>'
+              + '<input id="eboNumberInput" type="text" placeholder="Club number e.g. 71" '
+              + 'style="width:160px;padding:5px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;font-family:inherit;outline:none;" />'
+              + '<button type="button" onclick="applyEboNumber()" '
+              + 'style="padding:5px 12px;border-radius:7px;border:1.5px solid #64748b;background:#f8fafc;color:#374151;font-size:12px;font-weight:600;cursor:pointer;">Build URL</button>'
+              + '</div>';
+          }
+
           if (field.hint) {
             fieldsHtml += '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">' + esc(field.hint) + '</div>';
           }
@@ -2207,6 +2219,14 @@
     window.closeAgentConfig = function() {
       document.getElementById("agentConfigOverlay").style.display = "none";
       activeTenantAgentId = null;
+    };
+
+    window.applyEboNumber = function() {
+      var num = (document.getElementById("eboNumberInput").value || "").trim();
+      if (!num) { alert("Please enter a club number first."); return; }
+      var url = "https://ebookingonline.net/box/" + num;
+      var field = document.getElementById("agentField_ebo_booking_url");
+      if (field) { field.value = url; }
     };
 
     window.suggestFromWebsite = function(fieldKey) {

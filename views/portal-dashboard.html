@@ -2187,6 +2187,12 @@
               + 'style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;box-sizing:border-box;" />';
           }
 
+          if (field.suggest_from_knowledge) {
+            fieldsHtml += '<button type="button" onclick="suggestFromWebsite(\'' + esc(field.key) + '\')" '
+              + 'id="suggestBtn_' + esc(field.key) + '" '
+              + 'style="margin-top:6px;padding:5px 12px;border-radius:7px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;">✨ Suggest from website</button>';
+            fieldsHtml += '<span id="suggestStatus_' + esc(field.key) + '" style="font-size:12px;color:#059669;margin-left:8px;display:none;">✓ Suggested — please review before saving</span>';
+          }
           if (field.hint) {
             fieldsHtml += '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">' + esc(field.hint) + '</div>';
           }
@@ -2201,6 +2207,30 @@
     window.closeAgentConfig = function() {
       document.getElementById("agentConfigOverlay").style.display = "none";
       activeTenantAgentId = null;
+    };
+
+    window.suggestFromWebsite = function(fieldKey) {
+      if (!activeTenantAgentId) return;
+      var btn    = document.getElementById("suggestBtn_" + fieldKey);
+      var status = document.getElementById("suggestStatus_" + fieldKey);
+      var ta     = document.getElementById("agentField_" + fieldKey);
+      btn.disabled = true; btn.textContent = "Searching website…";
+      fetch("/api/portal/agents/" + activeTenantAgentId + "/suggest-field", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: fieldKey })
+      }).then(function(r){ return r.json(); }).then(function(data) {
+        btn.disabled = false; btn.textContent = "✨ Suggest from website";
+        if (data.suggestion) {
+          ta.value = data.suggestion;
+          status.style.display = "inline";
+        } else {
+          alert(data.message || "No suggestion found. Make sure your website has been crawled.");
+        }
+      }).catch(function() {
+        btn.disabled = false; btn.textContent = "✨ Suggest from website";
+        alert("Failed to fetch suggestion. Please try again.");
+      });
     };
 
     window.saveAgentConfig = function() {

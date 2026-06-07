@@ -7590,6 +7590,54 @@ app.delete("/api/portal/agents/:tenantAgentId", requireTenant, async (req, res) 
   }
 });
 
+// POST /api/portal/agents/:tenantAgentId/suggest-field
+// Reads knowledge_chunks for this tenant and uses LLM to suggest a field value
+app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { field } = req.body;
+  if (!field) return res.status(400).json({ error: "field required" });
+
+  try {
+    const { data: chunks } = await supabase
+      .from("knowledge_chunks")
+      .select("content")
+      .eq("tenant_id", tenantId)
+      .limit(60);
+
+    if (!chunks || !chunks.length) {
+      return res.json({ suggestion: null, message: "No website content found yet — make sure the website crawl has completed." });
+    }
+
+    const combined = chunks.map(c => c.content).join("\n\n").slice(0, 8000);
+
+    let prompt = "";
+    if (field === "coaches") {
+      prompt = `Extract all coaching staff / coaches / instructors mentioned in this website content.\nReturn ONLY a plain list, one coach per line, in this format:\nName | phone_number\nIf no phone number is available for a coach, just use their name alone.\nIf no coaches are found at all, return an empty string.\nDo not include any explanation or extra text.`;
+    } else {
+      return res.json({ suggestion: null, message: "Suggestion not available for this field." });
+    }
+
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: prompt },
+        { role: "user",   content: combined }
+      ],
+      temperature: 0,
+      max_tokens: 400
+    });
+
+    const suggestion = (resp.choices[0].message.content || "").trim();
+    if (!suggestion) {
+      return res.json({ suggestion: null, message: "No coaches found in your website content. You may need to add them manually." });
+    }
+    res.json({ suggestion });
+  } catch (err) {
+    console.error("[suggest-field] Error:", err.message);
+    res.status(500).json({ error: "Failed to generate suggestion" });
+  }
+});
+
 // GET /api/portal/agent-leads — leads for a tenant_agent instance
 // ?agent_instance_id=<tenant_agents.id>
 app.get("/api/portal/agent-leads", requireTenant, async (req, res) => {

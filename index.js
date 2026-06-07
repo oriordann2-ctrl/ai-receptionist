@@ -3723,20 +3723,20 @@ async function fetchSitemapUrls(rootUrl) {
       } catch {}
     }
 
-    // Handle sitemap index (points to child sitemaps)
+    // Handle sitemap index (points to child sitemaps) — fetch in parallel, cap at 5
     const childSitemaps = [...xml.matchAll(/<loc>\s*(https?:\/\/[^<]+sitemap[^<]*\.xml)\s*<\/loc>/gi)].map(m => m[1]);
     if (childSitemaps.length > 0) {
-      for (const childUrl of childSitemaps) {
+      const results = await Promise.all(childSitemaps.slice(0, 5).map(async childUrl => {
         try {
           const childRes = await fetch(childUrl, {
             headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-            signal: AbortSignal.timeout(8000)
+            signal: AbortSignal.timeout(6000)
           });
-          if (!childRes.ok) continue;
-          const childXml = await childRes.text();
-          urls.push(...parseSitemapXml(childXml));
-        } catch {}
-      }
+          if (!childRes.ok) return [];
+          return parseSitemapXml(await childRes.text());
+        } catch { return []; }
+      }));
+      urls.push(...results.flat());
     } else {
       urls.push(...parseSitemapXml(xml));
     }

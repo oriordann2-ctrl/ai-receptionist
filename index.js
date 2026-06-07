@@ -26,6 +26,56 @@ const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 
 const app = express();
+
+// ── Stripe webhook — raw body required for signature verification ─────────────
+// MUST be registered before express.json() middleware
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  const sig           = req.headers["stripe-signature"];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  let event;
+  if (webhookSecret && sig) {
+    try {
+      const stripe = require("stripe")(process.env.SPRIMAL_STRIPE_KEY);
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    } catch (err) {
+      console.error("[Stripe webhook] Signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+  } else {
+    try { event = JSON.parse(req.body.toString()); }
+    catch (err) { return res.status(400).send("Invalid JSON"); }
+  }
+
+  const obj = event.data?.object || {};
+  const customerId = obj.customer;
+
+  if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
+    const priceId = obj.items?.data?.[0]?.price?.id;
+    const plan    = priceId === process.env.STRIPE_PRICE_ANNUAL ? "annual" : "monthly";
+    await supabase.from("tenants").update({
+      subscription_status: obj.status,
+      subscription_id:     obj.id,
+      stripe_customer_id:  customerId,
+      subscription_plan:   plan
+    }).eq("stripe_customer_id", customerId);
+    console.log(`[billing] Subscription ${event.type} for customer ${customerId}: ${obj.status}`);
+  }
+
+  if (event.type === "customer.subscription.deleted") {
+    await supabase.from("tenants").update({ subscription_status: "canceled", subscription_id: null })
+      .eq("stripe_customer_id", customerId);
+    console.log(`[billing] Subscription canceled for customer ${customerId}`);
+  }
+
+  if (event.type === "invoice.payment_failed") {
+    await supabase.from("tenants").update({ subscription_status: "past_due" })
+      .eq("stripe_customer_id", customerId);
+    console.log(`[billing] Payment failed for customer ${customerId}`);
+  }
+
+  res.json({ received: true });
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -962,6 +1012,20 @@ async function generateStripePortalLink(email) {
 
 function formatStripeDate(unixTs) {
   return new Date(unixTs * 1000).toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// ── Sprimal SaaS Billing — Sprimal charges its own tenants ───────────────────
+function sprimalStripe() {
+  return require("stripe")(process.env.SPRIMAL_STRIPE_KEY);
+}
+
+async function getOrCreateSprimalCustomer(tenantId, tenantName, email) {
+  const { data: tenant } = await supabase.from("tenants").select("stripe_customer_id").eq("id", tenantId).maybeSingle();
+  if (tenant?.stripe_customer_id) return tenant.stripe_customer_id;
+  const stripe   = sprimalStripe();
+  const customer = await stripe.customers.create({ email, name: tenantName, metadata: { tenant_id: tenantId } });
+  await supabase.from("tenants").update({ stripe_customer_id: customer.id }).eq("id", tenantId);
+  return customer.id;
 }
 
 // ── Helper: generate standardised stored filename from metadata ──────────────
@@ -6267,6 +6331,65 @@ app.delete("/api/portal/approved-answers/:id", requireSeniorTenant, async (req, 
   await supabase.from("approved_answers").delete()
     .eq("id", req.params.id).eq("tenant_id", req.tenant.tenantId);
   res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Sprimal Billing API ───────────────────────────────────────────────────────
+
+// GET /api/billing/status — returns current subscription state for the tenant
+app.get("/api/billing/status", requireTenant, async (req, res) => {
+  try {
+    const { data } = await supabase.from("tenants")
+      .select("subscription_status, subscription_plan, trial_ends_at, stripe_customer_id")
+      .eq("id", req.tenant.tenantId).maybeSingle();
+    res.json(data || { subscription_status: "trialing" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/billing/checkout — create a Stripe Checkout session
+app.post("/api/billing/checkout", requireTenant, async (req, res) => {
+  if (!process.env.SPRIMAL_STRIPE_KEY) return res.status(500).json({ error: "Billing not configured" });
+  try {
+    const { plan = "monthly" } = req.body;
+    const priceId = plan === "annual" ? process.env.STRIPE_PRICE_ANNUAL : process.env.STRIPE_PRICE_MONTHLY;
+    const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", req.tenant.tenantId).maybeSingle();
+    const email      = req.tenant.email || tenant?.email || "";
+    const customerId = await getOrCreateSprimalCustomer(req.tenant.tenantId, tenant?.name || req.tenant.tenantId, email);
+    const stripe     = sprimalStripe();
+    const session    = await stripe.checkout.sessions.create({
+      customer:             customerId,
+      payment_method_types: ["card"],
+      line_items:           [{ price: priceId, quantity: 1 }],
+      mode:                 "subscription",
+      success_url:          `https://app.sprimal.com/portal/dashboard?billing=success`,
+      cancel_url:           `https://app.sprimal.com/portal/dashboard`,
+      metadata:             { tenant_id: req.tenant.tenantId }
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("[billing/checkout]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/billing/portal-session — open Stripe Customer Portal (manage/cancel)
+app.post("/api/billing/portal-session", requireTenant, async (req, res) => {
+  if (!process.env.SPRIMAL_STRIPE_KEY) return res.status(500).json({ error: "Billing not configured" });
+  try {
+    const { data: tenant } = await supabase.from("tenants").select("stripe_customer_id").eq("id", req.tenant.tenantId).maybeSingle();
+    if (!tenant?.stripe_customer_id) return res.status(400).json({ error: "No billing account found. Please subscribe first." });
+    const stripe  = sprimalStripe();
+    const session = await stripe.billingPortal.sessions.create({
+      customer:   tenant.stripe_customer_id,
+      return_url: "https://app.sprimal.com/portal/dashboard"
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("[billing/portal-session]", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -199,7 +199,7 @@ function regexExtractFromPages(pages) {
 async function extractTennisClubInfo(pages, websiteUrl) {
   // Sort pages so the most info-rich pages come first.
   // Scoring: URL keyword match + page-text keyword match (catches /tennis, /about-us, etc.)
-  const priority = ["membership", "join", "coaching", "lessons", "tennis", "coach", "contact", "find", "about", "location", "fees", "programme", "program", "camp", "junior"];
+  const priority = ["membership", "join", "coaching", "lessons", "tennis", "coach", "contact", "find", "about", "location", "fees", "programme", "program", "camp", "junior", "senior", "adult"];
   const sorted = [...pages].sort((a, b) => {
     const score = (p) => {
       const urlLower  = p.url.toLowerCase();
@@ -214,7 +214,7 @@ async function extractTennisClubInfo(pages, websiteUrl) {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: `Extract structured info from this tennis club website. Return ONLY valid JSON. Use null for anything not found.\n{\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "membership_prices": "formatted price list e.g. '🎾 Adult — €X/year\\n👨‍👩‍👧 Family — €X/year' or null",\n  "membership_url": "URL of join/membership page or null",\n  "membership_forms": "array of membership application forms found e.g. [{\\\"label\\\": \\\"Senior/Family Application\\\", \\\"url\\\": \\\"https://...\\\"}, {\\\"label\\\": \\\"Junior Coaching Application\\\", \\\"url\\\": \\\"https://...\\\"}] or null — look in [Linked forms and resources] section",\n  "court_booking_url": "URL of court booking page or null",\n  "coaches": "formatted list of coaches with contact info, one per line, e.g. '🎾 Martin Cusack — 085 8734558\\n🎾 Aisling O Riordan — 085 1939086' or null",\n  "coaching_summary": "brief 1-2 sentence summary of coaching programmes offered (adult, junior, camps etc) or null",\n  "events_summary": "brief events/leagues summary or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
+        { role: "system", content: `Extract structured info from this tennis club website. Return ONLY valid JSON. Use null for anything not found.\n{\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "membership_prices": "formatted price list e.g. '🎾 Adult — €X/year\\n👨‍👩‍👧 Family — €X/year' or null",\n  "membership_url": "URL of join/membership page or null",\n  "membership_forms": "array of membership application forms found e.g. [{\\\"label\\\": \\\"Senior/Family Application\\\", \\\"url\\\": \\\"https://...\\\"}, {\\\"label\\\": \\\"Junior Coaching Application\\\", \\\"url\\\": \\\"https://...\\\"}] or null — look in [Linked forms and resources] section",\n  "court_booking_url": "URL of court booking page or null",\n  "coaches": "array of coaches with their details e.g. [{\\\"name\\\": \\\"Martin Cusack\\\", \\\"phone\\\": \\\"085 8734558\\\", \\\"email\\\": \\\"martin@example.com\\\"}, {\\\"name\\\": \\\"Aisling O Riordan\\\", \\\"phone\\\": \\\"085 1939086\\\", \\\"email\\\": null}] or null — include all named coaches found anywhere on the site",\n  "coaching_summary": "brief 1-2 sentence summary of coaching programmes offered (adult, junior, camps etc) or null",\n  "events_summary": "brief events/leagues summary or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
         { role: "user",   content: combined }
       ],
       temperature: 0,
@@ -286,7 +286,26 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
       : `Interested in joining ${name}? Get in touch and we'll send you all the details:\n\n📧 ${emailLink}`;
 
   // ── Coaching ─────────────────────────────────────────────────────────────────
-  const coachesBlock = v(info.coaches) ? `\n\n${info.coaches}` : "";
+  // Parse coaches — LLM returns [{name, phone, email}] or a JSON string
+  let coaches = [];
+  try {
+    const raw = info.coaches;
+    if (Array.isArray(raw)) coaches = raw.filter(c => c && c.name);
+    else if (typeof raw === "string") {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) coaches = parsed.filter(c => c && c.name);
+    }
+  } catch {}
+
+  const coachesBlock = coaches.length
+    ? "\n\n" + coaches.map(c => {
+        const lines = [`🎾 **${c.name}**`];
+        if (c.phone) lines.push(`   📞 [link=tel:${c.phone.replace(/\s/g, "")}]${c.phone}[/link]`);
+        if (c.email) lines.push(`   📧 [link=mailto:${c.email}]${c.email}[/link]`);
+        return lines.join("\n");
+      }).join("\n\n")
+    : "";
+
   const coachMsg = v(info.coaching_summary)
     ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`
     : `We offer coaching for all ages and levels.${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`;
@@ -357,9 +376,23 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
           { step_id: sMemb, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain         }
         ]
     ),
-    // Coaching
-    { step_id: sCoach, choice_order: 1, label: "✉️ Send an enquiry", action_type: "ai_fallback", action_value: null  },
-    { step_id: sCoach, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain },
+    // Coaching — one button per coach if found, plus general enquiry
+    ...(coaches.length
+      ? [
+          ...coaches.map((c, i) => ({
+            step_id: sCoach, choice_order: i + 1,
+            label: `🎾 ${c.name}`,
+            action_type: c.email ? "url" : "ai_fallback",
+            action_value: c.email ? `mailto:${c.email}` : null
+          })),
+          { step_id: sCoach, choice_order: coaches.length + 1, label: "✉️ General enquiry",  action_type: "ai_fallback", action_value: null },
+          { step_id: sCoach, choice_order: coaches.length + 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain }
+        ]
+      : [
+          { step_id: sCoach, choice_order: 1, label: "✉️ Send an enquiry", action_type: "ai_fallback", action_value: null  },
+          { step_id: sCoach, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain }
+        ]
+    ),
     // Court availability — clean link, back button only
     { step_id: sBook, choice_order: 1, label: "📅 Book now",      action_type: "url",         action_value: bookingUrl },
     { step_id: sBook, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain      },

@@ -3029,6 +3029,11 @@
       fetch('/api/portal/crawl-status')
         .then(function(r) { return r.json(); })
         .then(function(data) {
+          // Crawl already finished before this page session started — nothing to animate
+          if (data.done && !isVisible) {
+            clearInterval(pollTimer);
+            return;
+          }
           if (!data.active) {
             if (isVisible && !isDone) {
               inactiveSinceVisible++;

@@ -184,7 +184,8 @@ const CRAWL_QUOTA_DOCS = 50; // max pages stored per tenant
 const crawlProgressMap = new Map(); // tenantId → { pct, message, done }
 function setCrawlProgress(tenantId, pct, message, done = false) {
   crawlProgressMap.set(tenantId, { pct, message, done });
-  if (done) setTimeout(() => crawlProgressMap.delete(tenantId), 3 * 60 * 1000);
+  // Delete quickly after done so reloaded pages don't re-trigger the animation
+  if (done) setTimeout(() => crawlProgressMap.delete(tenantId), 8000);
 }
 
 // ── Business type detection ───────────────────────────────────────────────────

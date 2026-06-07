@@ -4080,8 +4080,8 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       console.log(`[crawl] Starting background crawl for ${tenantId}: ${website}`);
 
       // Extract logo + brand colour + description from homepage
+      let logoUrl = null;
       try {
-        let logoUrl = null;
 
         try {
           const homepageRes = await fetch(website, {

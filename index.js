@@ -3851,7 +3851,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
     try {
       console.log(`[crawler] Fetching: ${url}`);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 8000);
       const response = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
         signal: controller.signal
@@ -3880,14 +3880,9 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
       return { page: { url, title, text, html }, links: extractInternalLinks(html, url) };
 
     } catch (err) {
-      if (err.name === "AbortError") {
-        // Timeout — the site is just slow; Jina would face the same slowness, skip it
-        console.log(`[crawler] Timeout for ${url} — skipping`);
-        return null;
-      }
-      if (err.name === "TypeError") {
-        // Network error (DNS / connection refused) — try Jina in case it has a cached copy
-        return await jinaFallback(url, "", `network error (${err.message})`);
+      if (err.name === "AbortError" || err.name === "TypeError") {
+        // Timeout or network error — try Jina (shorter timeout so it doesn't stall the batch)
+        return await jinaFallback(url, "", `fetch failed (${err.name})`);
       }
       console.error(`[crawler] Error fetching ${url}:`, err.message);
       return null;

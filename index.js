@@ -4231,8 +4231,10 @@ app.post("/api/signup", async (req, res) => {
           console.log(`[signup] Business type: ${bizType} for ${tenantId}`);
 
           if (bizType === "tennis_club") {
-            const info    = await extractTennisClubInfo(pages, website);
+            const info = await extractTennisClubInfo(pages, website);
             await seedTennisClubFlows(tenantId, name, website, info);
+            // Backfill any empty agent fields using the fully-indexed knowledge base
+            await backfillEmptyAgentFields(tenantId);
           }
         } catch (seedErr) {
           console.error(`[signup] Flow seed error for ${tenantId}:`, seedErr.message);
@@ -6942,6 +6944,98 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
   return { reply: confirmMsg, choices: [], done: true };
 }
 
+// ── Agent field suggestion ────────────────────────────────────────────────────
+
+// Shared LLM extraction logic used by both the backfill and the portal API endpoint.
+async function suggestAgentField(fieldKey, knowledgeText) {
+  let prompt = "";
+  if (fieldKey === "coaches") {
+    prompt = `Extract all coaching staff / coaches / instructors mentioned in this website content.\nReturn ONLY a plain list, one coach per line, in this format:\nName | phone_number\nIf no phone number is available for a coach, just use their name alone.\nIf no coaches are found at all, return an empty string.\nDo not include any explanation or extra text.`;
+  } else {
+    return null; // no suggestion available for this field
+  }
+
+  const resp = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: prompt },
+      { role: "user",   content: knowledgeText }
+    ],
+    temperature: 0,
+    max_tokens: 400
+  });
+  const result = (resp.choices[0].message.content || "").trim();
+  return result || null;
+}
+
+// After signup crawl completes, backfill any empty suggest_from_knowledge fields
+// in tenant_agents using the already-indexed knowledge_chunks.
+async function backfillEmptyAgentFields(tenantId) {
+  try {
+    const { data: tenantAgents } = await supabase
+      .from("tenant_agents")
+      .select("id, agent_id, config")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true);
+    if (!tenantAgents || !tenantAgents.length) return;
+
+    const agentIds = tenantAgents.map(ta => ta.agent_id);
+    const { data: defs } = await supabase
+      .from("agent_definitions")
+      .select("id, config_schema")
+      .in("id", agentIds);
+    if (!defs || !defs.length) return;
+
+    const defMap = {};
+    defs.forEach(d => { defMap[d.id] = d; });
+
+    // Load knowledge chunks once — shared across all agents
+    const { data: chunks } = await supabase
+      .from("knowledge_chunks")
+      .select("content")
+      .eq("tenant_id", tenantId)
+      .limit(60);
+    if (!chunks || !chunks.length) {
+      console.log(`[backfill] No knowledge chunks yet for ${tenantId} — skipping`);
+      return;
+    }
+    const combined = chunks.map(c => c.content).join("\n\n").slice(0, 8000);
+
+    for (const ta of tenantAgents) {
+      const def = defMap[ta.agent_id];
+      if (!def?.config_schema?.fields) continue;
+
+      const config  = { ...(ta.config || {}) };
+      let   updated = false;
+
+      for (const field of def.config_schema.fields) {
+        if (!field.suggest_from_knowledge) continue;
+        if (config[field.key] && String(config[field.key]).trim()) continue; // already populated
+
+        try {
+          const suggestion = await suggestAgentField(field.key, combined);
+          if (suggestion) {
+            config[field.key] = suggestion;
+            updated = true;
+            console.log(`[backfill] Filled ${field.key} for ${ta.agent_id} / ${tenantId}: ${suggestion.slice(0, 60)}…`);
+          } else {
+            console.log(`[backfill] No suggestion found for ${field.key} / ${ta.agent_id} / ${tenantId}`);
+          }
+        } catch (e) {
+          console.error(`[backfill] LLM error for ${field.key}:`, e.message);
+        }
+      }
+
+      if (updated) {
+        await supabase.from("tenant_agents").update({ config }).eq("id", ta.id);
+      }
+    }
+    console.log(`[backfill] Agent field backfill complete for ${tenantId}`);
+  } catch (err) {
+    console.error(`[backfill] Error for ${tenantId}:`, err.message);
+  }
+}
+
 // ── Agent state machine ───────────────────────────────────────────────────────
 
 // Start a new agent session for this user. Called when agentTrigger is received.
@@ -7610,24 +7704,10 @@ app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async
 
     const combined = chunks.map(c => c.content).join("\n\n").slice(0, 8000);
 
-    let prompt = "";
-    if (field === "coaches") {
-      prompt = `Extract all coaching staff / coaches / instructors mentioned in this website content.\nReturn ONLY a plain list, one coach per line, in this format:\nName | phone_number\nIf no phone number is available for a coach, just use their name alone.\nIf no coaches are found at all, return an empty string.\nDo not include any explanation or extra text.`;
-    } else {
+    const suggestion = await suggestAgentField(field, combined);
+    if (suggestion === null && field !== "coaches") {
       return res.json({ suggestion: null, message: "Suggestion not available for this field." });
     }
-
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: prompt },
-        { role: "user",   content: combined }
-      ],
-      temperature: 0,
-      max_tokens: 400
-    });
-
-    const suggestion = (resp.choices[0].message.content || "").trim();
     if (!suggestion) {
       return res.json({ suggestion: null, message: "No coaches found in your website content. You may need to add them manually." });
     }

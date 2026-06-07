@@ -6990,21 +6990,19 @@ async function backfillEmptyAgentFields(tenantId) {
     const defMap = {};
     defs.forEach(d => { defMap[d.id] = d; });
 
-    // Prioritise chunks mentioning coaches, fall back to general content
-    const [{ data: coachChunks }, { data: generalChunks }] = await Promise.all([
-      supabase.from("knowledge_chunks").select("chunk_text").eq("tenant_id", tenantId).ilike("chunk_text", "%coach%").limit(20),
-      supabase.from("knowledge_chunks").select("chunk_text").eq("tenant_id", tenantId).limit(40)
-    ]);
-    const allChunks = [...(coachChunks || []), ...(generalChunks || [])];
+    // Use coach-specific chunks — each up to 4000 chars, 30k total context
+    const { data: coachChunks } = await supabase
+      .from("knowledge_chunks").select("chunk_text")
+      .eq("tenant_id", tenantId).ilike("chunk_text", "%coach%").limit(20);
+    const allChunks = coachChunks || [];
     if (!allChunks.length) {
       console.log(`[backfill] No knowledge chunks yet for ${tenantId} — skipping`);
       return;
     }
     const seen = new Set();
-    // Truncate each chunk to 1500 chars so more chunks fit within the context limit
     const combined = allChunks
       .filter(c => { if (seen.has(c.chunk_text)) return false; seen.add(c.chunk_text); return true; })
-      .map(c => c.chunk_text.slice(0, 1500)).join("\n\n").slice(0, 16000);
+      .map(c => c.chunk_text.slice(0, 4000)).join("\n\n").slice(0, 30000);
 
     for (const ta of tenantAgents) {
       const def = defMap[ta.agent_id];
@@ -7699,21 +7697,20 @@ app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async
   try {
     // Prioritise chunks mentioning the field keyword, then add general content
     const keyword = field === "coaches" ? "%coach%" : "%";
-    const [{ data: keyChunks }, { data: generalChunks }] = await Promise.all([
-      supabase.from("knowledge_chunks").select("chunk_text").eq("tenant_id", tenantId).ilike("chunk_text", keyword).limit(20),
-      supabase.from("knowledge_chunks").select("chunk_text").eq("tenant_id", tenantId).limit(40)
-    ]);
-    const allChunks = [...(keyChunks || []), ...(generalChunks || [])];
+    const { data: keyChunks } = await supabase
+      .from("knowledge_chunks").select("chunk_text")
+      .eq("tenant_id", tenantId).ilike("chunk_text", keyword).limit(20);
+    const allChunks = keyChunks || [];
 
     if (!allChunks.length) {
       return res.json({ suggestion: null, message: "No website content found yet — make sure the website crawl has completed." });
     }
 
     const seen = new Set();
-    // Truncate each chunk to 1500 chars so more chunks fit within the context limit
+    // Each chunk up to 4000 chars, 30k total — ensures deep content like coach bios is reached
     const combined = allChunks
       .filter(c => { if (seen.has(c.chunk_text)) return false; seen.add(c.chunk_text); return true; })
-      .map(c => c.chunk_text.slice(0, 1500)).join("\n\n").slice(0, 16000);
+      .map(c => c.chunk_text.slice(0, 4000)).join("\n\n").slice(0, 30000);
 
     const suggestion = await suggestAgentField(field, combined);
     if (suggestion === null && field !== "coaches") {

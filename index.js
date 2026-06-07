@@ -3594,7 +3594,23 @@ function extractFaviconUrl(html, baseUrl) {
     } catch {}
   }
 
-  // 3. <link rel="icon"> — last resort, often only a tiny 16px favicon
+  // 3. <img> tag with "logo" in class, id, or alt — catches basic sites without meta tags
+  const imgRe = /<img[^>]+>/gi;
+  let imgMatch;
+  while ((imgMatch = imgRe.exec(html)) !== null) {
+    const tag = imgMatch[0];
+    const hasLogoHint = /(?:class|id|alt)=["'][^"']*logo[^"']*["']/i.test(tag)
+                     || /(?:class|id|alt)=["'][^"']*brand[^"']*["']/i.test(tag);
+    if (!hasLogoHint) continue;
+    const srcMatch = tag.match(/src=["']([^"']+)["']/i);
+    if (!srcMatch) continue;
+    try {
+      const url = new URL(srcMatch[1], baseUrl).href;
+      if (url.startsWith("http") && !isGenericFavicon(url)) return url;
+    } catch {}
+  }
+
+  // 4. <link rel="icon"> — last resort, often only a tiny 16px favicon
   const iconMatches = [...html.matchAll(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/gi)];
   for (const m of iconMatches.reverse()) {
     try {

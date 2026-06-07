@@ -77,6 +77,11 @@
     "#sprimal-send{width:36px;height:36px;flex-shrink:0;background:#111827;color:#fff;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;padding:0;}",
     "#sprimal-send:hover{background:#1f2937;}",
     "#sprimal-send:disabled{background:#d1d5db;cursor:not-allowed;}",
+    "#sprimal-gdpr{padding:10px 14px;background:#f0f9ff;border-top:1px solid #bae6fd;display:flex;flex-direction:column;gap:8px;flex-shrink:0;}",
+    "#sprimal-gdpr p{font-size:12px;color:#374151;font-family:" + FONT + ";line-height:1.5;margin:0;}",
+    "#sprimal-gdpr a{color:#2563eb;text-decoration:underline;}",
+    "#sprimal-gdpr-accept{background:#111827;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;font-family:" + FONT + ";cursor:pointer;align-self:flex-start;}",
+    "#sprimal-gdpr-accept:hover{background:#1f2937;}",
     "#sprimal-choices{padding:2px 0 6px;display:flex;flex-wrap:wrap;gap:7px;align-self:flex-start;max-width:92%;}",
     ".sprimal-choice{background:#fff;border:1.5px solid #111827;border-radius:20px;padding:7px 16px;font-size:13px;font-family:" + FONT + ";cursor:pointer;color:#111827;font-weight:500;transition:background .12s,color .12s;white-space:nowrap;line-height:1.4;letter-spacing:-0.01em;}",
     ".sprimal-choice:hover{background:#111827;color:#fff;}",
@@ -147,6 +152,10 @@
       '  </div>',
       '</div>',
       '<div id="sprimal-messages"></div>',
+      '<div id="sprimal-gdpr">',
+      '  <p>By chatting you agree to our <a href="https://www.sprimal.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>. We may store your name and contact details to respond to your enquiry.</p>',
+      '  <button id="sprimal-gdpr-accept">I understand, let\'s chat</button>',
+      '</div>',
       '<div id="sprimal-footer">',
       '  <input id="sprimal-input" type="text" placeholder="Type a message..." autocomplete="off" />',
       '  <button id="sprimal-send" aria-label="Send">',
@@ -166,6 +175,34 @@
   var badge     = document.getElementById("sprimal-badge");
   var iframe    = document.getElementById("sprimal-iframe");
   var iframeLoader = document.getElementById("sprimal-iframe-loader");
+
+  // ── GDPR consent banner ──────────────────────────────────────────────────
+  var gdprBanner     = document.getElementById("sprimal-gdpr");
+  var gdprAcceptBtn  = document.getElementById("sprimal-gdpr-accept");
+  var gdprKey        = "sprimal_gdpr_" + clubId;
+  var gdprAccepted   = localStorage.getItem(gdprKey) === "1";
+
+  function applyGdprState() {
+    if (gdprAccepted) {
+      if (gdprBanner) gdprBanner.style.display = "none";
+    } else {
+      if (gdprBanner) gdprBanner.style.display = "flex";
+      if (input)  { input.disabled = true;  input.placeholder = "Please accept the privacy notice below…"; }
+      if (sendBtn) sendBtn.disabled = true;
+    }
+  }
+
+  if (gdprAcceptBtn) {
+    gdprAcceptBtn.addEventListener("click", function () {
+      gdprAccepted = true;
+      localStorage.setItem(gdprKey, "1");
+      if (gdprBanner) gdprBanner.style.display = "none";
+      if (input)  { input.disabled = false; input.placeholder = "Type a message…"; input.focus(); }
+      if (sendBtn) sendBtn.disabled = false;
+    });
+  }
+
+  applyGdprState();
 
   // Hide the loading overlay once the iframe has loaded
   if (iframe && iframeLoader) {

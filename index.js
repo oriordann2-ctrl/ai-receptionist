@@ -3600,6 +3600,7 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
 
   while (queue.length > 0 && pages.length < maxPages) {
     const url = queue.shift();
+    if (isBlockedUrl(url)) continue; // hard-stop — never fetch blocked URLs
     const canon = canonicalUrl(url);
     if (visited.has(canon)) continue;
     visited.add(canon);

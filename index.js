@@ -297,20 +297,17 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     }
   } catch {}
 
-  // Show all coaches with clickable contact details in the message.
-  // Buttons stay generic — no singling out individual coaches as action buttons.
+  // Coach names listed publicly — contact details kept private (portal only).
+  // Mirrors Monkstown: names shown, booking handled by coaching_enquiry_agent.
   const coachesBlock = coaches.length
-    ? "\n\n" + coaches.map(c => {
-        const lines = [`🎾 **${c.name}**`];
-        if (c.phone) lines.push(`   📞 [link=tel:${c.phone.replace(/\s/g, "")}]${c.phone}[/link]`);
-        if (c.email) lines.push(`   📧 [link=mailto:${c.email}]${c.email}[/link]`);
-        return lines.join("\n");
-      }).join("\n\n")
+    ? "\n\n" + coaches.map(c => `- ${c.name}`).join("\n")
     : "";
 
   const coachMsg = v(info.coaching_summary)
-    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`
-    : `We offer coaching for all ages and levels.${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`;
+    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}${coachesBlock}\n\nIf you need more information about coaching, feel free to ask!`
+    : coaches.length
+      ? `The coaches at ${name} are:${coachesBlock}\n\nIf you need more information about coaching, feel free to ask!`
+      : `We offer coaching for all ages and levels.\n\nIf you need more information about coaching, feel free to ask!`;
 
   // ── Events & Leagues ─────────────────────────────────────────────────────────
   let evtMsg = v(info.events_summary)
@@ -378,9 +375,9 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
           { step_id: sMemb, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain         }
         ]
     ),
-    // Coaching — generic enquiry routes to club, not individual coaches
-    { step_id: sCoach, choice_order: 1, label: "📧 Book a session", action_type: "ai_fallback", action_value: null  },
-    { step_id: sCoach, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain },
+    // Coaching — mirrors Monkstown: agent handles the booking conversation
+    { step_id: sCoach, choice_order: 1, label: "✅ I'd like to book", action_type: "agent",       action_value: "coaching_enquiry_agent" },
+    { step_id: sCoach, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain                   },
     // Court availability — clean link, back button only
     { step_id: sBook, choice_order: 1, label: "📅 Book now",      action_type: "url",         action_value: bookingUrl },
     { step_id: sBook, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain      },

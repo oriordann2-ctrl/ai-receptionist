@@ -7001,9 +7001,10 @@ async function backfillEmptyAgentFields(tenantId) {
       return;
     }
     const seen = new Set();
+    // Truncate each chunk to 1500 chars so more chunks fit within the context limit
     const combined = allChunks
       .filter(c => { if (seen.has(c.chunk_text)) return false; seen.add(c.chunk_text); return true; })
-      .map(c => c.chunk_text).join("\n\n").slice(0, 8000);
+      .map(c => c.chunk_text.slice(0, 1500)).join("\n\n").slice(0, 16000);
 
     for (const ta of tenantAgents) {
       const def = defMap[ta.agent_id];
@@ -7709,9 +7710,10 @@ app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async
     }
 
     const seen = new Set();
+    // Truncate each chunk to 1500 chars so more chunks fit within the context limit
     const combined = allChunks
       .filter(c => { if (seen.has(c.chunk_text)) return false; seen.add(c.chunk_text); return true; })
-      .map(c => c.chunk_text).join("\n\n").slice(0, 8000);
+      .map(c => c.chunk_text.slice(0, 1500)).join("\n\n").slice(0, 16000);
 
     const suggestion = await suggestAgentField(field, combined);
     if (suggestion === null && field !== "coaches") {

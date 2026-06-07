@@ -2889,17 +2889,17 @@
 
     if (!widget) return;
 
-    var pollTimer    = null;
-    var prevMessages = [];
-    var lastPct      = 0;
-    var isVisible    = false;
-    var isDone       = false;
+    var pollTimer      = null;
+    var prevMessages   = [];
+    var lastPct        = 0;
+    var isVisible      = false;
+    var isDone         = false;
+    var inactiveSinceVisible = 0; // consecutive inactive responses after widget was shown
 
     function showWidget() {
       if (isVisible) return;
       isVisible = true;
       widget.style.display = 'block';
-      // Clean up the ?new=1 param without triggering a reload
       var url = new URL(window.location.href);
       if (url.searchParams.has('new')) {
         url.searchParams.delete('new');
@@ -2920,23 +2920,19 @@
       if (prevMessages.indexOf(msg) !== -1) return;
       prevMessages.push(msg);
       if (prevMessages.length > 1) {
-        // Mark current as done
         if (logCurrent) {
           logCurrent.classList.remove('current');
           logCurrent.classList.add('done-item');
         }
-        // Create a new current log item
         var item = document.createElement('div');
         item.className = 'race-log-item current';
-        item.id = 'raceLogCurrent';
-        item.innerHTML = '<div class="rli-dot"></div><span id="raceLogCurrentText">' + escHtml(msg) + '</span>';
+        item.innerHTML = '<div class="rli-dot"></div><span>' + escHtml(msg) + '</span>';
         raceLog.appendChild(item);
         logCurrent   = item;
         logCurrentTx = item.querySelector('span');
       } else {
         if (logCurrentTx) logCurrentTx.textContent = msg;
       }
-      // Keep only last 4 log items visible
       var items = raceLog.querySelectorAll('.race-log-item');
       if (items.length > 4) items[0].remove();
     }
@@ -2945,7 +2941,24 @@
       return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
+    // Smoothly collapse and remove the widget, then reload once
+    function finishAndFade() {
+      if (!widget) return;
+      widget.style.transition = 'opacity 0.7s ease, max-height 0.9s ease, margin-bottom 0.9s ease';
+      widget.style.overflow   = 'hidden';
+      widget.style.maxHeight  = widget.offsetHeight + 'px';
+      // Force reflow so transition fires
+      widget.offsetHeight; // eslint-disable-line no-unused-expressions
+      widget.style.opacity      = '0';
+      widget.style.maxHeight    = '0';
+      widget.style.marginBottom = '0';
+      setTimeout(function() {
+        window.location.href = '/portal/dashboard';
+      }, 950);
+    }
+
     function applyProgress(data) {
+      inactiveSinceVisible = 0; // reset stale counter on any active response
       var pct = data.pct || 0;
       var msg = data.message || '';
 
@@ -2963,10 +2976,8 @@
         clearInterval(pollTimer);
         if (flagEl) flagEl.classList.add('waving');
         if (card) card.classList.add('race-done');
-        // After celebrating, reload to show the finished dashboard
-        setTimeout(function() {
-          window.location.href = '/portal/dashboard';
-        }, 3500);
+        // Wave the flag for 2.5 s, then smoothly collapse the widget and reload
+        setTimeout(finishAndFade, 2500);
       }
     }
 
@@ -2975,11 +2986,14 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (!data.active) {
-            // No active crawl — if we were showing the widget it means crawl finished
-            // before this poll (server restarted / done entry expired)
             if (isVisible && !isDone) {
-              clearInterval(pollTimer);
-              setTimeout(function() { window.location.href = '/portal/dashboard'; }, 800);
+              inactiveSinceVisible++;
+              // Only act after 3 consecutive inactive responses (6 s) — avoids reacting
+              // to a single stale/transient response during server restarts or deploys
+              if (inactiveSinceVisible >= 3) {
+                clearInterval(pollTimer);
+                finishAndFade();
+              }
             }
             return;
           }
@@ -2989,11 +3003,8 @@
         .catch(function() { /* silently ignore network errors during poll */ });
     }
 
-    // Always poll once immediately — show widget if crawl is active
     poll();
     pollTimer = setInterval(poll, 2000);
-
-    // Also update car position on window resize
     window.addEventListener('resize', function() { updateCar(lastPct); });
   })();
 </script>

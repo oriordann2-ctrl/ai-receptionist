@@ -3918,8 +3918,8 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
     }
   }
 
-  // ── Parallel batch crawl (6 pages at a time) ───────────────────────────────
-  const BATCH_SIZE = 6;
+  // ── Parallel batch crawl (2 pages at a time — gentle on slow/rate-limited sites) ───────────────────────────────
+  const BATCH_SIZE = 2;
 
   while (queue.length > 0 && pages.length < maxPages) {
     // Build next batch — mark URLs visited immediately to prevent batch duplicates
@@ -3948,6 +3948,8 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
       }
     }
     if (onProgress && pages.length > 0) onProgress(pages.length);
+    // Brief pause between batches — avoids hammering slow or rate-limited sites
+    await new Promise(r => setTimeout(r, 300));
   }
 
   return pages;

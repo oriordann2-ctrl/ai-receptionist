@@ -3843,7 +3843,7 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
     try {
       console.log(`[crawler] Fetching: ${url}`);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const timeout = setTimeout(() => controller.abort(), 15000);
       const response = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
         signal: controller.signal
@@ -3929,7 +3929,34 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
         if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
       }
     } catch (err) {
-      console.error(`[crawler] Error fetching ${url}:`, err.message);
+      // On timeout or fetch error, try Jina Reader as a fallback
+      if (err.name === "AbortError" || err.message.includes("fetch")) {
+        try {
+          console.log(`[crawler] Fetch failed (${err.message}) — trying Jina Reader for ${url}`);
+          const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
+            headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+            signal: AbortSignal.timeout(20000)
+          });
+          if (jinaRes.ok) {
+            const jinaText = (await jinaRes.text()).trim();
+            if (jinaText.length >= 80) {
+              const title = url.split("/").filter(Boolean).pop() || "Page";
+              pages.push({ url, title, text: jinaText, html: "" });
+              const jinaLinks = extractLinksFromJinaText(jinaText, url);
+              for (const link of jinaLinks) {
+                if (isBlockedUrl(link)) continue;
+                const lc = canonicalUrl(link);
+                if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
+              }
+              console.log(`[crawler] Jina fallback succeeded for ${url} (${jinaText.length} chars)`);
+            }
+          }
+        } catch (jinaErr) {
+          console.log(`[crawler] Jina fallback also failed for ${url}: ${jinaErr.message}`);
+        }
+      } else {
+        console.error(`[crawler] Error fetching ${url}:`, err.message);
+      }
     }
   }
 

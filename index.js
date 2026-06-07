@@ -3790,15 +3790,13 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
   // Always include root
   if (!allUrls.some(u => canonicalUrl(u) === rootCanon)) allUrls.unshift(root);
 
-  // Probe common paths — catches contact/about/membership pages that only appear
-  // in JS-rendered nav menus and are therefore invisible to link extraction.
+  // Always probe key paths — ensures important pages are in the queue even when
+  // a sitemap exists but doesn't include sub-pages like /membership/rates.
   // Pages that don't exist will 404 and be silently skipped by the crawler.
-  if (sitemapUrls.length === 0) {
-    // Only probe when sitemap gave us nothing — avoids redundant fetches on Wix/Squarespace
-    for (const p of PROBE_PATHS) {
-      const probeUrl = root + p;
-      if (!allUrls.includes(probeUrl)) allUrls.push(probeUrl);
-    }
+  for (const p of PROBE_PATHS) {
+    const probeUrl = root + p;
+    const probeCanon = canonicalUrl(probeUrl);
+    if (!allUrls.some(u => canonicalUrl(u) === probeCanon)) allUrls.push(probeUrl);
   }
 
   // Hard-block URLs that are always duplicates or system pages
@@ -3834,12 +3832,14 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
   const pages   = [];
 
   while (queue.length > 0 && pages.length < maxPages) {
-    const url = queue.shift();
-    if (isBlockedUrl(url)) continue; // hard-stop — never fetch blocked URLs
-    const canon = canonicalUrl(url);
-    if (visited.has(canon)) continue;
-    visited.add(canon);
+  // ── Helper: fetch and process a single page ───────────────────────────────
+  const BOT_PROTECTION_PHRASES = [
+    "one moment, please", "please wait while your request is being verified",
+    "checking your browser", "enable javascript and cookies",
+    "ddos protection by cloudflare", "ray id:", "cf-browser-verification"
+  ];
 
+  async function fetchOnePage(url) {
     try {
       console.log(`[crawler] Fetching: ${url}`);
       const controller = new AbortController();
@@ -3850,112 +3850,92 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
       });
       clearTimeout(timeout);
 
-      if (!response.ok) { console.log(`[crawler] Skip ${url}: HTTP ${response.status}`); continue; }
+      if (!response.ok) { console.log(`[crawler] Skip ${url}: HTTP ${response.status}`); return null; }
       const ct = response.headers.get("content-type") || "";
-      if (!ct.includes("text/html")) { console.log(`[crawler] Skip ${url}: content-type "${ct}"`); continue; }
+      if (!ct.includes("text/html")) { console.log(`[crawler] Skip ${url}: content-type "${ct}"`); return null; }
 
       const html  = await response.text();
       const title = extractPageTitle(html);
-      const externalUrls  = extractExternalUrlsFromHtml(html);
-      const anchorLinks   = extractLinksWithAnchorText(html, url);
+      const externalUrls = extractExternalUrlsFromHtml(html);
+      const anchorLinks  = extractLinksWithAnchorText(html, url);
       const rawText = extractTextFromHtml(html);
-      const text  = rawText
+      const text = rawText
         + (externalUrls.length ? "\n\nBooking platform links: " + externalUrls.join(" ") : "")
         + (anchorLinks.length  ? "\n\n[Linked forms and resources]\n" + anchorLinks.map(l => `${l.text} → ${l.url}`).join("\n") : "");
 
-      // Detect bot-protection / JS-gated pages — either too short OR containing
-      // known challenge phrases (Cloudflare "One moment", etc.)
-      const BOT_PROTECTION_PHRASES = [
-        "one moment, please",
-        "please wait while your request is being verified",
-        "checking your browser",
-        "enable javascript and cookies",
-        "ddos protection by cloudflare",
-        "ray id:",
-        "cf-browser-verification"
-      ];
-      const textLower = text.toLowerCase();
-      const isBotProtected = BOT_PROTECTION_PHRASES.some(p => textLower.includes(p));
+      const isBotProtected = BOT_PROTECTION_PHRASES.some(p => text.toLowerCase().includes(p));
 
       if (text.length < 80 || isBotProtected) {
-        const reason = isBotProtected ? "bot-protection page detected" : "text too short";
-        // Fallback: use Jina Reader to bypass JS rendering and bot-protection pages
-        let jinaText = null;
-        try {
-          console.log(`[crawler] ${reason} — trying Jina Reader for ${url}`);
-          const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
-            headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-            signal: AbortSignal.timeout(20000)
-          });
-          if (jinaRes.ok) {
-            const raw = (await jinaRes.text()).trim();
-            if (raw.length >= 80) jinaText = raw;
-          }
-        } catch (jinaErr) {
-          console.log(`[crawler] Jina Reader failed for ${url}: ${jinaErr.message}`);
-        }
-        if (jinaText) {
-          console.log(`[crawler] Jina Reader: imported ${url} (${jinaText.length} chars)`);
-          const jinaExternalUrls = extractExternalUrlsFromHtml(html);
-          const jinaAnchorLinks  = extractLinksWithAnchorText(html, url);
-          const jinaFinalText = jinaText
-            + (jinaExternalUrls.length ? "\n\nBooking platform links: " + jinaExternalUrls.join(" ") : "")
-            + (jinaAnchorLinks.length  ? "\n\n[Linked forms and resources]\n" + jinaAnchorLinks.map(l => `${l.text} → ${l.url}`).join("\n") : "");
-          pages.push({ url, title, text: jinaFinalText });
-          // Extract links from both the original HTML and the Jina markdown.
-          // When HTML is a bot-protection page, extractInternalLinks finds nothing —
-          // extractLinksFromJinaText catches the real navigation links instead.
-          const htmlLinks  = extractInternalLinks(html, url);
-          const jinaLinks  = extractLinksFromJinaText(jinaText, url);
-          const allLinks   = [...new Set([...htmlLinks, ...jinaLinks])];
-          for (const link of allLinks) {
-            if (isBlockedUrl(link)) continue;
-            const lc = canonicalUrl(link);
-            if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
-          }
-          console.log(`[crawler] Jina link discovery: ${htmlLinks.length} from HTML, ${jinaLinks.length} from Jina text`);
-        } else {
-          console.log(`[crawler] Skip ${url}: ${reason}, Jina also failed (${text.length} chars)`);
-        }
-        continue;
-      } // skip bot-protected / near-empty pages
+        return await jinaFallback(url, html, isBotProtected ? "bot-protection page detected" : "text too short");
+      }
 
-      pages.push({ url, title, text, html });
+      return { page: { url, title, text, html }, links: extractInternalLinks(html, url) };
 
-      const links = extractInternalLinks(html, url);
-      for (const link of links) {
+    } catch (err) {
+      if (err.name === "AbortError" || err.name === "TypeError") {
+        return await jinaFallback(url, "", `fetch failed (${err.message})`);
+      }
+      console.error(`[crawler] Error fetching ${url}:`, err.message);
+      return null;
+    }
+  }
+
+  async function jinaFallback(url, html, reason) {
+    try {
+      console.log(`[crawler] ${reason} — trying Jina Reader for ${url}`);
+      const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
+        headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+        signal: AbortSignal.timeout(20000)
+      });
+      if (!jinaRes.ok) return null;
+      const jinaText = (await jinaRes.text()).trim();
+      if (jinaText.length < 80) return null;
+
+      const title = extractPageTitle(html) || url.split("/").filter(Boolean).pop() || "Page";
+      const externalUrls = extractExternalUrlsFromHtml(html);
+      const anchorLinks  = extractLinksWithAnchorText(html, url);
+      const finalText = jinaText
+        + (externalUrls.length ? "\n\nBooking platform links: " + externalUrls.join(" ") : "")
+        + (anchorLinks.length  ? "\n\n[Linked forms and resources]\n" + anchorLinks.map(l => `${l.text} → ${l.url}`).join("\n") : "");
+
+      const htmlLinks  = extractInternalLinks(html, url);
+      const jinaLinks  = extractLinksFromJinaText(jinaText, url);
+      const links = [...new Set([...htmlLinks, ...jinaLinks])];
+      console.log(`[crawler] Jina succeeded for ${url} (${jinaText.length} chars)`);
+      return { page: { url, title, text: finalText, html }, links };
+    } catch (jinaErr) {
+      console.log(`[crawler] Jina also failed for ${url}: ${jinaErr.message}`);
+      return null;
+    }
+  }
+
+  // ── Parallel batch crawl (3 pages at a time) ───────────────────────────────
+  const BATCH_SIZE = 3;
+
+  while (queue.length > 0 && pages.length < maxPages) {
+    // Build next batch — mark URLs visited immediately to prevent batch duplicates
+    const batch = [];
+    while (batch.length < BATCH_SIZE && queue.length > 0 && pages.length + batch.length < maxPages) {
+      const url = queue.shift();
+      if (!url || isBlockedUrl(url)) continue;
+      const canon = canonicalUrl(url);
+      if (visited.has(canon)) continue;
+      visited.add(canon);
+      batch.push(url);
+    }
+    if (batch.length === 0) break;
+
+    // Fetch all pages in batch concurrently
+    const results = await Promise.all(batch.map(url => fetchOnePage(url)));
+
+    // Process results — add pages and discovered links
+    for (const result of results) {
+      if (!result) continue;
+      pages.push(result.page);
+      for (const link of result.links) {
         if (isBlockedUrl(link)) continue;
         const lc = canonicalUrl(link);
         if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
-      }
-    } catch (err) {
-      // On timeout or fetch error, try Jina Reader as a fallback
-      if (err.name === "AbortError" || err.message.includes("fetch")) {
-        try {
-          console.log(`[crawler] Fetch failed (${err.message}) — trying Jina Reader for ${url}`);
-          const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
-            headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-            signal: AbortSignal.timeout(20000)
-          });
-          if (jinaRes.ok) {
-            const jinaText = (await jinaRes.text()).trim();
-            if (jinaText.length >= 80) {
-              const title = url.split("/").filter(Boolean).pop() || "Page";
-              pages.push({ url, title, text: jinaText, html: "" });
-              const jinaLinks = extractLinksFromJinaText(jinaText, url);
-              for (const link of jinaLinks) {
-                if (isBlockedUrl(link)) continue;
-                const lc = canonicalUrl(link);
-                if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
-              }
-              console.log(`[crawler] Jina fallback succeeded for ${url} (${jinaText.length} chars)`);
-            }
-          }
-        } catch (jinaErr) {
-          console.log(`[crawler] Jina fallback also failed for ${url}: ${jinaErr.message}`);
-        }
-      } else {
-        console.error(`[crawler] Error fetching ${url}:`, err.message);
       }
     }
   }
@@ -4182,7 +4162,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         console.error(`[crawl] Logo extraction error for ${tenantId}:`, err.message);
       }
 
-      const pages = await crawlWebsite(website, 40);
+      const pages = await crawlWebsite(website, 60);
       console.log(`[crawl] Crawled ${pages.length} pages for ${tenantId}`);
 
       // ── Extract logo from crawled HTML (avoids second fetch for sites that block it) ──

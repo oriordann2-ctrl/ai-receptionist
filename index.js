@@ -297,11 +297,20 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     }
   } catch {}
 
-  // Coach names and contacts are stored for portal use only — not surfaced
-  // publicly in the chat. The club decides who handles coaching enquiries.
+  // Show all coaches with clickable contact details in the message.
+  // Buttons stay generic — no singling out individual coaches as action buttons.
+  const coachesBlock = coaches.length
+    ? "\n\n" + coaches.map(c => {
+        const lines = [`🎾 **${c.name}**`];
+        if (c.phone) lines.push(`   📞 [link=tel:${c.phone.replace(/\s/g, "")}]${c.phone}[/link]`);
+        if (c.email) lines.push(`   📧 [link=mailto:${c.email}]${c.email}[/link]`);
+        return lines.join("\n");
+      }).join("\n\n")
+    : "";
+
   const coachMsg = v(info.coaching_summary)
-    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}\n\nTo enquire or book a session:\n📧 ${emailLink}`
-    : `We offer coaching for all ages and levels.\n\nTo enquire or book a session:\n📧 ${emailLink}`;
+    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`
+    : `We offer coaching for all ages and levels.${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`;
 
   // ── Events & Leagues ─────────────────────────────────────────────────────────
   let evtMsg = v(info.events_summary)

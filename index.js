@@ -3548,14 +3548,26 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
 
+  // Canonical form: strip www., normalise protocol to https, remove trailing slash
+  // Used for deduplication — different spellings of the same URL map to one key.
+  function canonicalUrl(u) {
+    try {
+      const parsed = new URL(u);
+      parsed.hostname = parsed.hostname.replace(/^www\./, "");
+      parsed.protocol = "https:";
+      return (parsed.origin + parsed.pathname).replace(/\/$/, "") + parsed.search;
+    } catch { return u; }
+  }
+
   // Seed queue from sitemap if available — catches Wix & other JS-nav sites
   const sitemapUrls = await fetchSitemapUrls(root);
+  const rootCanon   = canonicalUrl(root);
   let allUrls = sitemapUrls.length > 0
-    ? sitemapUrls.filter(u => u.startsWith(root) || u.replace(/^https?:\/\/www\./, "https://").startsWith(root.replace(/^https?:\/\/www\./, "https://")))
+    ? sitemapUrls.filter(u => canonicalUrl(u).startsWith(rootCanon))
     : [root];
 
   // Always include root
-  if (!allUrls.includes(root)) allUrls.unshift(root);
+  if (!allUrls.some(u => canonicalUrl(u) === rootCanon)) allUrls.unshift(root);
 
   // Probe common paths — catches contact/about/membership pages that only appear
   // in JS-rendered nav menus and are therefore invisible to link extraction.
@@ -3579,8 +3591,9 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
 
   while (queue.length > 0 && pages.length < maxPages) {
     const url = queue.shift();
-    if (visited.has(url)) continue;
-    visited.add(url);
+    const canon = canonicalUrl(url);
+    if (visited.has(canon)) continue;
+    visited.add(canon);
 
     try {
       console.log(`[crawler] Fetching: ${url}`);
@@ -3641,7 +3654,8 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
           const jinaLinks  = extractLinksFromJinaText(jinaText, url);
           const allLinks   = [...new Set([...htmlLinks, ...jinaLinks])];
           for (const link of allLinks) {
-            if (!visited.has(link) && !queue.includes(link)) queue.push(link);
+            const lc = canonicalUrl(link);
+            if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
           }
           console.log(`[crawler] Jina link discovery: ${htmlLinks.length} from HTML, ${jinaLinks.length} from Jina text`);
         } else {
@@ -3654,7 +3668,8 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
 
       const links = extractInternalLinks(html, url);
       for (const link of links) {
-        if (!visited.has(link) && !queue.includes(link)) queue.push(link);
+        const lc = canonicalUrl(link);
+        if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
       }
     } catch (err) {
       console.error(`[crawler] Error fetching ${url}:`, err.message);
@@ -3967,6 +3982,18 @@ app.post("/api/signup", async (req, res) => {
 
         for (const page of pages) {
           try {
+            // Skip if this URL was already stored (guards against double-crawl edge cases)
+            const { data: existing } = await supabase
+              .from("documents")
+              .select("id")
+              .eq("storage_path", page.url)
+              .eq("tenant_id", tenantId)
+              .maybeSingle();
+            if (existing) {
+              console.log(`[signup] Skipping duplicate page: ${page.url}`);
+              continue;
+            }
+
             const { data: doc, error: insertError } = await supabase
               .from("documents")
               .insert({

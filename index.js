@@ -214,7 +214,7 @@ async function extractTennisClubInfo(pages, websiteUrl) {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: `Extract structured info from this tennis club website. Return ONLY valid JSON. Use null for anything not found.\n{\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "membership_prices": "formatted price list e.g. '🎾 Adult — €X/year\\n👨‍👩‍👧 Family — €X/year' or null",\n  "membership_url": "URL of join/membership page or null",\n  "court_booking_url": "URL of court booking page or null",\n  "coaches": "formatted list of coaches with contact info, one per line, e.g. '🎾 Martin Cusack — 085 8734558\\n🎾 Aisling O Riordan — 085 1939086' or null",\n  "coaching_summary": "brief 1-2 sentence summary of coaching programmes offered (adult, junior, camps etc) or null",\n  "events_summary": "brief events/leagues summary or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
+        { role: "system", content: `Extract structured info from this tennis club website. Return ONLY valid JSON. Use null for anything not found.\n{\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "membership_prices": "formatted price list e.g. '🎾 Adult — €X/year\\n👨‍👩‍👧 Family — €X/year' or null",\n  "membership_url": "URL of join/membership page or null",\n  "membership_forms": "array of membership application forms found e.g. [{\\\"label\\\": \\\"Senior/Family Application\\\", \\\"url\\\": \\\"https://...\\\"}, {\\\"label\\\": \\\"Junior Coaching Application\\\", \\\"url\\\": \\\"https://...\\\"}] or null — look in [Linked forms and resources] section",\n  "court_booking_url": "URL of court booking page or null",\n  "coaches": "formatted list of coaches with contact info, one per line, e.g. '🎾 Martin Cusack — 085 8734558\\n🎾 Aisling O Riordan — 085 1939086' or null",\n  "coaching_summary": "brief 1-2 sentence summary of coaching programmes offered (adult, junior, camps etc) or null",\n  "events_summary": "brief events/leagues summary or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
         { role: "user",   content: combined }
       ],
       temperature: 0,
@@ -268,9 +268,22 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     : "[FILL IN: email]";
 
   // ── Membership — only state what we know; never assume tiers or prices ──────
-  const membMsg = v(info.membership_url)
-    ? `To view membership options and join ${name}, visit:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch:\n📧 ${emailLink}`
-    : `Interested in joining ${name}? Get in touch and we'll send you all the details:\n\n📧 ${emailLink}`;
+  // Parse membership_forms — LLM may return an array or a JSON string
+  let membershipForms = [];
+  try {
+    const raw = info.membership_forms;
+    if (Array.isArray(raw)) membershipForms = raw.filter(f => f && f.label && f.url);
+    else if (typeof raw === "string") {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) membershipForms = parsed.filter(f => f && f.label && f.url);
+    }
+  } catch {}
+
+  const membMsg = membershipForms.length
+    ? `To join ${name}, complete the appropriate application form:\n\n${membershipForms.map(f => `📋 [link=${f.url}]${f.label}[/link]`).join("\n")}\n\nQuestions? Email ${emailLink}`
+    : v(info.membership_url)
+      ? `To view membership options and join ${name}, visit:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch:\n📧 ${emailLink}`
+      : `Interested in joining ${name}? Get in touch and we'll send you all the details:\n\n📧 ${emailLink}`;
 
   // ── Coaching ─────────────────────────────────────────────────────────────────
   const coachesBlock = v(info.coaches) ? `\n\n${info.coaches}` : "";
@@ -333,9 +346,17 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain, choice_order: 4, label: "🏆 Events & leagues",    action_type: "switch_flow", action_value: fEvt   },
     { step_id: sMain, choice_order: 5, label: "📍 Find us",             action_type: "switch_flow", action_value: fLoc   },
     { step_id: sMain, choice_order: 6, label: "💬 Something else",      action_type: "ai_fallback",  action_value: null   },
-    // Membership — single step: link to website + email
-    { step_id: sMemb, choice_order: 1, label: "🌐 Visit website",   action_type: "url",         action_value: membershipUrl },
-    { step_id: sMemb, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain         },
+    // Membership — one button per form if found, otherwise website link
+    ...(membershipForms.length
+      ? [
+          ...membershipForms.map((f, i) => ({ step_id: sMemb, choice_order: i + 1, label: `📋 ${f.label}`, action_type: "url", action_value: f.url })),
+          { step_id: sMemb, choice_order: membershipForms.length + 1, label: "← Back to menu", action_type: "switch_flow", action_value: fMain }
+        ]
+      : [
+          { step_id: sMemb, choice_order: 1, label: "🌐 Visit website", action_type: "url",         action_value: membershipUrl },
+          { step_id: sMemb, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain         }
+        ]
+    ),
     // Coaching
     { step_id: sCoach, choice_order: 1, label: "✉️ Send an enquiry", action_type: "ai_fallback", action_value: null  },
     { step_id: sCoach, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain },
@@ -3408,6 +3429,33 @@ function extractTextFromHtml(html) {
   return footerText ? `${bodyText}\n\n[Footer contact info]\n${footerText}` : bodyText;
 }
 
+// Extract meaningful links (forms, PDFs, external resources) with their anchor text.
+// Returns [{text, url}] — filtered to avoid nav noise.
+// Appended to page text so the LLM can see "Senior/Family Application Form → https://..."
+function extractLinksWithAnchorText(html, baseUrl) {
+  const linkRe = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const results = [];
+  let baseDomain = "";
+  try { baseDomain = new URL(baseUrl).hostname.replace(/^www\./, ""); } catch {}
+  let m;
+  while ((m = linkRe.exec(html)) !== null) {
+    const href = m[1].trim();
+    const text = m[2].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    if (!text || text.length < 3 || text.length > 120) continue;
+    if (/^(javascript:|#|tel:)/i.test(href)) continue;
+    try {
+      const fullUrl = new URL(href, baseUrl).href;
+      const urlDomain = new URL(fullUrl).hostname.replace(/^www\./, "");
+      const isExternal     = baseDomain && urlDomain !== baseDomain;
+      const looksLikeForm  = /form|application|apply|register|join|membership|pdf|download/i.test(text + " " + fullUrl);
+      if (isExternal || looksLikeForm) results.push({ text, url: fullUrl });
+    } catch {}
+  }
+  // Deduplicate by URL
+  const seen = new Set();
+  return results.filter(r => { if (seen.has(r.url)) return false; seen.add(r.url); return true; });
+}
+
 // Extract external booking/platform URLs from raw HTML before tags are stripped.
 // These URLs appear in href attributes and would be lost by extractTextFromHtml.
 // Appending them to page text makes them available to regexExtractFromPages.
@@ -3692,11 +3740,12 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
 
       const html  = await response.text();
       const title = extractPageTitle(html);
-      const externalUrls = extractExternalUrlsFromHtml(html);
+      const externalUrls  = extractExternalUrlsFromHtml(html);
+      const anchorLinks   = extractLinksWithAnchorText(html, url);
       const rawText = extractTextFromHtml(html);
-      const text  = externalUrls.length
-        ? rawText + "\n\nBooking platform links: " + externalUrls.join(" ")
-        : rawText;
+      const text  = rawText
+        + (externalUrls.length ? "\n\nBooking platform links: " + externalUrls.join(" ") : "")
+        + (anchorLinks.length  ? "\n\n[Linked forms and resources]\n" + anchorLinks.map(l => `${l.text} → ${l.url}`).join("\n") : "");
 
       // Detect bot-protection / JS-gated pages — either too short OR containing
       // known challenge phrases (Cloudflare "One moment", etc.)
@@ -3732,9 +3781,10 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
         if (jinaText) {
           console.log(`[crawler] Jina Reader: imported ${url} (${jinaText.length} chars)`);
           const jinaExternalUrls = extractExternalUrlsFromHtml(html);
-          const jinaFinalText = jinaExternalUrls.length
-            ? jinaText + "\n\nBooking platform links: " + jinaExternalUrls.join(" ")
-            : jinaText;
+          const jinaAnchorLinks  = extractLinksWithAnchorText(html, url);
+          const jinaFinalText = jinaText
+            + (jinaExternalUrls.length ? "\n\nBooking platform links: " + jinaExternalUrls.join(" ") : "")
+            + (jinaAnchorLinks.length  ? "\n\n[Linked forms and resources]\n" + jinaAnchorLinks.map(l => `${l.text} → ${l.url}`).join("\n") : "");
           pages.push({ url, title, text: jinaFinalText });
           // Extract links from both the original HTML and the Jina markdown.
           // When HTML is a bot-protection page, extractInternalLinks finds nothing —

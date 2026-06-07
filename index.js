@@ -3879,8 +3879,14 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
       return { page: { url, title, text, html }, links: extractInternalLinks(html, url) };
 
     } catch (err) {
-      if (err.name === "AbortError" || err.name === "TypeError") {
-        return await jinaFallback(url, "", `fetch failed (${err.message})`);
+      if (err.name === "AbortError") {
+        // Timeout — the site is just slow; Jina would face the same slowness, skip it
+        console.log(`[crawler] Timeout for ${url} — skipping`);
+        return null;
+      }
+      if (err.name === "TypeError") {
+        // Network error (DNS / connection refused) — try Jina in case it has a cached copy
+        return await jinaFallback(url, "", `network error (${err.message})`);
       }
       console.error(`[crawler] Error fetching ${url}:`, err.message);
       return null;
@@ -3892,7 +3898,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
       console.log(`[crawler] ${reason} — trying Jina Reader for ${url}`);
       const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
         headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-        signal: AbortSignal.timeout(20000)
+        signal: AbortSignal.timeout(10000)
       });
       if (!jinaRes.ok) return null;
       const jinaText = (await jinaRes.text()).trim();
@@ -3916,8 +3922,8 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
     }
   }
 
-  // ── Parallel batch crawl (3 pages at a time) ───────────────────────────────
-  const BATCH_SIZE = 3;
+  // ── Parallel batch crawl (6 pages at a time) ───────────────────────────────
+  const BATCH_SIZE = 6;
 
   while (queue.length > 0 && pages.length < maxPages) {
     // Build next batch — mark URLs visited immediately to prevent batch duplicates

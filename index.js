@@ -3839,7 +3839,6 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
 
   const pages   = [];
 
-  while (queue.length > 0 && pages.length < maxPages) {
   // ── Helper: fetch and process a single page ───────────────────────────────
   const BOT_PROTECTION_PHRASES = [
     "one moment, please", "please wait while your request is being verified",

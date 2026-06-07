@@ -3539,7 +3539,11 @@ const CRAWL_NOISE_PATTERNS = [
 
 function isCrawlNoise(url) {
   try {
-    const path = new URL(url).pathname;
+    const parsed = new URL(url);
+    const path   = parsed.pathname;
+    // WordPress raw post-ID URLs (?p=123 / ?page_id=123) are always duplicates
+    // of the pretty-permalink version — skip them entirely.
+    if (parsed.searchParams.has("p") || parsed.searchParams.has("page_id")) return true;
     return CRAWL_NOISE_PATTERNS.some(re => re.test(path));
   } catch (e) { return false; }
 }

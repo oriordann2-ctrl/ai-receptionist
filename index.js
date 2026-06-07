@@ -3539,11 +3539,7 @@ const CRAWL_NOISE_PATTERNS = [
 
 function isCrawlNoise(url) {
   try {
-    const parsed = new URL(url);
-    const path   = parsed.pathname;
-    // WordPress raw post-ID URLs (?p=123 / ?page_id=123) are always duplicates
-    // of the pretty-permalink version — skip them entirely.
-    if (parsed.searchParams.has("p") || parsed.searchParams.has("page_id")) return true;
+    const path = new URL(url).pathname;
     return CRAWL_NOISE_PATTERNS.some(re => re.test(path));
   } catch (e) { return false; }
 }
@@ -3583,6 +3579,15 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
       if (!allUrls.includes(probeUrl)) allUrls.push(probeUrl);
     }
   }
+
+  // Hard-block URLs that are always duplicates (WordPress raw post IDs etc.)
+  function isBlockedUrl(u) {
+    try {
+      const sp = new URL(u).searchParams;
+      return sp.has("p") || sp.has("page_id");
+    } catch { return false; }
+  }
+  allUrls = allUrls.filter(u => !isBlockedUrl(u));
 
   // Priority pages first, noise pages only if budget allows
   const priorityUrls = allUrls.filter(u => !isCrawlNoise(u));
@@ -3658,6 +3663,7 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
           const jinaLinks  = extractLinksFromJinaText(jinaText, url);
           const allLinks   = [...new Set([...htmlLinks, ...jinaLinks])];
           for (const link of allLinks) {
+            if (isBlockedUrl(link)) continue;
             const lc = canonicalUrl(link);
             if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
           }
@@ -3672,6 +3678,7 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
 
       const links = extractInternalLinks(html, url);
       for (const link of links) {
+        if (isBlockedUrl(link)) continue;
         const lc = canonicalUrl(link);
         if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
       }

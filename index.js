@@ -297,18 +297,11 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     }
   } catch {}
 
-  const coachesBlock = coaches.length
-    ? "\n\n" + coaches.map(c => {
-        const lines = [`🎾 **${c.name}**`];
-        if (c.phone) lines.push(`   📞 [link=tel:${c.phone.replace(/\s/g, "")}]${c.phone}[/link]`);
-        if (c.email) lines.push(`   📧 [link=mailto:${c.email}]${c.email}[/link]`);
-        return lines.join("\n");
-      }).join("\n\n")
-    : "";
-
+  // Coach names and contacts are stored for portal use only — not surfaced
+  // publicly in the chat. The club decides who handles coaching enquiries.
   const coachMsg = v(info.coaching_summary)
-    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`
-    : `We offer coaching for all ages and levels.${coachesBlock}\n\nTo enquire or book a session:\n📧 ${emailLink}`;
+    ? `We offer coaching for all ages and levels:\n\n${info.coaching_summary}\n\nTo enquire or book a session:\n📧 ${emailLink}`
+    : `We offer coaching for all ages and levels.\n\nTo enquire or book a session:\n📧 ${emailLink}`;
 
   // ── Events & Leagues ─────────────────────────────────────────────────────────
   let evtMsg = v(info.events_summary)
@@ -376,23 +369,9 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
           { step_id: sMemb, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain         }
         ]
     ),
-    // Coaching — one button per coach if found, plus general enquiry
-    ...(coaches.length
-      ? [
-          ...coaches.map((c, i) => ({
-            step_id: sCoach, choice_order: i + 1,
-            label: `🎾 ${c.name}`,
-            action_type: c.email ? "url" : "ai_fallback",
-            action_value: c.email ? `mailto:${c.email}` : null
-          })),
-          { step_id: sCoach, choice_order: coaches.length + 1, label: "✉️ General enquiry",  action_type: "ai_fallback", action_value: null },
-          { step_id: sCoach, choice_order: coaches.length + 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain }
-        ]
-      : [
-          { step_id: sCoach, choice_order: 1, label: "✉️ Send an enquiry", action_type: "ai_fallback", action_value: null  },
-          { step_id: sCoach, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain }
-        ]
-    ),
+    // Coaching — generic enquiry routes to club, not individual coaches
+    { step_id: sCoach, choice_order: 1, label: "📧 Book a session", action_type: "ai_fallback", action_value: null  },
+    { step_id: sCoach, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain },
     // Court availability — clean link, back button only
     { step_id: sBook, choice_order: 1, label: "📅 Book now",      action_type: "url",         action_value: bookingUrl },
     { step_id: sBook, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain      },

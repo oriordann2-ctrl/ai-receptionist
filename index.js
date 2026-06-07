@@ -226,7 +226,7 @@ function regexExtractFromPages(pages) {
 async function extractTennisClubInfo(pages, websiteUrl) {
   // Sort pages so the most info-rich pages come first.
   // Scoring: URL keyword match + page-text keyword match (catches /tennis, /about-us, etc.)
-  const priority = ["membership", "join", "coaching", "lessons", "tennis", "coach", "contact", "find", "about", "location", "fees", "programme", "program", "camp", "junior", "senior", "adult"];
+  const priority = ["membership", "join", "coaching", "lessons", "tennis", "coach", "contact", "find", "about", "location", "fees", "rates", "pricing", "programme", "program", "camp", "junior", "senior", "adult"];
   const sorted = [...pages].sort((a, b) => {
     const score = (p) => {
       const urlLower  = p.url.toLowerCase();
@@ -235,7 +235,7 @@ async function extractTennisClubInfo(pages, websiteUrl) {
     };
     return score(b) - score(a);
   });
-  const combined = sorted.slice(0, 8).map(p => `--- ${p.url} ---\n${p.text}`).join("\n\n").slice(0, 6000);
+  const combined = sorted.slice(0, 10).map(p => `--- ${p.url} ---\n${p.text}`).join("\n\n").slice(0, 8000);
 
   try {
     const resp = await openai.chat.completions.create({

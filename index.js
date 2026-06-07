@@ -186,8 +186,9 @@ function regexExtractFromPages(pages) {
   );
 
   // EBOonline booking URL
-  const eboMatch = allText.match(/ebookingonline\.net\/box\/(\d+)/i);
-  const eboUrl = eboMatch ? `https://ebookingonline.net/box/${eboMatch[1]}` : null;
+  // Match any EBO URL format: /box/71, /box/box3.php?id=234, etc.
+  const eboMatch = allText.match(/https?:\/\/(?:www\.)?ebookingonline\.net\/[^\s\n"'<>]+/i);
+  const eboUrl = eboMatch ? eboMatch[0].replace(/['">\s]+$/, "") : null;
 
   // Irish phone numbers
   const phoneRe = /(?:\+353|0)[\s\-]?(?:\d[\s\-]?){8,9}\d/g;

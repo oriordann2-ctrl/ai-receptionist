@@ -202,6 +202,184 @@
       animation: spin 0.9s linear infinite; display: inline-block;
     }
 
+    /* ── F1 Crawl Progress Widget ── */
+    #crawlRaceWidget {
+      margin-bottom: 24px;
+    }
+    .race-card {
+      background: linear-gradient(160deg, #0f172a 0%, #1a2540 60%, #1e2d45 100%);
+      border-radius: 16px;
+      padding: 26px 28px 22px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+    }
+    /* Checkered flag stripe across top */
+    .race-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 5px;
+      background: repeating-linear-gradient(90deg, #fff 0,#fff 10px,#111 10px,#111 20px);
+      opacity: 0.18;
+    }
+    /* Red racing stripe on left edge */
+    .race-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 4px;
+      background: linear-gradient(180deg, #ef4444, #f97316);
+      border-radius: 16px 0 0 16px;
+    }
+    .race-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .race-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #f1f5f9;
+      letter-spacing: -0.2px;
+      margin-bottom: 5px;
+    }
+    .race-status {
+      font-size: 13px;
+      color: #94a3b8;
+      transition: color 0.4s;
+    }
+    .race-pct-display {
+      font-size: 28px;
+      font-weight: 900;
+      color: #f97316;
+      letter-spacing: -1px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      padding-left: 16px;
+    }
+    /* Track */
+    .race-track-outer {
+      position: relative;
+      height: 52px;
+      margin-bottom: 16px;
+    }
+    .race-track-road {
+      position: absolute;
+      bottom: 6px;
+      left: 8px; right: 32px;
+      height: 12px;
+      background: #1e293b;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #334155;
+    }
+    .race-track-dashes {
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 2px;
+      margin-top: -1px;
+      background: repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0,rgba(255,255,255,0.08) 12px,transparent 12px,transparent 24px);
+    }
+    .race-track-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #dc2626 0%, #ea580c 40%, #f97316 75%, #fbbf24 100%);
+      border-radius: 6px;
+      width: 0%;
+      transition: width 0.9s cubic-bezier(0.4,0,0.2,1);
+      position: relative;
+    }
+    /* Glow at fill edge */
+    .race-track-fill::after {
+      content: '';
+      position: absolute;
+      right: -1px; top: 0; bottom: 0;
+      width: 12px;
+      background: radial-gradient(ellipse at right, rgba(251,191,36,0.5), transparent);
+    }
+    /* Car wrapper: positioned on the track */
+    .race-car-positioner {
+      position: absolute;
+      bottom: 12px;
+      left: 8px;
+      right: 32px;
+      height: 28px;
+      pointer-events: none;
+    }
+    .race-car-inner {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transition: left 0.9s cubic-bezier(0.4,0,0.2,1);
+      filter: drop-shadow(0 0 6px rgba(239,68,68,0.7));
+    }
+    @keyframes carBob {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-2px); }
+    }
+    .race-car-inner svg {
+      animation: carBob 0.55s ease-in-out infinite;
+      display: block;
+    }
+    /* Chequered flag at right */
+    .race-flag {
+      position: absolute;
+      right: 0;
+      bottom: 4px;
+      font-size: 22px;
+      opacity: 0.5;
+      transition: opacity 0.5s, transform 0.5s;
+      line-height: 1;
+    }
+    .race-flag.waving {
+      opacity: 1;
+      animation: flagWave 0.4s ease-in-out 3;
+    }
+    @keyframes flagWave {
+      0%,100% { transform: rotate(0deg); }
+      50%      { transform: rotate(15deg); }
+    }
+    /* Log items */
+    .race-log {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .race-log-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #475569;
+      transition: color 0.3s;
+    }
+    .race-log-item.current { color: #cbd5e1; font-weight: 600; }
+    .race-log-item .rli-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #334155;
+      flex-shrink: 0;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .race-log-item.current .rli-dot {
+      background: #f97316;
+      box-shadow: 0 0 6px rgba(249,115,22,0.8);
+    }
+    .race-log-item.done-item .rli-dot {
+      background: #22c55e;
+    }
+    .race-log-item.done-item { color: #4ade80; }
+    /* Done state */
+    @keyframes finishPulse {
+      0%,100% { box-shadow: 0 4px 24px rgba(0,0,0,0.25); }
+      50%      { box-shadow: 0 4px 40px rgba(249,115,22,0.35); }
+    }
+    .race-card.race-done {
+      animation: finishPulse 0.8s ease-in-out 3;
+    }
+
     /* ── Section group labels ── */
     .section-group-label {
       font-size: 13px; font-weight: 700; color: #6b7280;
@@ -533,10 +711,68 @@
 
 <div class="page">
 
-  <!-- New signup banner -->
-  <div class="new-banner" id="newBanner">
-    <div class="new-banner-title">🎉 Welcome! Your assistant is being set up.</div>
-    <div class="new-banner-sub">We're training it on your website right now — this takes 2–3 minutes. Your embed code is ready below. Refresh this page in a few minutes to see your pages listed.</div>
+  <!-- ── F1 Crawl Progress Widget ── -->
+  <div id="crawlRaceWidget" style="display:none;">
+    <div class="race-card" id="raceCard">
+      <div class="race-header">
+        <div>
+          <div class="race-title">🏎 Setting up your AI assistant</div>
+          <div class="race-status" id="raceStatus">Warming up the engines…</div>
+        </div>
+        <div class="race-pct-display" id="racePctDisplay">0%</div>
+      </div>
+
+      <!-- Track -->
+      <div class="race-track-outer">
+        <div class="race-track-road">
+          <div class="race-track-dashes"></div>
+          <div class="race-track-fill" id="raceTrackFill"></div>
+        </div>
+        <!-- Car positioner -->
+        <div class="race-car-positioner" id="raceCarPositioner">
+          <div class="race-car-inner" id="raceCarInner">
+            <!-- F1 car — top-down, pointing right -->
+            <svg width="76" height="28" viewBox="0 0 76 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Rear wing -->
+              <rect x="0" y="3" width="8" height="22" rx="2.5" fill="#b91c1c"/>
+              <!-- Rear tyres -->
+              <rect x="4" y="0" width="11" height="8" rx="2.5" fill="#111827"/>
+              <rect x="4" y="20" width="11" height="8" rx="2.5" fill="#111827"/>
+              <!-- Main body -->
+              <path d="M8 9 L58 7 L68 12 L68 16 L58 21 L8 19 Z" fill="#ef4444"/>
+              <!-- Sidepod detail -->
+              <path d="M12 7.5 L54 7 L54 10 L12 10.5 Z" fill="#dc2626" opacity="0.6"/>
+              <path d="M12 18 L54 18.5 L54 21 L12 20.5 Z" fill="#dc2626" opacity="0.6"/>
+              <!-- Cockpit halo -->
+              <ellipse cx="36" cy="14" rx="10" ry="5.5" fill="#1e3a5f"/>
+              <ellipse cx="36" cy="14" rx="7" ry="3.5" fill="#2563eb" opacity="0.55"/>
+              <!-- Front tyres -->
+              <rect x="52" y="1" width="9" height="7" rx="2" fill="#111827"/>
+              <rect x="52" y="20" width="9" height="7" rx="2" fill="#111827"/>
+              <!-- Front wing -->
+              <path d="M64 8.5 L76 6 L76 10 L64 11 Z" fill="#b91c1c"/>
+              <path d="M64 17 L76 18 L76 22 L64 19.5 Z" fill="#b91c1c"/>
+              <!-- Nose cone -->
+              <path d="M66 12 L76 13 L76 15 L66 16 Z" fill="#fbbf24"/>
+              <!-- Speed lines -->
+              <line x1="4" y1="11" x2="-6" y2="11" stroke="#f97316" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+              <line x1="4" y1="14" x2="-9" y2="14" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+              <line x1="4" y1="17" x2="-6" y2="17" stroke="#f97316" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+            </svg>
+          </div>
+        </div>
+        <!-- Chequered flag at finish line -->
+        <div class="race-flag" id="raceFlag">🏁</div>
+      </div>
+
+      <!-- Progress log -->
+      <div class="race-log" id="raceLog">
+        <div class="race-log-item current" id="raceLogCurrent">
+          <div class="rli-dot"></div>
+          <span id="raceLogCurrentText">Starting…</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ── Section: AI Receptionist ── -->
@@ -2636,6 +2872,130 @@
       .then(function(data) { if (data.url) window.location.href = data.url; else alert(data.error || 'No billing account found.'); })
       .catch(function() { alert('Failed to open billing portal.'); });
   };
+
+  // ── F1 Crawl Progress ──────────────────────────────────────────────────────
+  (function() {
+    var widget       = document.getElementById('crawlRaceWidget');
+    var card         = document.getElementById('raceCard');
+    var statusEl     = document.getElementById('raceStatus');
+    var pctEl        = document.getElementById('racePctDisplay');
+    var trackFill    = document.getElementById('raceTrackFill');
+    var carInner     = document.getElementById('raceCarInner');
+    var positioner   = document.getElementById('raceCarPositioner');
+    var flagEl       = document.getElementById('raceFlag');
+    var logCurrent   = document.getElementById('raceLogCurrent');
+    var logCurrentTx = document.getElementById('raceLogCurrentText');
+    var raceLog      = document.getElementById('raceLog');
+
+    if (!widget) return;
+
+    var pollTimer    = null;
+    var prevMessages = [];
+    var lastPct      = 0;
+    var isVisible    = false;
+    var isDone       = false;
+
+    function showWidget() {
+      if (isVisible) return;
+      isVisible = true;
+      widget.style.display = 'block';
+      // Clean up the ?new=1 param without triggering a reload
+      var url = new URL(window.location.href);
+      if (url.searchParams.has('new')) {
+        url.searchParams.delete('new');
+        window.history.replaceState({}, '', url.pathname + (url.search || ''));
+      }
+    }
+
+    function updateCar(pct) {
+      var posW = positioner ? positioner.offsetWidth : 0;
+      var carW = carInner ? carInner.offsetWidth : 76;
+      if (posW <= 0) return;
+      var maxLeft = posW - carW;
+      var x = Math.max(0, Math.min((pct / 100) * posW - carW / 2, maxLeft));
+      if (carInner) carInner.style.left = x + 'px';
+    }
+
+    function addLogItem(msg) {
+      if (prevMessages.indexOf(msg) !== -1) return;
+      prevMessages.push(msg);
+      if (prevMessages.length > 1) {
+        // Mark current as done
+        if (logCurrent) {
+          logCurrent.classList.remove('current');
+          logCurrent.classList.add('done-item');
+        }
+        // Create a new current log item
+        var item = document.createElement('div');
+        item.className = 'race-log-item current';
+        item.id = 'raceLogCurrent';
+        item.innerHTML = '<div class="rli-dot"></div><span id="raceLogCurrentText">' + escHtml(msg) + '</span>';
+        raceLog.appendChild(item);
+        logCurrent   = item;
+        logCurrentTx = item.querySelector('span');
+      } else {
+        if (logCurrentTx) logCurrentTx.textContent = msg;
+      }
+      // Keep only last 4 log items visible
+      var items = raceLog.querySelectorAll('.race-log-item');
+      if (items.length > 4) items[0].remove();
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function applyProgress(data) {
+      var pct = data.pct || 0;
+      var msg = data.message || '';
+
+      if (pct !== lastPct) {
+        lastPct = pct;
+        if (trackFill) trackFill.style.width = pct + '%';
+        if (pctEl) pctEl.textContent = pct + '%';
+        updateCar(pct);
+      }
+      if (statusEl) statusEl.textContent = msg;
+      addLogItem(msg);
+
+      if (data.done) {
+        isDone = true;
+        clearInterval(pollTimer);
+        if (flagEl) flagEl.classList.add('waving');
+        if (card) card.classList.add('race-done');
+        // After celebrating, reload to show the finished dashboard
+        setTimeout(function() {
+          window.location.href = '/portal/dashboard';
+        }, 3500);
+      }
+    }
+
+    function poll() {
+      fetch('/api/portal/crawl-status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.active) {
+            // No active crawl — if we were showing the widget it means crawl finished
+            // before this poll (server restarted / done entry expired)
+            if (isVisible && !isDone) {
+              clearInterval(pollTimer);
+              setTimeout(function() { window.location.href = '/portal/dashboard'; }, 800);
+            }
+            return;
+          }
+          showWidget();
+          applyProgress(data);
+        })
+        .catch(function() { /* silently ignore network errors during poll */ });
+    }
+
+    // Always poll once immediately — show widget if crawl is active
+    poll();
+    pollTimer = setInterval(poll, 2000);
+
+    // Also update car position on window resize
+    window.addEventListener('resize', function() { updateCar(lastPct); });
+  })();
 </script>
 </body>
 </html>

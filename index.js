@@ -179,6 +179,14 @@ const BLOCKED_DOMAINS = new Set([
 
 const CRAWL_QUOTA_DOCS = 50; // max pages stored per tenant
 
+// ── Live crawl progress (in-memory, per-tenant) ───────────────────────────────
+// Populated by startBackgroundCrawl; consumed by GET /api/portal/crawl-status
+const crawlProgressMap = new Map(); // tenantId → { pct, message, done }
+function setCrawlProgress(tenantId, pct, message, done = false) {
+  crawlProgressMap.set(tenantId, { pct, message, done });
+  if (done) setTimeout(() => crawlProgressMap.delete(tenantId), 3 * 60 * 1000);
+}
+
 // ── Business type detection ───────────────────────────────────────────────────
 async function detectBusinessType(name, description, pageText) {
   try {
@@ -3765,7 +3773,7 @@ function isCrawlNoise(url) {
   } catch (e) { return false; }
 }
 
-async function crawlWebsite(rootUrl, maxPages = 40) {
+async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
 
@@ -3938,6 +3946,7 @@ async function crawlWebsite(rootUrl, maxPages = 40) {
         if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
       }
     }
+    if (onProgress && pages.length > 0) onProgress(pages.length);
   }
 
   return pages;
@@ -4086,12 +4095,14 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
 
     if (website) {
       console.log(`[crawl] Starting background crawl for ${tenantId}: ${website}`);
+      setCrawlProgress(tenantId, 2, "Warming up the engines…");
 
       // Extract logo + brand colour + description from homepage
       let logoUrl = null;
       try {
 
         try {
+          setCrawlProgress(tenantId, 5, "Reading your homepage…");
           const homepageRes = await fetch(website, {
             headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
             signal: AbortSignal.timeout(8000)
@@ -4100,6 +4111,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
             const homepageHtml = await homepageRes.text();
             logoUrl = extractFaviconUrl(homepageHtml, website);
             if (logoUrl) console.log(`[crawl] Logo found in HTML for ${tenantId}: ${logoUrl}`);
+            setCrawlProgress(tenantId, 10, "Picking up your logo and brand colours…");
 
             // Brand colour
             try {
@@ -4162,7 +4174,12 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         console.error(`[crawl] Logo extraction error for ${tenantId}:`, err.message);
       }
 
-      const pages = await crawlWebsite(website, 60);
+      setCrawlProgress(tenantId, 14, "On the track — scanning your website…");
+      const pages = await crawlWebsite(website, 60, (count) => {
+        const pct = 14 + Math.round((count / 60) * 52);
+        const lap = count <= 20 ? 1 : count <= 40 ? 2 : 3;
+        setCrawlProgress(tenantId, Math.min(pct, 66), `Lap ${lap} — ${count} page${count === 1 ? "" : "s"} scanned so far…`);
+      });
       console.log(`[crawl] Crawled ${pages.length} pages for ${tenantId}`);
 
       // ── Extract logo from crawled HTML (avoids second fetch for sites that block it) ──
@@ -4178,6 +4195,8 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
           await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
         }
       }
+
+      setCrawlProgress(tenantId, 68, `Crawled ${pages.length} pages — saving your knowledge base…`);
 
       for (const page of pages) {
         // ── Storage quota guard ──────────────────────────────────────────────
@@ -4229,6 +4248,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       }
 
       console.log(`[crawl] Imported ${imported} pages for ${tenantId}`);
+      setCrawlProgress(tenantId, 80, "Analysing your content — picking out the key details…");
 
       // ── Detect business type + auto-seed template flows ──────────────────
       try {
@@ -4240,6 +4260,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         console.log(`[crawl] Business type: ${bizType} for ${tenantId}`);
 
         if (bizType === "tennis_club") {
+          setCrawlProgress(tenantId, 90, "Building your personalised chat flows…");
           const info = await extractTennisClubInfo(pages, website);
           await seedTennisClubFlows(tenantId, name, website, info);
           await backfillEmptyAgentFields(tenantId);
@@ -4247,6 +4268,8 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       } catch (seedErr) {
         console.error(`[crawl] Flow seed error for ${tenantId}:`, seedErr.message);
       }
+
+      setCrawlProgress(tenantId, 100, "🏁 Your assistant is ready!", true);
     }
 
     // Send welcome email
@@ -5147,6 +5170,14 @@ app.get("/chat/:tenantId", async (req, res) => {
 
   res.setHeader("Cache-Control", "no-store");
   res.send(html);
+});
+
+// ── GET /api/portal/crawl-status ─────────────────────────────────────────────
+// Returns live crawl progress for the authenticated tenant.
+app.get("/api/portal/crawl-status", requireTenant, (req, res) => {
+  const progress = crawlProgressMap.get(req.tenant.tenantId);
+  if (!progress) return res.json({ active: false });
+  res.json({ active: true, pct: progress.pct, message: progress.message, done: progress.done });
 });
 
 app.get("/portal/dashboard", requireTenant, async (req, res) => {

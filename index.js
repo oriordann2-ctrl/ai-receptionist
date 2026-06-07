@@ -6951,7 +6951,7 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
 async function suggestAgentField(fieldKey, knowledgeText) {
   let prompt = "";
   if (fieldKey === "coaches") {
-    prompt = `Extract all coaching staff / coaches / instructors mentioned in this website content.\nReturn ONLY a plain list, one coach per line, in this format:\nName | phone_number\nIf no phone number is available for a coach, just use their name alone.\nIf no coaches are found at all, return an empty string.\nDo not include any explanation or extra text.`;
+    prompt = `You are extracting coach/instructor names and phone numbers from tennis club website content.\nList every named coach or instructor you can find.\nReturn ONLY a plain list, one coach per line, like this:\nName | phone_number\nIf no phone number is available, just use the name alone: Name\nIf absolutely no coaches are named, return an empty string.\nDo not include explanations, headers, or any other text.`;
   } else {
     return null; // no suggestion available for this field
   }
@@ -6990,17 +6990,20 @@ async function backfillEmptyAgentFields(tenantId) {
     const defMap = {};
     defs.forEach(d => { defMap[d.id] = d; });
 
-    // Load knowledge chunks once — shared across all agents
-    const { data: chunks } = await supabase
-      .from("knowledge_chunks")
-      .select("chunk_text")
-      .eq("tenant_id", tenantId)
-      .limit(60);
-    if (!chunks || !chunks.length) {
+    // Prioritise chunks mentioning coaches, fall back to general content
+    const [{ data: coachChunks }, { data: generalChunks }] = await Promise.all([
+      supabase.from("knowledge_chunks").select("chunk_text").eq("tenant_id", tenantId).ilike("chunk_text", "%coach%").limit(20),
+      supabase.from("knowledge_chunks").select("chunk_text").eq("tenant_id", tenantId).limit(40)
+    ]);
+    const allChunks = [...(coachChunks || []), ...(generalChunks || [])];
+    if (!allChunks.length) {
       console.log(`[backfill] No knowledge chunks yet for ${tenantId} — skipping`);
       return;
     }
-    const combined = chunks.map(c => c.chunk_text).join("\n\n").slice(0, 8000);
+    const seen = new Set();
+    const combined = allChunks
+      .filter(c => { if (seen.has(c.chunk_text)) return false; seen.add(c.chunk_text); return true; })
+      .map(c => c.chunk_text).join("\n\n").slice(0, 8000);
 
     for (const ta of tenantAgents) {
       const def = defMap[ta.agent_id];
@@ -7693,17 +7696,22 @@ app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async
   if (!field) return res.status(400).json({ error: "field required" });
 
   try {
-    const { data: chunks } = await supabase
-      .from("knowledge_chunks")
-      .select("chunk_text")
-      .eq("tenant_id", tenantId)
-      .limit(60);
+    // Prioritise chunks mentioning the field keyword, then add general content
+    const keyword = field === "coaches" ? "%coach%" : "%";
+    const [{ data: keyChunks }, { data: generalChunks }] = await Promise.all([
+      supabase.from("knowledge_chunks").select("chunk_text").eq("tenant_id", tenantId).ilike("chunk_text", keyword).limit(20),
+      supabase.from("knowledge_chunks").select("chunk_text").eq("tenant_id", tenantId).limit(40)
+    ]);
+    const allChunks = [...(keyChunks || []), ...(generalChunks || [])];
 
-    if (!chunks || !chunks.length) {
+    if (!allChunks.length) {
       return res.json({ suggestion: null, message: "No website content found yet — make sure the website crawl has completed." });
     }
 
-    const combined = chunks.map(c => c.chunk_text).join("\n\n").slice(0, 8000);
+    const seen = new Set();
+    const combined = allChunks
+      .filter(c => { if (seen.has(c.chunk_text)) return false; seen.add(c.chunk_text); return true; })
+      .map(c => c.chunk_text).join("\n\n").slice(0, 8000);
 
     const suggestion = await suggestAgentField(field, combined);
     if (suggestion === null && field !== "coaches") {

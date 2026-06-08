@@ -433,12 +433,9 @@
 
   function scrollToBottom(delay) {
     setTimeout(function() {
-      var lastChild = messages.lastElementChild;
-      if (lastChild) {
-        lastChild.scrollIntoView({ behavior: "smooth", block: "center" });
-      } else {
-        messages.scrollTo({ top: messages.scrollHeight, behavior: "smooth" });
-      }
+      // Scroll so there's ~30% of the chat height visible below the latest content
+      var target = messages.scrollHeight - Math.floor(messages.clientHeight * 0.3);
+      messages.scrollTo({ top: target, behavior: "smooth" });
     }, delay || 0);
   }
 

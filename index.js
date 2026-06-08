@@ -5590,14 +5590,17 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
                     stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id
                   };
                 } else {
-                  // Switch the subscription to the new plan
+                  // Switch the subscription to the new plan, clearing any scheduled cancellation
                   const currentItem = sub.items && sub.items.data && sub.items.data[0];
                   const switchBody = {
-                    "items[0][id]":    currentItem ? currentItem.id : undefined,
-                    "items[0][price]": targetPrice.id,
-                    "proration_behavior": "create_prorations"
+                    "items[0][id]":       currentItem ? currentItem.id : undefined,
+                    "items[0][price]":    targetPrice.id,
+                    "proration_behavior": "create_prorations",
+                    "cancel_at_period_end": "false"  // clear any existing cancellation
                   };
                   if (!currentItem) delete switchBody["items[0][id]"];
+                  // Clear cancel_at if previously set
+                  if (sub.cancel_at) switchBody["cancel_at"] = "";
 
                   const switchResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id, {
                     method: "POST",

@@ -3140,7 +3140,7 @@
               + '<div><div style="font-size:15px;font-weight:700;color:#111827;">' + esc(r.member_name)
               + (r.membership_number ? ' <span style="font-size:13px;font-weight:400;color:#6b7280;">(#' + esc(r.membership_number) + ')</span>' : '')
               + '</div>'
-              + '<div style="font-size:13px;color:#374151;margin-top:3px;">' + esc(r.current_type || "—") + " → " + esc(r.requested_type || "—") + '</div>'
+              + '<div style="font-size:13px;color:#374151;margin-top:3px;">' + esc(r.requested_type || "—") + (r.target_membership_type ? ' → <strong>' + esc(r.target_membership_type) + '</strong>' : '') + '</div>'
               + (r.reason ? '<div style="font-size:12px;color:#9ca3af;margin-top:2px;font-style:italic;">"' + esc(r.reason) + '"</div>' : '')
               + '</div>'
               + '<div style="text-align:right;flex-shrink:0;">'

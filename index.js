@@ -1109,7 +1109,7 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
     return {
       handled: true,
       reply: `I can help with that. What type of change are you looking for?`,
-      choices: ["Cancel membership", "Family → Single", "Downgrade membership type", "Upgrade membership type", "Other change"]
+      choices: ["Cancel membership", "Change membership type", "Other change"]
     };
   }
 
@@ -1130,15 +1130,43 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
       data.changeType = message;
       convo.memberChangeData = data;
 
+      // If "Change membership type" — ask what they want to change TO before anything else
+      if (/change membership type/i.test(message)) {
+        convo.memberChangeStep = "awaiting_target_type";
+        return { handled: true, reply: `What membership type would you like to change to? (e.g. Single, Couple, Family, Junior, Student)` };
+      }
+
       // If already EBO verified in this session — use existing auth data, skip details step
       if (convo.eboAuthStep === "verified") {
         data.memberName       = convo.eboMemberName;
         data.membershipNumber = String(convo.eboMembershipNumber);
         data.memberEmail      = convo.eboAuthEmail || null;
         convo.memberChangeData = data;
-        if (/family|single/i.test(message)) {
+        if (/family|single/i.test(data.targetType || "")) {
           convo.memberChangeStep = "awaiting_family_members";
           return { handled: true, reply: `Got it. Who else is currently on your family membership? Please list their names separated by commas.` };
+        }
+        convo.memberChangeStep = "awaiting_effective_date";
+        return { handled: true, reply: `When would you like this change to take effect? (e.g. 1 August 2026)` };
+      }
+
+      convo.memberChangeStep = "awaiting_member_details";
+      return { handled: true, reply: `What's your name and EBO membership number? (e.g. Mary Murphy, 4821)` };
+    }
+
+    case "awaiting_target_type": {
+      data.targetType = message.trim();
+      convo.memberChangeData = data;
+
+      // If already EBO verified — skip member details
+      if (convo.eboAuthStep === "verified") {
+        data.memberName       = convo.eboMemberName;
+        data.membershipNumber = String(convo.eboMembershipNumber);
+        data.memberEmail      = convo.eboAuthEmail || null;
+        convo.memberChangeData = data;
+        if (/family/i.test(data.targetType)) {
+          convo.memberChangeStep = "awaiting_family_members";
+          return { handled: true, reply: `Who else will be on the family membership? Please list their names separated by commas.` };
         }
         convo.memberChangeStep = "awaiting_effective_date";
         return { handled: true, reply: `When would you like this change to take effect? (e.g. 1 August 2026)` };
@@ -1194,6 +1222,7 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
       // Build confirmation summary
       let summary = `Here's a summary of your request:\n\n`;
       summary += `Change: ${data.changeType}\n`;
+      if (data.targetType) summary += `New membership type: ${data.targetType}\n`;
       summary += `Name: ${data.memberName}`;
       if (data.membershipNumber) summary += ` (#${data.membershipNumber})`;
       summary += `\n`;
@@ -1224,14 +1253,15 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
         } catch {}
 
         await supabase.from("membership_requests").insert({
-          tenant_id:              tenantId,
-          member_name:            data.memberName       || "Unknown",
-          membership_number:      data.membershipNumber || null,
-          member_email:           data.memberEmail      || null,
-          requested_type:         data.changeType       || null,
-          effective_date:         effectiveDateIso,
-          reason:                 data.reason           || null,
-          family_members_leaving: data.familyMembers    || []
+          tenant_id:               tenantId,
+          member_name:             data.memberName       || "Unknown",
+          membership_number:       data.membershipNumber || null,
+          member_email:            data.memberEmail      || null,
+          requested_type:          data.changeType       || null,
+          target_membership_type:  data.targetType       || null,
+          effective_date:          effectiveDateIso,
+          reason:                  data.reason           || null,
+          family_members_leaving:  data.familyMembers    || []
         });
 
         convo.memberChangeStep = null;
@@ -5484,16 +5514,86 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
             }
 
           } else {
-            // All other types (family→single, downgrade, upgrade) — surface sub details for manual action
-            const amountFmt = amount != null ? (amount / 100).toFixed(2) + " " + currency : "unknown amount";
-            stripeResult = {
-              ok: true,
-              action: "manual_required",
-              message: `ℹ️ Manual Stripe update required. Current subscription: ${amountFmt}/period, renews ${periodEnd}. Update in Stripe Dashboard.`,
-              subscriptionId: sub.id,
-              customerId: customer.id,
-              stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id
-            };
+            // Plan change — look up target plan in Stripe by name and switch subscription
+            const targetType = request.target_membership_type;
+
+            if (!targetType) {
+              stripeResult = {
+                ok: false,
+                message: "No target membership type specified on this request. Ask the member what type they want to change to.",
+                stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id
+              };
+            } else {
+              // List all active products in this Stripe account and find one matching the target type name
+              const productsResp = await fetch(
+                "https://api.stripe.com/v1/products?limit=100&active=true",
+                { headers: { Authorization: authHeader } }
+              );
+              const productsData = await productsResp.json();
+              const targetProduct = (productsData.data || []).find(function(p) {
+                return p.name.toLowerCase() === targetType.toLowerCase();
+              });
+
+              if (!targetProduct) {
+                stripeResult = {
+                  ok: false,
+                  message: "Could not find a Stripe product named '" + targetType + "'. Check product names match membership types in Stripe Dashboard.",
+                  stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id
+                };
+              } else {
+                // Get the active price for this product
+                const pricesResp = await fetch(
+                  "https://api.stripe.com/v1/prices?product=" + targetProduct.id + "&active=true&limit=5",
+                  { headers: { Authorization: authHeader } }
+                );
+                const pricesData = await pricesResp.json();
+                const targetPrice = pricesData.data && pricesData.data[0];
+
+                if (!targetPrice) {
+                  stripeResult = {
+                    ok: false,
+                    message: "No active price found for plan '" + targetType + "' in Stripe.",
+                    stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id
+                  };
+                } else {
+                  // Switch the subscription to the new plan
+                  const currentItem = sub.items && sub.items.data && sub.items.data[0];
+                  const switchBody = {
+                    "items[0][id]":    currentItem ? currentItem.id : undefined,
+                    "items[0][price]": targetPrice.id,
+                    "proration_behavior": "create_prorations"
+                  };
+                  if (!currentItem) delete switchBody["items[0][id]"];
+
+                  const switchResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id, {
+                    method: "POST",
+                    headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams(switchBody).toString()
+                  });
+                  const switchData = await switchResp.json();
+
+                  if (switchData.id) {
+                    const newAmount = targetPrice.unit_amount;
+                    const newCurrency = (targetPrice.currency || "eur").toUpperCase();
+                    const newAmountFmt = newAmount != null ? "€" + (newAmount / 100).toFixed(2) : "";
+                    stripeResult = {
+                      ok: true,
+                      action: "plan_changed",
+                      message: `✅ Subscription changed to ${targetType} (${newAmountFmt}/year). Pro-rata credit/charge applied automatically.`,
+                      subscriptionId: sub.id,
+                      customerId: customer.id,
+                      stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id
+                    };
+                  } else {
+                    stripeResult = {
+                      ok: false,
+                      message: "Stripe plan switch failed: " + ((switchData.error && switchData.error.message) || "unknown error"),
+                      stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id
+                    };
+                  }
+                }
+              }
+            }
           }
         }
       }

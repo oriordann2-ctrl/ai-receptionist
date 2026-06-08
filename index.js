@@ -5453,18 +5453,29 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
           const changeType = (request.requested_type || "").toLowerCase();
 
           if (/cancel/i.test(changeType)) {
-            // Cancel at period end — no immediate refund, member retains access until period ends
+            // Use the member's requested effective date if provided, otherwise fall back to period end
+            let cancelBody;
+            let cancelDateLabel;
+            if (request.effective_date) {
+              const cancelTs = Math.floor(new Date(request.effective_date).getTime() / 1000);
+              cancelBody = { cancel_at: String(cancelTs) };
+              cancelDateLabel = new Date(request.effective_date).toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
+            } else {
+              cancelBody = { cancel_at_period_end: "true" };
+              cancelDateLabel = periodEnd;
+            }
+
             const cancelResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id, {
               method: "POST",
               headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
-              body: new URLSearchParams({ cancel_at_period_end: "true" }).toString()
+              body: new URLSearchParams(cancelBody).toString()
             });
             const cancelData = await cancelResp.json();
-            if (cancelData.cancel_at_period_end) {
+            if (cancelData.cancel_at || cancelData.cancel_at_period_end) {
               stripeResult = {
                 ok: true,
-                action: "cancelled_at_period_end",
-                message: `✅ Subscription set to cancel on ${periodEnd}. Member retains access until then.`,
+                action: "cancelled_at_date",
+                message: `✅ Subscription set to cancel on ${cancelDateLabel}. Member retains access until then.`,
                 subscriptionId: sub.id,
                 customerId: customer.id
               };

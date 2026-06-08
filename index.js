@@ -1094,6 +1094,149 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
   return { handled: false };
 }
 
+// ── Membership Change Flow ────────────────────────────────────────────────────
+const MEMBERSHIP_CHANGE_TRIGGER = /\b(change|cancel|downgrade|upgrade|amend|modify|switch)\b.{0,30}\b(membership|subscription|plan|account)\b|\b(membership|subscription)\b.{0,20}\b(change|cancel|downgrade|upgrade|cancel)\b|\bleave the club\b|\bfamily.{0,15}single\b|\bsingle.{0,15}family\b|\bmembership.*cancel\b|\bcancel.*memb/i;
+
+async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
+  const lc = message.toLowerCase().trim();
+
+  // Detect initial intent
+  if (!convo.memberChangeStep && MEMBERSHIP_CHANGE_TRIGGER.test(message)) {
+    convo.memberChangeStep = "awaiting_change_type";
+    convo.memberChangeData = {};
+    return {
+      handled: true,
+      reply: `I can help with that. What type of change are you looking for?`,
+      choices: ["Cancel membership", "Family → Single", "Downgrade membership type", "Upgrade membership type", "Other change"]
+    };
+  }
+
+  if (!convo.memberChangeStep) return { handled: false };
+
+  // Allow cancel at any step
+  if (/^(cancel|stop|exit|never mind|no thanks|forget it)$/i.test(lc)) {
+    convo.memberChangeStep = null;
+    convo.memberChangeData = null;
+    return { handled: true, reply: "No problem — your request hasn't been submitted. Let me know if there's anything else I can help with!" };
+  }
+
+  const data = convo.memberChangeData || {};
+
+  switch (convo.memberChangeStep) {
+
+    case "awaiting_change_type": {
+      data.changeType = message;
+      convo.memberChangeData = data;
+
+      // If already EBO verified in this session — skip member details step
+      if (convo.eboAuthStep === "verified") {
+        data.memberName       = convo.eboMemberName;
+        data.membershipNumber = String(convo.eboMembershipNumber);
+        if (/family|single/i.test(message)) {
+          convo.memberChangeStep = "awaiting_family_members";
+          return { handled: true, reply: `Got it. Who else is currently on your family membership? Please list their names separated by commas.` };
+        }
+        convo.memberChangeStep = "awaiting_effective_date";
+        return { handled: true, reply: `When would you like this change to take effect? (e.g. 1 August 2026)` };
+      }
+
+      convo.memberChangeStep = "awaiting_member_details";
+      return { handled: true, reply: `What's your name and EBO membership number? (e.g. Mary Murphy, 4821)` };
+    }
+
+    case "awaiting_member_details": {
+      const numMatch  = message.match(/\b(\d{3,6})\b/);
+      const namePart  = message.replace(/\d+/g, "").replace(/,/g, " ").replace(/\s+/g, " ").trim();
+      data.membershipNumber = numMatch ? numMatch[1] : null;
+      data.memberName       = namePart || message;
+      convo.memberChangeData = data;
+
+      if (/family|single/i.test(data.changeType || "")) {
+        convo.memberChangeStep = "awaiting_family_members";
+        return { handled: true, reply: `Who else is currently on your family membership? Please list their names separated by commas.` };
+      }
+      convo.memberChangeStep = "awaiting_effective_date";
+      return { handled: true, reply: `When would you like this change to take effect? (e.g. 1 August 2026)` };
+    }
+
+    case "awaiting_family_members": {
+      const names = message.split(/[\n,]|\band\b/i).map(n => n.trim()).filter(Boolean);
+      data.familyMembers = names;
+      convo.memberChangeData = data;
+      convo.memberChangeStep = "awaiting_effective_date";
+      return { handled: true, reply: `When would you like this change to take effect? (e.g. 1 August 2026)` };
+    }
+
+    case "awaiting_effective_date": {
+      data.effectiveDate = message;
+      convo.memberChangeData = data;
+      convo.memberChangeStep = "awaiting_reason";
+      return { handled: true, reply: `Is there a reason for the change? (optional — type 'skip' to leave this blank)` };
+    }
+
+    case "awaiting_reason": {
+      data.reason = /^skip$/i.test(lc) ? null : message;
+      convo.memberChangeData = data;
+
+      // Build confirmation summary
+      let summary = `Here's a summary of your request:\n\n`;
+      summary += `Change: ${data.changeType}\n`;
+      summary += `Name: ${data.memberName}`;
+      if (data.membershipNumber) summary += ` (#${data.membershipNumber})`;
+      summary += `\n`;
+      if (data.familyMembers && data.familyMembers.length > 0) {
+        summary += `Family members leaving: ${data.familyMembers.join(", ")}\n`;
+      }
+      summary += `Effective: ${data.effectiveDate}\n`;
+      if (data.reason) summary += `Reason: ${data.reason}\n`;
+      summary += `\nShall I submit this to the ${clubName} committee for review?`;
+
+      convo.memberChangeStep = "awaiting_confirm";
+      return { handled: true, reply: summary, choices: ["Yes, submit request", "No, cancel"] };
+    }
+
+    case "awaiting_confirm": {
+      if (/\bno\b|cancel|don't|dont/i.test(lc)) {
+        convo.memberChangeStep = null;
+        convo.memberChangeData = null;
+        return { handled: true, reply: "No problem — your request has not been submitted. Let me know if there's anything else I can help with." };
+      }
+
+      try {
+        let effectiveDateIso = null;
+        try {
+          const parsed = new Date(data.effectiveDate);
+          if (!isNaN(parsed)) effectiveDateIso = parsed.toISOString().slice(0, 10);
+        } catch {}
+
+        await supabase.from("membership_requests").insert({
+          tenant_id:              tenantId,
+          member_name:            data.memberName       || "Unknown",
+          membership_number:      data.membershipNumber || null,
+          requested_type:         data.changeType       || null,
+          effective_date:         effectiveDateIso,
+          reason:                 data.reason           || null,
+          family_members_leaving: data.familyMembers    || []
+        });
+
+        convo.memberChangeStep = null;
+        convo.memberChangeData = null;
+        return {
+          handled: true,
+          reply: `✅ Your request has been submitted to the ${clubName} committee. They'll review it and be in touch within 2 business days.\n\nIs there anything else I can help with?`
+        };
+      } catch (err) {
+        console.error("[MemberChange] Insert error:", err.message);
+        convo.memberChangeStep = null;
+        convo.memberChangeData = null;
+        return { handled: true, reply: `Sorry, something went wrong submitting your request. Please contact the club directly.` };
+      }
+    }
+  }
+
+  return { handled: false };
+}
+
 // ── Stripe Membership Integration ────────────────────────────────────────────
 const STRIPE_BASE = "https://api.stripe.com/v1";
 
@@ -8812,6 +8955,13 @@ Use plain numbers where possible.
 }
 
     } else if (effectiveMode === "general") {
+
+      // ── Membership change flow (check first — intercepts before KB search) ──
+      const memberChange = await handleMembershipChangeFlow(convo, trimmedMessage, tenantId, tenantDisplayName || "club");
+      if (memberChange.handled) {
+        addChatLog({ userId, conversationId, tenantId, sender: "bot", message: memberChange.reply, timestamp: new Date() });
+        return res.json({ reply: memberChange.reply, agentChoices: memberChange.choices || [] });
+      }
 
       // ── EBO personal booking auth flow (takes priority over KB/availability) ─
       const eboPersonal = await handleEboPersonalFlow(convo, trimmedMessage, tenantId, tenantDisplayName || "club");

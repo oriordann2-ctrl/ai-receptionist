@@ -5430,13 +5430,13 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
       } else {
         const customer = custData.data[0];
 
-        // Fetch active subscriptions
-        const subResp = await fetch(
-          "https://api.stripe.com/v1/subscriptions?customer=" + customer.id +
-          "&status=active&limit=5&expand[]=data.items.data.price.product",
-          { headers: { Authorization: authHeader } }
-        );
-        const subData = await subResp.json();
+        // Fetch active or trialing subscriptions (trialing = within a free trial period)
+        const subPromises = await Promise.all([
+          fetch("https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&status=active&limit=5&expand[]=data.items.data.price.product", { headers: { Authorization: authHeader } }).then(r => r.json()),
+          fetch("https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&status=trialing&limit=5&expand[]=data.items.data.price.product", { headers: { Authorization: authHeader } }).then(r => r.json())
+        ]);
+        const allSubs = [...(subPromises[0].data || []), ...(subPromises[1].data || [])];
+        const subData = { data: allSubs };
 
         if (!subData.data || !subData.data.length) {
           stripeResult = { ok: false, message: "No active subscription found for " + request.member_email + " (customer " + customer.id + ")" };

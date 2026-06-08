@@ -1130,10 +1130,44 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
       data.changeType = message;
       convo.memberChangeData = data;
 
-      // If "Change membership type" — ask what they want to change TO before anything else
+      // If "Change membership type" — fetch this club's Stripe products and show as choices
       if (/change membership type/i.test(message)) {
         convo.memberChangeStep = "awaiting_target_type";
-        return { handled: true, reply: `What membership type would you like to change to? (e.g. Single, Couple, Family, Junior, Student)` };
+        // Try to load Stripe products for this tenant
+        try {
+          const { data: intg } = await supabase
+            .from("tenant_integrations")
+            .select("config, is_active")
+            .eq("tenant_id", tenantId)
+            .eq("provider", "stripe")
+            .maybeSingle();
+          if (intg?.is_active && intg.config) {
+            const cfg = decryptIntgConfig(intg.config);
+            if (cfg.secret_key) {
+              const authHeader = "Basic " + Buffer.from(cfg.secret_key + ":").toString("base64");
+              const prodResp = await fetch("https://api.stripe.com/v1/products?limit=100&active=true", {
+                headers: { Authorization: authHeader }
+              });
+              const prodData = await prodResp.json();
+              const productNames = (prodData.data || [])
+                .map(p => p.name)
+                .filter(Boolean)
+                .sort();
+              if (productNames.length) {
+                convo.stripeProductNames = productNames; // cache for validation
+                return {
+                  handled: true,
+                  reply: `What membership type would you like to change to?`,
+                  choices: productNames.slice(0, 4) // max 4 choices in UI
+                };
+              }
+            }
+          }
+        } catch (e) {
+          console.error("[MemberChange] Stripe product fetch error:", e.message);
+        }
+        // Fallback if Stripe not configured or fetch failed
+        return { handled: true, reply: `What membership type would you like to change to?` };
       }
 
       // If already EBO verified in this session — use existing auth data, skip details step

@@ -2899,7 +2899,7 @@
           canceled: '<span style="background:#fef2f2;color:#dc2626;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:700;">Canceled</span>'
         }[status] || status;
 
-        var planLabel = plan === 'annual' ? '€399/year' : plan === 'monthly' ? '€49/month' : '';
+        var planLabel = plan === 'annual' ? '€290/year' : plan === 'monthly' ? '€29/month' : '';
         var trialMsg  = (status === 'trialing' && daysLeft !== null) ? daysLeft + ' days remaining in free trial' : '';
 
         statusText.innerHTML = statusBadge
@@ -2911,8 +2911,8 @@
           actions.innerHTML = '<button onclick="openBillingPortal()" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;color:#374151;">Manage subscription</button>';
         } else {
           actions.innerHTML =
-            '<button onclick="startCheckout(\'monthly\')" style="background:#0f172a;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">Subscribe €49/mo</button>'
-          + '<button onclick="startCheckout(\'annual\')" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">€399/yr (save 2 months)</button>';
+            '<button onclick="startCheckout(\'monthly\')" style="background:#0f172a;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">Subscribe €29/mo</button>'
+          + '<button onclick="startCheckout(\'annual\')" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">€290/yr (save 2 months)</button>';
         }
 
         // Show success banner if redirected back from Stripe

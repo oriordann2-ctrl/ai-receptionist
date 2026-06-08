@@ -126,7 +126,7 @@ const INTG_ENC_KEY = process.env.INTEGRATION_ENCRYPTION_KEY
   : null;
 
 // Fields encrypted before storing in tenant_integrations.config
-const INTG_SENSITIVE_FIELDS = ["username", "password", "account_sid", "auth_token"];
+const INTG_SENSITIVE_FIELDS = ["username", "password", "account_sid", "auth_token", "secret_key"];
 
 function encryptField(plaintext) {
   if (!INTG_ENC_KEY) return plaintext; // no key → store as-is (dev mode)
@@ -1130,10 +1130,12 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
       data.changeType = message;
       convo.memberChangeData = data;
 
-      // If already EBO verified in this session — skip member details step
+      // If already EBO verified in this session — use existing auth data, skip details step
       if (convo.eboAuthStep === "verified") {
         data.memberName       = convo.eboMemberName;
         data.membershipNumber = String(convo.eboMembershipNumber);
+        data.memberEmail      = convo.eboAuthEmail || null;
+        convo.memberChangeData = data;
         if (/family|single/i.test(message)) {
           convo.memberChangeStep = "awaiting_family_members";
           return { handled: true, reply: `Got it. Who else is currently on your family membership? Please list their names separated by commas.` };
@@ -1152,7 +1154,16 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
       data.membershipNumber = numMatch ? numMatch[1] : null;
       data.memberName       = namePart || message;
       convo.memberChangeData = data;
+      convo.memberChangeStep = "awaiting_email";
+      return { handled: true, reply: `What's the email address on your ${clubName} account?` };
+    }
 
+    case "awaiting_email": {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(message.trim())) {
+        return { handled: true, reply: `That doesn't look like a valid email address — could you try again?` };
+      }
+      data.memberEmail = message.trim().toLowerCase();
+      convo.memberChangeData = data;
       if (/family|single/i.test(data.changeType || "")) {
         convo.memberChangeStep = "awaiting_family_members";
         return { handled: true, reply: `Who else is currently on your family membership? Please list their names separated by commas.` };
@@ -1186,6 +1197,7 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
       summary += `Name: ${data.memberName}`;
       if (data.membershipNumber) summary += ` (#${data.membershipNumber})`;
       summary += `\n`;
+      if (data.memberEmail) summary += `Email: ${data.memberEmail}\n`;
       if (data.familyMembers && data.familyMembers.length > 0) {
         summary += `Family members leaving: ${data.familyMembers.join(", ")}\n`;
       }
@@ -1215,6 +1227,7 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
           tenant_id:              tenantId,
           member_name:            data.memberName       || "Unknown",
           membership_number:      data.membershipNumber || null,
+          member_email:           data.memberEmail      || null,
           requested_type:         data.changeType       || null,
           effective_date:         effectiveDateIso,
           reason:                 data.reason           || null,
@@ -5365,12 +5378,135 @@ app.get("/api/portal/membership-requests", requireTenant, async (req, res) => {
 // POST /api/portal/membership-requests/:id/approve
 app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (req, res) => {
   const { notes } = req.body || {};
-  const { error } = await supabase.from("membership_requests")
-    .update({ status: "approved", committee_notes: notes || null, actioned_at: new Date().toISOString() })
-    .eq("id", req.params.id)
-    .eq("tenant_id", req.tenant.tenantId);
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ ok: true });
+  const tenantId  = req.tenant.tenantId;
+  const requestId = req.params.id;
+
+  // 1. Load the membership request
+  const { data: request, error: reqErr } = await supabase
+    .from("membership_requests")
+    .select("*")
+    .eq("id", requestId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (reqErr || !request) return res.status(404).json({ error: "Request not found" });
+
+  // 2. Load this tenant's Stripe secret key from tenant_integrations
+  let stripeKey = null;
+  try {
+    const { data: intg } = await supabase
+      .from("tenant_integrations")
+      .select("config, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "stripe")
+      .maybeSingle();
+    if (intg?.is_active && intg.config) {
+      const cfg = decryptIntgConfig(intg.config);
+      stripeKey = cfg.secret_key || null;
+    }
+  } catch (e) {
+    console.error("[Approve] Stripe config load error:", e.message);
+  }
+
+  // 3. Execute Stripe action
+  let stripeResult = null;
+
+  if (!stripeKey) {
+    stripeResult = { ok: false, message: "No Stripe integration configured for this club — update manually in Stripe Dashboard." };
+  } else if (!request.member_email) {
+    stripeResult = { ok: false, message: "No member email on this request — Stripe lookup skipped. Update manually." };
+  } else {
+    try {
+      const authHeader = "Basic " + Buffer.from(stripeKey + ":").toString("base64");
+
+      // Find Stripe customer by email
+      const custResp = await fetch(
+        "https://api.stripe.com/v1/customers?email=" + encodeURIComponent(request.member_email) + "&limit=1",
+        { headers: { Authorization: authHeader } }
+      );
+      const custData = await custResp.json();
+
+      if (!custData.data || !custData.data.length) {
+        stripeResult = { ok: false, message: "No Stripe customer found for " + request.member_email };
+      } else {
+        const customer = custData.data[0];
+
+        // Fetch active subscriptions
+        const subResp = await fetch(
+          "https://api.stripe.com/v1/subscriptions?customer=" + customer.id +
+          "&status=active&limit=5&expand[]=data.items.data.price.product",
+          { headers: { Authorization: authHeader } }
+        );
+        const subData = await subResp.json();
+
+        if (!subData.data || !subData.data.length) {
+          stripeResult = { ok: false, message: "No active subscription found for " + request.member_email + " (customer " + customer.id + ")" };
+        } else {
+          const sub      = subData.data[0];
+          const item     = sub.items?.data?.[0];
+          const price    = item?.price;
+          const product  = price?.product;
+          const amount   = price?.unit_amount;
+          const currency = (price?.currency || "eur").toUpperCase();
+          const periodEnd = new Date(sub.current_period_end * 1000)
+            .toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
+          const changeType = (request.requested_type || "").toLowerCase();
+
+          if (/cancel/i.test(changeType)) {
+            // Cancel at period end — no immediate refund, member retains access until period ends
+            const cancelResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id, {
+              method: "POST",
+              headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({ cancel_at_period_end: "true" }).toString()
+            });
+            const cancelData = await cancelResp.json();
+            if (cancelData.cancel_at_period_end) {
+              stripeResult = {
+                ok: true,
+                action: "cancelled_at_period_end",
+                message: `✅ Subscription set to cancel on ${periodEnd}. Member retains access until then.`,
+                subscriptionId: sub.id,
+                customerId: customer.id
+              };
+            } else {
+              stripeResult = { ok: false, message: "Stripe cancel API call failed.", raw: cancelData };
+            }
+
+          } else {
+            // All other types (family→single, downgrade, upgrade) — surface sub details for manual action
+            const productName = product?.name || "Unknown plan";
+            const amountFmt   = amount != null ? (amount / 100).toFixed(2) + " " + currency : "unknown amount";
+            stripeResult = {
+              ok: true,
+              action: "manual_required",
+              message: `ℹ️ Manual Stripe update required. Current: ${productName} — ${amountFmt}/period, renews ${periodEnd}. Update the subscription in Stripe Dashboard.`,
+              subscriptionId: sub.id,
+              customerId: customer.id,
+              stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id
+            };
+          }
+        }
+      }
+    } catch (stripeErr) {
+      console.error("[Approve] Stripe execution error:", stripeErr.message);
+      stripeResult = { ok: false, message: "Stripe error: " + stripeErr.message };
+    }
+  }
+
+  // 4. Update membership_requests row
+  const updatePayload = {
+    status:           "approved",
+    committee_notes:  notes || null,
+    actioned_at:      new Date().toISOString(),
+    stripe_result:    stripeResult
+  };
+  const { error: updErr } = await supabase
+    .from("membership_requests")
+    .update(updatePayload)
+    .eq("id", requestId)
+    .eq("tenant_id", tenantId);
+  if (updErr) return res.status(500).json({ error: updErr.message });
+
+  res.json({ ok: true, stripeResult });
 });
 
 // POST /api/portal/membership-requests/:id/reject

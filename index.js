@@ -554,10 +554,12 @@ const INTEGRATION_CATALOG = [
     provider:       "stripe",
     name:           "Stripe",
     logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#635BFF;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:28px;font-family:sans-serif;margin:0 auto;">S</div>',
-    description:    "Accept payments and manage subscriptions",
+    description:    "Accept payments and manage member subscriptions",
     business_types: null,
-    coming_soon:    true,
-    fields:         []
+    coming_soon:    false,
+    fields: [
+      { key: "secret_key", label: "Secret Key", type: "password", placeholder: "sk_test_... or sk_live_...", required: true, hint: "From your Stripe Dashboard → Developers → API keys. Use sk_test_... for testing, sk_live_... for live." }
+    ]
   },
   {
     provider:       "mailchimp",

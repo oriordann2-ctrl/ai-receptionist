@@ -433,7 +433,12 @@
 
   function scrollToBottom(delay) {
     setTimeout(function() {
-      messages.scrollTo({ top: messages.scrollHeight, behavior: "smooth" });
+      var lastChild = messages.lastElementChild;
+      if (lastChild) {
+        lastChild.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        messages.scrollTo({ top: messages.scrollHeight, behavior: "smooth" });
+      }
     }, delay || 0);
   }
 

@@ -5430,23 +5430,24 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
       } else {
         const customer = custData.data[0];
 
-        // Fetch active or trialing subscriptions (trialing = within a free trial period)
-        const subPromises = await Promise.all([
-          fetch("https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&status=active&limit=5&expand[]=data.items.data.price.product", { headers: { Authorization: authHeader } }).then(r => r.json()),
-          fetch("https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&status=trialing&limit=5&expand[]=data.items.data.price.product", { headers: { Authorization: authHeader } }).then(r => r.json())
-        ]);
-        const allSubs = [...(subPromises[0].data || []), ...(subPromises[1].data || [])];
-        const subData = { data: allSubs };
+        // Fetch all subscriptions for this customer, filter to actionable statuses client-side
+        const subResp = await fetch(
+          "https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&limit=10",
+          { headers: { Authorization: authHeader } }
+        );
+        const subData = await subResp.json();
+        const actionableSubs = (subData.data || []).filter(function(s) {
+          return ["active", "trialing", "past_due"].indexOf(s.status) !== -1;
+        });
 
-        if (!subData.data || !subData.data.length) {
+        if (!actionableSubs.length) {
           stripeResult = { ok: false, message: "No active subscription found for " + request.member_email + " (customer " + customer.id + ")" };
         } else {
-          const sub      = subData.data[0];
-          const item     = sub.items?.data?.[0];
-          const price    = item?.price;
-          const product  = price?.product;
-          const amount   = price?.unit_amount;
-          const currency = (price?.currency || "eur").toUpperCase();
+          const sub      = actionableSubs[0];
+          const item     = sub.items && sub.items.data && sub.items.data[0];
+          const price    = item && item.price;
+          const amount   = price && price.unit_amount;
+          const currency = (price && price.currency || "eur").toUpperCase();
           const periodEnd = new Date(sub.current_period_end * 1000)
             .toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
           const changeType = (request.requested_type || "").toLowerCase();
@@ -5473,12 +5474,11 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
 
           } else {
             // All other types (family→single, downgrade, upgrade) — surface sub details for manual action
-            const productName = product?.name || "Unknown plan";
-            const amountFmt   = amount != null ? (amount / 100).toFixed(2) + " " + currency : "unknown amount";
+            const amountFmt = amount != null ? (amount / 100).toFixed(2) + " " + currency : "unknown amount";
             stripeResult = {
               ok: true,
               action: "manual_required",
-              message: `ℹ️ Manual Stripe update required. Current: ${productName} — ${amountFmt}/period, renews ${periodEnd}. Update the subscription in Stripe Dashboard.`,
+              message: `ℹ️ Manual Stripe update required. Current subscription: ${amountFmt}/period, renews ${periodEnd}. Update in Stripe Dashboard.`,
               subscriptionId: sub.id,
               customerId: customer.id,
               stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id

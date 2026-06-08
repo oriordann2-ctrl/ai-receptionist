@@ -58,7 +58,7 @@
     "#sprimal-end{background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;font-family:" + FONT + ";font-weight:500;padding:4px 6px;border-radius:8px;transition:color .15s,background .15s;flex-shrink:0;white-space:nowrap;}",
     "#sprimal-end:hover{color:#e2e8f0;background:rgba(255,255,255,0.08);}",
     "#sprimal-end.sprimal-end-confirm{color:#fca5a5;font-weight:600;}",
-    "#sprimal-messages{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:8px;background:#f8f9fc;}",
+    "#sprimal-messages{flex:1;overflow-y:auto;padding:16px 14px 32px;display:flex;flex-direction:column;gap:8px;background:#f8f9fc;}",
     "#sprimal-messages::-webkit-scrollbar{width:4px;}",
     "#sprimal-messages::-webkit-scrollbar-track{background:transparent;}",
     "#sprimal-messages::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:4px;}",
@@ -258,7 +258,7 @@
         div.innerHTML = item.inner; // safe — only our own rendered markup
         messages.appendChild(div);
       });
-      messages.scrollTop = messages.scrollHeight;
+      scrollToBottom(100);
       return true;
     } catch (e) { return false; }
   }
@@ -361,7 +361,7 @@
     div.className = "sprimal-msg sprimal-" + sender;
     div.textContent = stripHtml(text);
     messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToBottom(100);
     saveHistory();
     return div;
   }
@@ -417,7 +417,7 @@
       }
     });
     messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToBottom(100);
     saveHistory();
     return div;
   }
@@ -428,7 +428,13 @@
     el.id = "sprimal-typing";
     el.innerHTML = '<div class="sprimal-dot"></div><div class="sprimal-dot"></div><div class="sprimal-dot"></div>';
     messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToBottom(100);
+  }
+
+  function scrollToBottom(delay) {
+    setTimeout(function() {
+      messages.scrollTo({ top: messages.scrollHeight, behavior: "smooth" });
+    }, delay || 0);
   }
 
   function hideTyping() {
@@ -483,7 +489,7 @@
     });
     container.appendChild(menuBtn);
     messages.appendChild(container);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToBottom(100);
   }
 
   // Remove the back-to-menu button (called when user sends a new message)
@@ -546,7 +552,7 @@
 
     // Append inside the scrollable messages area — flows inline like AOM
     messages.appendChild(container);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToBottom(100);
   }
 
   // Handle a button press in the workflow
@@ -587,7 +593,7 @@
         aiBtn2.addEventListener("click", function () { clearChoices(); enableTextInput(); });
         container.appendChild(aiBtn2);
         messages.appendChild(container);
-        messages.scrollTop = messages.scrollHeight;
+        scrollToBottom(350);
       }, 300);
 
     } else if (type === "url") {
@@ -619,7 +625,7 @@
         askBtn.addEventListener("click", function () { clearChoices(); enableTextInput(); });
         urlChoices.appendChild(askBtn);
         messages.appendChild(urlChoices);
-        messages.scrollTop = messages.scrollHeight;
+        scrollToBottom(350);
       }, 300);
 
     } else if (type === "switch_flow") {
@@ -848,7 +854,7 @@
             if (multiSelect && msFooter) slotPanel.appendChild(msFooter);
             slotPanel.style.display = "flex";
             updateCounter();
-            messages.scrollTop = messages.scrollHeight;
+            scrollToBottom(100);
           });
         })(choice, btn);
 
@@ -920,7 +926,7 @@
     }
 
     messages.appendChild(container);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToBottom(100);
   }
 
   // Send a message as part of an active agent session

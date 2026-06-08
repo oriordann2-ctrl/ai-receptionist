@@ -1204,6 +1204,30 @@
     </details>
   </div>
 
+  <!-- ── Section: Member Requests ── -->
+  <div class="section-group-label">👥 Member Requests</div>
+
+  <div class="card" style="padding:0;">
+    <details id="memberRequestsDetails">
+      <summary class="analytics-summary" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:20px;">📋</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">
+              Pending Requests
+              <span id="memberRequestsBadge" style="display:none;background:#ef4444;color:white;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:8px;vertical-align:middle;"></span>
+            </div>
+            <div style="font-size:13px;color:#6b7280;">Membership change requests from members — review and action</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="memberRequestsBody">
+        <div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>
+      </div>
+    </details>
+  </div>
+
   <!-- ── Section: Mortgage Applications (AOM only — hidden for all other tenants) ── -->
   <div id="mortgageTrackerSection" style="display:none;">
     <div class="section-group-label">📋 Mortgage Applications</div>
@@ -3055,6 +3079,121 @@
     poll();
     pollTimer = setInterval(poll, 2000);
     window.addEventListener('resize', function() { updateCar(lastPct); });
+  })();
+
+  // ── Member Requests ──────────────────────────────────────────────────────────
+  (function () {
+    var details = document.getElementById("memberRequestsDetails");
+    if (!details) return;
+
+    function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+    function fmtDate(d) {
+      if (!d) return "—";
+      return new Date(d).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" });
+    }
+
+    function loadMemberRequests() {
+      var body = document.getElementById("memberRequestsBody");
+      body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>';
+      fetch("/api/portal/membership-requests")
+        .then(function(r) { return r.json(); })
+        .then(function(requests) {
+          var badge   = document.getElementById("memberRequestsBadge");
+          var pending = requests.filter(function(r) { return r.status === "pending"; });
+          var done    = requests.filter(function(r) { return r.status !== "pending"; });
+
+          badge.style.display = pending.length ? "inline" : "none";
+          if (pending.length) badge.textContent = pending.length;
+
+          if (!requests.length) {
+            body.innerHTML = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No membership requests yet — they appear here when members request changes via chat.</div>';
+            return;
+          }
+
+          var html = "";
+
+          pending.forEach(function(r) {
+            var familyList = (r.family_members_leaving || []).map(function(n) { return "<li>" + esc(n) + "</li>"; }).join("");
+            var familySection = familyList
+              ? '<div style="margin-top:12px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">'
+                + '<div style="font-size:11px;font-weight:700;color:#c2410c;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">EBO — Manual action after approving</div>'
+                + '<div style="font-size:13px;color:#92400e;margin-bottom:4px;">Deactivate EBO accounts for:</div>'
+                + '<ul style="margin:0 0 0 18px;font-size:13px;color:#92400e;line-height:1.9;">' + familyList + '</ul></div>'
+              : "";
+
+            var proRataSection = r.pro_rata_amount
+              ? '<div style="margin-top:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">'
+                + '<div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Pro-rata refund owed</div>'
+                + '<div style="font-size:14px;font-weight:700;color:#166534;">' + esc(r.pro_rata_note || "€" + r.pro_rata_amount) + '</div></div>'
+              : "";
+
+            var stripeSection = '<div style="margin-top:12px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">'
+              + '<div style="font-size:11px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Stripe Actions</div>'
+              + '<ul style="margin:0 0 0 18px;font-size:13px;color:#1e3a8a;line-height:1.9;">'
+              + "<li>Cancel " + esc(r.current_type || "current") + " subscription</li>"
+              + "<li>Create " + esc(r.requested_type || "new") + " subscription from " + fmtDate(r.effective_date) + "</li>"
+              + (r.pro_rata_amount ? "<li>Issue €" + r.pro_rata_amount + " pro-rata refund</li>" : "")
+              + "</ul></div>";
+
+            html += '<div style="border:1.5px solid #e2e8f0;border-radius:12px;padding:18px 20px;margin-bottom:16px;">'
+              + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
+              + '<div><div style="font-size:15px;font-weight:700;color:#111827;">' + esc(r.member_name)
+              + (r.membership_number ? ' <span style="font-size:13px;font-weight:400;color:#6b7280;">(#' + esc(r.membership_number) + ')</span>' : '')
+              + '</div>'
+              + '<div style="font-size:13px;color:#374151;margin-top:3px;">' + esc(r.current_type || "—") + " → " + esc(r.requested_type || "—") + '</div>'
+              + (r.reason ? '<div style="font-size:12px;color:#9ca3af;margin-top:2px;font-style:italic;">"' + esc(r.reason) + '"</div>' : '')
+              + '</div>'
+              + '<div style="text-align:right;flex-shrink:0;">'
+              + '<div style="font-size:12px;color:#9ca3af;">' + fmtDate(r.created_at) + '</div>'
+              + (r.effective_date ? '<div style="font-size:12px;color:#6b7280;margin-top:2px;">Effective: ' + fmtDate(r.effective_date) + '</div>' : '')
+              + '<span style="display:inline-block;margin-top:5px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;">Pending</span>'
+              + '</div></div>'
+              + stripeSection + familySection + proRataSection
+              + '<div style="margin-top:14px;display:flex;gap:10px;">'
+              + '<button onclick="approveMemberRequest(\'' + r.id + '\')" style="flex:1;background:#16a34a;color:white;border:none;border-radius:9px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve &amp; Execute</button>'
+              + '<button onclick="rejectMemberRequest(\'' + r.id + '\')" style="flex:1;background:white;color:#dc2626;border:1.5px solid #fca5a5;border-radius:9px;padding:10px 0;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">✕ Reject</button>'
+              + '</div></div>';
+          });
+
+          if (done.length) {
+            html += '<div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 10px;">Completed</div>';
+            done.forEach(function(r) {
+              var ok = r.status === "approved";
+              html += '<div style="border:1px solid #f3f4f6;border-radius:10px;padding:14px 16px;margin-bottom:8px;opacity:0.75;">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">'
+                + '<div><div style="font-size:14px;font-weight:600;color:#374151;">' + esc(r.member_name) + " — " + esc(r.current_type || "—") + " → " + esc(r.requested_type || "—") + '</div>'
+                + '<div style="font-size:12px;color:#9ca3af;margin-top:2px;">' + fmtDate(r.created_at) + '</div></div>'
+                + '<span style="background:' + (ok ? "#dcfce7" : "#fee2e2") + ";color:" + (ok ? "#166534" : "#991b1b") + ';font-size:11px;font-weight:700;padding:3px 10px;border-radius:10px;">'
+                + (ok ? "✓ Approved" : "✕ Rejected") + '</span></div></div>';
+            });
+          }
+
+          body.innerHTML = html;
+        })
+        .catch(function() {
+          document.getElementById("memberRequestsBody").innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#dc2626;">Failed to load requests.</div>';
+        });
+    }
+
+    window.approveMemberRequest = function(id) {
+      if (!confirm("Approve this membership change and queue Stripe actions?")) return;
+      fetch("/api/portal/membership-requests/" + id + "/approve", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({})
+      }).then(function(r) { return r.json(); })
+        .then(function() { loadMemberRequests(); })
+        .catch(function() { alert("Something went wrong. Please try again."); });
+    };
+
+    window.rejectMemberRequest = function(id) {
+      var notes = window.prompt("Reason for rejection (optional):") || "";
+      fetch("/api/portal/membership-requests/" + id + "/reject", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: notes })
+      }).then(function(r) { return r.json(); })
+        .then(function() { loadMemberRequests(); })
+        .catch(function() { alert("Something went wrong."); });
+    };
+
+    details.addEventListener("toggle", function() { if (details.open) loadMemberRequests(); });
   })();
 </script>
 </body>

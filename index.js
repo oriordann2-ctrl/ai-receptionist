@@ -5183,6 +5183,62 @@ app.get("/api/portal/crawl-status", requireTenant, (req, res) => {
   res.json({ active: true, pct: progress.pct, message: progress.message, done: progress.done });
 });
 
+// ── Membership Requests ───────────────────────────────────────────────────────
+// Public endpoint — called by bot to submit a membership change request
+app.post("/api/membership-request", async (req, res) => {
+  const { tenantId, memberName, membershipNumber, memberEmail, currentType, requestedType,
+          effectiveDate, reason, familyMembersLeaving, proRataAmount, proRataNote } = req.body || {};
+  if (!tenantId || !memberName) return res.status(400).json({ error: "Missing required fields" });
+  const { error } = await supabase.from("membership_requests").insert({
+    tenant_id:               tenantId,
+    member_name:             memberName,
+    membership_number:       membershipNumber || null,
+    member_email:            memberEmail      || null,
+    current_type:            currentType      || null,
+    requested_type:          requestedType    || null,
+    effective_date:          effectiveDate    || null,
+    reason:                  reason           || null,
+    family_members_leaving:  familyMembersLeaving || [],
+    pro_rata_amount:         proRataAmount    || null,
+    pro_rata_note:           proRataNote      || null
+  });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// GET /api/portal/membership-requests — list all requests for this tenant
+app.get("/api/portal/membership-requests", requireTenant, async (req, res) => {
+  const { data, error } = await supabase
+    .from("membership_requests")
+    .select("*")
+    .eq("tenant_id", req.tenant.tenantId)
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+// POST /api/portal/membership-requests/:id/approve
+app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (req, res) => {
+  const { notes } = req.body || {};
+  const { error } = await supabase.from("membership_requests")
+    .update({ status: "approved", committee_notes: notes || null, actioned_at: new Date().toISOString() })
+    .eq("id", req.params.id)
+    .eq("tenant_id", req.tenant.tenantId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// POST /api/portal/membership-requests/:id/reject
+app.post("/api/portal/membership-requests/:id/reject", requireTenant, async (req, res) => {
+  const { notes } = req.body || {};
+  const { error } = await supabase.from("membership_requests")
+    .update({ status: "rejected", committee_notes: notes || null, actioned_at: new Date().toISOString() })
+    .eq("id", req.params.id)
+    .eq("tenant_id", req.tenant.tenantId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
 app.get("/portal/dashboard", requireTenant, async (req, res) => {
   try {
     // ── Junior users: verify train_staff_enabled is still on ─────────────

@@ -26,6 +26,7 @@ const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 
 const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
 
 const app = express();
 
@@ -79,6 +80,7 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 });
 
 app.set("trust proxy", 1); // Required for rate limiting behind Render's reverse proxy
+app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled — inline scripts used in views
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());

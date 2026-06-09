@@ -121,18 +121,22 @@
     var label = document.getElementById("fileChosenLabel");
     if (label) label.textContent = file.name;
     // Reset and reveal metadata form
-    var desc    = document.getElementById("uploadDescription");
-    var type    = document.getElementById("uploadDocType");
-    var effDate = document.getElementById("uploadEffectiveDate");
-    var expDate = document.getElementById("uploadExpiryDate");
-    var tags    = document.getElementById("uploadTags");
-    var jr      = document.getElementById("uploadJuniorAccess");
-    if (desc)    desc.value    = "";
-    if (type)    type.value    = "";
-    if (effDate) effDate.value = "";
-    if (expDate) expDate.value = "";
-    if (tags)    tags.value    = "";
-    if (jr)      jr.checked    = true;
+    var desc     = document.getElementById("uploadDescription");
+    var type     = document.getElementById("uploadDocType");
+    var effDate  = document.getElementById("uploadEffectiveDate");
+    var expDate  = document.getElementById("uploadExpiryDate");
+    var tags     = document.getElementById("uploadTags");
+    var audience = document.getElementById("uploadAudience");
+    var replaces = document.getElementById("uploadReplaces");
+    var jr       = document.getElementById("uploadJuniorAccess");
+    if (desc)     desc.value    = "";
+    if (type)     type.value    = "";
+    if (effDate)  effDate.value = "";
+    if (expDate)  expDate.value = "";
+    if (tags)     tags.value    = "";
+    if (audience) audience.value = "Everyone";
+    if (replaces) { replaces.innerHTML = '<option value="">— Not replacing an existing document —</option>'; }
+    if (jr)       jr.checked    = true;
     var form = document.getElementById("uploadMetadataForm");
     if (form) form.style.display = "";
     var status = document.getElementById("uploadStatus");
@@ -169,6 +173,10 @@
       var el = document.getElementById(id);
       if (el) el.value = "";
     });
+    var audience = document.getElementById("uploadAudience");
+    if (audience) audience.value = "Everyone";
+    var replaces = document.getElementById("uploadReplaces");
+    if (replaces) replaces.innerHTML = '<option value="">— Not replacing an existing document —</option>';
     var jr = document.getElementById("uploadJuniorAccess");
     if (jr) jr.checked = true;
     var form = document.getElementById("uploadMetadataForm");
@@ -177,20 +185,43 @@
     if (status) { status.style.display = "none"; status.textContent = ""; }
   };
 
-  window.portalSubmitUpload = function() {
-    var file = _pendingUploadFile;
-    if (!file) return;
-    var desc    = ((document.getElementById("uploadDescription")    || {}).value || "").trim();
-    var type    = ((document.getElementById("uploadDocType")        || {}).value || "").trim();
-    var effDate = ((document.getElementById("uploadEffectiveDate")  || {}).value || "").trim();
-    var expDate = ((document.getElementById("uploadExpiryDate")     || {}).value || "").trim();
-    var tags    = ((document.getElementById("uploadTags")           || {}).value || "").trim();
-    var junior  = !!((document.getElementById("uploadJuniorAccess") || {}).checked);
-    var btn     = document.getElementById("uploadSubmitBtn");
+  // Populate the "Replaces" dropdown with existing docs of the selected type
+  window.portalUpdateReplaces = function() {
+    var type     = ((document.getElementById("uploadDocType") || {}).value || "").trim();
+    var replaces = document.getElementById("uploadReplaces");
+    if (!replaces) return;
+    replaces.innerHTML = '<option value="">— Not replacing an existing document —</option>';
+    if (!type) return;
+    fetch("/api/portal/documents?type=" + encodeURIComponent(type))
+      .then(function(r) { return r.json(); })
+      .then(function(docs) {
+        // Exclude Website Content — those are managed by Re-crawl
+        var uploaded = (docs || []).filter(function(d) { return d.document_type !== "Website Content"; });
+        uploaded.forEach(function(d) {
+          var opt = document.createElement("option");
+          opt.value = d.id;
+          opt.textContent = d.original_filename || d.description || d.id;
+          replaces.appendChild(opt);
+        });
+      })
+      .catch(function() {});
+  };
 
-    if (!desc)    { alert("Please enter a description."); return; }
-    if (!type)    { alert("Please select a document type."); return; }
-    if (!effDate) { alert("Please enter an effective date."); return; }
+  window.portalSubmitUpload = function() {
+    var file     = _pendingUploadFile;
+    if (!file) return;
+    var desc     = ((document.getElementById("uploadDescription")    || {}).value || "").trim();
+    var type     = ((document.getElementById("uploadDocType")        || {}).value || "").trim();
+    var effDate  = ((document.getElementById("uploadEffectiveDate")  || {}).value || "").trim();
+    var expDate  = ((document.getElementById("uploadExpiryDate")     || {}).value || "").trim();
+    var tags     = ((document.getElementById("uploadTags")           || {}).value || "").trim();
+    var audience = ((document.getElementById("uploadAudience")       || {}).value || "Everyone").trim();
+    var replaces = ((document.getElementById("uploadReplaces")       || {}).value || "").trim();
+    var junior   = !!((document.getElementById("uploadJuniorAccess") || {}).checked);
+    var btn      = document.getElementById("uploadSubmitBtn");
+
+    if (!desc) { alert("Please enter a description."); return; }
+    if (!type) { alert("Please select a document type."); return; }
 
     var status = document.getElementById("uploadStatus");
     status.className = "upload-status loading";
@@ -199,13 +230,15 @@
     if (btn) btn.disabled = true;
 
     var fd = new FormData();
-    fd.append("document",          file);
-    fd.append("description",       desc);
-    fd.append("document_type",     type);
-    fd.append("effective_date",    effDate);
-    fd.append("expiry_date",       expDate);
-    fd.append("tags",              tags);
-    fd.append("junior_accessible", junior ? "true" : "false");
+    fd.append("document",              file);
+    fd.append("description",           desc);
+    fd.append("document_type",         type);
+    fd.append("effective_date",        effDate);
+    fd.append("expiry_date",           expDate);
+    fd.append("tags",                  tags);
+    fd.append("audience",              audience);
+    fd.append("replaces_document_id",  replaces);
+    fd.append("junior_accessible",     junior ? "true" : "false");
 
     fetch("/api/portal/upload", { method: "POST", body: fd })
       .then(function(r) { return r.json(); })

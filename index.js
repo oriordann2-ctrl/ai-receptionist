@@ -1503,31 +1503,97 @@ function chunkText(text, maxWords = 450, overlapWords = 50) {
   return chunks;
 }
 
+// ── Heading detection + enriched chunk builder ────────────────────────────
+// Splits text into headed sections, then chunks each section and prepends
+// the document title + section heading so embeddings carry full context.
+function buildEnrichedChunks(text, docMeta = {}) {
+  const { title, documentType } = docMeta;
+
+  // Document-level context prefix (e.g. "Document: Membership Fees | Type: Pricing")
+  const docParts = [];
+  if (title) docParts.push(`Document: ${title}`);
+  if (documentType && documentType !== "Website Content") docParts.push(`Type: ${documentType}`);
+  const docPrefix = docParts.join(" | ");
+
+  // Heuristic heading detector
+  function isHeading(line) {
+    const t = line.trim();
+    if (!t || t.length > 100) return false;
+    if (/^#{1,4}\s+\S/.test(t)) return true;                           // ## Markdown heading
+    if (t.length >= 3 && /^[A-Z][A-Z0-9\s&\/\-:,.]{2,}$/.test(t) && !/[a-z]/.test(t)) return true; // ALL CAPS
+    if (t.length <= 60 && t.endsWith(":") && !/[.!?]/.test(t.slice(0, -1))) return true; // Short colon header
+    return false;
+  }
+  function cleanHeading(line) {
+    return line.trim().replace(/^#{1,4}\s+/, "").replace(/:$/, "").trim();
+  }
+
+  // Split text into sections delimited by headings
+  const lines = text.split("\n");
+  const sections = [];
+  let currentHeading = null;
+  let currentBody = [];
+
+  for (const line of lines) {
+    if (isHeading(line)) {
+      const bodyText = currentBody.join("\n").trim();
+      if (bodyText) sections.push({ heading: currentHeading, body: bodyText });
+      currentHeading = cleanHeading(line);
+      currentBody = [];
+    } else {
+      currentBody.push(line);
+    }
+  }
+  const finalBody = currentBody.join("\n").trim();
+  if (finalBody) sections.push({ heading: currentHeading, body: finalBody });
+
+  // If nothing was detected as a heading, treat whole text as one section
+  if (!sections.length) sections.push({ heading: null, body: text.trim() });
+
+  // Chunk each section and prepend context
+  const result = [];
+  for (const section of sections) {
+    const rawChunks = chunkText(section.body);
+    for (const raw of rawChunks) {
+      const prefixParts = [docPrefix, section.heading ? `Section: ${section.heading}` : null].filter(Boolean);
+      const enriched = prefixParts.length ? prefixParts.join("\n") + "\n" + raw : raw;
+      result.push({ enrichedText: enriched, sectionHeading: section.heading || null });
+    }
+  }
+  return result;
+}
+
 // ── Generate embeddings and store in knowledge_chunks ─────────────────────
-async function generateAndStoreChunks(documentId, text, lender, documentType, effectiveDate, tenantId = "aom") {
-  const chunks = chunkText(text);
-  if (chunks.length === 0) {
+// docMeta = { title, description, documentType } — used to enrich chunk context
+async function generateAndStoreChunks(documentId, text, lender, documentType, effectiveDate, tenantId = "aom", docMeta = {}) {
+  const enrichedChunks = buildEnrichedChunks(text, {
+    title: docMeta.title || docMeta.description || null,
+    documentType
+  });
+
+  if (enrichedChunks.length === 0) {
     console.log(`[embeddings] No text to embed for document ${documentId} — skipping`);
     return;
   }
 
-  console.log(`[embeddings] Generating embeddings for ${chunks.length} chunk(s) — document ${documentId} (tenant: ${tenantId})`);
+  console.log(`[embeddings] Generating embeddings for ${enrichedChunks.length} chunk(s) — document ${documentId} (tenant: ${tenantId})`);
 
   // Single batched API call for all chunks
   const embeddingResponse = await openai.embeddings.create({
     model: "text-embedding-3-small",
-    input: chunks
+    input: enrichedChunks.map(c => c.enrichedText)
   });
 
   const rows = embeddingResponse.data.map((item, i) => ({
-    document_id:   documentId,
-    chunk_index:   i,
-    chunk_text:    chunks[i],
-    embedding:     item.embedding,
+    document_id:     documentId,
+    chunk_index:     i,
+    chunk_text:      enrichedChunks[i].enrichedText,
+    section_heading: enrichedChunks[i].sectionHeading,
+    embedding:       item.embedding,
     lender,
-    document_type: documentType,
-    effective_date: effectiveDate ? `${effectiveDate}-01` : null,
-    tenant_id:     tenantId
+    document_type:   documentType,
+    effective_date:  effectiveDate ? `${effectiveDate}-01` : null,
+    tenant_id:       tenantId
   }));
 
   const { error } = await supabase.from("knowledge_chunks").insert(rows);
@@ -4301,7 +4367,7 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
           continue;
         }
 
-        await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, "aom");
+        await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, "aom", { title: page.title || page.url });
         imported++;
         console.log(`[import-website] Imported page ${imported}: ${page.title}`);
       } catch (err) {
@@ -4546,7 +4612,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
             continue;
           }
 
-          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId);
+          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId, { title: page.title || page.url });
           imported++;
         } catch (err) {
           console.error(`[crawl] Page import error for ${tenantId}:`, err.message);
@@ -6239,12 +6305,16 @@ app.get("/api/portal/me", requireTenant, (req, res) => {
 });
 
 app.get("/api/portal/documents", requireTenant, async (req, res) => {
-  const { data, error } = await supabase
+  let query = supabase
     .from("documents")
-    .select("id, original_filename, stored_filename, mimetype, document_type, uploaded_at")
+    .select("id, original_filename, stored_filename, mimetype, document_type, audience, description, uploaded_at")
     .eq("tenant_id", req.tenant.tenantId)
     .order("uploaded_at", { ascending: false });
 
+  // Optional type filter — used by replaces dropdown in upload form
+  if (req.query.type) query = query.eq("document_type", req.query.type);
+
+  const { data, error } = await query;
   if (error) return res.status(500).json({ error: "Failed to load documents" });
   res.json(data || []);
 });
@@ -6280,27 +6350,32 @@ app.post(
       }
 
       // ── De-duplication: reject if identical content already exists ──────────
+      // (skip check if the user is explicitly replacing an existing document)
       const contentHash = crypto.createHash("sha256").update(extractedText.trim()).digest("hex");
-      const { data: existingByHash } = await supabase
-        .from("documents")
-        .select("id, original_filename")
-        .eq("tenant_id", tenantId)
-        .eq("content_hash", contentHash)
-        .maybeSingle();
-      if (existingByHash) {
-        fs.unlink(req.file.path, () => {});
-        return res.status(409).json({
-          error: `This document has already been uploaded (it matches "${existingByHash.original_filename}"). If you want to replace it, delete the existing version first.`
-        });
+      if (!req.body.replaces_document_id) {
+        const { data: existingByHash } = await supabase
+          .from("documents")
+          .select("id, original_filename")
+          .eq("tenant_id", tenantId)
+          .eq("content_hash", contentHash)
+          .maybeSingle();
+        if (existingByHash) {
+          fs.unlink(req.file.path, () => {});
+          return res.status(409).json({
+            error: `This document has already been uploaded (it matches "${existingByHash.original_filename}"). If you want to replace it, use the "Replaces" dropdown and select the existing version.`
+          });
+        }
       }
 
       // Build structured filename: "Document Type - Description.ext"
-      const description    = (req.body.description    || "").trim();
-      const document_type  = (req.body.document_type  || "Other").trim();
-      const effective_date = (req.body.effective_date || null) || null;
-      const expiry_date    = (req.body.expiry_date    || null) || null;
-      const tagsRaw        = (req.body.tags            || "").trim();
-      const juniorAccess   = req.body.junior_accessible !== "false";
+      const description          = (req.body.description          || "").trim();
+      const document_type        = (req.body.document_type        || "Other").trim();
+      const effective_date       = (req.body.effective_date       || null) || null;
+      const expiry_date          = (req.body.expiry_date          || null) || null;
+      const tagsRaw              = (req.body.tags                 || "").trim();
+      const juniorAccess         = req.body.junior_accessible !== "false";
+      const audience             = (req.body.audience             || "Everyone").trim();
+      const replacesDocumentId   = (req.body.replaces_document_id || "").trim() || null;
       const ext            = req.file.originalname.split(".").pop().toLowerCase();
       // Strip characters invalid in Supabase Storage keys (apostrophes, quotes, etc.)
       const safePart       = (s) => s
@@ -6329,6 +6404,24 @@ app.post(
         // Continue anyway — store record without storage path
       }
 
+      // ── If replacing an existing document — delete it first ────────────────
+      if (replacesDocumentId) {
+        try {
+          const { data: oldDoc } = await supabase.from("documents").select("id, storage_path, tenant_id").eq("id", replacesDocumentId).eq("tenant_id", tenantId).maybeSingle();
+          if (oldDoc) {
+            await supabase.from("knowledge_chunks").delete().eq("document_id", oldDoc.id);
+            await supabase.from("documents").delete().eq("id", oldDoc.id);
+            if (oldDoc.storage_path) {
+              await supabase.storage.from(SUPABASE_BUCKET).remove([oldDoc.storage_path]).catch(() => {});
+            }
+            console.log(`[portal-upload] Replaced document ${oldDoc.id} for ${tenantId}`);
+          }
+        } catch (replaceErr) {
+          console.error("[portal-upload] Replace error:", replaceErr.message);
+          // Non-fatal — continue with upload
+        }
+      }
+
       const { data: doc, error: docError } = await supabase
         .from("documents")
         .insert({
@@ -6342,6 +6435,7 @@ app.post(
           effective_date:    effective_date ? `${effective_date}-01` : null,
           expiry_date:       expiry_date   ? `${expiry_date}-01`   : null,
           tags:              tags,
+          audience:          audience,
           metadata_complete: true,
           junior_accessible: juniorAccess,
           content_hash:      contentHash,
@@ -6357,7 +6451,7 @@ app.post(
         return res.status(500).json({ error: "Failed to save document record." });
       }
 
-      await generateAndStoreChunks(doc.id, extractedText, null, document_type, null, tenantId);
+      await generateAndStoreChunks(doc.id, extractedText, null, document_type, null, tenantId, { title: description || structuredName });
 
       res.json({ success: true, document: { id: doc.id, name: structuredName } });
     } catch (err) {
@@ -6441,7 +6535,7 @@ app.post("/api/portal/knowledge-documents/paste", requireSeniorTenant, async (re
       return res.status(500).json({ error: "Failed to save knowledge" });
     }
 
-    await generateAndStoreChunks(doc.id, text.trim(), null, "Pasted Knowledge", null, tenantId);
+    await generateAndStoreChunks(doc.id, text.trim(), null, "Pasted Knowledge", null, tenantId, { title: title.trim() });
     res.json({ success: true, document: { id: doc.id, name: doc.original_filename } });
   } catch (err) {
     console.error("[portal-paste] Error:", err.message);
@@ -6502,7 +6596,7 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
             })
             .select().single();
           if (insertError) { console.error(`[portal-import] Insert error:`, insertError.message); continue; }
-          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId);
+          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId, { title: page.title || page.url });
           imported++;
         } catch (err) {
           console.error(`[portal-import] Page error:`, err.message);
@@ -7518,7 +7612,7 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
             })
             .select().single();
           if (insertError) { console.error(`[seed-flows] Doc insert:`, insertError.message); continue; }
-          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId);
+          await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId, { title: page.title || page.url });
           kbImported++;
         } catch (kbErr) {
           console.error(`[seed-flows] KB page error:`, kbErr.message);

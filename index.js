@@ -206,14 +206,14 @@ async function detectBusinessType(name, description, pageText) {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: `Classify this business into exactly one category. Reply with ONLY the category key, nothing else.\nCategories:\n- tennis_club\n- fitness_studio\n- golf_club\n- other` },
+        { role: "system", content: `Classify this business into exactly one category. Reply with ONLY the category key, nothing else.\nCategories:\n- tennis_club\n- fitness_studio\n- golf_club\n- racket_sports_club\n- yoga_studio\n- swim_club\n- team_sports_club\n- cafe\n- other\n\nNotes: racket_sports_club = squash/badminton/padel/table tennis clubs. yoga_studio = yoga/pilates/reformer studios. swim_club = swimming clubs/aquatic centres. team_sports_club = GAA/rugby/soccer/football/hurling/hockey clubs. cafe = cafés/coffee shops/restaurants/delis.` },
         { role: "user",   content: `Name: ${name}\nDescription: ${description}\nPage text: ${pageText.slice(0, 600)}` }
       ],
       temperature: 0,
       max_tokens: 10
     });
     const raw  = (resp.choices[0].message.content || "other").trim().toLowerCase().replace(/[^a-z_]/g, "");
-    const valid = ["tennis_club", "fitness_studio", "golf_club"];
+    const valid = ["tennis_club", "fitness_studio", "golf_club", "racket_sports_club", "yoga_studio", "swim_club", "team_sports_club", "cafe"];
     return valid.includes(raw) ? raw : "other";
   } catch (e) {
     console.error("[biz-type] Detection failed:", e.message);
@@ -478,6 +478,611 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
 
   console.log(`[tennis-seed] ✅ Seeded 6 tennis club flows + ${agentsToInsert.length} agents for ${tenantId} (${name})`);
   return true;
+}
+
+// ── Extract generic contact info from crawled pages (non-tennis types) ────────
+async function extractGenericInfo(pages, websiteUrl) {
+  const priority = ["contact", "about", "location", "find", "address", "join", "membership", "fees", "pricing", "timetable", "schedule", "booking"];
+  const sorted = [...pages].sort((a, b) => {
+    const score = (p) => {
+      const u = p.url.toLowerCase(), t = p.text.toLowerCase().slice(0, 500);
+      return priority.filter(k => u.includes(k) || t.includes(k)).length;
+    };
+    return score(b) - score(a);
+  });
+  const combined = sorted.slice(0, 8).map(p => `--- ${p.url} ---\n${p.text}`).join("\n\n").slice(0, 6000);
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: `Extract contact and location info from this website. Return ONLY valid JSON with null for anything not found.\n{\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "booking_url": "URL for online booking/reservations/classes/tee-times or null",\n  "membership_url": "URL of membership/join/register page or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
+        { role: "user", content: combined }
+      ],
+      temperature: 0,
+      max_tokens: 300,
+      response_format: { type: "json_object" }
+    });
+    const info = JSON.parse(resp.choices[0].message.content || "{}");
+    const rx = regexExtractFromPages(pages);
+    if (!info.email && rx.emails.length) info.email = rx.emails[0];
+    if (!info.phone && rx.phones.length) info.phone = rx.phones[0];
+    return info;
+  } catch (e) {
+    console.error("[generic-seed] Info extraction failed:", e.message);
+    const rx = regexExtractFromPages(pages);
+    return { email: rx.emails[0] || null, phone: rx.phones[0] || null };
+  }
+}
+
+// ── Seed fitness studio chat flows ────────────────────────────────────────────
+async function seedFitnessStudioFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[fitness-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fTrial = crypto.randomUUID();
+  const fClass = crypto.randomUUID(), fPT   = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const sMain = crypto.randomUUID(), sMemb = crypto.randomUUID(), sTrial = crypto.randomUUID();
+  const sClass = crypto.randomUUID(), sPT   = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+
+  const contactEmail  = v(info.email)          || "[FILL IN: email]";
+  const emailLink     = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : "[FILL IN: email]";
+  const membershipUrl = v(info.membership_url) || websiteUrl;
+  const bookingUrl    = v(info.booking_url)    || websiteUrl;
+  const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const locLines = [
+    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ].filter(l => l !== null).join("\n");
+
+  const membMsg  = `We'd love to have you as a member! To view our membership options and sign up:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch:\n📧 ${emailLink}`;
+  const trialMsg = `The best way to see if we're the right fit is a free trial session — no commitment needed. 💪\n\nOur team will show you around and help you find the right plan.\n\nGet in touch to book yours:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+  const classMsg = `We run classes throughout the week for all fitness levels.\n\nCheck our full timetable online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]`;
+  const ptMsg    = `Our qualified personal trainers can design a programme tailored to your goals — whether that's weight loss, strength, or sports performance.\n\nGet in touch to find out more:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain,  club_id: tenantId, name: "Main Menu",         is_active: true  },
+    { id: fMemb,  club_id: tenantId, name: "Membership",        is_active: false },
+    { id: fTrial, club_id: tenantId, name: "Free Trial",        is_active: false },
+    { id: fClass, club_id: tenantId, name: "Class Timetable",   is_active: false },
+    { id: fPT,    club_id: tenantId, name: "Personal Training", is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",           is_active: false },
+  ]);
+  if (fErr) { console.error("[fitness-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there! 👋 What can I help you with today?` },
+    { id: sMemb,  workflow_id: fMemb,  step_order: 1, bot_message: membMsg  },
+    { id: sTrial, workflow_id: fTrial, step_order: 1, bot_message: trialMsg },
+    { id: sClass, workflow_id: fClass, step_order: 1, bot_message: classMsg },
+    { id: sPT,    workflow_id: fPT,    step_order: 1, bot_message: ptMsg    },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+  ]);
+  if (sErr) { console.error("[fitness-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain, choice_order: 1, label: "💪 Membership options",   action_type: "switch_flow", action_value: fMemb  },
+    { step_id: sMain, choice_order: 2, label: "🆓 Book a free trial",    action_type: "switch_flow", action_value: fTrial },
+    { step_id: sMain, choice_order: 3, label: "📅 Class timetable",      action_type: "switch_flow", action_value: fClass },
+    { step_id: sMain, choice_order: 4, label: "🏋️ Personal training",   action_type: "switch_flow", action_value: fPT    },
+    { step_id: sMain, choice_order: 5, label: "📍 Find us",              action_type: "switch_flow", action_value: fLoc   },
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "ai_fallback",  action_value: null   },
+    { step_id: sMemb,  choice_order: 1, label: "🌐 View membership options", action_type: "url",         action_value: membershipUrl },
+    { step_id: sMemb,  choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain         },
+    { step_id: sTrial, choice_order: 1, label: "📧 Contact us",              action_type: "ai_fallback",  action_value: null   },
+    { step_id: sTrial, choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain  },
+    { step_id: sClass, choice_order: 1, label: "📅 View timetable",          action_type: "url",         action_value: bookingUrl },
+    { step_id: sClass, choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain      },
+    { step_id: sPT,    choice_order: 1, label: "📧 Enquire about PT",        action_type: "ai_fallback",  action_value: null   },
+    { step_id: sPT,    choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",          action_type: "url",         action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain   },
+  ]);
+  if (cErr) { console.error("[fitness-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[fitness-seed] ✅ Seeded 6 fitness studio flows for ${tenantId} (${name})`);
+  return true;
+}
+
+// ── Seed golf club chat flows ─────────────────────────────────────────────────
+async function seedGolfClubFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[golf-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fTee  = crypto.randomUUID();
+  const fLess = crypto.randomUUID(), fSoc  = crypto.randomUUID(), fLoc  = crypto.randomUUID();
+  const sMain = crypto.randomUUID(), sMemb = crypto.randomUUID(), sTee  = crypto.randomUUID();
+  const sLess = crypto.randomUUID(), sSoc  = crypto.randomUUID(), sLoc  = crypto.randomUUID();
+
+  const contactEmail  = v(info.email)          || "[FILL IN: email]";
+  const emailLink     = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : "[FILL IN: email]";
+  const membershipUrl = v(info.membership_url) || websiteUrl;
+  const bookingUrl    = v(info.booking_url)    || websiteUrl;
+  const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const locLines = [
+    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ].filter(l => l !== null).join("\n");
+
+  const membMsg = `Interested in joining ${name}? We'd love to have you as a member.\n\nView our membership options and apply:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch with our membership team:\n📧 ${emailLink}`;
+  const teeMsg  = `Book a tee time online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nFor member bookings, log in to your member area. Visitors are welcome — contact us for green fee rates:\n📧 ${emailLink}`;
+  const lessMsg = `We offer golf lessons for all levels, from complete beginners to experienced players looking to improve.\n\nGet in touch to arrange a lesson:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+  const socMsg  = `We welcome society outings and group visitors. Get in touch with your details — number of players, preferred date — and we'll put a package together for you:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain, club_id: tenantId, name: "Main Menu",          is_active: true  },
+    { id: fMemb, club_id: tenantId, name: "Membership",         is_active: false },
+    { id: fTee,  club_id: tenantId, name: "Book a Tee Time",    is_active: false },
+    { id: fLess, club_id: tenantId, name: "Golf Lessons",       is_active: false },
+    { id: fSoc,  club_id: tenantId, name: "Society & Visitors", is_active: false },
+    { id: fLoc,  club_id: tenantId, name: "Find Us",            is_active: false },
+  ]);
+  if (fErr) { console.error("[golf-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain, workflow_id: fMain, step_order: 1, bot_message: `Welcome to ${name}! ⛳ What can I help you with today?` },
+    { id: sMemb, workflow_id: fMemb, step_order: 1, bot_message: membMsg },
+    { id: sTee,  workflow_id: fTee,  step_order: 1, bot_message: teeMsg  },
+    { id: sLess, workflow_id: fLess, step_order: 1, bot_message: lessMsg },
+    { id: sSoc,  workflow_id: fSoc,  step_order: 1, bot_message: socMsg  },
+    { id: sLoc,  workflow_id: fLoc,  step_order: 1, bot_message: locLines },
+  ]);
+  if (sErr) { console.error("[golf-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain, choice_order: 1, label: "⛳ Membership",            action_type: "switch_flow", action_value: fMemb },
+    { step_id: sMain, choice_order: 2, label: "📅 Book a tee time",      action_type: "switch_flow", action_value: fTee  },
+    { step_id: sMain, choice_order: 3, label: "🎓 Golf lessons",         action_type: "switch_flow", action_value: fLess },
+    { step_id: sMain, choice_order: 4, label: "👥 Society & visitors",   action_type: "switch_flow", action_value: fSoc  },
+    { step_id: sMain, choice_order: 5, label: "📍 Find us",              action_type: "switch_flow", action_value: fLoc  },
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "ai_fallback",  action_value: null  },
+    { step_id: sMemb, choice_order: 1, label: "🌐 View membership",      action_type: "url",         action_value: membershipUrl },
+    { step_id: sMemb, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain         },
+    { step_id: sTee,  choice_order: 1, label: "📅 Book online",          action_type: "url",         action_value: bookingUrl },
+    { step_id: sTee,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain      },
+    { step_id: sLess, choice_order: 1, label: "📧 Enquire about lessons",action_type: "ai_fallback",  action_value: null  },
+    { step_id: sLess, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain },
+    { step_id: sSoc,  choice_order: 1, label: "📧 Get in touch",         action_type: "ai_fallback",  action_value: null  },
+    { step_id: sSoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain },
+    { step_id: sLoc,  choice_order: 1, label: "📍 Get directions",       action_type: "url",         action_value: mapsUrl },
+    { step_id: sLoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain   },
+  ]);
+  if (cErr) { console.error("[golf-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[golf-seed] ✅ Seeded 6 golf club flows for ${tenantId} (${name})`);
+  return true;
+}
+
+// ── Seed racket sports club chat flows (squash, badminton, padel) ─────────────
+async function seedRacketSportsClubFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[racket-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain  = crypto.randomUUID(), fMemb  = crypto.randomUUID(), fBook  = crypto.randomUUID();
+  const fCoach = crypto.randomUUID(), fEvt   = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const sMain  = crypto.randomUUID(), sMemb  = crypto.randomUUID(), sBook  = crypto.randomUUID();
+  const sCoach = crypto.randomUUID(), sEvt   = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+
+  const contactEmail  = v(info.email)          || "[FILL IN: email]";
+  const emailLink     = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : "[FILL IN: email]";
+  const membershipUrl = v(info.membership_url) || websiteUrl;
+  const bookingUrl    = v(info.booking_url)    || websiteUrl;
+  const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const locLines = [
+    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ].filter(l => l !== null).join("\n");
+
+  const membMsg  = `Interested in joining ${name}? To view membership options and apply:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch:\n📧 ${emailLink}`;
+  const bookMsg  = `Book a court online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nFor members-only courts, you'll need to log in to your member account.`;
+  const coachMsg = `We offer coaching for all ages and levels.\n\nTo find out more or book a session:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+  const evtMsg   = `There's always something on at ${name}! 🏆\n\nFor the latest events, leagues, and fixtures:\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]`;
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain,  club_id: tenantId, name: "Main Menu",        is_active: true  },
+    { id: fMemb,  club_id: tenantId, name: "Membership",       is_active: false },
+    { id: fBook,  club_id: tenantId, name: "Book a Court",     is_active: false },
+    { id: fCoach, club_id: tenantId, name: "Coaching",         is_active: false },
+    { id: fEvt,   club_id: tenantId, name: "Events & Leagues", is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",          is_active: false },
+  ]);
+  if (fErr) { console.error("[racket-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there! 👋 What can I help you with today?` },
+    { id: sMemb,  workflow_id: fMemb,  step_order: 1, bot_message: membMsg  },
+    { id: sBook,  workflow_id: fBook,  step_order: 1, bot_message: bookMsg  },
+    { id: sCoach, workflow_id: fCoach, step_order: 1, bot_message: coachMsg },
+    { id: sEvt,   workflow_id: fEvt,   step_order: 1, bot_message: evtMsg   },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+  ]);
+  if (sErr) { console.error("[racket-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain,  choice_order: 1, label: "🏸 Membership",       action_type: "switch_flow", action_value: fMemb  },
+    { step_id: sMain,  choice_order: 2, label: "📅 Book a court",     action_type: "switch_flow", action_value: fBook  },
+    { step_id: sMain,  choice_order: 3, label: "🎓 Coaching",         action_type: "switch_flow", action_value: fCoach },
+    { step_id: sMain,  choice_order: 4, label: "🏆 Events & leagues", action_type: "switch_flow", action_value: fEvt   },
+    { step_id: sMain,  choice_order: 5, label: "📍 Find us",          action_type: "switch_flow", action_value: fLoc   },
+    { step_id: sMain,  choice_order: 6, label: "💬 Something else",   action_type: "ai_fallback",  action_value: null   },
+    { step_id: sMemb,  choice_order: 1, label: "🌐 View membership",  action_type: "url",         action_value: membershipUrl },
+    { step_id: sMemb,  choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain         },
+    { step_id: sBook,  choice_order: 1, label: "📅 Book now",         action_type: "url",         action_value: bookingUrl },
+    { step_id: sBook,  choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain      },
+    { step_id: sCoach, choice_order: 1, label: "📧 Book a lesson",    action_type: "ai_fallback",  action_value: null   },
+    { step_id: sCoach, choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain  },
+    { step_id: sEvt,   choice_order: 1, label: "🌐 Visit website",    action_type: "url",         action_value: websiteUrl },
+    { step_id: sEvt,   choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain      },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",   action_type: "url",         action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain   },
+  ]);
+  if (cErr) { console.error("[racket-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[racket-seed] ✅ Seeded 6 racket sports club flows for ${tenantId} (${name})`);
+  return true;
+}
+
+// ── Seed yoga / pilates studio chat flows ─────────────────────────────────────
+async function seedYogaStudioFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[yoga-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain  = crypto.randomUUID(), fTrial = crypto.randomUUID(), fMemb  = crypto.randomUUID();
+  const fTT    = crypto.randomUUID(), fAbout = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const sMain  = crypto.randomUUID(), sTrial = crypto.randomUUID(), sMemb  = crypto.randomUUID();
+  const sTT    = crypto.randomUUID(), sAbout = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+
+  const contactEmail  = v(info.email)          || "[FILL IN: email]";
+  const emailLink     = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : "[FILL IN: email]";
+  const membershipUrl = v(info.membership_url) || websiteUrl;
+  const bookingUrl    = v(info.booking_url)    || websiteUrl;
+  const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const locLines = [
+    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ].filter(l => l !== null).join("\n");
+
+  const trialMsg = `We'd love to welcome you for your first class — all levels welcome, including complete beginners! 🧘\n\nBrowse our schedule and book your first session:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch and we'll help you choose the right class:\n📧 ${emailLink}`;
+  const membMsg  = `We offer a range of membership options and class passes to suit every schedule and budget.\n\nView our options online:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nAny questions:\n📧 ${emailLink}`;
+  const ttMsg    = `Check out our full class timetable online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nClasses run throughout the week for all levels.`;
+  const aboutMsg = `We offer a range of yoga and mindfulness classes for all levels. Whether you're brand new to yoga or deepening an existing practice, we have a class that's right for you.\n\nAny questions? Feel free to ask — I'm happy to help! 🙏`;
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain,  club_id: tenantId, name: "Main Menu",           is_active: true  },
+    { id: fTrial, club_id: tenantId, name: "Try a Class",         is_active: false },
+    { id: fMemb,  club_id: tenantId, name: "Membership & Passes", is_active: false },
+    { id: fTT,    club_id: tenantId, name: "Class Timetable",     is_active: false },
+    { id: fAbout, club_id: tenantId, name: "About Our Classes",   is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",             is_active: false },
+  ]);
+  if (fErr) { console.error("[yoga-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there! 🙏 Welcome to ${name}. What can I help you with?` },
+    { id: sTrial, workflow_id: fTrial, step_order: 1, bot_message: trialMsg },
+    { id: sMemb,  workflow_id: fMemb,  step_order: 1, bot_message: membMsg  },
+    { id: sTT,    workflow_id: fTT,    step_order: 1, bot_message: ttMsg    },
+    { id: sAbout, workflow_id: fAbout, step_order: 1, bot_message: aboutMsg },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+  ]);
+  if (sErr) { console.error("[yoga-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain,  choice_order: 1, label: "🆓 Try a class",          action_type: "switch_flow", action_value: fTrial },
+    { step_id: sMain,  choice_order: 2, label: "💳 Membership & passes",  action_type: "switch_flow", action_value: fMemb  },
+    { step_id: sMain,  choice_order: 3, label: "📅 Class timetable",      action_type: "switch_flow", action_value: fTT    },
+    { step_id: sMain,  choice_order: 4, label: "🧘 About our classes",    action_type: "switch_flow", action_value: fAbout },
+    { step_id: sMain,  choice_order: 5, label: "📍 Find us",              action_type: "switch_flow", action_value: fLoc   },
+    { step_id: sMain,  choice_order: 6, label: "💬 Something else",       action_type: "ai_fallback",  action_value: null   },
+    { step_id: sTrial, choice_order: 1, label: "📅 Book a class",         action_type: "url",         action_value: bookingUrl },
+    { step_id: sTrial, choice_order: 2, label: "📧 Get in touch",         action_type: "ai_fallback",  action_value: null       },
+    { step_id: sTrial, choice_order: 3, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain      },
+    { step_id: sMemb,  choice_order: 1, label: "🌐 View options",         action_type: "url",         action_value: membershipUrl },
+    { step_id: sMemb,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain         },
+    { step_id: sTT,    choice_order: 1, label: "📅 View timetable",       action_type: "url",         action_value: bookingUrl },
+    { step_id: sTT,    choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain      },
+    { step_id: sAbout, choice_order: 1, label: "🆓 Try a class",          action_type: "switch_flow", action_value: fTrial },
+    { step_id: sAbout, choice_order: 2, label: "💬 Ask me anything",      action_type: "ai_fallback",  action_value: null   },
+    { step_id: sAbout, choice_order: 3, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",       action_type: "url",         action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain   },
+  ]);
+  if (cErr) { console.error("[yoga-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[yoga-seed] ✅ Seeded 6 yoga studio flows for ${tenantId} (${name})`);
+  return true;
+}
+
+// ── Seed swim club chat flows ─────────────────────────────────────────────────
+async function seedSwimClubFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[swim-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fLess = crypto.randomUUID();
+  const fPool = crypto.randomUUID(), fComp = crypto.randomUUID(), fLoc  = crypto.randomUUID();
+  const sMain = crypto.randomUUID(), sMemb = crypto.randomUUID(), sLess = crypto.randomUUID();
+  const sPool = crypto.randomUUID(), sComp = crypto.randomUUID(), sLoc  = crypto.randomUUID();
+
+  const contactEmail  = v(info.email)          || "[FILL IN: email]";
+  const emailLink     = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : "[FILL IN: email]";
+  const membershipUrl = v(info.membership_url) || websiteUrl;
+  const bookingUrl    = v(info.booking_url)    || websiteUrl;
+  const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const locLines = [
+    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ].filter(l => l !== null).join("\n");
+
+  const membMsg = `We'd love to have you join ${name}! To view membership options and sign up:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nAny questions:\n📧 ${emailLink}`;
+  const lessMsg = `We run swimming lessons for all ages and abilities — from beginners to advanced swimmers.\n\nTo register for the next intake:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+  const poolMsg = `View our pool timetable online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nLane swimming sessions are available for members throughout the week.`;
+  const compMsg = `We compete at national and regional level across all age groups. For information about our competitive squads:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain, club_id: tenantId, name: "Main Menu",            is_active: true  },
+    { id: fMemb, club_id: tenantId, name: "Membership",           is_active: false },
+    { id: fLess, club_id: tenantId, name: "Lessons & Coaching",   is_active: false },
+    { id: fPool, club_id: tenantId, name: "Pool Timetable",       is_active: false },
+    { id: fComp, club_id: tenantId, name: "Competitive Swimming", is_active: false },
+    { id: fLoc,  club_id: tenantId, name: "Find Us",              is_active: false },
+  ]);
+  if (fErr) { console.error("[swim-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain, workflow_id: fMain, step_order: 1, bot_message: `Hi there! 🏊 Welcome to ${name}. What can I help you with?` },
+    { id: sMemb, workflow_id: fMemb, step_order: 1, bot_message: membMsg },
+    { id: sLess, workflow_id: fLess, step_order: 1, bot_message: lessMsg },
+    { id: sPool, workflow_id: fPool, step_order: 1, bot_message: poolMsg },
+    { id: sComp, workflow_id: fComp, step_order: 1, bot_message: compMsg },
+    { id: sLoc,  workflow_id: fLoc,  step_order: 1, bot_message: locLines },
+  ]);
+  if (sErr) { console.error("[swim-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain, choice_order: 1, label: "🏊 Join the club",        action_type: "switch_flow", action_value: fMemb },
+    { step_id: sMain, choice_order: 2, label: "📅 Lessons & coaching",   action_type: "switch_flow", action_value: fLess },
+    { step_id: sMain, choice_order: 3, label: "🕐 Pool timetable",       action_type: "switch_flow", action_value: fPool },
+    { step_id: sMain, choice_order: 4, label: "🏆 Competitive swimming", action_type: "switch_flow", action_value: fComp },
+    { step_id: sMain, choice_order: 5, label: "📍 Find us",              action_type: "switch_flow", action_value: fLoc  },
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "ai_fallback",  action_value: null  },
+    { step_id: sMemb, choice_order: 1, label: "🌐 View membership",      action_type: "url",         action_value: membershipUrl },
+    { step_id: sMemb, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain         },
+    { step_id: sLess, choice_order: 1, label: "📧 Register interest",    action_type: "ai_fallback",  action_value: null  },
+    { step_id: sLess, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain },
+    { step_id: sPool, choice_order: 1, label: "🕐 View timetable",       action_type: "url",         action_value: bookingUrl },
+    { step_id: sPool, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain      },
+    { step_id: sComp, choice_order: 1, label: "📧 Find out more",        action_type: "ai_fallback",  action_value: null  },
+    { step_id: sComp, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain },
+    { step_id: sLoc,  choice_order: 1, label: "📍 Get directions",       action_type: "url",         action_value: mapsUrl },
+    { step_id: sLoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain   },
+  ]);
+  if (cErr) { console.error("[swim-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[swim-seed] ✅ Seeded 6 swim club flows for ${tenantId} (${name})`);
+  return true;
+}
+
+// ── Seed team sports club chat flows (GAA, rugby, soccer, hockey) ─────────────
+async function seedTeamSportsClubFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[team-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain  = crypto.randomUUID(), fJoin  = crypto.randomUUID(), fTrain = crypto.randomUUID();
+  const fFix   = crypto.randomUUID(), fYouth = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const sMain  = crypto.randomUUID(), sJoin  = crypto.randomUUID(), sTrain = crypto.randomUUID();
+  const sFix   = crypto.randomUUID(), sYouth = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+
+  const contactEmail  = v(info.email)          || "[FILL IN: email]";
+  const emailLink     = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : "[FILL IN: email]";
+  const membershipUrl = v(info.membership_url) || websiteUrl;
+  const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const locLines = [
+    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ].filter(l => l !== null).join("\n");
+
+  const joinMsg  = `We'd love to have you join ${name}! New members are always welcome.\n\nTo find out more about joining and registration:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch directly:\n📧 ${emailLink}`;
+  const trainMsg = `Training takes place throughout the week for all teams and age groups.\n\nFor the latest training schedule, visit:\n\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr ask me and I'll do my best to help!`;
+  const fixMsg   = `For the latest fixtures, results, and standings:\n\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]`;
+  const youthMsg = `We run underage teams from the youngest age groups all the way up to senior level — no experience needed!\n\nTo register a child or find out more:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain,  club_id: tenantId, name: "Main Menu",          is_active: true  },
+    { id: fJoin,  club_id: tenantId, name: "Join the Club",      is_active: false },
+    { id: fTrain, club_id: tenantId, name: "Training Schedule",  is_active: false },
+    { id: fFix,   club_id: tenantId, name: "Fixtures & Results", is_active: false },
+    { id: fYouth, club_id: tenantId, name: "Youth & Underage",   is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",            is_active: false },
+  ]);
+  if (fErr) { console.error("[team-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there! 👋 Welcome to ${name}. What can I help you with?` },
+    { id: sJoin,  workflow_id: fJoin,  step_order: 1, bot_message: joinMsg  },
+    { id: sTrain, workflow_id: fTrain, step_order: 1, bot_message: trainMsg },
+    { id: sFix,   workflow_id: fFix,   step_order: 1, bot_message: fixMsg   },
+    { id: sYouth, workflow_id: fYouth, step_order: 1, bot_message: youthMsg },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+  ]);
+  if (sErr) { console.error("[team-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain,  choice_order: 1, label: "🏅 Join the club",       action_type: "switch_flow", action_value: fJoin  },
+    { step_id: sMain,  choice_order: 2, label: "📅 Training schedule",   action_type: "switch_flow", action_value: fTrain },
+    { step_id: sMain,  choice_order: 3, label: "🏆 Fixtures & results",  action_type: "switch_flow", action_value: fFix   },
+    { step_id: sMain,  choice_order: 4, label: "👶 Youth & underage",    action_type: "switch_flow", action_value: fYouth },
+    { step_id: sMain,  choice_order: 5, label: "📍 Find us",             action_type: "switch_flow", action_value: fLoc   },
+    { step_id: sMain,  choice_order: 6, label: "💬 Something else",      action_type: "ai_fallback",  action_value: null   },
+    { step_id: sJoin,  choice_order: 1, label: "🌐 View how to join",    action_type: "url",         action_value: membershipUrl },
+    { step_id: sJoin,  choice_order: 2, label: "📧 Get in touch",        action_type: "ai_fallback",  action_value: null          },
+    { step_id: sJoin,  choice_order: 3, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain         },
+    { step_id: sTrain, choice_order: 1, label: "🌐 Visit website",       action_type: "url",         action_value: websiteUrl },
+    { step_id: sTrain, choice_order: 2, label: "💬 Ask me",              action_type: "ai_fallback",  action_value: null       },
+    { step_id: sTrain, choice_order: 3, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain      },
+    { step_id: sFix,   choice_order: 1, label: "🌐 View on website",     action_type: "url",         action_value: websiteUrl },
+    { step_id: sFix,   choice_order: 2, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain      },
+    { step_id: sYouth, choice_order: 1, label: "📧 Register a child",    action_type: "ai_fallback",  action_value: null   },
+    { step_id: sYouth, choice_order: 2, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",      action_type: "url",         action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain   },
+  ]);
+  if (cErr) { console.error("[team-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[team-seed] ✅ Seeded 6 team sports club flows for ${tenantId} (${name})`);
+  return true;
+}
+
+// ── Seed café / coffee shop chat flows ────────────────────────────────────────
+async function seedCafeFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[cafe-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain  = crypto.randomUUID(), fMenu  = crypto.randomUUID(), fHours = crypto.randomUUID();
+  const fHire  = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const sMain  = crypto.randomUUID(), sMenu  = crypto.randomUUID(), sHours = crypto.randomUUID();
+  const sHire  = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+
+  const contactEmail = v(info.email) || "[FILL IN: email]";
+  const emailLink    = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : "[FILL IN: email]";
+  const mapsQuery    = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl      = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const locLines = [
+    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ].filter(l => l !== null).join("\n");
+
+  const menuMsg  = `View our full menu online:\n\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr just ask — I'm happy to help with any questions about our food and drinks! ☕`;
+  const hoursMsg = `Our opening hours and location:\n\n${locLines}\n\nDrop in anytime — we'd love to see you!`;
+  const hireMsg  = `We'd love to help you plan your event! Whether it's a private party, corporate breakfast, or celebration — get in touch with your details and we'll put something together:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain,  club_id: tenantId, name: "Main Menu",             is_active: true  },
+    { id: fMenu,  club_id: tenantId, name: "Our Menu",              is_active: false },
+    { id: fHours, club_id: tenantId, name: "Opening Hours",         is_active: false },
+    { id: fHire,  club_id: tenantId, name: "Events & Private Hire", is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",               is_active: false },
+  ]);
+  if (fErr) { console.error("[cafe-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there! ☕ Welcome to ${name}. What can I help you with?` },
+    { id: sMenu,  workflow_id: fMenu,  step_order: 1, bot_message: menuMsg  },
+    { id: sHours, workflow_id: fHours, step_order: 1, bot_message: hoursMsg },
+    { id: sHire,  workflow_id: fHire,  step_order: 1, bot_message: hireMsg  },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+  ]);
+  if (sErr) { console.error("[cafe-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain,  choice_order: 1, label: "📋 View our menu",         action_type: "switch_flow", action_value: fMenu  },
+    { step_id: sMain,  choice_order: 2, label: "🕐 Opening hours",         action_type: "switch_flow", action_value: fHours },
+    { step_id: sMain,  choice_order: 3, label: "🎂 Events & private hire", action_type: "switch_flow", action_value: fHire  },
+    { step_id: sMain,  choice_order: 4, label: "📍 Find us",               action_type: "switch_flow", action_value: fLoc   },
+    { step_id: sMain,  choice_order: 5, label: "💬 Something else",        action_type: "ai_fallback",  action_value: null   },
+    { step_id: sMenu,  choice_order: 1, label: "🌐 View menu",             action_type: "url",         action_value: websiteUrl },
+    { step_id: sMenu,  choice_order: 2, label: "💬 Ask me anything",       action_type: "ai_fallback",  action_value: null       },
+    { step_id: sMenu,  choice_order: 3, label: "← Back to menu",           action_type: "switch_flow", action_value: fMain      },
+    { step_id: sHours, choice_order: 1, label: "📍 Get directions",        action_type: "url",         action_value: mapsUrl },
+    { step_id: sHours, choice_order: 2, label: "← Back to menu",           action_type: "switch_flow", action_value: fMain   },
+    { step_id: sHire,  choice_order: 1, label: "📧 Get in touch",          action_type: "ai_fallback",  action_value: null   },
+    { step_id: sHire,  choice_order: 2, label: "← Back to menu",           action_type: "switch_flow", action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",        action_type: "url",         action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",           action_type: "switch_flow", action_value: fMain   },
+  ]);
+  if (cErr) { console.error("[cafe-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[cafe-seed] ✅ Seeded 5 café flows for ${tenantId} (${name})`);
+  return true;
+}
+
+// ── Dispatcher: detect type, extract info, seed appropriate flows ─────────────
+async function seedFlowsForType(tenantId, name, websiteUrl, bizType, pages) {
+  if (bizType === "tennis_club") {
+    const info = await extractTennisClubInfo(pages, websiteUrl);
+    return seedTennisClubFlows(tenantId, name, websiteUrl, info);
+  }
+  // All other types use the generic contact/location extractor
+  const info = await extractGenericInfo(pages, websiteUrl);
+  switch (bizType) {
+    case "fitness_studio":     return seedFitnessStudioFlows(tenantId, name, websiteUrl, info);
+    case "golf_club":          return seedGolfClubFlows(tenantId, name, websiteUrl, info);
+    case "racket_sports_club": return seedRacketSportsClubFlows(tenantId, name, websiteUrl, info);
+    case "yoga_studio":        return seedYogaStudioFlows(tenantId, name, websiteUrl, info);
+    case "swim_club":          return seedSwimClubFlows(tenantId, name, websiteUrl, info);
+    case "team_sports_club":   return seedTeamSportsClubFlows(tenantId, name, websiteUrl, info);
+    case "cafe":               return seedCafeFlows(tenantId, name, websiteUrl, info);
+    default:
+      console.log(`[seed] No template for business type '${bizType}' — skipping`);
+      return false;
+  }
 }
 
 async function extractPdfText(filePath) {
@@ -4758,10 +5363,9 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
         console.log(`[crawl] Business type: ${bizType} for ${tenantId}`);
 
-        if (bizType === "tennis_club") {
+        if (bizType !== "other") {
           setCrawlProgress(tenantId, 90, "Building your personalised chat flows…");
-          const info = await extractTennisClubInfo(pages, website);
-          await seedTennisClubFlows(tenantId, name, website, info);
+          await seedFlowsForType(tenantId, name, website, bizType, pages);
         }
 
         // Auto-populate empty agent config fields from KB for all business types
@@ -7783,14 +8387,13 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
       await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
     }
 
-    if (bizType !== "tennis_club") {
-      return res.status(400).json({ error: `Business type is '${bizType}' — only tennis_club is supported for auto-seeding right now.` });
+    if (bizType === "other") {
+      return res.status(400).json({ error: "Business type could not be determined — please set up flows manually in the portal." });
     }
 
     // Crawl site — used for both flow seeding and knowledge base refresh
-    const pages = await crawlWebsite(website, 12);
-    const info  = await extractTennisClubInfo(pages, website);
-    const seeded = await seedTennisClubFlows(tenantId, tenant.name, website, info);
+    const pages  = await crawlWebsite(website, 12);
+    const seeded = await seedFlowsForType(tenantId, tenant.name, website, bizType, pages);
 
     // Always refresh the knowledge base with the newly crawled pages.
     // Delete old website content docs + chunks first, then insert fresh ones.

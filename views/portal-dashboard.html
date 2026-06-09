@@ -3134,7 +3134,7 @@
               stripeActions += "<li>Cancel subscription" + (r.effective_date ? " on " + fmtDate(r.effective_date) : " at period end") + "</li>";
             } else if (isPlanChange) {
               stripeActions += "<li>Switch subscription to <strong>" + esc(r.target_membership_type) + "</strong></li>";
-              stripeActions += "<li>Apply pro-rata credit or charge automatically</li>";
+              stripeActions += "<li>Pro-rata adjustment — you will choose refund or credit on approval</li>";
             } else {
               stripeActions += "<li>" + esc(r.requested_type || "Update") + "</li>";
             }

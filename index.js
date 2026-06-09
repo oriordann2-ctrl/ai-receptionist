@@ -5551,8 +5551,14 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
 
     // Sum proration line items directly — amount_due is clamped at 0 by Stripe for credits
     const lines = (previewData.lines && previewData.lines.data) || [];
+    console.log("[Preview] All invoice lines:", JSON.stringify(lines.map(function(l) {
+      return { desc: l.description, amount: l.amount, proration: l.proration, type: l.type };
+    })));
     const prorationLines = lines.filter(function(l) { return l.proration; });
     const netProration = prorationLines.reduce(function(sum, l) { return sum + l.amount; }, 0);
+    console.log("[Preview] Proration lines:", JSON.stringify(prorationLines.map(function(l) {
+      return { desc: l.description, amount: l.amount };
+    })), "Net:", netProration);
 
     const currency    = (previewData.currency || "eur").toUpperCase();
     const isDowngrade = netProration < 0; // net credit to member

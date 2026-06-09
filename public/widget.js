@@ -594,6 +594,7 @@
         restartBtn.addEventListener("click", function () {
           clearChoices();
           if (rootFlowId && wfFlowMap[rootFlowId]) {
+            messages.innerHTML = "";
             wfSteps = wfFlowMap[rootFlowId];
             wfMode  = true;
             var footer = document.getElementById("sprimal-footer");
@@ -627,6 +628,7 @@
           backBtn.textContent = "↩ Back to main menu";
           backBtn.addEventListener("click", function () {
             clearChoices();
+            messages.innerHTML = "";
             wfSteps = wfFlowMap[rootFlowId];
             wfMode = true;
             var footer = document.getElementById("sprimal-footer");
@@ -648,6 +650,8 @@
     } else if (type === "switch_flow") {
       var targetSteps = wfFlowMap[val];
       if (targetSteps && targetSteps.length) {
+        // Returning to root/main menu — clear history for a clean slate
+        if (val === rootFlowId) messages.innerHTML = "";
         wfSteps = targetSteps;
         showWorkflowStep(wfSteps[0]);
       } else {

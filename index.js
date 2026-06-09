@@ -6940,11 +6940,20 @@ Return ONLY valid JSON:
 app.post("/api/portal/kb-suggest-step", requireTenant, async (req, res) => {
   const tenantId      = req.tenant.tenantId;
   const currentContent = (req.body.currentContent || "").trim();
+  console.log(`[kb-suggest-step] tenantId=${tenantId} contentLen=${currentContent.length}`);
   if (!currentContent) return res.json({ suggestion: null, message: "No content provided." });
 
   try {
+    // Check raw chunk count for this tenant (diagnostic)
+    const { count: chunkCount, error: countErr } = await supabase
+      .from("knowledge_chunks")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId);
+    console.log(`[kb-suggest-step] chunk count for ${tenantId}: ${chunkCount} err=${countErr?.message}`);
+
     const combined = await getFullPageTextForKeyword(tenantId, "%");
-    if (!combined) return res.json({ suggestion: null, message: "No knowledge base content found yet." });
+    console.log(`[kb-suggest-step] combined text length: ${combined ? combined.length : "null"}`);
+    if (!combined) return res.json({ suggestion: null, message: "No knowledge base content found yet. Try uploading documents to your Knowledge Base first." });
 
     const prompt = [
       "You are updating the message a customer service chatbot says in a specific step of a conversation flow.",
@@ -8036,23 +8045,38 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
 // Reconstruct complete page texts for documents whose content mentions a keyword.
 // Returns full un-truncated text so the LLM never misses content deep in a page.
 async function getFullPageTextForKeyword(tenantId, keyword) {
+  // When the keyword is a bare wildcard, skip the filtering step and just get all chunks
+  if (keyword === "%" || keyword === "%%" ) {
+    const { data: allChunks, error: allErr } = await supabase
+      .from("knowledge_chunks")
+      .select("chunk_text, chunk_index")
+      .eq("tenant_id", tenantId)
+      .order("chunk_index", { ascending: true })
+      .limit(500);
+    if (allErr) console.error("[getFullPageText] allChunks error:", allErr.message);
+    if (!allChunks || !allChunks.length) return null;
+    return allChunks.map(c => c.chunk_text).join("\n");
+  }
+
   // Find document IDs that have at least one chunk matching the keyword
-  const { data: matchingChunks } = await supabase
+  const { data: matchingChunks, error: matchErr } = await supabase
     .from("knowledge_chunks")
     .select("document_id")
     .eq("tenant_id", tenantId)
     .ilike("chunk_text", keyword);
+  if (matchErr) console.error("[getFullPageText] matchingChunks error:", matchErr.message);
   if (!matchingChunks || !matchingChunks.length) return null;
 
   const docIds = [...new Set(matchingChunks.map(c => c.document_id))];
 
   // Get ALL chunks for those documents, in order
-  const { data: allChunks } = await supabase
+  const { data: allChunks, error: chunksErr } = await supabase
     .from("knowledge_chunks")
     .select("chunk_text, chunk_index")
     .eq("tenant_id", tenantId)
     .in("document_id", docIds)
     .order("chunk_index", { ascending: true });
+  if (chunksErr) console.error("[getFullPageText] allChunks error:", chunksErr.message);
   if (!allChunks || !allChunks.length) return null;
 
   return allChunks.map(c => c.chunk_text).join("\n");

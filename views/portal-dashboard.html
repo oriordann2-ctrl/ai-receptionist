@@ -1023,8 +1023,13 @@
 
   <!-- Knowledge Base Documents -->
   <div class="card">
-    <div class="card-title">Knowledge Base</div>
-    <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers.</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:2px;">
+      <div class="card-title" style="margin-bottom:0;">Knowledge Base</div>
+      <button id="recrawlBtn" onclick="portalRecrawl()" style="background:white;color:#1e40af;border:1.5px solid #1e40af;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
+        🔄 Re-crawl Website
+      </button>
+    </div>
+    <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers. Use Re-crawl if your website content has changed.</div>
 
     <!-- Upload: Step 1 — Choose file -->
     <div class="file-row">
@@ -1521,8 +1526,15 @@
             var msgHtml = (conv.messages || []).map(function (m) {
               var cls   = m.sender === "bot" ? "conv-msg-bot" : m.sender === "system" ? "conv-msg-system" : "conv-msg-user";
               var label = m.sender === "bot" ? "Assistant" : m.sender === "system" ? "System" : "Visitor";
+              // Source badge for bot messages
+              var sourceBadge = "";
+              if (m.sender === "bot" && m.answer_source) {
+                var srcMap = { kb: ["📚 KB", "#1e40af", "#dbeafe"], approved: ["✅ Approved", "#166534", "#dcfce7"], workflow: ["🔀 Flow", "#7c3aed", "#ede9fe"], ebo: ["🎾 Live Data", "#b45309", "#fef3c7"], generic: ["💬 Generic", "#6b7280", "#f3f4f6"] };
+                var s = srcMap[m.answer_source];
+                if (s) sourceBadge = '<span style="font-size:10px;font-weight:600;color:' + s[1] + ';background:' + s[2] + ';border-radius:4px;padding:1px 6px;margin-left:6px;">' + s[0] + '</span>';
+              }
               return '<div class="conv-msg ' + cls + '">'
-                + '<span class="conv-msg-label">' + label + '</span>'
+                + '<span class="conv-msg-label">' + label + sourceBadge + '</span>'
                 + '<div class="conv-msg-text">' + esc(m.message) + '</div>'
                 + '</div>';
             }).join("");
@@ -2897,6 +2909,48 @@
       if (details.open) loadIntegrations();
     });
   })();
+
+  // ── Re-crawl website ────────────────────────────────────────────────────────
+  window.portalRecrawl = function() {
+    var btn = document.getElementById("recrawlBtn");
+    if (!confirm("This will delete all website-crawled pages from your knowledge base and re-scan your website from scratch.\n\nManually uploaded documents will NOT be affected.\n\nContinue?")) return;
+    btn.disabled = true;
+    btn.textContent = "🔄 Starting…";
+    fetch("/api/portal/recrawl", { method: "POST" })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) {
+          btn.disabled = false;
+          btn.textContent = "🔄 Re-crawl Website";
+          alert("Error: " + data.error);
+          return;
+        }
+        btn.textContent = "🔄 Crawling…";
+        // Poll crawl-status until done
+        var pollId = setInterval(function() {
+          fetch("/api/portal/crawl-status")
+            .then(function(r) { return r.json(); })
+            .then(function(status) {
+              if (!status.active || status.done) {
+                clearInterval(pollId);
+                btn.disabled = false;
+                btn.textContent = "🔄 Re-crawl Website";
+                // Refresh document list
+                if (typeof loadDocuments === "function") loadDocuments();
+                alert(status.done ? "✅ Re-crawl complete! Your knowledge base has been updated." : "Re-crawl finished.");
+              } else {
+                btn.textContent = "🔄 " + (status.message || "Crawling…");
+              }
+            })
+            .catch(function() { clearInterval(pollId); btn.disabled = false; btn.textContent = "🔄 Re-crawl Website"; });
+        }, 3000);
+      })
+      .catch(function() {
+        btn.disabled = false;
+        btn.textContent = "🔄 Re-crawl Website";
+        alert("Failed to start re-crawl. Please try again.");
+      });
+  };
 
   window.portalAskKB = function() {
     var question  = document.getElementById("portalKbQuestion").value.trim();

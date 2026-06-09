@@ -1439,18 +1439,67 @@ function generateStoredFilename(lender, documentType, effectiveDate, description
 }
 
 // ── Text chunking ──────────────────────────────────────────────────────────
-function chunkText(text, chunkWords = 500, overlapWords = 50) {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  const chunks = [];
-  if (words.length === 0) return chunks;
+// Paragraph-aware chunker: splits on blank lines first to keep Q&A pairs and
+// topic sections together, then merges short paragraphs and caps at maxWords.
+// Falls back to word-window chunking only when a single paragraph is huge.
+function chunkText(text, maxWords = 450, overlapWords = 50) {
+  // Split on one or more blank lines (handles \r\n and \n)
+  const paragraphs = text
+    .trim()
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean);
 
-  let start = 0;
-  while (start < words.length) {
-    const end = Math.min(start + chunkWords, words.length);
-    chunks.push(words.slice(start, end).join(" "));
-    if (end === words.length) break;
-    start += chunkWords - overlapWords;
+  if (paragraphs.length === 0) return [];
+
+  const chunks = [];
+  let current = [];
+  let currentWordCount = 0;
+
+  const flush = () => {
+    if (current.length === 0) return;
+    chunks.push(current.join("\n\n"));
+    // Carry the last paragraph forward as overlap (context bridge)
+    const lastPara = current[current.length - 1];
+    const lastWords = lastPara.split(/\s+/).length;
+    if (lastWords <= overlapWords) {
+      current = [lastPara];
+      currentWordCount = lastWords;
+    } else {
+      current = [];
+      currentWordCount = 0;
+    }
+  };
+
+  for (const para of paragraphs) {
+    const wordCount = para.split(/\s+/).filter(Boolean).length;
+
+    // Single paragraph larger than maxWords — split by word window
+    if (wordCount > maxWords) {
+      if (current.length) flush();
+      const words = para.split(/\s+/).filter(Boolean);
+      let start = 0;
+      while (start < words.length) {
+        const end = Math.min(start + maxWords, words.length);
+        chunks.push(words.slice(start, end).join(" "));
+        if (end === words.length) break;
+        start += maxWords - overlapWords;
+      }
+      current = [];
+      currentWordCount = 0;
+      continue;
+    }
+
+    // Adding this paragraph would overflow — flush first
+    if (currentWordCount + wordCount > maxWords && current.length > 0) {
+      flush();
+    }
+
+    current.push(para);
+    currentWordCount += wordCount;
   }
+
+  flush();
   return chunks;
 }
 
@@ -2196,6 +2245,7 @@ function addChatLog(entry) {
       user_id:         entry.userId         || null,
       sender:          entry.sender,
       message:         entry.message,
+      answer_source:   entry.answerSource   || null,  // "kb", "approved", "workflow", "generic", "ebo"
       created_at:      entry.timestamp      || new Date()
     }).then(() => {}).catch(() => {}); // fire-and-forget — never block the chat response
   }
@@ -3577,8 +3627,13 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
 
     if (!chunks || chunks.length === 0) return [];
 
-    // 3. Return in the shape callers expect: { filename, text }
-    return chunks.map(chunk => ({
+    // 3. Filter out low-quality matches (below 0.30 similarity)
+    const MIN_SIMILARITY = 0.30;
+    const goodChunks = chunks.filter(c => (c.similarity || 0) >= MIN_SIMILARITY);
+    if (!goodChunks.length) return [];
+
+    // 4. Return in the shape callers expect: { filename, text, similarity }
+    return goodChunks.map(chunk => ({
       filename: chunk.lender
         ? `${chunk.lender} — ${chunk.document_type}`
         : (chunk.document_type || "Knowledge Base"),
@@ -5434,6 +5489,55 @@ app.get("/api/portal/crawl-status", requireTenant, (req, res) => {
   res.json({ active: true, pct: progress.pct, message: progress.message, done: progress.done });
 });
 
+// ── POST /api/portal/recrawl ──────────────────────────────────────────────────
+// Deletes all existing website-crawled documents + chunks for the tenant, then
+// re-runs the background crawl against the same website URL.
+app.post("/api/portal/recrawl", requireSeniorTenant, async (req, res) => {
+  const { tenantId } = req.tenant;
+
+  // Block if a crawl is already running
+  const existing = crawlProgressMap.get(tenantId);
+  if (existing && !existing.done) {
+    return res.status(409).json({ error: "A crawl is already in progress." });
+  }
+
+  try {
+    // Load tenant record to get website + name
+    const { data: tenant, error: tenantErr } = await supabase
+      .from("tenants")
+      .select("id, name, website")
+      .eq("id", tenantId)
+      .single();
+
+    if (tenantErr || !tenant?.website) {
+      return res.status(400).json({ error: "No website URL found for this account." });
+    }
+
+    // Delete all existing website-crawled documents (and their chunks cascade)
+    const { data: websiteDocs } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "Website Content");
+
+    if (websiteDocs?.length) {
+      const docIds = websiteDocs.map(d => d.id);
+      await supabase.from("knowledge_chunks").delete().in("document_id", docIds);
+      await supabase.from("documents").delete().in("id", docIds);
+      console.log(`[recrawl] Deleted ${docIds.length} old website docs for ${tenantId}`);
+    }
+
+    // Fire off fresh crawl in background
+    startBackgroundCrawl({ tenantId: tenant.id, name: tenant.name, website: tenant.website });
+    console.log(`[recrawl] Re-crawl started for ${tenantId}`);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[recrawl] Error:", err.message);
+    res.status(500).json({ error: "Re-crawl failed to start." });
+  }
+});
+
 // ── Membership Requests ───────────────────────────────────────────────────────
 // Public endpoint — called by bot to submit a membership change request
 app.post("/api/membership-request", async (req, res) => {
@@ -6175,6 +6279,21 @@ app.post(
         });
       }
 
+      // ── De-duplication: reject if identical content already exists ──────────
+      const contentHash = crypto.createHash("sha256").update(extractedText.trim()).digest("hex");
+      const { data: existingByHash } = await supabase
+        .from("documents")
+        .select("id, original_filename")
+        .eq("tenant_id", tenantId)
+        .eq("content_hash", contentHash)
+        .maybeSingle();
+      if (existingByHash) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(409).json({
+          error: `This document has already been uploaded (it matches "${existingByHash.original_filename}"). If you want to replace it, delete the existing version first.`
+        });
+      }
+
       // Build structured filename: "Document Type - Description.ext"
       const description    = (req.body.description    || "").trim();
       const document_type  = (req.body.document_type  || "Other").trim();
@@ -6225,6 +6344,7 @@ app.post(
           tags:              tags,
           metadata_complete: true,
           junior_accessible: juniorAccess,
+          content_hash:      contentHash,
           tenant_id:         tenantId
         })
         .select()
@@ -6936,24 +7056,19 @@ Return ONLY valid JSON:
 });
 
 // ── Portal: LLM-based step suggestion for flow builder "Pull from KB" button ──
-// Takes the current step content as context, reads KB, returns an improved version
+// Uses vector search (same as live chat) to find the most relevant KB chunks for
+// the current step content, then asks GPT to rewrite using that context.
 app.post("/api/portal/kb-suggest-step", requireTenant, async (req, res) => {
-  const tenantId      = req.tenant.tenantId;
+  const tenantId       = req.tenant.tenantId;
   const currentContent = (req.body.currentContent || "").trim();
-  console.log(`[kb-suggest-step] tenantId=${tenantId} contentLen=${currentContent.length}`);
   if (!currentContent) return res.json({ suggestion: null, message: "No content provided." });
 
   try {
-    // Check raw chunk count for this tenant (diagnostic)
-    const { count: chunkCount, error: countErr } = await supabase
-      .from("knowledge_chunks")
-      .select("*", { count: "exact", head: true })
-      .eq("tenant_id", tenantId);
-    console.log(`[kb-suggest-step] chunk count for ${tenantId}: ${chunkCount} err=${countErr?.message}`);
+    // Use vector search — finds the most relevant chunks for this step's content
+    const relevantDocs = await findRelevantKnowledgeChunks(currentContent, 8, tenantId);
+    if (!relevantDocs.length) return res.json({ suggestion: null, message: "No knowledge base content found yet. Try uploading documents to your Knowledge Base first." });
 
-    const combined = await getFullPageTextForKeyword(tenantId, "%");
-    console.log(`[kb-suggest-step] combined text length: ${combined ? combined.length : "null"}`);
-    if (!combined) return res.json({ suggestion: null, message: "No knowledge base content found yet. Try uploading documents to your Knowledge Base first." });
+    const combined = relevantDocs.map(d => `Source: ${d.filename}\n${d.text}`).join("\n\n");
 
     const prompt = [
       "You are updating the message a customer service chatbot says in a specific step of a conversation flow.",
@@ -7038,7 +7153,7 @@ app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
     // Fetch last 100 messages for this tenant, newest first
     const { data, error } = await supabase
       .from("chat_logs")
-      .select("id, conversation_id, sender, message, created_at")
+      .select("id, conversation_id, sender, message, answer_source, created_at")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(100);
@@ -7069,6 +7184,7 @@ app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
         messages: c.messages.slice().reverse().map(m => ({
           sender: m.sender,
           message: m.message,
+          answer_source: m.answer_source || null,
           createdAt: m.created_at
         }))
       }));
@@ -9586,15 +9702,18 @@ Use plain numbers where possible.
 
       if (!kbUnsure) {
         result.reply = kbReply;
+        result.answerSource = "kb";
       } else {
         // KB couldn’t answer — fall through to Maeve’s general reply
         const maeveReply = await generateMaeveReply(trimmedMessage);
         result.reply = maeveReply || "No problem at all — I can help with mortgages, bookings, or any questions. What would you like to do?";
+        result.answerSource = "generic";
       }
 
     } catch (err) {
       console.error("Knowledge base OpenAI error:", err.message);
       result.reply = "Sorry — I couldn’t access the knowledge base.";
+      result.answerSource = "error";
     }
 
   } else {
@@ -9603,6 +9722,7 @@ Use plain numbers where possible.
     result.reply =
       maeveReply ||
       "No problem at all — I can help with mortgages, consultations, or documents. What are you looking to do?";
+    result.answerSource = "generic";
   }
 }
 
@@ -9611,7 +9731,7 @@ Use plain numbers where possible.
       // ── Membership change flow (check first — intercepts before KB search) ──
       const memberChange = await handleMembershipChangeFlow(convo, trimmedMessage, tenantId, tenantDisplayName || "club");
       if (memberChange.handled) {
-        addChatLog({ userId, conversationId, tenantId, sender: "bot", message: memberChange.reply, timestamp: new Date() });
+        addChatLog({ userId, conversationId, tenantId, sender: "bot", message: memberChange.reply, answerSource: "workflow", timestamp: new Date() });
         return res.json({ reply: memberChange.reply, agentChoices: memberChange.choices || [] });
       }
 
@@ -9666,13 +9786,16 @@ Use plain numbers where possible.
 
           if (!kbUnsure) {
             result.reply = kbReply;
+            result.answerSource = eboContext ? "ebo" : "kb";
           } else {
             const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName, tenantBusinessDesc);
             result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
+            result.answerSource = "generic";
           }
         } catch (err) {
           console.error("Knowledge base OpenAI error (general mode):", err.message);
           result.reply = "Sorry — I couldn't access the knowledge base right now.";
+          result.answerSource = "error";
         }
       } else if (workflowContext) {
         // No KB results but we have what was just shown — answer from that alone
@@ -9687,29 +9810,34 @@ Use plain numbers where possible.
             temperature: 0.2
           });
           result.reply = stripHtml(completion.choices[0].message.content);
+          result.answerSource = "workflow";
         } catch {
           result.reply = "I'm not sure about that — please contact us directly for more information.";
+          result.answerSource = "error";
         }
       } else {
         const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName, tenantBusinessDesc);
         result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
+        result.answerSource = "generic";
       }
 
       } // end: eboPersonal not handled
 
     } else {
       result.reply = "Invalid business mode configuration.";
+      result.answerSource = "error";
     }
 
-    console.log("[chat] Sending reply, length:", (result.reply || "").length, "| preview:", (result.reply || "").slice(0, 60));
+    console.log("[chat] Sending reply, length:", (result.reply || "").length, "| source:", result.answerSource || "?", "| preview:", (result.reply || "").slice(0, 60));
 
     addChatLog({
       userId,
       conversationId,
       tenantId,
-      sender: "bot",
-      message: result.reply,
-      timestamp: new Date()
+      sender:       "bot",
+      message:      result.reply,
+      answerSource: result.answerSource || null,
+      timestamp:    new Date()
     });
 
     return res.json({ reply: result.reply });

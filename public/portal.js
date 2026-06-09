@@ -78,7 +78,7 @@
               + '<div class="website-domain">' + esc(site.domain) + '</div>'
               + '<div class="website-meta">' + site.pages + " page" + (site.pages !== 1 ? "s" : "") + " · Imported " + date + "</div>"
               + '</div></div>'
-              + '<button class="btn-reimport-website" onclick="portalReimportWebsite(\'' + esc(site.domain) + '\',\'' + esc(site.sampleUrl || ("https://" + site.domain)) + '\')">Re-import</button>'
+              + '<button class="btn-reimport-website" onclick="portalReimportWebsite(\'' + esc(site.domain) + '\',\'' + esc(site.sampleUrl || ("https://" + site.domain)) + '\')">🔄 Re-import</button>'
               + '<button class="btn-remove-website" onclick="portalRemoveWebsite(\'' + esc(site.domain) + '\')">Remove</button>'
               + '</div>';
           });
@@ -277,7 +277,7 @@
 
   // ── Re-import website ─────────────────────────────────────────────────────
   window.portalReimportWebsite = function(domain, sampleUrl) {
-    if (!confirm("Re-import all pages from " + domain + "? This will add any new pages and may take 2–3 minutes.")) return;
+    if (!confirm("Re-import " + domain + "?\n\nThis will remove the existing pages for this site and re-scan it from scratch — upgrading them to the latest AI format.\n\nOther websites and uploaded documents are not affected.\n\nThis takes 2–3 minutes.")) return;
 
     // Derive root URL from sampleUrl
     var rootUrl;

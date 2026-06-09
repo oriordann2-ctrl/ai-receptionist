@@ -1025,16 +1025,11 @@
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:2px;">
       <div class="card-title" style="margin-bottom:0;">Knowledge Base</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="reindexBtn" onclick="portalReindex()" style="background:white;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
-          ✨ Re-index Documents
-        </button>
-        <button id="recrawlBtn" onclick="portalRecrawl()" style="background:white;color:#1e40af;border:1.5px solid #1e40af;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
-          🔄 Re-crawl Website
-        </button>
-      </div>
+      <button id="reindexBtn" onclick="portalReindex()" style="background:white;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
+        ✨ Re-index Documents
+      </button>
     </div>
-    <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers. Use <strong>Re-index</strong> to upgrade existing documents to the latest AI format, or <strong>Re-crawl</strong> if your website content has changed.</div>
+    <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers. Use <strong>Re-index</strong> to upgrade existing documents to the latest AI format. To refresh a website, use the <strong>Re-import</strong> button next to it below.</div>
 
     <!-- Upload: Step 1 — Choose file -->
     <div class="file-row">
@@ -2996,48 +2991,6 @@
       .catch(function() {
         btn.disabled = false; btn.textContent = "✨ Re-index Documents";
         if (statusEl) { statusEl.className = "upload-status error"; statusEl.textContent = "❌ Re-index failed to start."; }
-      });
-  };
-
-  // ── Re-crawl website ────────────────────────────────────────────────────────
-  window.portalRecrawl = function() {
-    var btn = document.getElementById("recrawlBtn");
-    if (!confirm("This will delete all website-crawled pages from your knowledge base and re-scan your website from scratch.\n\nManually uploaded documents will NOT be affected.\n\nContinue?")) return;
-    btn.disabled = true;
-    btn.textContent = "🔄 Starting…";
-    fetch("/api/portal/recrawl", { method: "POST" })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (data.error) {
-          btn.disabled = false;
-          btn.textContent = "🔄 Re-crawl Website";
-          alert("Error: " + data.error);
-          return;
-        }
-        btn.textContent = "🔄 Crawling…";
-        // Poll crawl-status until done
-        var pollId = setInterval(function() {
-          fetch("/api/portal/crawl-status")
-            .then(function(r) { return r.json(); })
-            .then(function(status) {
-              if (!status.active || status.done) {
-                clearInterval(pollId);
-                btn.disabled = false;
-                btn.textContent = "🔄 Re-crawl Website";
-                // Refresh document list
-                if (typeof loadDocuments === "function") loadDocuments();
-                alert(status.done ? "✅ Re-crawl complete! Your knowledge base has been updated." : "Re-crawl finished.");
-              } else {
-                btn.textContent = "🔄 " + (status.message || "Crawling…");
-              }
-            })
-            .catch(function() { clearInterval(pollId); btn.disabled = false; btn.textContent = "🔄 Re-crawl Website"; });
-        }, 3000);
-      })
-      .catch(function() {
-        btn.disabled = false;
-        btn.textContent = "🔄 Re-crawl Website";
-        alert("Failed to start re-crawl. Please try again.");
       });
   };
 

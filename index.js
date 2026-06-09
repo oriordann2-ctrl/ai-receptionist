@@ -6737,6 +6737,8 @@ app.post("/api/portal/knowledge-documents/paste", requireSeniorTenant, async (re
 });
 
 // POST /api/portal/import-website — crawl a website URL for this tenant (senior only)
+// When re-importing an existing domain, this first deletes all pages for that
+// specific domain (scoped — never touches other domains), then re-crawls fresh.
 app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
   let { url } = req.body;
@@ -6745,18 +6747,21 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
   // Normalize: add https:// if no protocol present
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
 
-  let rootUrl;
-  try { rootUrl = new URL(url).href.replace(/\/$/, ""); }
-  catch { return res.status(400).json({ error: "Invalid URL" }); }
+  let rootUrl, domain;
+  try {
+    rootUrl = new URL(url).href.replace(/\/$/, "");
+    domain  = new URL(rootUrl).hostname.replace(/^www\./, "").toLowerCase();
+  } catch { return res.status(400).json({ error: "Invalid URL" }); }
 
   // Blocklist check
-  try {
-    const domain = new URL(rootUrl).hostname.replace(/^www\./, "").toLowerCase();
-    if (BLOCKED_DOMAINS.has(domain)) {
-      return res.status(400).json({ error: "That website can't be imported into Sprimal. Please use your own business website." });
-    }
-  } catch {
-    return res.status(400).json({ error: "Invalid URL" });
+  if (BLOCKED_DOMAINS.has(domain)) {
+    return res.status(400).json({ error: "That website can't be imported into Sprimal. Please use your own business website." });
+  }
+
+  // Block if a crawl for this tenant is already running
+  const existing = crawlProgressMap.get(tenantId);
+  if (existing && !existing.done) {
+    return res.status(409).json({ error: "A crawl is already in progress — please wait for it to finish." });
   }
 
   // Respond immediately — crawl runs in background
@@ -6764,6 +6769,22 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
 
   (async () => {
     try {
+      // ── Delete existing pages for this domain only ──────────────────────────
+      const { data: existingDocs } = await supabase
+        .from("documents")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("document_type", "Website Content")
+        .ilike("storage_path", `%${domain}%`);
+
+      if (existingDocs?.length) {
+        const oldIds = existingDocs.map(d => d.id);
+        await supabase.from("knowledge_chunks").delete().in("document_id", oldIds);
+        await supabase.from("documents").delete().in("id", oldIds);
+        console.log(`[portal-import] Cleared ${oldIds.length} old pages for ${domain} (${tenantId})`);
+      }
+
+      // ── Crawl fresh ─────────────────────────────────────────────────────────
       console.log(`[portal-import] Starting crawl for ${tenantId}: ${rootUrl}`);
       const pages = await crawlWebsite(rootUrl, 40);
       console.log(`[portal-import] Crawled ${pages.length} pages for ${tenantId}`);

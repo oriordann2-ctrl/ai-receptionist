@@ -82,8 +82,10 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
 app.set("trust proxy", 1); // Required for rate limiting behind Render's reverse proxy
 app.use(helmet({
-  contentSecurityPolicy: false,                           // CSP disabled — inline scripts used in views
-  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow widget.js to load on external sites
+  contentSecurityPolicy: false,                            // CSP disabled — inline scripts used in views
+  crossOriginResourcePolicy: { policy: "cross-origin" },  // Allow widget.js to load on external sites
+  frameguard: false,                                       // Allow chat iframe to embed on external sites
+  crossOriginEmbedderPolicy: false,                        // Don't block cross-origin resources in chat frame
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

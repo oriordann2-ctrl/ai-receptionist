@@ -5513,6 +5513,20 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
 
     const currentItem = sub.items && sub.items.data && sub.items.data[0];
 
+    // Capture the charge ID from the current latest invoice BEFORE any plan switch
+    // (after the switch, latest_invoice changes — we need the pre-switch charge for refunds)
+    let currentChargeId = null;
+    if (sub.latest_invoice) {
+      try {
+        const invResp = await fetch(
+          "https://api.stripe.com/v1/invoices/" + sub.latest_invoice,
+          { headers: { Authorization: authHeader } }
+        );
+        const invData = await invResp.json();
+        currentChargeId = invData.charge || null;
+      } catch (e) { /* non-fatal */ }
+    }
+
     // Find target product and price
     const productsResp = await fetch(
       "https://api.stripe.com/v1/products?limit=100&active=true",
@@ -5578,6 +5592,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
         toPlan:         request.target_membership_type,
         memberName:     request.member_name,
         latestInvoice:  sub.latest_invoice,
+        chargeId:       currentChargeId,
         customerId:     customer.id,
         subscriptionId: sub.id,
         currentItemId:  currentItem ? currentItem.id : null,
@@ -5593,7 +5608,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
 
 // POST /api/portal/membership-requests/:id/approve
 app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (req, res) => {
-  const { notes, refundNow, prorationAmount } = req.body || {};
+  const { notes, refundNow, prorationAmount, chargeId: providedChargeId } = req.body || {};
   const tenantId  = req.tenant.tenantId;
   const requestId = req.params.id;
 
@@ -5770,13 +5785,21 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
                     // Issue immediate cash refund if committee chose "Refund now"
                     if (refundNow && prorationAmount && prorationAmount > 0) {
                       try {
-                        // Get the latest invoice to find the original charge
-                        const invResp = await fetch(
-                          "https://api.stripe.com/v1/invoices/" + sub.latest_invoice,
-                          { headers: { Authorization: authHeader } }
-                        );
-                        const invData = await invResp.json();
-                        const chargeId = invData.charge;
+                        // Use the charge ID captured during the preview step (before plan switch).
+                        // After the switch, sub.latest_invoice changes to the new proration invoice,
+                        // so we must NOT re-fetch it here — use what was passed from the frontend.
+                        let chargeId = providedChargeId || null;
+                        if (!chargeId && sub.latest_invoice) {
+                          // Fallback: attempt to look up from current invoice (may differ post-switch)
+                          try {
+                            const invResp = await fetch(
+                              "https://api.stripe.com/v1/invoices/" + sub.latest_invoice,
+                              { headers: { Authorization: authHeader } }
+                            );
+                            const invData = await invResp.json();
+                            chargeId = invData.charge || null;
+                          } catch (e) {}
+                        }
                         if (chargeId) {
                           const refundResp = await fetch("https://api.stripe.com/v1/refunds", {
                             method: "POST",

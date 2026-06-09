@@ -3246,7 +3246,7 @@
         var refundBtn = document.createElement("button");
         refundBtn.textContent = "💳 Refund " + amt + " to card now";
         refundBtn.style.cssText = "background:#2563eb;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
-        refundBtn.onclick = function() { modal.style.display = "none"; executeApprove(id, true, proration.amountAbs); };
+        refundBtn.onclick = function() { modal.style.display = "none"; executeApprove(id, true, proration.amountAbs, proration.chargeId); };
 
         var creditBtn = document.createElement("button");
         creditBtn.textContent = "📋 Carry forward as account credit";
@@ -3278,11 +3278,11 @@
       modal.style.display = "flex";
     }
 
-    function executeApprove(id, refundNow, prorationAmount) {
+    function executeApprove(id, refundNow, prorationAmount, chargeId) {
       fetch("/api/portal/membership-requests/" + id + "/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refundNow: refundNow, prorationAmount: prorationAmount })
+        body: JSON.stringify({ refundNow: refundNow, prorationAmount: prorationAmount, chargeId: chargeId || null })
       })
         .then(function(r) { return r.json(); })
         .then(function(data) {

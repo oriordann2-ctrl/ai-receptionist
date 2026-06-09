@@ -899,9 +899,37 @@
     var s = document.createElement('script');
     s.src = 'https://app.sprimal.com/widget.js';
     s.setAttribute('data-club-id', 'cosy-cafe');
+    s.setAttribute('data-club-name', 'Cosy Café');
+    s.setAttribute('data-bot-name', 'Maeve');
     s.defer = true;
     document.head.appendChild(s);
   })();
+
+  // Per-theme widget colour palette
+  var WIDGET_THEMES = {
+    1: { header: '#1C3A2A', accent: '#C4622D', text: '#fff' },   // The Local — forest green / terracotta
+    2: { header: '#1A1A1A', accent: '#E8A020', text: '#1A1A1A' }, // Modern Artisan — black / amber
+    3: { header: '#1A0F09', accent: '#F5C842', text: '#1A0F09' }, // Dark Roast — espresso / gold
+    4: { header: '#2B4C7E', accent: '#FFD166', text: '#1a1a1a' }  // Wild Atlantic — coastal blue / yellow
+  };
+
+  function applyWidgetTheme(t) {
+    var el = document.getElementById('sprimal-designs-theme');
+    if (!el) {
+      el = document.createElement('style');
+      el.id = 'sprimal-designs-theme';
+      document.head.appendChild(el);
+    }
+    el.textContent = [
+      '#sprimal-header{background:' + t.header + '!important;}',
+      '#sprimal-send{background:' + t.accent + '!important;}',
+      '#sprimal-send:hover{background:' + t.accent + ';filter:brightness(0.88)!important;}',
+      '.sprimal-user{background:' + t.accent + '!important;}',
+      '.sprimal-choice{border-color:' + t.accent + '!important;color:' + t.accent + '!important;}',
+      '.sprimal-choice:hover{background:' + t.accent + '!important;color:' + t.text + '!important;}',
+      '#sprimal-input:focus{border-color:' + t.accent + '!important;}',
+    ].join('');
+  }
 
   function setTheme(n) {
     document.querySelectorAll('.site').forEach(function(el){ el.classList.remove('active'); });
@@ -909,7 +937,11 @@
     document.getElementById('t'+n).classList.add('active');
     document.querySelector('.tbtn[data-t="'+n+'"]').classList.add('active');
     window.scrollTo({top:0, behavior:'instant'});
+    applyWidgetTheme(WIDGET_THEMES[n]);
   }
+
+  // Apply theme 1 colours on first load
+  document.addEventListener('DOMContentLoaded', function() { applyWidgetTheme(WIDGET_THEMES[1]); });
 </script>
 </body>
 </html>

@@ -6941,20 +6941,43 @@ app.get("/api/portal/kb-search", requireTenant, async (req, res) => {
   const query = (req.query.q || "").trim();
   if (!query) return res.json({ content: null });
 
+  // Stop words to filter out before keyword matching
+  const STOP_WORDS = new Set(["a","an","the","and","or","of","to","in","is","it","for","on","our","we","i","at","by","be","as","here","s","per","year","are","have","has","with","this","that","from","up","about","you","your","can","will","do","all","there","so","if","what","how","its","also","my","me","he","she","they","we","was","were","been","had","would","could","should","not","no","yes","some"]);
+
+  // Extract meaningful keywords from the query (words ≥ 3 chars, not stop words)
+  const keywords = [...new Set(
+    query.toLowerCase()
+      .replace(/[^a-z0-9\s€]/g, " ")   // strip emojis, punctuation
+      .split(/\s+/)
+      .filter(w => w.length >= 3 && !STOP_WORDS.has(w))
+  )].slice(0, 6);
+
+  if (!keywords.length) return res.json({ content: null });
+
   try {
-    // Simple keyword search across knowledge_chunks for this tenant
-    const { data: chunks } = await supabase
-      .from("knowledge_chunks")
-      .select("content")
-      .eq("tenant_id", tenantId)
-      .ilike("content", "%" + query.replace(/[%_]/g, "\\$&") + "%")
-      .order("created_at", { ascending: false })
-      .limit(3);
+    // Search for chunks containing ANY of the keywords — try each and score by matches
+    const allChunks = [];
+    for (const kw of keywords) {
+      const { data } = await supabase
+        .from("knowledge_chunks")
+        .select("content")
+        .eq("tenant_id", tenantId)
+        .ilike("content", "%" + kw + "%")
+        .limit(5);
+      if (data) allChunks.push(...data);
+    }
 
-    if (!chunks || !chunks.length) return res.json({ content: null });
+    if (!allChunks.length) return res.json({ content: null });
 
-    // Return the best match — first result's content (trimmed to 800 chars)
-    const content = chunks[0].content.trim().slice(0, 800);
+    // Score each chunk by how many keywords it contains — return the best match
+    const scored = allChunks.map(function(c) {
+      const lower = c.content.toLowerCase();
+      const score = keywords.filter(function(kw) { return lower.includes(kw); }).length;
+      return { content: c.content, score };
+    });
+    scored.sort(function(a, b) { return b.score - a.score; });
+
+    const content = scored[0].content.trim().slice(0, 800);
     return res.json({ content });
   } catch (e) {
     console.error("[KB Search] Error:", e.message);

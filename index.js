@@ -3411,9 +3411,20 @@ app.post("/api/admin/seed-tenant", requireAdmin, async (req, res) => {
     bizType = await detectBusinessType(pages2, tenant.website);
   }
   if (!bizType || bizType === "other") return res.status(400).json({ error: "Could not detect business type" });
+
+  // Debug: test a minimal workflow insert to surface any schema errors
+  const testId = crypto.randomUUID();
+  const { error: testErr } = await supabase.from("chat_workflows").insert({ id: testId, club_id: tenantId, name: "__test__", is_active: false });
+  if (testErr) return res.json({ ok: false, stage: "workflow_insert_test", error: testErr.message });
+  await supabase.from("chat_workflows").delete().eq("id", testId); // clean up
+
   const pages = await crawlWebsite(tenant.website, 12);
-  const seeded = await seedFlowsForType(tenantId, tenant.name, tenant.website, bizType, pages);
-  res.json({ ok: true, seeded, bizType });
+  try {
+    const seeded = await seedFlowsForType(tenantId, tenant.name, tenant.website, bizType, pages);
+    res.json({ ok: true, seeded, bizType });
+  } catch (err) {
+    res.json({ ok: false, stage: "seedFlowsForType", error: err.message });
+  }
 });
 
 app.get("/admin/mortgage-leads", requireAdmin, async (req, res) => {

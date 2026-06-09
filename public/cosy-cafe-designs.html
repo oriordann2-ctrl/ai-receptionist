@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cosy Café — Website Concepts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Raleway:wght@300;400;600;700;800&family=Nunito:wght@300;400;600;700;800&family=Lato:wght@300;400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+  /* ═══════════════════════════════════════════════
+     THEME SWITCHER BAR
+  ═══════════════════════════════════════════════ */
+  #theme-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: #111; color: #fff;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 24px;
+    font-family: Inter, sans-serif; font-size: 0.78rem;
+  }
+  #theme-bar span { color: #aaa; margin-right: 6px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .tbtn {
+    padding: 6px 18px; border-radius: 100px; border: 1.5px solid transparent;
+    cursor: pointer; font-size: 0.78rem; font-weight: 600;
+    transition: all 0.2s; font-family: Inter, sans-serif;
+    letter-spacing: 0.04em;
+  }
+  .tbtn.active { border-color: #fff; }
+  .tbtn[data-t="1"] { background: #1C3A2A; color: #E8D5B7; }
+  .tbtn[data-t="2"] { background: #1A1A1A; color: #E8A020; }
+  .tbtn[data-t="3"] { background: #2C1810; color: #F5C842; }
+  .tbtn[data-t="4"] { background: #2B4C7E; color: #AEDDD4; }
+  .tbtn[data-t="1"].active { border-color: #E8D5B7; }
+  .tbtn[data-t="2"].active { border-color: #E8A020; }
+  .tbtn[data-t="3"].active { border-color: #F5C842; }
+  .tbtn[data-t="4"].active { border-color: #AEDDD4; }
+  .img-note {
+    margin-left: auto; background: rgba(255,165,0,0.15); border: 1px solid rgba(255,165,0,0.4);
+    color: #FFA500; border-radius: 4px; padding: 5px 12px; font-size: 0.72rem;
+  }
+
+  /* ═══════════════════════════════════════════════
+     SHARED BASE STYLES
+  ═══════════════════════════════════════════════ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    padding-top: 48px;
+    transition: background 0.4s, color 0.4s;
+  }
+
+  .site { display: none; }
+  .site.active { display: block; }
+
+  /* shared nav */
+  .snav {
+    position: sticky; top: 48px; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 48px; height: 68px;
+  }
+  .snav-logo { display: flex; align-items: center; gap: 12px; }
+  .snav-logo img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+  .snav-links { display: flex; gap: 28px; list-style: none; }
+  .snav-links a { text-decoration: none; font-size: 0.82rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; transition: opacity 0.2s; }
+  .snav-links a:hover { opacity: 0.6; }
+  .snav-cta { padding: 10px 24px; border-radius: 3px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; transition: all 0.2s; }
+
+  /* shared hero */
+  .shero {
+    min-height: 92vh; display: flex; flex-direction: column;
+    justify-content: flex-end; padding: 80px 64px;
+    background-size: cover; background-position: center;
+    position: relative;
+  }
+  .shero-inner { position: relative; z-index: 2; max-width: 680px; }
+  .shero-badge {
+    display: inline-block; border-radius: 100px; padding: 6px 18px;
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    font-weight: 700; margin-bottom: 24px;
+  }
+  .shero h1 { line-height: 1.05; margin-bottom: 20px; }
+  .shero p { font-size: 1.1rem; max-width: 480px; margin-bottom: 36px; font-weight: 300; }
+  .shero-btns { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* section common */
+  .ssect { padding: 96px 64px; }
+  .slabel { font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; margin-bottom: 14px; display: block; }
+  .sh2 { line-height: 1.15; margin-bottom: 18px; }
+  .smuted { font-weight: 300; max-width: 520px; margin-bottom: 48px; }
+
+  /* menu grid */
+  .smenu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; max-width: 1000px; }
+  .smenu-card { border-radius: 6px; overflow: hidden; }
+  .smenu-img { height: 240px; background-size: cover; background-position: center; }
+  .smenu-body { padding: 28px 32px 32px; }
+  .smenu-body h3 { margin-bottom: 10px; }
+  .smenu-body p { font-size: 0.9rem; margin-bottom: 20px; }
+  .smenu-items { list-style: none; margin-bottom: 24px; }
+  .smenu-items li { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(0,0,0,0.07); font-size: 0.88rem; }
+  .smenu-items li:last-child { border-bottom: none; }
+
+  /* hours */
+  .shours-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; max-width: 1000px; }
+  .shours-table { width: 100%; border-collapse: collapse; }
+  .shours-table tr { border-bottom: 1px solid rgba(0,0,0,0.08); }
+  .shours-table td { padding: 12px 0; font-size: 0.95rem; }
+  .shours-table td:last-child { text-align: right; font-weight: 700; }
+  .smap { border-radius: 6px; overflow: hidden; height: 280px; }
+  .smap iframe { width: 100%; height: 100%; border: none; }
+
+  /* reviews */
+  .sreviews-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1050px; margin: 0 auto 40px; }
+  .srev-card { border-radius: 6px; padding: 28px; }
+  .srev-stars { font-size: 0.9rem; margin-bottom: 12px; }
+  .srev-text { font-size: 0.9rem; font-style: italic; font-weight: 300; margin-bottom: 14px; line-height: 1.6; }
+  .srev-author { font-size: 0.75rem; }
+
+  /* instagram grid */
+  .sinsta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; max-width: 900px; }
+  .sinsta-img { aspect-ratio: 1; background-size: cover; background-position: center; border-radius: 4px; }
+
+  /* gallery */
+  .sgallery-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: auto auto; gap: 8px; max-width: 1000px; }
+  .sgallery-item { background-size: cover; background-position: center; border-radius: 4px; }
+  .sgallery-item:first-child { grid-row: span 2; min-height: 420px; }
+  .sgallery-item:not(:first-child) { min-height: 204px; }
+
+  /* footer */
+  .sfooter { padding: 48px 64px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+  .sfooter-name { font-size: 1.1rem; font-weight: 700; }
+  .sfooter-links { display: flex; gap: 20px; }
+  .sfooter-links a { font-size: 0.85rem; text-decoration: none; opacity: 0.5; transition: opacity 0.2s; }
+  .sfooter-links a:hover { opacity: 1; }
+
+  /* btn shared */
+  .sbtn { display: inline-block; padding: 13px 30px; border-radius: 3px; font-weight: 700; font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; transition: all 0.2s; cursor: pointer; border: 2px solid transparent; }
+
+  /* ═══════════════════════════════════════════════
+     THEME 1 — "THE LOCAL"  Forest green + terracotta
+  ═══════════════════════════════════════════════ */
+  #t1 { font-family: 'Lato', sans-serif; color: #1C2B20; background: #F5EEE4; }
+  #t1 .snav { background: #1C3A2A; }
+  #t1 .snav-logo-name { color: #E8D5B7; font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 600; }
+  #t1 .snav-links a { color: rgba(232,213,183,0.8); }
+  #t1 .snav-cta { background: #C4622D; color: #fff; }
+  #t1 .snav-cta:hover { background: #a34e24; }
+
+  #t1 .shero { background-image: linear-gradient(to top, rgba(28,58,42,0.85) 0%, rgba(28,58,42,0.3) 60%, rgba(28,58,42,0.1) 100%), url('https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=1800&q=85'); }
+  #t1 .shero-badge { background: rgba(232,213,183,0.15); border: 1px solid rgba(232,213,183,0.4); color: #E8D5B7; }
+  #t1 .shero h1 { font-family: 'Cormorant Garamond', serif; font-size: clamp(3rem,6vw,5.5rem); color: #F5EEE4; font-weight: 700; }
+  #t1 .shero h1 em { color: #E8A87C; font-style: italic; }
+  #t1 .shero p { color: rgba(245,238,228,0.85); }
+  #t1 .sbtn-p { background: #C4622D; color: #fff; border-color: #C4622D; }
+  #t1 .sbtn-p:hover { background: #a34e24; border-color: #a34e24; }
+  #t1 .sbtn-o { border-color: rgba(245,238,228,0.6); color: #F5EEE4; }
+  #t1 .sbtn-o:hover { border-color: #F5EEE4; }
+
+  #t1 .about-split { display: grid; grid-template-columns: 1fr 1fr; min-height: 500px; }
+  #t1 .about-split-img { background: url('https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=900&q=80') center/cover; }
+  #t1 .about-split-text { background: #1C3A2A; padding: 80px 64px; display: flex; flex-direction: column; justify-content: center; }
+  #t1 .slabel { color: #C4622D; }
+  #t1 .about-split-text .slabel { color: #E8A87C; }
+  #t1 .about-split-text .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.4rem; color: #F5EEE4; font-weight: 600; }
+  #t1 .about-split-text p { color: rgba(245,238,228,0.75); font-size: 0.97rem; margin-bottom: 12px; font-weight: 300; }
+
+  #t1 .menu-bg { background: #F5EEE4; }
+  #t1 .menu-bg .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.8rem; color: #1C3A2A; font-weight: 600; }
+  #t1 .smenu-card { background: #EDE2D4; }
+  #t1 .smenu-body h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; color: #1C3A2A; font-weight: 600; }
+  #t1 .smenu-body p { color: #6B5744; }
+  #t1 .smenu-items li { color: #3A2A1E; border-bottom-color: rgba(60,40,20,0.1); }
+  #t1 .smenu-price { color: #C4622D; font-weight: 700; }
+  #t1 .sbtn-menu { background: #1C3A2A; color: #E8D5B7; border-color: #1C3A2A; font-size: 0.78rem; padding: 10px 22px; }
+
+  #t1 .hours-bg { background: #1C3A2A; }
+  #t1 .hours-bg .slabel { color: #E8A87C; }
+  #t1 .hours-bg .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.4rem; color: #F5EEE4; }
+  #t1 .shours-table tr { border-bottom-color: rgba(232,213,183,0.15); }
+  #t1 .shours-table td { color: rgba(232,213,183,0.85); }
+  #t1 .shours-table td:last-child { color: #E8A87C; }
+  #t1 .hcontact a { color: rgba(232,213,183,0.75); text-decoration: none; display: block; margin-bottom: 10px; font-size: 0.95rem; }
+
+  #t1 .rev-bg { background: #EDE2D4; text-align: center; }
+  #t1 .rev-bg .slabel { color: #C4622D; }
+  #t1 .rev-bg .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.6rem; color: #1C3A2A; }
+  #t1 .srev-card { background: #F5EEE4; }
+  #t1 .srev-stars { color: #C4622D; }
+  #t1 .srev-text { color: #4A3428; }
+  #t1 .srev-author { color: #9A7A68; }
+  #t1 .rating-big { font-family: 'Cormorant Garamond', serif; font-size: 4rem; color: #1C3A2A; font-weight: 700; }
+  #t1 .stars-big { color: #C4622D; font-size: 1.4rem; }
+
+  #t1 .sinsta-bg { background: #F5EEE4; }
+  #t1 .sinsta-bg .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.2rem; color: #1C3A2A; }
+
+  #t1 .sfooter { background: #111D15; }
+  #t1 .sfooter-name { color: #E8D5B7; font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; }
+  #t1 .sfooter-links a { color: rgba(232,213,183,0.5); }
+
+  /* ═══════════════════════════════════════════════
+     THEME 2 — "MODERN ARTISAN"  Black + amber, editorial
+  ═══════════════════════════════════════════════ */
+  #t2 { font-family: 'Inter', sans-serif; color: #1A1A1A; background: #FAFAF8; }
+  #t2 .snav { background: #FAFAF8; border-bottom: 1px solid #E8E4DF; }
+  #t2 .snav-logo-name { color: #1A1A1A; font-family: 'Raleway', sans-serif; font-size: 1rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; }
+  #t2 .snav-links a { color: #1A1A1A; }
+  #t2 .snav-cta { background: #1A1A1A; color: #fff; border-radius: 0; }
+  #t2 .snav-cta:hover { background: #E8A020; }
+
+  #t2 .shero { background-image: linear-gradient(to right, rgba(26,26,26,0.92) 40%, rgba(26,26,26,0.4) 100%), url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1800&q=85'); min-height: 88vh; justify-content: center; padding: 80px; }
+  #t2 .shero-badge { background: #E8A020; color: #1A1A1A; font-weight: 800; border-radius: 0; }
+  #t2 .shero h1 { font-family: 'Raleway', sans-serif; font-size: clamp(3rem,6vw,5.5rem); color: #FAFAF8; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  #t2 .shero h1 em { color: #E8A020; font-style: normal; }
+  #t2 .shero p { color: rgba(250,250,248,0.75); font-size: 1.05rem; }
+  #t2 .sbtn-p { background: #E8A020; color: #1A1A1A; border-color: #E8A020; border-radius: 0; }
+  #t2 .sbtn-p:hover { background: #d09010; }
+  #t2 .sbtn-o { border-color: rgba(250,250,248,0.5); color: #FAFAF8; border-radius: 0; }
+
+  #t2 .about2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; }
+  #t2 .about2-img1 { background: url('https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=700&q=80') center/cover; min-height: 500px; }
+  #t2 .about2-img2 { background: url('https://images.unsplash.com/photo-1517093157656-b9eccef91cb1?w=700&q=80') center/cover; }
+  #t2 .about2-text { background: #1A1A1A; padding: 64px 48px; display: flex; flex-direction: column; justify-content: center; }
+  #t2 .about2-text .slabel { color: #E8A020; }
+  #t2 .about2-text .sh2 { font-family: 'Raleway', sans-serif; font-size: 2rem; color: #FAFAF8; font-weight: 800; letter-spacing: -0.01em; }
+  #t2 .about2-text p { color: rgba(250,250,248,0.65); font-size: 0.93rem; margin-bottom: 12px; }
+
+  #t2 .menu-bg { background: #FAFAF8; }
+  #t2 .menu-bg .slabel { color: #E8A020; }
+  #t2 .menu-bg .sh2 { font-family: 'Raleway', sans-serif; font-size: 2.8rem; font-weight: 800; letter-spacing: -0.02em; color: #1A1A1A; }
+  #t2 .smenu-card { background: #F0EDE8; border-radius: 0; }
+  #t2 .smenu-body h3 { font-family: 'Raleway', sans-serif; font-weight: 800; font-size: 1.2rem; letter-spacing: 0.04em; color: #1A1A1A; }
+  #t2 .smenu-body p { color: #6B6560; }
+  #t2 .smenu-items li { color: #2A2A2A; border-bottom-color: rgba(26,26,26,0.08); }
+  #t2 .smenu-price { color: #E8A020; font-weight: 700; }
+  #t2 .sbtn-menu { background: #1A1A1A; color: #FAFAF8; border-color: #1A1A1A; border-radius: 0; font-size: 0.78rem; padding: 10px 22px; }
+
+  #t2 .hours-bg { background: #F0EDE8; }
+  #t2 .hours-bg .slabel { color: #E8A020; }
+  #t2 .hours-bg .sh2 { font-family: 'Raleway', sans-serif; font-weight: 800; font-size: 2.2rem; color: #1A1A1A; }
+  #t2 .shours-table td { color: #3A3530; }
+  #t2 .shours-table td:last-child { color: #E8A020; }
+  #t2 .hcontact a { color: #6B6560; text-decoration: none; display: block; margin-bottom: 10px; font-size: 0.95rem; }
+
+  #t2 .rev-bg { background: #1A1A1A; text-align: center; }
+  #t2 .rev-bg .slabel { color: #E8A020; }
+  #t2 .rev-bg .sh2 { font-family: 'Raleway', sans-serif; font-weight: 800; font-size: 2.4rem; color: #FAFAF8; }
+  #t2 .srev-card { background: rgba(255,255,255,0.06); border-radius: 0; }
+  #t2 .srev-stars { color: #E8A020; }
+  #t2 .srev-text { color: rgba(250,250,248,0.75); }
+  #t2 .srev-author { color: rgba(250,250,248,0.35); }
+  #t2 .rating-big { font-family: 'Raleway', sans-serif; font-size: 4rem; color: #E8A020; font-weight: 800; }
+  #t2 .stars-big { color: #E8A020; font-size: 1.4rem; }
+
+  #t2 .sfooter { background: #111; }
+  #t2 .sfooter-name { color: #FAFAF8; font-family: 'Raleway', sans-serif; font-weight: 800; letter-spacing: 0.1em; }
+  #t2 .sfooter-links a { color: rgba(250,250,248,0.4); }
+
+  /* ═══════════════════════════════════════════════
+     THEME 3 — "DARK ROAST"  Espresso + gold, intimate
+  ═══════════════════════════════════════════════ */
+  #t3 { font-family: 'Lato', sans-serif; color: #E8D5B7; background: #1A0F09; }
+  #t3 .snav { background: rgba(26,15,9,0.96); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(245,200,66,0.1); }
+  #t3 .snav-logo-name { color: #F5C842; font-family: 'Playfair Display', serif; font-size: 1.25rem; }
+  #t3 .snav-links a { color: rgba(232,213,183,0.75); }
+  #t3 .snav-cta { background: #F5C842; color: #1A0F09; }
+  #t3 .snav-cta:hover { background: #d4a820; }
+
+  #t3 .shero { background-image: linear-gradient(rgba(26,15,9,0.5) 0%, rgba(26,15,9,0.7) 100%), url('https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1800&q=85'); min-height: 100vh; justify-content: center; align-items: center; text-align: center; }
+  #t3 .shero-inner { text-align: center; max-width: 760px; }
+  #t3 .shero-badge { background: rgba(245,200,66,0.12); border: 1px solid rgba(245,200,66,0.3); color: #F5C842; }
+  #t3 .shero h1 { font-family: 'Playfair Display', serif; font-size: clamp(3rem,6vw,5.5rem); color: #F5EEE4; font-weight: 700; }
+  #t3 .shero h1 em { color: #F5C842; }
+  #t3 .shero p { color: rgba(232,213,183,0.8); margin: 0 auto 36px; }
+  #t3 .shero-btns { justify-content: center; }
+  #t3 .sbtn-p { background: #F5C842; color: #1A0F09; border-color: #F5C842; }
+  #t3 .sbtn-p:hover { background: #d4a820; }
+  #t3 .sbtn-o { border-color: rgba(232,213,183,0.4); color: #E8D5B7; }
+
+  #t3 .about-split { display: grid; grid-template-columns: 1fr 1fr; min-height: 480px; }
+  #t3 .about-split-img { background: url('https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=900&q=80') center/cover; }
+  #t3 .about-split-text { background: #2C1810; padding: 80px 64px; display: flex; flex-direction: column; justify-content: center; }
+  #t3 .slabel { color: #F5C842; }
+  #t3 .about-split-text .sh2 { font-family: 'Playfair Display', serif; font-size: 2.4rem; color: #F5EEE4; }
+  #t3 .about-split-text p { color: rgba(232,213,183,0.7); font-size: 0.97rem; margin-bottom: 12px; font-weight: 300; }
+
+  #t3 .menu-bg { background: #2C1810; }
+  #t3 .menu-bg .sh2 { font-family: 'Playfair Display', serif; font-size: 2.8rem; color: #F5EEE4; }
+  #t3 .smenu-card { background: #3D2015; }
+  #t3 .smenu-body h3 { font-family: 'Playfair Display', serif; font-size: 1.45rem; color: #F5EEE4; }
+  #t3 .smenu-body p { color: rgba(232,213,183,0.6); }
+  #t3 .smenu-items li { color: rgba(232,213,183,0.85); border-bottom-color: rgba(245,200,66,0.1); }
+  #t3 .smenu-price { color: #F5C842; font-weight: 700; }
+  #t3 .sbtn-menu { background: #F5C842; color: #1A0F09; border-color: #F5C842; font-size: 0.78rem; padding: 10px 22px; }
+
+  #t3 .hours-bg { background: #1A0F09; }
+  #t3 .hours-bg .sh2 { font-family: 'Playfair Display', serif; font-size: 2.4rem; color: #F5EEE4; }
+  #t3 .shours-table tr { border-bottom-color: rgba(245,200,66,0.1); }
+  #t3 .shours-table td { color: rgba(232,213,183,0.8); }
+  #t3 .shours-table td:last-child { color: #F5C842; }
+  #t3 .hcontact a { color: rgba(232,213,183,0.6); text-decoration: none; display: block; margin-bottom: 10px; font-size: 0.95rem; }
+
+  #t3 .rev-bg { background: #2C1810; text-align: center; }
+  #t3 .rev-bg .sh2 { font-family: 'Playfair Display', serif; font-size: 2.6rem; color: #F5EEE4; }
+  #t3 .srev-card { background: rgba(255,255,255,0.05); }
+  #t3 .srev-stars { color: #F5C842; }
+  #t3 .srev-text { color: rgba(232,213,183,0.8); }
+  #t3 .srev-author { color: rgba(232,213,183,0.35); }
+  #t3 .rating-big { font-family: 'Playfair Display', serif; font-size: 4rem; color: #F5C842; font-weight: 700; }
+  #t3 .stars-big { color: #F5C842; font-size: 1.4rem; }
+
+  #t3 .sfooter { background: #0D0806; border-top: 1px solid rgba(245,200,66,0.1); }
+  #t3 .sfooter-name { color: #F5C842; font-family: 'Playfair Display', serif; }
+  #t3 .sfooter-links a { color: rgba(232,213,183,0.35); }
+
+  /* ═══════════════════════════════════════════════
+     THEME 4 — "WILD ATLANTIC"  Coastal blue + sand
+  ═══════════════════════════════════════════════ */
+  #t4 { font-family: 'Nunito', sans-serif; color: #1A2E45; background: #FFFDF9; }
+  #t4 .snav { background: #fff; border-bottom: 1px solid #E8E0D4; }
+  #t4 .snav-logo-name { color: #2B4C7E; font-family: 'Nunito', sans-serif; font-size: 1.1rem; font-weight: 800; }
+  #t4 .snav-links a { color: #1A2E45; }
+  #t4 .snav-cta { background: #2B4C7E; color: #fff; border-radius: 100px; }
+  #t4 .snav-cta:hover { background: #1e3660; }
+
+  #t4 .shero { background-image: linear-gradient(to bottom, rgba(43,76,126,0.3) 0%, rgba(43,76,126,0.65) 100%), url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1800&q=85'); text-align: center; align-items: center; padding: 80px 40px; }
+  #t4 .shero-inner { text-align: center; max-width: 700px; }
+  #t4 .shero-badge { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: #fff; border-radius: 100px; }
+  #t4 .shero h1 { font-family: 'Nunito', sans-serif; font-size: clamp(2.8rem,6vw,5rem); color: #fff; font-weight: 800; letter-spacing: -0.01em; }
+  #t4 .shero h1 em { color: #FFD166; font-style: normal; }
+  #t4 .shero p { color: rgba(255,255,255,0.85); margin: 0 auto 36px; }
+  #t4 .shero-btns { justify-content: center; }
+  #t4 .sbtn-p { background: #FFD166; color: #1A2E45; border-color: #FFD166; border-radius: 100px; }
+  #t4 .sbtn-p:hover { background: #f0c040; }
+  #t4 .sbtn-o { border-color: rgba(255,255,255,0.6); color: #fff; border-radius: 100px; }
+
+  #t4 .about4 { display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: 480px; }
+  #t4 .about4-img { background: url('https://images.unsplash.com/photo-1600093463592-8e36ae95ef56?w=900&q=80') center/cover; }
+  #t4 .about4-text { background: #2B4C7E; padding: 80px 64px; display: flex; flex-direction: column; justify-content: center; }
+  #t4 .slabel { color: #FFD166; }
+  #t4 .about4-text .sh2 { font-family: 'Nunito', sans-serif; font-size: 2.2rem; color: #fff; font-weight: 800; }
+  #t4 .about4-text p { color: rgba(255,255,255,0.72); font-size: 0.97rem; margin-bottom: 12px; }
+  #t4 .dog-pill { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.12); border-radius: 100px; padding: 8px 18px; font-size: 0.85rem; color: rgba(255,255,255,0.9); margin-top: 24px; }
+
+  #t4 .menu-bg { background: #FFFDF9; }
+  #t4 .menu-bg .slabel { color: #2B4C7E; }
+  #t4 .menu-bg .sh2 { font-family: 'Nunito', sans-serif; font-size: 2.6rem; font-weight: 800; color: #1A2E45; }
+  #t4 .smenu-card { background: #F2EAD8; border-radius: 12px; }
+  #t4 .smenu-img { border-radius: 12px 12px 0 0; }
+  #t4 .smenu-body h3 { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 1.3rem; color: #1A2E45; }
+  #t4 .smenu-body p { color: #7A6852; }
+  #t4 .smenu-items li { color: #2A3A48; border-bottom-color: rgba(42,58,72,0.08); }
+  #t4 .smenu-price { color: #2B4C7E; font-weight: 800; }
+  #t4 .sbtn-menu { background: #2B4C7E; color: #fff; border-color: #2B4C7E; border-radius: 100px; font-size: 0.78rem; padding: 10px 22px; }
+
+  #t4 .hours-bg { background: #EDF4F8; }
+  #t4 .hours-bg .slabel { color: #2B4C7E; }
+  #t4 .hours-bg .sh2 { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 2.2rem; color: #1A2E45; }
+  #t4 .shours-table td { color: #3A4E60; }
+  #t4 .shours-table td:last-child { color: #2B4C7E; }
+  #t4 .hcontact a { color: #5A7A9A; text-decoration: none; display: block; margin-bottom: 10px; font-size: 0.95rem; }
+
+  #t4 .rev-bg { background: #2B4C7E; text-align: center; }
+  #t4 .rev-bg .slabel { color: #FFD166; }
+  #t4 .rev-bg .sh2 { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 2.4rem; color: #fff; }
+  #t4 .srev-card { background: rgba(255,255,255,0.1); border-radius: 12px; }
+  #t4 .srev-stars { color: #FFD166; }
+  #t4 .srev-text { color: rgba(255,255,255,0.8); }
+  #t4 .srev-author { color: rgba(255,255,255,0.4); }
+  #t4 .rating-big { font-family: 'Nunito', sans-serif; font-size: 4rem; color: #FFD166; font-weight: 800; }
+  #t4 .stars-big { color: #FFD166; font-size: 1.4rem; }
+
+  #t4 .sfooter { background: #1A2E45; }
+  #t4 .sfooter-name { color: #fff; font-family: 'Nunito', sans-serif; font-weight: 800; }
+  #t4 .sfooter-links a { color: rgba(255,255,255,0.35); }
+
+  /* Responsive */
+  @media(max-width:768px) {
+    .ssect { padding: 56px 20px; }
+    .shero { padding: 60px 24px 56px; }
+    .snav { padding: 0 20px; }
+    .snav-links { display: none; }
+    .smenu-grid, .shours-grid, .sreviews-grid { grid-template-columns: 1fr; }
+    .sinsta-grid { grid-template-columns: repeat(2,1fr); }
+    #t1 .about-split, #t3 .about-split, #t4 .about4 { grid-template-columns: 1fr; }
+    #t1 .about-split-img, #t3 .about-split-img, #t4 .about4-img { min-height: 260px; }
+    #t1 .about-split-text, #t3 .about-split-text, #t4 .about4-text { padding: 48px 24px; }
+    #t2 .about2 { grid-template-columns: 1fr; }
+    #t2 .about2-img2 { display: none; }
+    .sgallery-grid { grid-template-columns: 1fr 1fr; }
+    .sgallery-item:first-child { grid-row: span 1; }
+    .sfooter { flex-direction: column; padding: 32px 20px; text-align: center; }
+  }
+  </style>
+</head>
+<body>
+
+<!-- THEME BAR -->
+<div id="theme-bar">
+  <span>Design concept:</span>
+  <button class="tbtn active" data-t="1" onclick="setTheme(1)">🌿 The Local</button>
+  <button class="tbtn" data-t="2" onclick="setTheme(2)">⬛ Modern Artisan</button>
+  <button class="tbtn" data-t="3" onclick="setTheme(3)">☕ Dark Roast</button>
+  <button class="tbtn" data-t="4" onclick="setTheme(4)">🌊 Wild Atlantic</button>
+  <span class="img-note">⚠️ Placeholder photos — to be replaced with your Instagram photos</span>
+</div>
+
+<!-- ═══════════════ THEME 1 — THE LOCAL ═══════════════ -->
+<div id="t1" class="site active">
+  <nav class="snav">
+    <div class="snav-logo">
+      <img src="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/6278fd4ad64756188f608e81_Webp.net-resizeimage.jpg" alt="Cosy Café" />
+      <span class="snav-logo-name">Cosy Café</span>
+    </div>
+    <ul class="snav-links">
+      <li><a href="#">Menu</a></li><li><a href="#">Hours</a></li><li><a href="#">Find Us</a></li><li><a href="#">Reviews</a></li>
+    </ul>
+    <a href="#" class="snav-cta sbtn">Book a table</a>
+  </nav>
+
+  <section class="shero">
+    <div class="shero-inner">
+      <span class="shero-badge">☕ Kinsale · Wild Atlantic Way · Dog Friendly</span>
+      <h1>Kinsale's favourite<br>morning <em>ritual</em></h1>
+      <p>Breakfast, brunch &amp; lunch served fresh in the heart of Kinsale, Co. Cork — made with local ingredients and a lot of heart.</p>
+      <div class="shero-btns">
+        <a href="#" class="sbtn sbtn-p">View Our Menus</a>
+        <a href="#" class="sbtn sbtn-o">Opening Hours</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="about-split">
+    <div class="about-split-img"></div>
+    <div class="about-split-text">
+      <span class="slabel">Our Story</span>
+      <h2 class="sh2">A little café with a big heart</h2>
+      <p>We're a dog-friendly café tucked into Church Square in Kinsale, serving up delicious breakfasts, brunches and lunches made with locally sourced ingredients.</p>
+      <p>From free range eggs to Clonakilty pudding and freshly baked scones — everything is made with care and served with a smile.</p>
+      <p>Whether you're a local regular or passing through on the Wild Atlantic Way, you're always welcome here.</p>
+    </div>
+  </div>
+
+  <section class="ssect menu-bg" style="text-align:center">
+    <span class="slabel" style="color:#C4622D">What's On</span>
+    <h2 class="sh2" style="font-family:'Cormorant Garamond',serif;font-size:2.8rem;color:#1C3A2A;font-weight:600;margin-bottom:10px">Our Menus</h2>
+    <p style="color:#6B5744;max-width:480px;margin:0 auto 48px;font-weight:300">Fresh, seasonal food served Tuesday to Saturday. Always something for everyone.</p>
+    <div class="smenu-grid" style="margin:0 auto">
+      <div class="smenu-card">
+        <div class="smenu-img" style="background-image:url('https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=800&q=80')"></div>
+        <div class="smenu-body">
+          <h3>☀️ Breakfast</h3>
+          <p>Classics, light bites and everything in between — all morning.</p>
+          <ul class="smenu-items">
+            <li><span>Full Irish</span><span class="smenu-price">€8.90</span></li>
+            <li><span>Eggs Benedict</span><span class="smenu-price">€8.10</span></li>
+            <li><span>Eggs Royale</span><span class="smenu-price">€8.60</span></li>
+            <li><span>Homemade Granola (GF)</span><span class="smenu-price">€5.20</span></li>
+            <li><span>American Pancakes</span><span class="smenu-price">€7.90</span></li>
+          </ul>
+          <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/635bf51580fbbd12af99dce4_CC_Breakfast%20Menu_Winter%202022_V3.pdf" target="_blank" class="sbtn sbtn-menu">Full Menu ↗</a>
+        </div>
+      </div>
+      <div class="smenu-card">
+        <div class="smenu-img" style="background-image:url('https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80')"></div>
+        <div class="smenu-body">
+          <h3>🥗 Lunch</h3>
+          <p>Bagels, wraps, burgers &amp; daily specials. Kinsale craft beers &amp; wine too.</p>
+          <ul class="smenu-items">
+            <li><span>Beef Burger</span><span class="smenu-price">€13.50</span></li>
+            <li><span>Fish &amp; Chips</span><span class="smenu-price">€13.90</span></li>
+            <li><span>Classic Bagel (Salmon)</span><span class="smenu-price">€7.80</span></li>
+            <li><span>Chowder</span><span class="smenu-price">€7.80</span></li>
+            <li><span>Kinsale Pale Ale</span><span class="smenu-price">€6.00</span></li>
+          </ul>
+          <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/64902c08fa7af9474d853ff2_CC_Lunch%20Menu_Summer%202023_V5%20(1).pdf" target="_blank" class="sbtn sbtn-menu">Full Menu ↗</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ssect hours-bg">
+    <div class="shours-grid">
+      <div>
+        <span class="slabel">Visit Us</span>
+        <h2 class="sh2">Hours &amp; Location</h2>
+        <table class="shours-table">
+          <tr><td style="color:rgba(232,213,183,0.85)">Tuesday – Friday</td><td>8:00 AM – 4:00 PM</td></tr>
+          <tr><td style="color:rgba(232,213,183,0.85)">Saturday</td><td>8:00 AM – 3:00 PM</td></tr>
+          <tr><td style="color:rgba(232,213,183,0.45)">Sunday &amp; Monday</td><td style="color:rgba(232,213,183,0.45);font-weight:400">Closed</td></tr>
+        </table>
+        <div class="hcontact" style="margin-top:28px">
+          <a href="tel:+35321470685">📞 (021) 470 0685</a>
+          <a href="mailto:cosycafekinsale@outlook.com">📧 cosycafekinsale@outlook.com</a>
+          <a href="#" style="color:rgba(232,213,183,0.75)">📍 Church Square, Sleveen, Kinsale, Co. Cork P17 KP21</a>
+        </div>
+      </div>
+      <div class="smap">
+        <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2464!2d-8.5255!3d51.7063!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x484461e48fb15e1b%3A0xa3cafe473748cf47!2sCosy+Cafe!5e0!3m2!1sen!2sie!4v1" allowfullscreen loading="lazy"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <section class="ssect rev-bg">
+    <div style="margin-bottom:32px">
+      <span class="slabel">What People Say</span>
+      <h2 class="sh2" style="font-family:'Cormorant Garamond',serif;font-size:2.6rem;color:#1C3A2A;font-weight:600">Loved by locals &amp; visitors</h2>
+      <div style="display:flex;align-items:center;gap:16px;margin:20px 0 40px">
+        <span class="stars-big">★★★★★</span>
+        <span class="rating-big">4.7</span>
+        <span style="color:#6B5744;font-size:0.9rem">724 Google reviews</span>
+      </div>
+    </div>
+    <div class="sreviews-grid">
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Lovely cafe with great cosy setting and very friendly staff. The full Irish is outstanding — best in Kinsale!"</p><p class="srev-author">— Google Review</p></div>
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Hidden gem on the Wild Atlantic Way. Eggs royale were perfect and the coffee was excellent. Will be back!"</p><p class="srev-author">— TripAdvisor</p></div>
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Dog-friendly, warm and welcoming. The homemade granola and scones are a must. A Kinsale institution."</p><p class="srev-author">— Google Review</p></div>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
+      <a href="#" class="sbtn" style="border:2px solid #C4622D;color:#C4622D">Leave a Google Review</a>
+      <a href="#" class="sbtn" style="border:2px solid #1C3A2A;color:#1C3A2A">TripAdvisor</a>
+    </div>
+  </section>
+
+  <footer class="sfooter">
+    <span class="sfooter-name">Cosy Café · Kinsale</span>
+    <div class="sfooter-links">
+      <a href="https://www.facebook.com/cosycafekinsale/" target="_blank">Facebook</a>
+      <a href="https://www.instagram.com/cosycafekinsale" target="_blank">Instagram</a>
+      <a href="https://www.tiktok.com/@cosycafekinsale" target="_blank">TikTok</a>
+      <a href="mailto:cosycafekinsale@outlook.com">Contact</a>
+    </div>
+  </footer>
+</div>
+
+<!-- ═══════════════ THEME 2 — MODERN ARTISAN ═══════════════ -->
+<div id="t2" class="site">
+  <nav class="snav">
+    <div class="snav-logo">
+      <img src="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/6278fd4ad64756188f608e81_Webp.net-resizeimage.jpg" alt="Cosy Café" />
+      <span class="snav-logo-name">COSY CAFÉ</span>
+    </div>
+    <ul class="snav-links"><li><a href="#">Menu</a></li><li><a href="#">Hours</a></li><li><a href="#">Find Us</a></li><li><a href="#">Reviews</a></li></ul>
+    <a href="#" class="snav-cta sbtn">Order Online</a>
+  </nav>
+
+  <section class="shero">
+    <div class="shero-inner">
+      <span class="shero-badge">Kinsale · Est. in Kinsale, Co. Cork</span>
+      <h1>Great food.<br><em>Every morning.</em></h1>
+      <p>Breakfast, brunch and lunch made fresh daily with locally sourced ingredients. Dog friendly. Wild Atlantic Way.</p>
+      <div class="shero-btns">
+        <a href="#" class="sbtn sbtn-p">See Our Menu</a>
+        <a href="#" class="sbtn sbtn-o">Find Us</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="about2">
+    <div class="about2-img1"></div>
+    <div class="about2-text">
+      <span class="slabel">Who We Are</span>
+      <h2 class="sh2">Made fresh. Served with care.</h2>
+      <p>From free range eggs and Clonakilty pudding to freshly baked scones — every dish is prepared with local ingredients and served with a genuine smile.</p>
+      <p>We've been a Kinsale favourite for years, and we're proud to welcome dogs, families and solo travellers alike.</p>
+    </div>
+    <div class="about2-img2"></div>
+  </div>
+
+  <section class="ssect menu-bg">
+    <span class="slabel">What We Serve</span>
+    <h2 class="sh2" style="font-family:'Raleway',sans-serif;font-size:2.8rem;font-weight:800;letter-spacing:-0.02em;color:#1A1A1A;margin-bottom:10px">The Menu</h2>
+    <p style="color:#6B6560;max-width:480px;margin-bottom:48px;font-weight:300">Honest food, fair prices, good coffee. Gluten-free and vegan options always available.</p>
+    <div class="smenu-grid">
+      <div class="smenu-card">
+        <div class="smenu-img" style="background-image:url('https://images.unsplash.com/photo-1482049016688-2d3e1291311a?w=800&q=80')"></div>
+        <div class="smenu-body">
+          <h3>Breakfast</h3>
+          <p>All morning, every morning.</p>
+          <ul class="smenu-items">
+            <li><span>Full Irish</span><span class="smenu-price">€8.90</span></li>
+            <li><span>Eggs Benedict</span><span class="smenu-price">€8.10</span></li>
+            <li><span>Eggs Royale</span><span class="smenu-price">€8.60</span></li>
+            <li><span>Granola (GF)</span><span class="smenu-price">€5.20</span></li>
+            <li><span>Pancakes</span><span class="smenu-price">€7.90</span></li>
+          </ul>
+          <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/635bf51580fbbd12af99dce4_CC_Breakfast%20Menu_Winter%202022_V3.pdf" target="_blank" class="sbtn sbtn-menu">Full Breakfast Menu ↗</a>
+        </div>
+      </div>
+      <div class="smenu-card">
+        <div class="smenu-img" style="background-image:url('https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&q=80')"></div>
+        <div class="smenu-body">
+          <h3>Lunch</h3>
+          <p>Bagels, wraps, burgers, chowder &amp; craft beers.</p>
+          <ul class="smenu-items">
+            <li><span>Beef Burger</span><span class="smenu-price">€13.50</span></li>
+            <li><span>Fish &amp; Chips</span><span class="smenu-price">€13.90</span></li>
+            <li><span>Salmon Bagel</span><span class="smenu-price">€7.80</span></li>
+            <li><span>Chowder</span><span class="smenu-price">€7.80</span></li>
+            <li><span>Kinsale Pale Ale</span><span class="smenu-price">€6.00</span></li>
+          </ul>
+          <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/64902c08fa7af9474d853ff2_CC_Lunch%20Menu_Summer%202023_V5%20(1).pdf" target="_blank" class="sbtn sbtn-menu">Full Lunch Menu ↗</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ssect hours-bg">
+    <div class="shours-grid">
+      <div>
+        <span class="slabel">Come See Us</span>
+        <h2 class="sh2" style="font-family:'Raleway',sans-serif;font-weight:800;font-size:2.2rem;color:#1A1A1A;margin-bottom:28px">Hours &amp; Location</h2>
+        <table class="shours-table">
+          <tr><td>Tuesday – Friday</td><td>8:00 AM – 4:00 PM</td></tr>
+          <tr><td>Saturday</td><td>8:00 AM – 3:00 PM</td></tr>
+          <tr><td style="color:#999">Sunday &amp; Monday</td><td style="color:#999;font-weight:400">Closed</td></tr>
+        </table>
+        <div class="hcontact" style="margin-top:28px">
+          <a href="tel:+35321470685">📞 (021) 470 0685</a>
+          <a href="mailto:cosycafekinsale@outlook.com">📧 cosycafekinsale@outlook.com</a>
+          <a href="#" style="color:#6B6560">📍 Church Square, Sleveen, Kinsale, Co. Cork P17 KP21</a>
+        </div>
+      </div>
+      <div class="smap"><iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2464!2d-8.5255!3d51.7063!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x484461e48fb15e1b%3A0xa3cafe473748cf47!2sCosy+Cafe!5e0!3m2!1sen!2sie!4v1" allowfullscreen loading="lazy"></iframe></div>
+    </div>
+  </section>
+
+  <section class="ssect rev-bg" style="padding:96px 64px">
+    <span class="slabel">Reviews</span>
+    <h2 class="sh2" style="font-family:'Raleway',sans-serif;font-weight:800;font-size:2.4rem;color:#FAFAF8;margin-bottom:10px">What people say</h2>
+    <div style="display:flex;align-items:center;gap:16px;margin:20px 0 40px">
+      <span class="stars-big">★★★★★</span><span class="rating-big">4.7</span>
+      <span style="color:rgba(250,250,248,0.4);font-size:0.9rem">724 Google reviews</span>
+    </div>
+    <div class="sreviews-grid">
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Best full Irish in Kinsale. Friendly staff, beautiful setting. We come every Saturday morning."</p><p class="srev-author">— Google Review</p></div>
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Eggs royale were perfect. Coffee was excellent. Lovely place to sit and watch Kinsale go by."</p><p class="srev-author">— TripAdvisor</p></div>
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Dog-friendly, warm and welcoming. The granola and scones are a must. A real Kinsale institution."</p><p class="srev-author">— Google Review</p></div>
+    </div>
+    <div style="display:flex;gap:14px;margin-top:12px;flex-wrap:wrap">
+      <a href="#" class="sbtn" style="border:2px solid #E8A020;color:#E8A020;border-radius:0">Leave a Google Review</a>
+      <a href="#" class="sbtn" style="border:2px solid rgba(250,250,248,0.3);color:rgba(250,250,248,0.7);border-radius:0">TripAdvisor</a>
+    </div>
+  </section>
+
+  <footer class="sfooter">
+    <span class="sfooter-name">COSY CAFÉ</span>
+    <div class="sfooter-links">
+      <a href="https://www.facebook.com/cosycafekinsale/" target="_blank">Facebook</a>
+      <a href="https://www.instagram.com/cosycafekinsale" target="_blank">Instagram</a>
+      <a href="https://www.tiktok.com/@cosycafekinsale" target="_blank">TikTok</a>
+    </div>
+  </footer>
+</div>
+
+<!-- ═══════════════ THEME 3 — DARK ROAST ═══════════════ -->
+<div id="t3" class="site">
+  <nav class="snav">
+    <div class="snav-logo">
+      <img src="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/6278fd4ad64756188f608e81_Webp.net-resizeimage.jpg" alt="Cosy Café" />
+      <span class="snav-logo-name">Cosy Café</span>
+    </div>
+    <ul class="snav-links"><li><a href="#">Menu</a></li><li><a href="#">Hours</a></li><li><a href="#">Find Us</a></li><li><a href="#">Reviews</a></li></ul>
+    <a href="#" class="snav-cta sbtn">Reserve</a>
+  </nav>
+
+  <section class="shero">
+    <div class="shero-inner">
+      <span class="shero-badge">☕ Kinsale · Wild Atlantic Way</span>
+      <h1>Where every morning<br>feels like <em>Sunday</em></h1>
+      <p>Breakfast, brunch and lunch served fresh in the heart of Kinsale. Dog friendly. Always welcoming.</p>
+      <div class="shero-btns">
+        <a href="#" class="sbtn sbtn-p">View Menus</a>
+        <a href="#" class="sbtn sbtn-o">Find Us</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="about-split">
+    <div class="about-split-img"></div>
+    <div class="about-split-text">
+      <span class="slabel">About</span>
+      <h2 class="sh2">Made with care.<br>Served with heart.</h2>
+      <p>We source locally — free range eggs, Clonakilty pudding, freshly baked scones. Everything is prepared fresh every morning in the heart of Kinsale.</p>
+      <p>A dog-friendly, welcoming space on the Wild Atlantic Way. Whether you're a regular or visiting for the first time, pull up a chair.</p>
+    </div>
+  </div>
+
+  <section class="ssect menu-bg" style="text-align:center">
+    <span class="slabel">The Menu</span>
+    <h2 class="sh2" style="font-family:'Playfair Display',serif;font-size:2.8rem;color:#F5EEE4;margin-bottom:10px">What we serve</h2>
+    <p style="color:rgba(232,213,183,0.6);max-width:480px;margin:0 auto 48px;font-weight:300">Fresh, local, seasonal. Gluten-free and vegan options always available.</p>
+    <div class="smenu-grid" style="margin:0 auto">
+      <div class="smenu-card">
+        <div class="smenu-img" style="background-image:url('https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=800&q=80')"></div>
+        <div class="smenu-body">
+          <h3>Breakfast</h3>
+          <p>All morning, every morning.</p>
+          <ul class="smenu-items">
+            <li><span>Full Irish</span><span class="smenu-price">€8.90</span></li>
+            <li><span>Eggs Benedict</span><span class="smenu-price">€8.10</span></li>
+            <li><span>Eggs Royale</span><span class="smenu-price">€8.60</span></li>
+            <li><span>Granola (GF)</span><span class="smenu-price">€5.20</span></li>
+            <li><span>Pancakes</span><span class="smenu-price">€7.90</span></li>
+          </ul>
+          <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/635bf51580fbbd12af99dce4_CC_Breakfast%20Menu_Winter%202022_V3.pdf" target="_blank" class="sbtn sbtn-menu">Full Menu ↗</a>
+        </div>
+      </div>
+      <div class="smenu-card">
+        <div class="smenu-img" style="background-image:url('https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80')"></div>
+        <div class="smenu-body">
+          <h3>Lunch</h3>
+          <p>Bagels, wraps, burgers &amp; Kinsale craft beer.</p>
+          <ul class="smenu-items">
+            <li><span>Beef Burger</span><span class="smenu-price">€13.50</span></li>
+            <li><span>Fish &amp; Chips</span><span class="smenu-price">€13.90</span></li>
+            <li><span>Salmon Bagel</span><span class="smenu-price">€7.80</span></li>
+            <li><span>Chowder</span><span class="smenu-price">€7.80</span></li>
+            <li><span>Kinsale Pale Ale</span><span class="smenu-price">€6.00</span></li>
+          </ul>
+          <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/64902c08fa7af9474d853ff2_CC_Lunch%20Menu_Summer%202023_V5%20(1).pdf" target="_blank" class="sbtn sbtn-menu">Full Menu ↗</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ssect hours-bg">
+    <div class="shours-grid">
+      <div>
+        <span class="slabel">Visit Us</span>
+        <h2 class="sh2" style="font-family:'Playfair Display',serif;font-size:2.4rem;color:#F5EEE4;margin-bottom:28px">Hours &amp; Location</h2>
+        <table class="shours-table">
+          <tr><td>Tuesday – Friday</td><td>8:00 AM – 4:00 PM</td></tr>
+          <tr><td>Saturday</td><td>8:00 AM – 3:00 PM</td></tr>
+          <tr><td style="color:rgba(232,213,183,0.35)">Sunday &amp; Monday</td><td style="color:rgba(232,213,183,0.35);font-weight:400">Closed</td></tr>
+        </table>
+        <div class="hcontact" style="margin-top:28px">
+          <a href="tel:+35321470685">📞 (021) 470 0685</a>
+          <a href="mailto:cosycafekinsale@outlook.com">📧 cosycafekinsale@outlook.com</a>
+          <a href="#" style="color:rgba(232,213,183,0.6)">📍 Church Square, Sleveen, Kinsale, Co. Cork P17 KP21</a>
+        </div>
+      </div>
+      <div class="smap"><iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2464!2d-8.5255!3d51.7063!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x484461e48fb15e1b%3A0xa3cafe473748cf47!2sCosy+Cafe!5e0!3m2!1sen!2sie!4v1" allowfullscreen loading="lazy"></iframe></div>
+    </div>
+  </section>
+
+  <section class="ssect rev-bg">
+    <span class="slabel">Reviews</span>
+    <h2 class="sh2" style="font-family:'Playfair Display',serif;font-size:2.6rem;color:#F5EEE4;margin-bottom:10px">What our guests say</h2>
+    <div style="display:flex;align-items:center;gap:16px;margin:20px auto 40px;justify-content:center">
+      <span class="stars-big">★★★★★</span><span class="rating-big">4.7</span>
+      <span style="color:rgba(232,213,183,0.4);font-size:0.9rem">724 Google reviews</span>
+    </div>
+    <div class="sreviews-grid" style="max-width:1050px;margin:0 auto 36px">
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Best full Irish in Kinsale. Friendly staff, cosy setting. We go every Saturday without fail."</p><p class="srev-author">— Google Review</p></div>
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Eggs royale were perfect. The coffee is outstanding. Lovely spot to watch Kinsale come alive."</p><p class="srev-author">— TripAdvisor</p></div>
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Dog-friendly, warm and genuinely welcoming. The granola and scones are a must-try."</p><p class="srev-author">— Google Review</p></div>
+    </div>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a href="#" class="sbtn" style="border:2px solid #F5C842;color:#F5C842">Leave a Google Review</a>
+      <a href="#" class="sbtn" style="border:2px solid rgba(232,213,183,0.3);color:rgba(232,213,183,0.7)">TripAdvisor</a>
+    </div>
+  </section>
+
+  <footer class="sfooter">
+    <span class="sfooter-name">Cosy Café · Kinsale</span>
+    <div class="sfooter-links">
+      <a href="https://www.facebook.com/cosycafekinsale/" target="_blank">Facebook</a>
+      <a href="https://www.instagram.com/cosycafekinsale" target="_blank">Instagram</a>
+      <a href="https://www.tiktok.com/@cosycafekinsale" target="_blank">TikTok</a>
+    </div>
+  </footer>
+</div>
+
+<!-- ═══════════════ THEME 4 — WILD ATLANTIC ═══════════════ -->
+<div id="t4" class="site">
+  <nav class="snav">
+    <div class="snav-logo">
+      <img src="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/6278fd4ad64756188f608e81_Webp.net-resizeimage.jpg" alt="Cosy Café" />
+      <span class="snav-logo-name">Cosy Café</span>
+    </div>
+    <ul class="snav-links"><li><a href="#">Menu</a></li><li><a href="#">Hours</a></li><li><a href="#">Find Us</a></li><li><a href="#">Reviews</a></li></ul>
+    <a href="#" class="snav-cta sbtn">Find Us</a>
+  </nav>
+
+  <section class="shero">
+    <div class="shero-inner">
+      <span class="shero-badge">🌊 Kinsale · Wild Atlantic Way · Dog Friendly</span>
+      <h1>Fresh food.<br><em>Warm welcome.</em><br>Wild Atlantic Way.</h1>
+      <p>Your favourite café stop on the Wild Atlantic Way. Breakfast, brunch &amp; lunch served fresh in Kinsale, Co. Cork.</p>
+      <div class="shero-btns">
+        <a href="#" class="sbtn sbtn-p">View Our Menu</a>
+        <a href="#" class="sbtn sbtn-o">Opening Hours</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="about4">
+    <div class="about4-img"></div>
+    <div class="about4-text">
+      <span class="slabel">Our Story</span>
+      <h2 class="sh2">Dog-friendly. People-first.</h2>
+      <p>Cosy Café is a Kinsale favourite — a place where locals and visitors alike come for great food, good coffee and a genuine welcome.</p>
+      <p>We use free range eggs, Clonakilty pudding, locally caught fish and freshly baked scones. Everything is made fresh every day.</p>
+      <span class="dog-pill">🐾 Dogs always welcome</span>
+    </div>
+  </div>
+
+  <section class="ssect menu-bg" style="text-align:center">
+    <span class="slabel" style="color:#2B4C7E">What We Serve</span>
+    <h2 class="sh2" style="font-family:'Nunito',sans-serif;font-size:2.6rem;font-weight:800;color:#1A2E45;margin-bottom:10px">Our Menus</h2>
+    <p style="color:#7A6852;max-width:480px;margin:0 auto 48px">Fresh and seasonal. Gluten-free and vegan options always available on request.</p>
+    <div class="smenu-grid" style="margin:0 auto">
+      <div class="smenu-card">
+        <div class="smenu-img" style="background-image:url('https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=800&q=80')"></div>
+        <div class="smenu-body">
+          <h3>☀️ Breakfast</h3>
+          <p>Classics and light bites, served all morning.</p>
+          <ul class="smenu-items">
+            <li><span>Full Irish</span><span class="smenu-price">€8.90</span></li>
+            <li><span>Eggs Benedict</span><span class="smenu-price">€8.10</span></li>
+            <li><span>Eggs Royale</span><span class="smenu-price">€8.60</span></li>
+            <li><span>Granola (GF)</span><span class="smenu-price">€5.20</span></li>
+            <li><span>Pancakes</span><span class="smenu-price">€7.90</span></li>
+          </ul>
+          <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/635bf51580fbbd12af99dce4_CC_Breakfast%20Menu_Winter%202022_V3.pdf" target="_blank" class="sbtn sbtn-menu">Full Menu ↗</a>
+        </div>
+      </div>
+      <div class="smenu-card">
+        <div class="smenu-img" style="background-image:url('https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80')"></div>
+        <div class="smenu-body">
+          <h3>🥗 Lunch</h3>
+          <p>Bagels, wraps, burgers &amp; Kinsale craft beers.</p>
+          <ul class="smenu-items">
+            <li><span>Beef Burger</span><span class="smenu-price">€13.50</span></li>
+            <li><span>Fish &amp; Chips</span><span class="smenu-price">€13.90</span></li>
+            <li><span>Salmon Bagel</span><span class="smenu-price">€7.80</span></li>
+            <li><span>Chowder</span><span class="smenu-price">€7.80</span></li>
+            <li><span>Kinsale Pale Ale</span><span class="smenu-price">€6.00</span></li>
+          </ul>
+          <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/64902c08fa7af9474d853ff2_CC_Lunch%20Menu_Summer%202023_V5%20(1).pdf" target="_blank" class="sbtn sbtn-menu">Full Menu ↗</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ssect hours-bg">
+    <div class="shours-grid">
+      <div>
+        <span class="slabel" style="color:#2B4C7E">Come Visit</span>
+        <h2 class="sh2" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:2.2rem;color:#1A2E45;margin-bottom:28px">Hours &amp; Location</h2>
+        <table class="shours-table">
+          <tr><td>Tuesday – Friday</td><td>8:00 AM – 4:00 PM</td></tr>
+          <tr><td>Saturday</td><td>8:00 AM – 3:00 PM</td></tr>
+          <tr><td style="color:#B0C4D8">Sunday &amp; Monday</td><td style="color:#B0C4D8;font-weight:400">Closed</td></tr>
+        </table>
+        <div class="hcontact" style="margin-top:28px">
+          <a href="tel:+35321470685">📞 (021) 470 0685</a>
+          <a href="mailto:cosycafekinsale@outlook.com">📧 cosycafekinsale@outlook.com</a>
+          <a href="#" style="color:#5A7A9A">📍 Church Square, Sleveen, Kinsale, Co. Cork P17 KP21</a>
+        </div>
+      </div>
+      <div class="smap"><iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2464!2d-8.5255!3d51.7063!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x484461e48fb15e1b%3A0xa3cafe473748cf47!2sCosy+Cafe!5e0!3m2!1sen!2sie!4v1" allowfullscreen loading="lazy"></iframe></div>
+    </div>
+  </section>
+
+  <section class="ssect rev-bg">
+    <span class="slabel" style="color:#FFD166">What People Say</span>
+    <h2 class="sh2" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:2.4rem;color:#fff;margin-bottom:10px">Loved by locals &amp; visitors</h2>
+    <div style="display:flex;align-items:center;gap:16px;margin:20px auto 40px;justify-content:center">
+      <span class="stars-big">★★★★★</span><span class="rating-big">4.7</span>
+      <span style="color:rgba(255,255,255,0.4);font-size:0.9rem">724 Google reviews</span>
+    </div>
+    <div class="sreviews-grid" style="max-width:1050px;margin:0 auto 36px">
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Best full Irish in Kinsale. Friendly staff, beautiful setting. We come every Saturday morning."</p><p class="srev-author">— Google Review</p></div>
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Wonderful stop on the Wild Atlantic Way. The chowder is incredible and the coffee is perfect."</p><p class="srev-author">— TripAdvisor</p></div>
+      <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Dog-friendly and genuinely welcoming. The granola and scones are a must every visit."</p><p class="srev-author">— Google Review</p></div>
+    </div>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a href="#" class="sbtn" style="border:2px solid #FFD166;color:#FFD166;border-radius:100px">Leave a Google Review</a>
+      <a href="#" class="sbtn" style="border:2px solid rgba(255,255,255,0.35);color:rgba(255,255,255,0.75);border-radius:100px">TripAdvisor</a>
+    </div>
+  </section>
+
+  <footer class="sfooter">
+    <span class="sfooter-name">Cosy Café · Kinsale</span>
+    <div class="sfooter-links">
+      <a href="https://www.facebook.com/cosycafekinsale/" target="_blank">Facebook</a>
+      <a href="https://www.instagram.com/cosycafekinsale" target="_blank">Instagram</a>
+      <a href="https://www.tiktok.com/@cosycafekinsale" target="_blank">TikTok</a>
+    </div>
+  </footer>
+</div>
+
+<!-- SPRIMAL CHAT WIDGET -->
+<script>
+  (function() {
+    var s = document.createElement('script');
+    s.src = 'https://app.sprimal.com/widget.js';
+    s.setAttribute('data-club-id', 'cosy-cafe');
+    s.defer = true;
+    document.head.appendChild(s);
+  })();
+
+  function setTheme(n) {
+    document.querySelectorAll('.site').forEach(function(el){ el.classList.remove('active'); });
+    document.querySelectorAll('.tbtn').forEach(function(el){ el.classList.remove('active'); });
+    document.getElementById('t'+n).classList.add('active');
+    document.querySelector('.tbtn[data-t="'+n+'"]').classList.add('active');
+    window.scrollTo({top:0, behavior:'instant'});
+  }
+</script>
+</body>
+</html>

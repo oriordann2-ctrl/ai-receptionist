@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const crypto = require("crypto");
 const cookieParser = require("cookie-parser");
 const { createClient } = require("@supabase/supabase-js");
@@ -1561,6 +1562,132 @@ function buildEnrichedChunks(text, docMeta = {}) {
     }
   }
   return result;
+}
+
+// ── Reconstruct original text from stored chunks ──────────────────────────
+// Removes the 50-word overlap between consecutive chunks so we get back
+// approximately the original document text for re-processing.
+function reconstructTextFromChunks(chunks) {
+  if (!chunks.length) return "";
+  chunks = [...chunks].sort((a, b) => a.chunk_index - b.chunk_index);
+
+  let text = chunks[0].chunk_text;
+  for (let i = 1; i < chunks.length; i++) {
+    const currWords = chunks[i].chunk_text.split(/\s+/);
+    const textWords = text.split(/\s+/);
+    let merged = false;
+    // Try to find the overlap (50-word window, scan down to 5)
+    for (let ov = Math.min(60, textWords.length, currWords.length); ov >= 5; ov--) {
+      if (textWords.slice(-ov).join(" ") === currWords.slice(0, ov).join(" ")) {
+        text += " " + currWords.slice(ov).join(" ");
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) text += "\n" + chunks[i].chunk_text;
+  }
+  return text.trim();
+}
+
+// ── Re-index a single document with the new enriched chunk format ─────────
+// Safe atomic swap: collect old IDs → insert new → delete old by ID.
+// Returns { ok, docId, oldCount, newCount, skipped, reason }
+async function reindexDocument(doc, tenantId) {
+  // Skip website content — use Re-crawl button for those
+  if (doc.document_type === "Website Content") {
+    return { ok: true, skipped: true, reason: "website-content" };
+  }
+
+  // Get existing chunks
+  const { data: existingChunks, error: fetchErr } = await supabase
+    .from("knowledge_chunks")
+    .select("id, chunk_index, chunk_text")
+    .eq("document_id", doc.id)
+    .order("chunk_index", { ascending: true });
+
+  if (fetchErr) return { ok: false, reason: "fetch-error: " + fetchErr.message };
+  if (!existingChunks || !existingChunks.length) return { ok: true, skipped: true, reason: "no-chunks" };
+
+  // Skip if chunks already enriched with new format (idempotent re-run safety)
+  const firstChunk = existingChunks[0].chunk_text || "";
+  if (firstChunk.startsWith("Document:") || firstChunk.startsWith("Type:")) {
+    return { ok: true, skipped: true, reason: "already-enriched" };
+  }
+
+  // ── Attempt 1: re-download original file from Supabase Storage ────────────
+  let text = null;
+  if (doc.storage_path && doc.mimetype !== "text/html") {
+    try {
+      const { data: fileBlob, error: dlErr } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .download(doc.storage_path);
+      if (!dlErr && fileBlob) {
+        const buffer = Buffer.from(await fileBlob.arrayBuffer());
+        if (doc.mimetype === "application/pdf") {
+          const tmpPath = path.join(os.tmpdir(), `reindex-${doc.id}.pdf`);
+          fs.writeFileSync(tmpPath, buffer);
+          try { text = await extractPdfText(tmpPath); } finally { fs.unlink(tmpPath, () => {}); }
+        } else if (doc.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+          const result = await mammoth.extractRawText({ buffer });
+          text = result.value;
+        } else {
+          text = buffer.toString("utf8");
+        }
+      }
+    } catch (dlErr) {
+      console.warn(`[reindex] Storage download failed for ${doc.id}:`, dlErr.message);
+    }
+  }
+
+  // ── Fallback: reconstruct from existing chunks ─────────────────────────────
+  if (!text || text.trim().length < 10) {
+    text = reconstructTextFromChunks(existingChunks);
+  }
+
+  if (!text || text.trim().length < 10) {
+    return { ok: true, skipped: true, reason: "no-text-recoverable" };
+  }
+
+  // Build enriched chunks with new format
+  const docMeta = {
+    title:        doc.description || doc.original_filename,
+    documentType: doc.document_type
+  };
+  const enriched = buildEnrichedChunks(text, docMeta);
+  if (!enriched.length) return { ok: true, skipped: true, reason: "no-chunks-produced" };
+
+  // Embed
+  try {
+    const embResp = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: enriched.map(c => c.enrichedText)
+    });
+
+    const newRows = embResp.data.map((item, i) => ({
+      document_id:     doc.id,
+      chunk_index:     i,
+      chunk_text:      enriched[i].enrichedText,
+      section_heading: enriched[i].sectionHeading,
+      embedding:       item.embedding,
+      lender:          null,
+      document_type:   doc.document_type,
+      effective_date:  doc.effective_date || null,
+      tenant_id:       tenantId
+    }));
+
+    // Atomic swap: insert new rows first, THEN delete old ones by ID
+    const oldIds = existingChunks.map(c => c.id);
+    const { error: insertErr } = await supabase.from("knowledge_chunks").insert(newRows);
+    if (insertErr) throw new Error("Insert failed: " + insertErr.message);
+
+    // Delete old chunks by their specific IDs — never touches newly inserted rows
+    const { error: delErr } = await supabase.from("knowledge_chunks").delete().in("id", oldIds);
+    if (delErr) console.warn(`[reindex] Old chunk delete partial: ${delErr.message}`);
+
+    return { ok: true, oldCount: oldIds.length, newCount: newRows.length };
+  } catch (embErr) {
+    return { ok: false, reason: "embedding-error: " + embErr.message };
+  }
 }
 
 // ── Generate embeddings and store in knowledge_chunks ─────────────────────
@@ -5602,6 +5729,72 @@ app.post("/api/portal/recrawl", requireSeniorTenant, async (req, res) => {
     console.error("[recrawl] Error:", err.message);
     res.status(500).json({ error: "Re-crawl failed to start." });
   }
+});
+
+// ── POST /api/portal/reindex-documents ───────────────────────────────────────
+// Re-indexes all uploaded (non-website) documents for the tenant with the new
+// enriched chunk format. Runs in the background — responds immediately with a
+// job ID, then the client polls /api/portal/reindex-status for progress.
+const reindexProgressMap = new Map(); // tenantId → { done, total, results, running }
+
+app.post("/api/portal/reindex-documents", requireSeniorTenant, async (req, res) => {
+  const { tenantId } = req.tenant;
+
+  if (reindexProgressMap.get(tenantId)?.running) {
+    return res.status(409).json({ error: "Re-index already in progress." });
+  }
+
+  // Get all non-website documents for this tenant
+  const { data: docs, error: docsErr } = await supabase
+    .from("documents")
+    .select("id, original_filename, description, document_type, mimetype, storage_path, effective_date")
+    .eq("tenant_id", tenantId)
+    .neq("document_type", "Website Content")
+    .order("uploaded_at", { ascending: true });
+
+  if (docsErr) return res.status(500).json({ error: "Could not load documents." });
+  if (!docs || !docs.length) return res.json({ ok: true, message: "No uploaded documents to re-index." });
+
+  // Kick off background work
+  reindexProgressMap.set(tenantId, { running: true, done: 0, total: docs.length, results: [] });
+  res.json({ ok: true, total: docs.length });
+
+  // Run sequentially — avoids OpenAI rate limits and gives predictable progress
+  (async () => {
+    for (const doc of docs) {
+      try {
+        const result = await reindexDocument(doc, tenantId);
+        const entry = { docId: doc.id, name: doc.original_filename || doc.description, ...result };
+        const prog = reindexProgressMap.get(tenantId);
+        if (prog) {
+          prog.done++;
+          prog.results.push(entry);
+        }
+        console.log(`[reindex] ${tenantId} — ${doc.original_filename}: ${JSON.stringify(entry)}`);
+        // Small delay between documents to be kind to OpenAI
+        await new Promise(r => setTimeout(r, 500));
+      } catch (err) {
+        console.error(`[reindex] Unhandled error for doc ${doc.id}:`, err.message);
+        const prog = reindexProgressMap.get(tenantId);
+        if (prog) { prog.done++; prog.results.push({ docId: doc.id, ok: false, reason: err.message }); }
+      }
+    }
+    const prog = reindexProgressMap.get(tenantId);
+    if (prog) prog.running = false;
+    console.log(`[reindex] Completed for ${tenantId}. ${docs.length} docs processed.`);
+  })();
+});
+
+app.get("/api/portal/reindex-status", requireSeniorTenant, (req, res) => {
+  const prog = reindexProgressMap.get(req.tenant.tenantId);
+  if (!prog) return res.json({ active: false });
+  res.json({
+    active:   prog.running,
+    done:     prog.done,
+    total:    prog.total,
+    results:  prog.results,
+    complete: !prog.running && prog.done > 0
+  });
 });
 
 // ── Membership Requests ───────────────────────────────────────────────────────

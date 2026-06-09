@@ -1025,11 +1025,16 @@
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:2px;">
       <div class="card-title" style="margin-bottom:0;">Knowledge Base</div>
-      <button id="recrawlBtn" onclick="portalRecrawl()" style="background:white;color:#1e40af;border:1.5px solid #1e40af;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
-        🔄 Re-crawl Website
-      </button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="reindexBtn" onclick="portalReindex()" style="background:white;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
+          ✨ Re-index Documents
+        </button>
+        <button id="recrawlBtn" onclick="portalRecrawl()" style="background:white;color:#1e40af;border:1.5px solid #1e40af;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
+          🔄 Re-crawl Website
+        </button>
+      </div>
     </div>
-    <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers. Use Re-crawl if your website content has changed.</div>
+    <div class="card-sub">Your assistant was trained on your website automatically. Upload additional documents to improve its answers. Use <strong>Re-index</strong> to upgrade existing documents to the latest AI format, or <strong>Re-crawl</strong> if your website content has changed.</div>
 
     <!-- Upload: Step 1 — Choose file -->
     <div class="file-row">
@@ -2933,6 +2938,66 @@
       if (details.open) loadIntegrations();
     });
   })();
+
+  // ── Re-index uploaded documents ─────────────────────────────────────────────
+  // Upgrades existing uploaded documents to the new enriched chunk format.
+  // Website content is handled separately by Re-crawl.
+  window.portalReindex = function() {
+    var btn = document.getElementById("reindexBtn");
+    var statusEl = document.getElementById("uploadStatus");
+    if (!confirm("This will upgrade all your uploaded documents to the latest AI indexing format.\n\nYour documents and data will NOT be deleted — this only improves how they are understood.\n\nContinue?")) return;
+
+    btn.disabled = true;
+    btn.textContent = "✨ Starting…";
+    if (statusEl) { statusEl.className = "upload-status loading"; statusEl.textContent = "Preparing re-index…"; statusEl.style.display = "block"; }
+
+    fetch("/api/portal/reindex-documents", { method: "POST" })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) {
+          btn.disabled = false; btn.textContent = "✨ Re-index Documents";
+          if (statusEl) { statusEl.className = "upload-status error"; statusEl.textContent = "❌ " + data.error; }
+          return;
+        }
+        if (data.message) {
+          // No docs to re-index
+          btn.disabled = false; btn.textContent = "✨ Re-index Documents";
+          if (statusEl) { statusEl.className = "upload-status success"; statusEl.textContent = "✅ " + data.message; }
+          return;
+        }
+        var total = data.total || 0;
+        if (statusEl) statusEl.textContent = "Re-indexing 0 / " + total + " documents…";
+
+        // Poll for progress
+        var pollId = setInterval(function() {
+          fetch("/api/portal/reindex-status")
+            .then(function(r) { return r.json(); })
+            .then(function(status) {
+              if (statusEl) statusEl.textContent = "Re-indexing " + status.done + " / " + status.total + " documents…";
+
+              if (status.complete || (!status.active && status.done > 0)) {
+                clearInterval(pollId);
+                btn.disabled = false; btn.textContent = "✨ Re-index Documents";
+
+                // Build summary
+                var results = status.results || [];
+                var upgraded  = results.filter(function(r) { return r.ok && !r.skipped; }).length;
+                var skipped   = results.filter(function(r) { return r.skipped; }).length;
+                var failed    = results.filter(function(r) { return !r.ok && !r.skipped; }).length;
+                var msg = "✅ Re-index complete. " + upgraded + " upgraded";
+                if (skipped) msg += ", " + skipped + " already up to date";
+                if (failed)  msg += ", " + failed + " failed (check logs)";
+                if (statusEl) { statusEl.className = "upload-status success"; statusEl.textContent = msg; }
+              }
+            })
+            .catch(function() { clearInterval(pollId); btn.disabled = false; btn.textContent = "✨ Re-index Documents"; });
+        }, 2000);
+      })
+      .catch(function() {
+        btn.disabled = false; btn.textContent = "✨ Re-index Documents";
+        if (statusEl) { statusEl.className = "upload-status error"; statusEl.textContent = "❌ Re-index failed to start."; }
+      });
+  };
 
   // ── Re-crawl website ────────────────────────────────────────────────────────
   window.portalRecrawl = function() {

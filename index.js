@@ -5486,21 +5486,19 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
       stripeKey = cfg.secret_key || null;
     }
   } catch (e) {}
-  if (!stripeKey) { console.log("[Preview] No Stripe key for tenant"); return res.json({ proration: null }); }
+  if (!stripeKey) return res.json({ proration: null });
 
   try {
     const authHeader = "Basic " + Buffer.from(stripeKey + ":").toString("base64");
 
     // Find customer
-    console.log("[Preview] Looking up customer:", request.member_email);
     const custResp = await fetch(
       "https://api.stripe.com/v1/customers?email=" + encodeURIComponent(request.member_email) + "&limit=1",
       { headers: { Authorization: authHeader } }
     );
     const custData = await custResp.json();
-    if (!custData.data || !custData.data.length) { console.log("[Preview] Customer not found"); return res.json({ proration: null }); }
+    if (!custData.data || !custData.data.length) return res.json({ proration: null });
     const customer = custData.data[0];
-    console.log("[Preview] Customer found:", customer.id);
 
     // Find subscription
     const subResp = await fetch(
@@ -5511,8 +5509,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
     const sub = (subData.data || []).find(function(s) {
       return ["active", "trialing", "past_due"].indexOf(s.status) !== -1;
     });
-    if (!sub) { console.log("[Preview] No active subscription"); return res.json({ proration: null }); }
-    console.log("[Preview] Subscription found:", sub.id, "status:", sub.status);
+    if (!sub) return res.json({ proration: null });
 
     const currentItem = sub.items && sub.items.data && sub.items.data[0];
 
@@ -5543,8 +5540,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
     const targetProduct = (productsData.data || []).find(function(p) {
       return p.name.toLowerCase() === request.target_membership_type.toLowerCase();
     });
-    if (!targetProduct) { console.log("[Preview] Target product not found:", request.target_membership_type); return res.json({ proration: null }); }
-    console.log("[Preview] Target product:", targetProduct.id, targetProduct.name);
+    if (!targetProduct) return res.json({ proration: null });
 
     const pricesResp = await fetch(
       "https://api.stripe.com/v1/prices?product=" + targetProduct.id + "&active=true&limit=5",
@@ -5552,8 +5548,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
     );
     const pricesData = await pricesResp.json();
     const targetPrice = pricesData.data && pricesData.data[0];
-    if (!targetPrice) { console.log("[Preview] No price for target product"); return res.json({ proration: null }); }
-    console.log("[Preview] Target price:", targetPrice.id, targetPrice.unit_amount);
+    if (!targetPrice) return res.json({ proration: null });
 
     // Preview upcoming invoice with proposed plan change — no changes made
     const prorationDate = Math.floor(Date.now() / 1000);
@@ -5570,8 +5565,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
       { headers: { Authorization: authHeader } }
     );
     const previewData = await previewResp.json();
-    if (previewData.error) { console.log("[Preview] Stripe preview error:", previewData.error.message); return res.json({ proration: null }); }
-    console.log("[Preview] Preview OK, lines:", JSON.stringify((previewData.lines && previewData.lines.data || []).map(function(l){ return {desc: l.description, amount: l.amount, proration: l.proration}; })));
+    if (previewData.error) return res.json({ proration: null });
 
     // Sum ALL invoice lines — amount_due clamps at 0, and the new plan's subscription
     // line (proration: false) must be included to get the correct net credit/charge

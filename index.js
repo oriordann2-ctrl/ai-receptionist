@@ -3398,6 +3398,24 @@ async function handleBookingFlow({ userId, conversationId, message, bookingType,
   };
 }
 
+// ── Admin: manually seed flows for any tenant (one-off utility) ──────────────
+app.post("/api/admin/seed-tenant", requireAdmin, async (req, res) => {
+  const { tenantId } = req.body;
+  if (!tenantId) return res.status(400).json({ error: "tenantId required" });
+  const { data: tenant } = await supabase.from("tenants").select("name, website, business_type").eq("id", tenantId).maybeSingle();
+  if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+  if (!tenant.website) return res.status(400).json({ error: "No website on file" });
+  let bizType = tenant.business_type;
+  if (!bizType || bizType === "other") {
+    const pages2 = await crawlWebsite(tenant.website, 5);
+    bizType = await detectBusinessType(pages2, tenant.website);
+  }
+  if (!bizType || bizType === "other") return res.status(400).json({ error: "Could not detect business type" });
+  const pages = await crawlWebsite(tenant.website, 12);
+  const seeded = await seedFlowsForType(tenantId, tenant.name, tenant.website, bizType, pages);
+  res.json({ ok: true, seeded, bizType });
+});
+
 app.get("/admin/mortgage-leads", requireAdmin, async (req, res) => {
   const leads = await fetchAllMortgageLeads();
   res.json(leads);

@@ -439,7 +439,11 @@
 
   function scrollToBottom(delay) {
     setTimeout(function() {
-      messages.scrollTo({ top: messages.scrollHeight, behavior: "smooth" });
+      var lastEl = messages.lastElementChild;
+      if (!lastEl) return;
+      // Centre the latest content in the visible area
+      var target = lastEl.offsetTop - Math.floor(messages.clientHeight * 0.4);
+      messages.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
     }, delay || 0);
   }
 

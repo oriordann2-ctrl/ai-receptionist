@@ -488,8 +488,7 @@
     menuBtn.className = "sprimal-choice sprimal-choice-ai";
     menuBtn.textContent = "↩ Back to main menu";
     menuBtn.addEventListener("click", function () {
-      var el = document.getElementById("sprimal-back-menu");
-      if (el) el.parentNode.removeChild(el);
+      messages.innerHTML = "";
       wfSteps = wfFlowMap[rootFlowId];
       wfMode = true;
       var footer = document.getElementById("sprimal-footer");
@@ -719,6 +718,7 @@
             backBtn.addEventListener("click", function () {
               clearChoices();
               if (rootFlowId && wfFlowMap[rootFlowId]) {
+                messages.innerHTML = "";
                 wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
                 var f = document.getElementById("sprimal-footer");
                 if (f) f.style.display = "none";

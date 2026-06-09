@@ -439,9 +439,7 @@
 
   function scrollToBottom(delay) {
     setTimeout(function() {
-      // Scroll so there's ~30% of the chat height visible below the latest content
-      var target = messages.scrollHeight - Math.floor(messages.clientHeight * 0.3);
-      messages.scrollTo({ top: target, behavior: "smooth" });
+      messages.scrollTo({ top: messages.scrollHeight, behavior: "smooth" });
     }, delay || 0);
   }
 
@@ -589,10 +587,18 @@
         container.id  = "sprimal-choices";
         var restartBtn = document.createElement("button");
         restartBtn.className = "sprimal-choice sprimal-choice-ai";
-        restartBtn.textContent = "↩ Back to menu";
+        restartBtn.textContent = "↩ Back to main menu";
         restartBtn.addEventListener("click", function () {
           clearChoices();
-          if (wfSteps.length) showWorkflowStep(wfSteps[0]);
+          if (rootFlowId && wfFlowMap[rootFlowId]) {
+            wfSteps = wfFlowMap[rootFlowId];
+            wfMode  = true;
+            var footer = document.getElementById("sprimal-footer");
+            if (footer) footer.style.display = "none";
+            showWorkflowStep(wfSteps[0]);
+          } else if (wfSteps.length) {
+            showWorkflowStep(wfSteps[0]);
+          }
         });
         container.appendChild(restartBtn);
         var aiBtn2 = document.createElement("button");

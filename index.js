@@ -6935,6 +6935,42 @@ Return ONLY valid JSON:
   res.json({ application: app, next_action: nextAction, checklist_is_generic: usingGenericDocs });
 });
 
+// ── Portal: LLM-based step suggestion for flow builder "Pull from KB" button ──
+// Takes the current step content as context, reads KB, returns an improved version
+app.post("/api/portal/kb-suggest-step", requireTenant, async (req, res) => {
+  const tenantId      = req.tenant.tenantId;
+  const currentContent = (req.body.currentContent || "").trim();
+  if (!currentContent) return res.json({ suggestion: null, message: "No content provided." });
+
+  try {
+    const combined = await getFullPageTextForKeyword(tenantId, "%");
+    if (!combined) return res.json({ suggestion: null, message: "No knowledge base content found yet." });
+
+    const prompt = [
+      "You are updating the message a customer service chatbot says in a specific step of a conversation flow.",
+      "The current step message is shown below. Using the knowledge base content provided, rewrite it with accurate, up-to-date information.",
+      "Keep the same tone, format and structure as the original. Return ONLY the updated message — no explanation, no labels.",
+      "",
+      "Current step message:",
+      currentContent
+    ].join("\n");
+
+    const resp = await openai.chat.completions.create({
+      model:       "gpt-4o-mini",
+      messages:    [{ role: "system", content: prompt }, { role: "user", content: combined }],
+      temperature: 0,
+      max_tokens:  500
+    });
+
+    const suggestion = (resp.choices[0].message.content || "").trim();
+    if (!suggestion) return res.json({ suggestion: null, message: "No relevant content found in your knowledge base." });
+    return res.json({ suggestion });
+  } catch (e) {
+    console.error("[kb-suggest-step] Error:", e.message);
+    return res.json({ suggestion: null, message: "Something went wrong. Please try again." });
+  }
+});
+
 // ── Portal: KB search for flow builder "Pull from KB" button ─────────────────
 app.get("/api/portal/kb-search", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;

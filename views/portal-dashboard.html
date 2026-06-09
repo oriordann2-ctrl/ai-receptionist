@@ -2213,10 +2213,8 @@
       var btn = document.getElementById("kbBtn_" + si);
       var ta  = document.querySelector(".wf-msg[data-si='" + si + "']");
 
-      // Use the existing textarea content as context for the KB search
-      var query = ta ? ta.value.trim().slice(0, 200) : "";
-      if (!query) {
-        // No existing content — show a brief hint inline
+      var currentContent = ta ? ta.value.trim() : "";
+      if (!currentContent) {
         var hint = document.createElement("span");
         hint.style.cssText = "font-size:11px;color:#f59e0b;margin-left:8px;";
         hint.textContent = "Add some text to the step first so I know what to look for.";
@@ -2225,29 +2223,32 @@
         return;
       }
 
-      // Show loading state on button
       btn.textContent = "🪄 Loading…";
       btn.disabled = true;
 
-      fetch("/api/portal/kb-search?q=" + encodeURIComponent(query))
+      // Use the same LLM-based approach as the signup crawl
+      fetch("/api/portal/kb-suggest-step", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentContent: currentContent })
+      })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           btn.textContent = "🪄 Load from Knowledge Base";
           btn.disabled = false;
-          if (!data.content) {
+          if (data.suggestion) {
+            editingSteps[si].bot_message = data.suggestion;
+            if (ta) {
+              ta.value = data.suggestion;
+              ta.style.borderColor = "#16a34a";
+              setTimeout(function() { ta.style.borderColor = "#e2e8f0"; }, 2000);
+            }
+          } else {
             var hint = document.createElement("span");
             hint.style.cssText = "font-size:11px;color:#dc2626;margin-left:8px;";
-            hint.textContent = "No matching content found in your knowledge base.";
+            hint.textContent = data.message || "No matching content found in your knowledge base.";
             btn.parentNode.insertBefore(hint, btn.nextSibling);
-            setTimeout(function() { hint.remove(); }, 3000);
-            return;
-          }
-          // Fill textarea and flash green to confirm
-          editingSteps[si].bot_message = data.content;
-          if (ta) {
-            ta.value = data.content;
-            ta.style.borderColor = "#16a34a";
-            setTimeout(function() { ta.style.borderColor = "#e2e8f0"; }, 2000);
+            setTimeout(function() { hint.remove(); }, 4000);
           }
         })
         .catch(function() {
@@ -2583,28 +2584,31 @@
     };
 
     window.suggestFromWebsite = function(fieldKey) {
+      if (!activeTenantAgentId) return;
       var btn = document.getElementById("suggestBtn_" + fieldKey);
       var ta  = document.getElementById("agentField_" + fieldKey);
       if (!btn || !ta) return;
 
-      // Use existing field content as context for the KB search
-      var query = ta.value.trim().slice(0, 200) || fieldKey.replace(/_/g, " ");
-
       btn.disabled = true; btn.textContent = "🪄 Loading…";
-      fetch("/api/portal/kb-search?q=" + encodeURIComponent(query))
+      // Use the same LLM-based suggest-field endpoint as the signup crawl
+      fetch("/api/portal/agents/" + activeTenantAgentId + "/suggest-field", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: fieldKey })
+      })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           btn.disabled = false; btn.textContent = "🪄 Load from Knowledge Base";
-          if (data.content) {
-            ta.value = data.content;
+          if (data.suggestion) {
+            ta.value = data.suggestion;
             ta.style.borderColor = "#16a34a";
             setTimeout(function() { ta.style.borderColor = "#e2e8f0"; }, 2000);
           } else {
             var hint = document.createElement("span");
             hint.style.cssText = "font-size:11px;color:#dc2626;margin-left:8px;";
-            hint.textContent = "No matching content found in your knowledge base.";
+            hint.textContent = data.message || "No matching content found in your knowledge base.";
             btn.parentNode.insertBefore(hint, btn.nextSibling);
-            setTimeout(function() { hint.remove(); }, 3000);
+            setTimeout(function() { hint.remove(); }, 4000);
           }
         })
         .catch(function() {

@@ -2541,11 +2541,10 @@
               + 'style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;font-family:inherit;color:#0f172a;outline:none;box-sizing:border-box;" />';
           }
 
-          if (field.suggest_from_knowledge) {
+          if (field.type === "textarea" || field.type === "multiline") {
             fieldsHtml += '<button type="button" onclick="suggestFromWebsite(\'' + esc(field.key) + '\')" '
               + 'id="suggestBtn_' + esc(field.key) + '" '
-              + 'style="margin-top:6px;padding:5px 12px;border-radius:7px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;">↻ Load from Knowledge Base</button>';
-            fieldsHtml += '<span id="suggestStatus_' + esc(field.key) + '" style="font-size:12px;color:#059669;margin-left:8px;display:none;">✓ Suggested — please review before saving</span>';
+              + 'style="margin-top:6px;padding:5px 12px;border-radius:7px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🪄 Load from Knowledge Base</button>';
           }
 
           // EBO number helper — shown only for the ebo_booking_url field
@@ -2584,27 +2583,33 @@
     };
 
     window.suggestFromWebsite = function(fieldKey) {
-      if (!activeTenantAgentId) return;
-      var btn    = document.getElementById("suggestBtn_" + fieldKey);
-      var status = document.getElementById("suggestStatus_" + fieldKey);
-      var ta     = document.getElementById("agentField_" + fieldKey);
-      btn.disabled = true; btn.textContent = "Searching website…";
-      fetch("/api/portal/agents/" + activeTenantAgentId + "/suggest-field", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ field: fieldKey })
-      }).then(function(r){ return r.json(); }).then(function(data) {
-        btn.disabled = false; btn.textContent = "↻ Load from Knowledge Base";
-        if (data.suggestion) {
-          ta.value = data.suggestion;
-          status.style.display = "inline";
-        } else {
-          alert(data.message || "No suggestion found. Make sure your website has been crawled.");
-        }
-      }).catch(function() {
-        btn.disabled = false; btn.textContent = "↻ Load from Knowledge Base";
-        alert("Failed to fetch suggestion. Please try again.");
-      });
+      var btn = document.getElementById("suggestBtn_" + fieldKey);
+      var ta  = document.getElementById("agentField_" + fieldKey);
+      if (!btn || !ta) return;
+
+      // Use existing field content as context for the KB search
+      var query = ta.value.trim().slice(0, 200) || fieldKey.replace(/_/g, " ");
+
+      btn.disabled = true; btn.textContent = "🪄 Loading…";
+      fetch("/api/portal/kb-search?q=" + encodeURIComponent(query))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          btn.disabled = false; btn.textContent = "🪄 Load from Knowledge Base";
+          if (data.content) {
+            ta.value = data.content;
+            ta.style.borderColor = "#16a34a";
+            setTimeout(function() { ta.style.borderColor = "#e2e8f0"; }, 2000);
+          } else {
+            var hint = document.createElement("span");
+            hint.style.cssText = "font-size:11px;color:#dc2626;margin-left:8px;";
+            hint.textContent = "No matching content found in your knowledge base.";
+            btn.parentNode.insertBefore(hint, btn.nextSibling);
+            setTimeout(function() { hint.remove(); }, 3000);
+          }
+        })
+        .catch(function() {
+          btn.disabled = false; btn.textContent = "🪄 Load from Knowledge Base";
+        });
     };
 
     window.saveAgentConfig = function() {

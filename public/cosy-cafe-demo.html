@@ -337,7 +337,7 @@
 <!-- NAV -->
 <nav>
   <div class="nav-logo">
-    <img id="cafe-logo" src="" alt="Cosy Café logo" onerror="this.style.display='none'" />
+    <img id="cafe-logo" src="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/6278fd4ad64756188f608e81_Webp.net-resizeimage.jpg" alt="Cosy Café logo" />
     <span class="nav-logo-text">Cosy Café</span>
   </div>
   <ul class="nav-links">
@@ -501,16 +501,6 @@
     document.head.appendChild(s);
   })();
 
-  // Set logo once widget data loads
-  window.addEventListener('load', function() {
-    fetch('https://app.sprimal.com/api/chat/widget-init?clubId=cosy-cafe')
-      .then(r => r.json())
-      .then(d => {
-        if (d && d.tenant && d.tenant.logo_url) {
-          document.getElementById('cafe-logo').src = d.tenant.logo_url;
-        }
-      }).catch(function(){});
-  });
 </script>
 
 </body>

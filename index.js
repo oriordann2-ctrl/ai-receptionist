@@ -1112,9 +1112,9 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain,  choice_order: 5, label: "⭐ Leave a review",        action_type: "switch_flow", action_value: fReview },
     { step_id: sMain,  choice_order: 6, label: "💬 Something else",        action_type: "switch_flow", action_value: fOther  },
     // Review sub-flow
-    { step_id: sReview, choice_order: 1, label: "🔍 Google",      action_type: "url",         action_value: googleReviewUrl     },
-    { step_id: sReview, choice_order: 2, label: "✈️ TripAdvisor", action_type: "url",         action_value: tripAdvisorReviewUrl },
-    { step_id: sReview, choice_order: 3, label: "↩ Back to menu", action_type: "switch_flow", action_value: fMain               },
+    { step_id: sReview, choice_order: 1, label: "Leave a Google Review",     action_type: "url",         action_value: googleReviewUrl      },
+    { step_id: sReview, choice_order: 2, label: "Leave a TripAdvisor Review", action_type: "url",         action_value: tripAdvisorReviewUrl },
+    { step_id: sReview, choice_order: 3, label: "↩ Back to menu",            action_type: "switch_flow", action_value: fMain                },
     { step_id: sMenu,  choice_order: 1, label: "🌐 View menu",             action_type: "url",          action_value: websiteUrl },
     { step_id: sMenu,  choice_order: 2, label: "💬 Ask me anything",       action_type: "ai_fallback",  action_value: null       },
     { step_id: sMenu,  choice_order: 3, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain      },

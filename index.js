@@ -378,16 +378,7 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
   // ── Find Us — include Google Maps link ───────────────────────────────────────
   const mapsQuery = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
   const mapsUrl   = `https://maps.google.com/?q=${mapsQuery}`;
-  const locLines = [
-    `📍 ${name}`,
-    v(info.address) || "[FILL IN: address]",
-    v(info.eircode) ? `Eircode: ${info.eircode}` : null,
-    "",
-    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`,
-    "",
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
-    v(info.phone) ? `📞 ${info.phone}` : null,
-  ].filter(l => l !== null).join("\n");
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
 
   // Insert flows
   const { error: fErr } = await supabase.from("chat_workflows").insert([
@@ -493,6 +484,24 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
   return true;
 }
 
+// ── Shared helper: build location + opening hours block ───────────────────────
+function buildLocLines(info, name, mapsUrl, emailLink) {
+  const v = (val) => (val && val !== "null") ? val : null;
+  const lines = [
+    `📍 ${name}`,
+    v(info.address) || "[FILL IN: address]",
+    v(info.eircode) ? `Eircode: ${info.eircode}` : null,
+    "",
+    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`,
+    "",
+    v(info.opening_hours) ? `🕐 Opening Hours\n${info.opening_hours}` : null,
+    v(info.opening_hours) ? "" : null,
+    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    v(info.phone) ? `📞 ${info.phone}` : null,
+  ];
+  return lines.filter(l => l !== null).join("\n");
+}
+
 // ── Extract generic contact info from crawled pages (non-tennis types) ────────
 async function extractGenericInfo(pages, websiteUrl) {
   const priority = ["contact", "about", "location", "find", "address", "join", "membership", "fees", "pricing", "timetable", "schedule", "booking"];
@@ -508,7 +517,7 @@ async function extractGenericInfo(pages, websiteUrl) {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: `Extract contact and location info from this website. Return ONLY valid JSON with null for anything not found.\n{\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "booking_url": "URL for online booking/reservations/classes/tee-times or null",\n  "membership_url": "URL of membership/join/register page or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
+        { role: "system", content: `Extract contact and location info from this website. Return ONLY valid JSON with null for anything not found.\n{\n  "email": "main contact email or null",\n  "phone": "phone number or null",\n  "address": "full street address or null",\n  "eircode": "Irish eircode or null",\n  "opening_hours": "opening hours as a concise multi-line string, e.g. Mon-Fri: 9am-5pm\\nSat: 10am-4pm\\nSun: Closed — or null if not found",\n  "booking_url": "URL for online booking/reservations/classes/tee-times or null",\n  "membership_url": "URL of membership/join/register page or null",\n  "social_instagram": "instagram handle without @ or null",\n  "social_twitter": "twitter handle without @ or null"\n}` },
         { role: "user", content: combined }
       ],
       temperature: 0,
@@ -549,13 +558,7 @@ async function seedFitnessStudioFlows(tenantId, name, websiteUrl, info) {
   const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
   const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
 
-  const locLines = [
-    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
-    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
-    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
-    v(info.phone) ? `📞 ${info.phone}` : null,
-  ].filter(l => l !== null).join("\n");
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
 
   const membMsg  = `We'd love to have you as a member! To view our membership options and sign up:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch:\n📧 ${emailLink}`;
   const trialMsg = `The best way to see if we're the right fit is a free trial session — no commitment needed. 💪\n\nOur team will show you around and help you find the right plan.\n\nGet in touch to book yours:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
@@ -635,13 +638,7 @@ async function seedGolfClubFlows(tenantId, name, websiteUrl, info) {
   const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
   const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
 
-  const locLines = [
-    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
-    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
-    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
-    v(info.phone) ? `📞 ${info.phone}` : null,
-  ].filter(l => l !== null).join("\n");
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
 
   const membMsg = `Interested in joining ${name}? We'd love to have you as a member.\n\nView our membership options and apply:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch with our membership team:\n📧 ${emailLink}`;
   const teeMsg  = `Book a tee time online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nFor member bookings, log in to your member area. Visitors are welcome — contact us for green fee rates:\n📧 ${emailLink}`;
@@ -721,13 +718,7 @@ async function seedRacketSportsClubFlows(tenantId, name, websiteUrl, info) {
   const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
   const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
 
-  const locLines = [
-    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
-    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
-    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
-    v(info.phone) ? `📞 ${info.phone}` : null,
-  ].filter(l => l !== null).join("\n");
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
 
   const membMsg  = `Interested in joining ${name}? To view membership options and apply:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch:\n📧 ${emailLink}`;
   const bookMsg  = `Book a court online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nFor members-only courts, you'll need to log in to your member account.`;
@@ -807,13 +798,7 @@ async function seedYogaStudioFlows(tenantId, name, websiteUrl, info) {
   const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
   const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
 
-  const locLines = [
-    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
-    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
-    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
-    v(info.phone) ? `📞 ${info.phone}` : null,
-  ].filter(l => l !== null).join("\n");
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
 
   const trialMsg = `We'd love to welcome you for your first class — all levels welcome, including complete beginners! 🧘\n\nBrowse our schedule and book your first session:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch and we'll help you choose the right class:\n📧 ${emailLink}`;
   const membMsg  = `We offer a range of membership options and class passes to suit every schedule and budget.\n\nView our options online:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nAny questions:\n📧 ${emailLink}`;
@@ -895,13 +880,7 @@ async function seedSwimClubFlows(tenantId, name, websiteUrl, info) {
   const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
   const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
 
-  const locLines = [
-    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
-    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
-    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
-    v(info.phone) ? `📞 ${info.phone}` : null,
-  ].filter(l => l !== null).join("\n");
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
 
   const membMsg = `We'd love to have you join ${name}! To view membership options and sign up:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nAny questions:\n📧 ${emailLink}`;
   const lessMsg = `We run swimming lessons for all ages and abilities — from beginners to advanced swimmers.\n\nTo register for the next intake:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
@@ -980,13 +959,7 @@ async function seedTeamSportsClubFlows(tenantId, name, websiteUrl, info) {
   const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
   const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
 
-  const locLines = [
-    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
-    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
-    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
-    v(info.phone) ? `📞 ${info.phone}` : null,
-  ].filter(l => l !== null).join("\n");
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
 
   const joinMsg  = `We'd love to have you join ${name}! New members are always welcome.\n\nTo find out more about joining and registration:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr get in touch directly:\n📧 ${emailLink}`;
   const trainMsg = `Training takes place throughout the week for all teams and age groups.\n\nFor the latest training schedule, visit:\n\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr ask me and I'll do my best to help!`;
@@ -1066,16 +1039,12 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
   const mapsQuery    = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
   const mapsUrl      = `https://maps.google.com/?q=${mapsQuery}`;
 
-  const locLines = [
-    `📍 ${name}`, v(info.address) || "[FILL IN: address]",
-    v(info.eircode) ? `Eircode: ${info.eircode}` : null, "",
-    `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`, "",
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
-    v(info.phone) ? `📞 ${info.phone}` : null,
-  ].filter(l => l !== null).join("\n");
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
 
   const menuMsg  = `View our full menu online:\n\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr just ask — I'm happy to help with any questions about our food and drinks! ☕`;
-  const hoursMsg = `Our opening hours and location:\n\n${locLines}\n\nDrop in anytime — we'd love to see you!`;
+  const hoursMsg = v(info.opening_hours)
+    ? `🕐 Opening Hours\n\n${info.opening_hours}\n\n${locLines}\n\nDrop in anytime — we'd love to see you!`
+    : `Our opening hours and location:\n\n${locLines}\n\nDrop in anytime — we'd love to see you!`;
   const hireMsg  = `We'd love to help you plan your event! Whether it's a private party, corporate breakfast, or celebration — get in touch with your details and we'll put something together:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
 
   const { error: fErr } = await supabase.from("chat_workflows").insert([

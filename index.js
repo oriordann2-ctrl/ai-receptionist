@@ -112,7 +112,8 @@ const settingsFile = path.join(__dirname, "data", "settings.json");
 const documentsFile = path.join(__dirname, "data", "documents.json");
 const knowledgeBaseFile = path.join(__dirname, "data", "knowledgeBase.json");
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "changeme123";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) { console.error("FATAL: ADMIN_PASSWORD env var not set"); process.exit(1); }
 const sessions = new Map();
 
 //const { ElevenLabsClient } = require("elevenlabs");

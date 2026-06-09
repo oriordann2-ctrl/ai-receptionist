@@ -6932,6 +6932,33 @@ Return ONLY valid JSON:
   res.json({ application: app, next_action: nextAction, checklist_is_generic: usingGenericDocs });
 });
 
+// ── Portal: KB search for flow builder "Pull from KB" button ─────────────────
+app.get("/api/portal/kb-search", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const query = (req.query.q || "").trim();
+  if (!query) return res.json({ content: null });
+
+  try {
+    // Simple keyword search across knowledge_chunks for this tenant
+    const { data: chunks } = await supabase
+      .from("knowledge_chunks")
+      .select("content")
+      .eq("tenant_id", tenantId)
+      .ilike("content", "%" + query.replace(/[%_]/g, "\\$&") + "%")
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    if (!chunks || !chunks.length) return res.json({ content: null });
+
+    // Return the best match — first result's content (trimmed to 800 chars)
+    const content = chunks[0].content.trim().slice(0, 800);
+    return res.json({ content });
+  } catch (e) {
+    console.error("[KB Search] Error:", e.message);
+    return res.json({ content: null });
+  }
+});
+
 // ── Portal: recent chat logs ──────────────────────────────────────────────────
 app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
   try {

@@ -2068,7 +2068,10 @@
 
       // Bot message textarea
       html += '<div style="margin-bottom:10px;">';
-      html += '<label style="display:block;font-size:11px;font-weight:600;color:#6b7280;margin-bottom:4px;">Bot says…</label>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
+        + '<label style="font-size:11px;font-weight:600;color:#6b7280;">Bot says…</label>'
+        + '<button type="button" onclick="pullFromKB(' + si + ')" style="font-size:11px;color:#2563eb;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;">↻ From KB</button>'
+        + '</div>';
       html += '<textarea class="wf-msg" data-si="' + si + '" oninput="editingSteps[' + si + '].bot_message=this.value" '
         + 'style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;color:#0f172a;outline:none;resize:vertical;min-height:72px;" '
         + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'">'
@@ -2204,6 +2207,23 @@
         : [{ bot_message: "", choices: [] }];
       window.editingSteps = editingSteps;
       renderEditor();
+    };
+
+    window.pullFromKB = function(si) {
+      var query = window.prompt("Search your knowledge base for:", "");
+      if (!query || !query.trim()) return;
+      fetch("/api/portal/kb-search?q=" + encodeURIComponent(query.trim()))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.content) { alert("No matching content found in your knowledge base."); return; }
+          var confirmed = window.confirm("Replace step content with this?\n\n" + data.content);
+          if (!confirmed) return;
+          editingSteps[si].bot_message = data.content;
+          // Update the textarea in the DOM
+          var ta = document.querySelector(".wf-msg[data-si='" + si + "']");
+          if (ta) ta.value = data.content;
+        })
+        .catch(function() { alert("Could not reach knowledge base. Please try again."); });
     };
 
     window.wfCancelEdit = function () {

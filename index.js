@@ -1058,6 +1058,7 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
   const fHire  = crypto.randomUUID(), fLoc   = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain  = crypto.randomUUID(), sMenu  = crypto.randomUUID(), sHours = crypto.randomUUID();
   const sHire  = crypto.randomUUID(), sLoc   = crypto.randomUUID(), sOther = crypto.randomUUID();
+  const fReview = crypto.randomUUID(), sReview = crypto.randomUUID();
 
   const contactEmail = v(info.email) || "[FILL IN: email]";
   const emailLink    = contactEmail !== "[FILL IN: email]"
@@ -1078,35 +1079,42 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
   const hireMsg  = `We'd love to help you plan your event! Whether it's a private party, corporate breakfast, or celebration — get in touch with your details and we'll put something together:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
 
   const { error: fErr } = await supabase.from("chat_workflows").insert([
-    { id: fMain,  club_id: tenantId, name: "Main Menu",             is_active: true  },
-    { id: fMenu,  club_id: tenantId, name: "Our Menu",              is_active: false },
-    { id: fHours, club_id: tenantId, name: "Opening Hours",         is_active: false },
-    { id: fHire,  club_id: tenantId, name: "Events & Private Hire", is_active: false },
-    { id: fLoc,   club_id: tenantId, name: "Find Us",               is_active: false },
-    { id: fOther, club_id: tenantId, name: "Other",                 is_active: false },
+    { id: fMain,   club_id: tenantId, name: "Main Menu",             is_active: true  },
+    { id: fMenu,   club_id: tenantId, name: "Our Menu",              is_active: false },
+    { id: fHours,  club_id: tenantId, name: "Opening Hours",         is_active: false },
+    { id: fHire,   club_id: tenantId, name: "Events & Private Hire", is_active: false },
+    { id: fLoc,    club_id: tenantId, name: "Find Us",               is_active: false },
+    { id: fReview, club_id: tenantId, name: "Leave a Review",        is_active: false },
+    { id: fOther,  club_id: tenantId, name: "Other",                 is_active: false },
   ]);
   if (fErr) { console.error("[cafe-seed] Flow insert error:", fErr.message); return false; }
 
   const { error: sErr } = await supabase.from("workflow_steps").insert([
-    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there! ☕ Welcome to ${name}. What can I help you with?` },
-    { id: sMenu,  workflow_id: fMenu,  step_order: 1, bot_message: menuMsg  },
-    { id: sHours, workflow_id: fHours, step_order: 1, bot_message: hoursMsg },
-    { id: sHire,  workflow_id: fHire,  step_order: 1, bot_message: hireMsg  },
-    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
-    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
+    { id: sMain,   workflow_id: fMain,   step_order: 1, bot_message: `Hi there! ☕ Welcome to ${name}. What can I help you with?` },
+    { id: sMenu,   workflow_id: fMenu,   step_order: 1, bot_message: menuMsg  },
+    { id: sHours,  workflow_id: fHours,  step_order: 1, bot_message: hoursMsg },
+    { id: sHire,   workflow_id: fHire,   step_order: 1, bot_message: hireMsg  },
+    { id: sLoc,    workflow_id: fLoc,    step_order: 1, bot_message: locLines },
+    { id: sReview, workflow_id: fReview, step_order: 1, bot_message: `We'd love to hear what you think! 🌟 Where would you like to leave a review?` },
+    { id: sOther,  workflow_id: fOther,  step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[cafe-seed] Step insert error:", sErr.message); return false; }
 
-  // Google review URL — generic fallback using business name + location
-  const reviewUrl = `https://www.google.com/maps/search/${encodeURIComponent(name + ", Ireland")}`;
+  // Review URLs — generic fallbacks, update via SQL after signup with exact URLs
+  const googleReviewUrl    = `https://www.google.com/maps/search/${encodeURIComponent(name + ", Ireland")}`;
+  const tripAdvisorReviewUrl = `https://www.tripadvisor.ie/Search?q=${encodeURIComponent(name + " Ireland")}`;
 
   const { error: cErr } = await supabase.from("workflow_choices").insert([
-    { step_id: sMain,  choice_order: 1, label: "📋 View our menu",         action_type: "switch_flow", action_value: fMenu  },
-    { step_id: sMain,  choice_order: 2, label: "🕐 Opening hours",         action_type: "switch_flow", action_value: fHours },
-    { step_id: sMain,  choice_order: 3, label: "🎂 Events & private hire", action_type: "switch_flow", action_value: fHire  },
-    { step_id: sMain,  choice_order: 4, label: "📍 Find us",               action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain,  choice_order: 5, label: "⭐ Leave a Google review", action_type: "url",          action_value: reviewUrl },
-    { step_id: sMain,  choice_order: 6, label: "💬 Something else",        action_type: "switch_flow",  action_value: fOther },
+    { step_id: sMain,  choice_order: 1, label: "📋 View our menu",         action_type: "switch_flow", action_value: fMenu   },
+    { step_id: sMain,  choice_order: 2, label: "🕐 Opening hours",         action_type: "switch_flow", action_value: fHours  },
+    { step_id: sMain,  choice_order: 3, label: "🎂 Events & private hire", action_type: "switch_flow", action_value: fHire   },
+    { step_id: sMain,  choice_order: 4, label: "📍 Find us",               action_type: "switch_flow", action_value: fLoc    },
+    { step_id: sMain,  choice_order: 5, label: "⭐ Leave a review",        action_type: "switch_flow", action_value: fReview },
+    { step_id: sMain,  choice_order: 6, label: "💬 Something else",        action_type: "switch_flow", action_value: fOther  },
+    // Review sub-flow
+    { step_id: sReview, choice_order: 1, label: "🔍 Google",      action_type: "url",         action_value: googleReviewUrl     },
+    { step_id: sReview, choice_order: 2, label: "✈️ TripAdvisor", action_type: "url",         action_value: tripAdvisorReviewUrl },
+    { step_id: sReview, choice_order: 3, label: "↩ Back to menu", action_type: "switch_flow", action_value: fMain               },
     { step_id: sMenu,  choice_order: 1, label: "🌐 View menu",             action_type: "url",          action_value: websiteUrl },
     { step_id: sMenu,  choice_order: 2, label: "💬 Ask me anything",       action_type: "ai_fallback",  action_value: null       },
     { step_id: sMenu,  choice_order: 3, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain      },
@@ -1123,7 +1131,7 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
   ]);
   if (cErr) { console.error("[cafe-seed] Choice insert error:", cErr.message); return false; }
 
-  console.log(`[cafe-seed] ✅ Seeded 5 café flows for ${tenantId} (${name})`);
+  console.log(`[cafe-seed] ✅ Seeded 6 café flows for ${tenantId} (${name})`);
   return true;
 }
 

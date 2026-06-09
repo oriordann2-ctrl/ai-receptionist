@@ -3227,9 +3227,21 @@
         btn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
         btns.appendChild(btn);
       } else if (proration.isDowngrade) {
-        var amt = "€" + (proration.amountAbs / 100).toFixed(2);
-        title.textContent = "Approve — " + proration.fromPlan + " → " + proration.toPlan;
-        body.innerHTML = "<strong>" + (proration.memberName || "Member") + "</strong> is owed a pro-rata credit of <strong>" + amt + "</strong> for the unused portion of their current membership.<br><br>How would you like to handle this?";
+        var amt       = "€" + (proration.amountAbs / 100).toFixed(2);
+        var creditFmt = proration.creditAmt ? "€" + (proration.creditAmt / 100).toFixed(2) : null;
+        var chargeFmt = proration.chargeAmt ? "€" + (proration.chargeAmt / 100).toFixed(2) : null;
+        var breakdown = "";
+        if (creditFmt && chargeFmt) {
+          breakdown = '<div style="margin:10px 0 14px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:13px;color:#166534;line-height:1.8;">'
+            + '<div>' + esc(proration.fromPlan || "Current plan") + ' credit: <strong>' + creditFmt + '</strong></div>'
+            + '<div>' + esc(proration.toPlan || "New plan") + ' charge: <strong>−' + chargeFmt + '</strong></div>'
+            + '<div style="border-top:1px solid #bbf7d0;margin-top:6px;padding-top:6px;font-weight:700;">Net refund: ' + amt + '</div>'
+            + '</div>';
+        }
+        title.textContent = "Approve — " + (proration.fromPlan || "") + " → " + (proration.toPlan || "");
+        body.innerHTML = "<strong>" + (proration.memberName || "Member") + "</strong> is owed a pro-rata credit of <strong>" + amt + "</strong> for the unused portion of their current membership."
+          + breakdown
+          + "How would you like to handle this?";
 
         var refundBtn = document.createElement("button");
         refundBtn.textContent = "💳 Refund " + amt + " to card now";
@@ -3237,7 +3249,7 @@
         refundBtn.onclick = function() { modal.style.display = "none"; executeApprove(id, true, proration.amountAbs); };
 
         var creditBtn = document.createElement("button");
-        creditBtn.textContent = "📋 Credit " + amt + " to next invoice";
+        creditBtn.textContent = "📋 Carry forward as account credit";
         creditBtn.style.cssText = "background:#f9fafb;color:#374151;border:1.5px solid #d1d5db;border-radius:9px;padding:11px 0;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;";
         creditBtn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
 

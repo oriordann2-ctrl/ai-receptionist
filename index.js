@@ -5554,6 +5554,12 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
     const lines = (previewData.lines && previewData.lines.data) || [];
     const netProration = lines.reduce(function(sum, l) { return sum + l.amount; }, 0);
 
+    // Build breakdown for display: credit (old plan refund) and charge (new plan)
+    const creditLine = lines.find(function(l) { return l.amount < 0; });
+    const chargeLine = lines.find(function(l) { return l.amount > 0; });
+    const creditAmt  = creditLine ? Math.abs(creditLine.amount) : 0;
+    const chargeAmt  = chargeLine ? chargeLine.amount : 0;
+
     const currency    = (previewData.currency || "eur").toUpperCase();
     const isDowngrade = netProration < 0; // net credit to member
     const isUpgrade   = netProration > 0; // net charge to member
@@ -5563,10 +5569,12 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
       proration: {
         amountDue,
         amountAbs:      Math.abs(amountDue),
+        creditAmt,
+        chargeAmt,
         currency,
         isDowngrade,
         isUpgrade,
-        fromPlan:       request.requested_type,
+        fromPlan:       request.current_type || request.requested_type,
         toPlan:         request.target_membership_type,
         memberName:     request.member_name,
         latestInvoice:  sub.latest_invoice,

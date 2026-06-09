@@ -1130,10 +1130,9 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
       data.changeType = message;
       convo.memberChangeData = data;
 
-      // If "Change membership type" — fetch this club's Stripe products and show as choices
+      // If "Change membership type" — fetch Stripe products and ask current type first
       if (/change membership type/i.test(message)) {
-        convo.memberChangeStep = "awaiting_target_type";
-        // Try to load Stripe products for this tenant
+        convo.memberChangeStep = "awaiting_current_type";
         try {
           const { data: intg } = await supabase
             .from("tenant_integrations")
@@ -1154,11 +1153,11 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
                 .filter(Boolean)
                 .sort();
               if (productNames.length) {
-                convo.stripeProductNames = productNames; // cache for validation
+                convo.stripeProductNames = productNames;
                 return {
                   handled: true,
-                  reply: `What membership type would you like to change to?`,
-                  choices: productNames.slice(0, 4) // max 4 choices in UI
+                  reply: `What is your current membership type?`,
+                  choices: productNames.slice(0, 4)
                 };
               }
             }
@@ -1166,8 +1165,7 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
         } catch (e) {
           console.error("[MemberChange] Stripe product fetch error:", e.message);
         }
-        // Fallback if Stripe not configured or fetch failed
-        return { handled: true, reply: `What membership type would you like to change to?` };
+        return { handled: true, reply: `What is your current membership type?` };
       }
 
       // If already EBO verified in this session — use existing auth data, skip details step
@@ -1186,6 +1184,22 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
 
       convo.memberChangeStep = "awaiting_member_details";
       return { handled: true, reply: `What's your name and EBO membership number? (e.g. Mary Murphy, 4821)` };
+    }
+
+    case "awaiting_current_type": {
+      data.currentType = message.trim();
+      convo.memberChangeData = data;
+      convo.memberChangeStep = "awaiting_target_type";
+      // Show target type choices excluding the current type
+      const allProducts = convo.stripeProductNames || [];
+      const targetChoices = allProducts.filter(function(n) {
+        return n.toLowerCase() !== data.currentType.toLowerCase();
+      }).slice(0, 4);
+      return {
+        handled: true,
+        reply: `What would you like to change to?`,
+        choices: targetChoices.length ? targetChoices : undefined
+      };
     }
 
     case "awaiting_target_type": {
@@ -1292,6 +1306,7 @@ async function handleMembershipChangeFlow(convo, message, tenantId, clubName) {
           membership_number:       data.membershipNumber || null,
           member_email:            data.memberEmail      || null,
           requested_type:          data.changeType       || null,
+          current_type:            data.currentType      || null,
           target_membership_type:  data.targetType       || null,
           effective_date:          effectiveDateIso,
           reason:                  data.reason           || null,

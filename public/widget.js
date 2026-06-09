@@ -87,6 +87,12 @@
     ".sprimal-choice:hover{background:#111827;color:#fff;}",
     ".sprimal-choice-ai{border:1.5px dashed #d1d5db;color:#6b7280;font-weight:400;}",
     ".sprimal-choice-ai:hover{background:#f1f5f9;color:#374151;border-color:#9ca3af;}",
+    "#sprimal-lead-form{padding:10px 14px 8px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:14px;margin-top:4px;align-self:flex-start;max-width:92%;}",
+    ".sprimal-lead-input{width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:8px 12px;font-size:13px;font-family:" + FONT + ";outline:none;background:#fff;color:#1f2937;margin-bottom:8px;display:block;}",
+    ".sprimal-lead-input:focus{border-color:#22c55e;}",
+    ".sprimal-lead-submit{background:#22c55e;color:#fff;border:none;border-radius:10px;padding:9px 0;font-size:13px;font-weight:600;font-family:" + FONT + ";cursor:pointer;width:100%;transition:background .15s;margin-top:2px;}",
+    ".sprimal-lead-submit:hover{background:#16a34a;}",
+    ".sprimal-lead-submit:disabled{background:#d1d5db;cursor:not-allowed;}",
     "@media(max-width:640px){#sprimal-panel{width:100vw;max-width:100vw;right:0;left:0;bottom:0;height:78vh;max-height:78vh;border-radius:22px 22px 0 0;}#sprimal-panel.sprimal-hidden{transform:translateY(100%);}#sprimal-btn{bottom:88px;right:16px;}}",
   ].join("");
   document.head.appendChild(style);
@@ -667,6 +673,55 @@
           addMsg("Sorry, I couldn't connect. Please try again.", "bot");
           enableTextInput();
         });
+
+    } else if (type === "collect_lead") {
+      // Inline name + email capture form
+      addMsg("Great! Just leave your details and the team will be in touch:", "bot");
+      var formEl = document.createElement("div");
+      formEl.id = "sprimal-lead-form";
+      var nameInput = document.createElement("input");
+      nameInput.type = "text"; nameInput.placeholder = "Your name (optional)"; nameInput.className = "sprimal-lead-input";
+      var emailInput = document.createElement("input");
+      emailInput.type = "email"; emailInput.placeholder = "Your email address *"; emailInput.className = "sprimal-lead-input";
+      var submitBtn = document.createElement("button");
+      submitBtn.textContent = "Send my details →"; submitBtn.className = "sprimal-lead-submit";
+      submitBtn.addEventListener("click", function () {
+        var leadName  = nameInput.value.trim();
+        var leadEmail = emailInput.value.trim();
+        if (!leadEmail || !leadEmail.includes("@")) {
+          emailInput.style.borderColor = "#ef4444"; emailInput.focus(); return;
+        }
+        submitBtn.disabled = true; submitBtn.textContent = "Sending…";
+        fetch(BACKEND + "/api/chat/lead", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clubId: clubId, name: leadName, email: leadEmail, source: val || "widget" })
+        }).then(function (r) { return r.json(); }).then(function () {
+          if (formEl.parentNode) formEl.parentNode.removeChild(formEl);
+          addMsg("✅ Thanks" + (leadName ? " " + leadName : "") + "! The team will be in touch soon.", "bot");
+          setTimeout(function () {
+            var c = document.createElement("div"); c.id = "sprimal-choices";
+            var backBtn = document.createElement("button");
+            backBtn.className = "sprimal-choice sprimal-choice-ai"; backBtn.textContent = "↩ Back to main menu";
+            backBtn.addEventListener("click", function () {
+              clearChoices();
+              if (rootFlowId && wfFlowMap[rootFlowId]) {
+                wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
+                var f = document.getElementById("sprimal-footer");
+                if (f) f.style.display = "none";
+                showWorkflowStep(wfSteps[0]);
+              }
+            });
+            c.appendChild(backBtn); messages.appendChild(c); scrollToBottom(100);
+          }, 300);
+        }).catch(function () {
+          submitBtn.disabled = false; submitBtn.textContent = "Send my details →";
+          addMsg("Sorry, something went wrong. Please try again.", "bot");
+        });
+      });
+      formEl.appendChild(nameInput); formEl.appendChild(emailInput); formEl.appendChild(submitBtn);
+      messages.appendChild(formEl); scrollToBottom(100);
+      setTimeout(function () { nameInput.focus(); }, 300);
     }
   }
 

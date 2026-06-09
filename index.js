@@ -310,9 +310,9 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
 
   // IDs
   const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fCoach = crypto.randomUUID();
-  const fBook = crypto.randomUUID(), fEvt  = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const fBook = crypto.randomUUID(), fEvt  = crypto.randomUUID(), fLoc   = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain = crypto.randomUUID(), sMemb = crypto.randomUUID();
-  const sCoach = crypto.randomUUID(), sBook = crypto.randomUUID(), sEvt = crypto.randomUUID(), sLoc = crypto.randomUUID();
+  const sCoach = crypto.randomUUID(), sBook = crypto.randomUUID(), sEvt = crypto.randomUUID(), sLoc = crypto.randomUUID(), sOther = crypto.randomUUID();
 
   const membershipUrl = v(info.membership_url)    || websiteUrl;
   const bookingUrl    = v(info.court_booking_url) || websiteUrl;
@@ -397,6 +397,7 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     { id: fBook,  club_id: tenantId, name: "Court Availability",  is_active: false },
     { id: fEvt,   club_id: tenantId, name: "Events & Leagues",    is_active: false },
     { id: fLoc,   club_id: tenantId, name: "Find Us",             is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",               is_active: false },
   ]);
   if (fErr) { console.error("[tennis-seed] Flow insert error:", fErr.message); return false; }
 
@@ -408,6 +409,7 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     { id: sBook,  workflow_id: fBook,  step_order: 1, bot_message: `📅 Court Availability\n\nBook a court online:\n\n🔗 [link=${bookingUrl}]${bookingUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]` },
     { id: sEvt,   workflow_id: fEvt,   step_order: 1, bot_message: evtMsg },
     { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[tennis-seed] Step insert error:", sErr.message); return false; }
 
@@ -419,16 +421,18 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain, choice_order: 3, label: "📅 Court availability",  action_type: "switch_flow", action_value: fBook  },
     { step_id: sMain, choice_order: 4, label: "🏆 Events & leagues",    action_type: "switch_flow", action_value: fEvt   },
     { step_id: sMain, choice_order: 5, label: "📍 Find us",             action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain, choice_order: 6, label: "💬 Something else",      action_type: "ai_fallback",  action_value: null   },
-    // Membership — one button per form if found, otherwise website link
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",      action_type: "switch_flow",  action_value: fOther },
+    // Membership — one button per form if found, otherwise website link + lead capture
     ...(membershipForms.length
       ? [
           ...membershipForms.map((f, i) => ({ step_id: sMemb, choice_order: i + 1, label: `📋 ${f.label}`, action_type: "url", action_value: f.url })),
-          { step_id: sMemb, choice_order: membershipForms.length + 1, label: "← Back to menu", action_type: "switch_flow", action_value: fMain }
+          { step_id: sMemb, choice_order: membershipForms.length + 1, label: "✉️ Leave your details", action_type: "collect_lead", action_value: null },
+          { step_id: sMemb, choice_order: membershipForms.length + 2, label: "← Back to menu",        action_type: "switch_flow",  action_value: fMain }
         ]
       : [
-          { step_id: sMemb, choice_order: 1, label: "🌐 Visit website", action_type: "url",         action_value: membershipUrl },
-          { step_id: sMemb, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain         }
+          { step_id: sMemb, choice_order: 1, label: "🌐 Visit website",       action_type: "url",          action_value: membershipUrl },
+          { step_id: sMemb, choice_order: 2, label: "✉️ Leave your details", action_type: "collect_lead", action_value: null           },
+          { step_id: sMemb, choice_order: 3, label: "← Back to menu",         action_type: "switch_flow",  action_value: fMain          }
         ]
     ),
     // Coaching — mirrors Monkstown: agent handles the booking conversation
@@ -442,6 +446,10 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     // Find Us
     { step_id: sLoc, choice_order: 1, label: "📍 Get directions", action_type: "url",         action_value: mapsUrl },
     { step_id: sLoc, choice_order: 2, label: "← Back to menu",    action_type: "switch_flow", action_value: fMain  },
+    // Other — guided sub-flow
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[tennis-seed] Choice insert error:", cErr.message); return false; }
 
@@ -529,9 +537,9 @@ async function seedFitnessStudioFlows(tenantId, name, websiteUrl, info) {
   const v = (val) => (val && val !== "null") ? val : null;
 
   const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fTrial = crypto.randomUUID();
-  const fClass = crypto.randomUUID(), fPT   = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const fClass = crypto.randomUUID(), fPT   = crypto.randomUUID(), fLoc   = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain = crypto.randomUUID(), sMemb = crypto.randomUUID(), sTrial = crypto.randomUUID();
-  const sClass = crypto.randomUUID(), sPT   = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+  const sClass = crypto.randomUUID(), sPT   = crypto.randomUUID(), sLoc   = crypto.randomUUID(), sOther = crypto.randomUUID();
 
   const contactEmail  = v(info.email)          || "[FILL IN: email]";
   const emailLink     = contactEmail !== "[FILL IN: email]"
@@ -561,6 +569,7 @@ async function seedFitnessStudioFlows(tenantId, name, websiteUrl, info) {
     { id: fClass, club_id: tenantId, name: "Class Timetable",   is_active: false },
     { id: fPT,    club_id: tenantId, name: "Personal Training", is_active: false },
     { id: fLoc,   club_id: tenantId, name: "Find Us",           is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",             is_active: false },
   ]);
   if (fErr) { console.error("[fitness-seed] Flow insert error:", fErr.message); return false; }
 
@@ -571,6 +580,7 @@ async function seedFitnessStudioFlows(tenantId, name, websiteUrl, info) {
     { id: sClass, workflow_id: fClass, step_order: 1, bot_message: classMsg },
     { id: sPT,    workflow_id: fPT,    step_order: 1, bot_message: ptMsg    },
     { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[fitness-seed] Step insert error:", sErr.message); return false; }
 
@@ -580,17 +590,22 @@ async function seedFitnessStudioFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain, choice_order: 3, label: "📅 Class timetable",      action_type: "switch_flow", action_value: fClass },
     { step_id: sMain, choice_order: 4, label: "🏋️ Personal training",   action_type: "switch_flow", action_value: fPT    },
     { step_id: sMain, choice_order: 5, label: "📍 Find us",              action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "ai_fallback",  action_value: null   },
-    { step_id: sMemb,  choice_order: 1, label: "🌐 View membership options", action_type: "url",         action_value: membershipUrl },
-    { step_id: sMemb,  choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain         },
-    { step_id: sTrial, choice_order: 1, label: "📧 Contact us",              action_type: "ai_fallback",  action_value: null   },
-    { step_id: sTrial, choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain  },
-    { step_id: sClass, choice_order: 1, label: "📅 View timetable",          action_type: "url",         action_value: bookingUrl },
-    { step_id: sClass, choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain      },
-    { step_id: sPT,    choice_order: 1, label: "📧 Enquire about PT",        action_type: "ai_fallback",  action_value: null   },
-    { step_id: sPT,    choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain  },
-    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",          action_type: "url",         action_value: mapsUrl },
-    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",             action_type: "switch_flow", action_value: fMain   },
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "switch_flow",  action_value: fOther },
+    { step_id: sMemb,  choice_order: 1, label: "🌐 View membership options", action_type: "url",          action_value: membershipUrl },
+    { step_id: sMemb,  choice_order: 2, label: "✉️ Leave your details",     action_type: "collect_lead", action_value: null           },
+    { step_id: sMemb,  choice_order: 3, label: "← Back to menu",             action_type: "switch_flow",  action_value: fMain          },
+    { step_id: sTrial, choice_order: 1, label: "✉️ Book my free trial",     action_type: "collect_lead", action_value: null   },
+    { step_id: sTrial, choice_order: 2, label: "← Back to menu",             action_type: "switch_flow",  action_value: fMain  },
+    { step_id: sClass, choice_order: 1, label: "📅 View timetable",          action_type: "url",          action_value: bookingUrl },
+    { step_id: sClass, choice_order: 2, label: "← Back to menu",             action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sPT,    choice_order: 1, label: "✉️ Enquire about PT",       action_type: "collect_lead", action_value: null   },
+    { step_id: sPT,    choice_order: 2, label: "← Back to menu",             action_type: "switch_flow",  action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",          action_type: "url",          action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",             action_type: "switch_flow",  action_value: fMain   },
+    // Other — guided sub-flow
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[fitness-seed] Choice insert error:", cErr.message); return false; }
 
@@ -608,9 +623,9 @@ async function seedGolfClubFlows(tenantId, name, websiteUrl, info) {
   const v = (val) => (val && val !== "null") ? val : null;
 
   const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fTee  = crypto.randomUUID();
-  const fLess = crypto.randomUUID(), fSoc  = crypto.randomUUID(), fLoc  = crypto.randomUUID();
+  const fLess = crypto.randomUUID(), fSoc  = crypto.randomUUID(), fLoc  = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain = crypto.randomUUID(), sMemb = crypto.randomUUID(), sTee  = crypto.randomUUID();
-  const sLess = crypto.randomUUID(), sSoc  = crypto.randomUUID(), sLoc  = crypto.randomUUID();
+  const sLess = crypto.randomUUID(), sSoc  = crypto.randomUUID(), sLoc  = crypto.randomUUID(), sOther = crypto.randomUUID();
 
   const contactEmail  = v(info.email)          || "[FILL IN: email]";
   const emailLink     = contactEmail !== "[FILL IN: email]"
@@ -634,22 +649,24 @@ async function seedGolfClubFlows(tenantId, name, websiteUrl, info) {
   const socMsg  = `We welcome society outings and group visitors. Get in touch with your details — number of players, preferred date — and we'll put a package together for you:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
 
   const { error: fErr } = await supabase.from("chat_workflows").insert([
-    { id: fMain, club_id: tenantId, name: "Main Menu",          is_active: true  },
-    { id: fMemb, club_id: tenantId, name: "Membership",         is_active: false },
-    { id: fTee,  club_id: tenantId, name: "Book a Tee Time",    is_active: false },
-    { id: fLess, club_id: tenantId, name: "Golf Lessons",       is_active: false },
-    { id: fSoc,  club_id: tenantId, name: "Society & Visitors", is_active: false },
-    { id: fLoc,  club_id: tenantId, name: "Find Us",            is_active: false },
+    { id: fMain,  club_id: tenantId, name: "Main Menu",          is_active: true  },
+    { id: fMemb,  club_id: tenantId, name: "Membership",         is_active: false },
+    { id: fTee,   club_id: tenantId, name: "Book a Tee Time",    is_active: false },
+    { id: fLess,  club_id: tenantId, name: "Golf Lessons",       is_active: false },
+    { id: fSoc,   club_id: tenantId, name: "Society & Visitors", is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",            is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",              is_active: false },
   ]);
   if (fErr) { console.error("[golf-seed] Flow insert error:", fErr.message); return false; }
 
   const { error: sErr } = await supabase.from("workflow_steps").insert([
-    { id: sMain, workflow_id: fMain, step_order: 1, bot_message: `Welcome to ${name}! ⛳ What can I help you with today?` },
-    { id: sMemb, workflow_id: fMemb, step_order: 1, bot_message: membMsg },
-    { id: sTee,  workflow_id: fTee,  step_order: 1, bot_message: teeMsg  },
-    { id: sLess, workflow_id: fLess, step_order: 1, bot_message: lessMsg },
-    { id: sSoc,  workflow_id: fSoc,  step_order: 1, bot_message: socMsg  },
-    { id: sLoc,  workflow_id: fLoc,  step_order: 1, bot_message: locLines },
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Welcome to ${name}! ⛳ What can I help you with today?` },
+    { id: sMemb,  workflow_id: fMemb,  step_order: 1, bot_message: membMsg  },
+    { id: sTee,   workflow_id: fTee,   step_order: 1, bot_message: teeMsg   },
+    { id: sLess,  workflow_id: fLess,  step_order: 1, bot_message: lessMsg  },
+    { id: sSoc,   workflow_id: fSoc,   step_order: 1, bot_message: socMsg   },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[golf-seed] Step insert error:", sErr.message); return false; }
 
@@ -659,17 +676,22 @@ async function seedGolfClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain, choice_order: 3, label: "🎓 Golf lessons",         action_type: "switch_flow", action_value: fLess },
     { step_id: sMain, choice_order: 4, label: "👥 Society & visitors",   action_type: "switch_flow", action_value: fSoc  },
     { step_id: sMain, choice_order: 5, label: "📍 Find us",              action_type: "switch_flow", action_value: fLoc  },
-    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "ai_fallback",  action_value: null  },
-    { step_id: sMemb, choice_order: 1, label: "🌐 View membership",      action_type: "url",         action_value: membershipUrl },
-    { step_id: sMemb, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain         },
-    { step_id: sTee,  choice_order: 1, label: "📅 Book online",          action_type: "url",         action_value: bookingUrl },
-    { step_id: sTee,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain      },
-    { step_id: sLess, choice_order: 1, label: "📧 Enquire about lessons",action_type: "ai_fallback",  action_value: null  },
-    { step_id: sLess, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain },
-    { step_id: sSoc,  choice_order: 1, label: "📧 Get in touch",         action_type: "ai_fallback",  action_value: null  },
-    { step_id: sSoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain },
-    { step_id: sLoc,  choice_order: 1, label: "📍 Get directions",       action_type: "url",         action_value: mapsUrl },
-    { step_id: sLoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain   },
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "switch_flow",  action_value: fOther },
+    { step_id: sMemb, choice_order: 1, label: "🌐 View membership",      action_type: "url",          action_value: membershipUrl },
+    { step_id: sMemb, choice_order: 2, label: "✉️ Leave your details",  action_type: "collect_lead", action_value: null           },
+    { step_id: sMemb, choice_order: 3, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain          },
+    { step_id: sTee,  choice_order: 1, label: "📅 Book online",          action_type: "url",          action_value: bookingUrl },
+    { step_id: sTee,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sLess, choice_order: 1, label: "✉️ Enquire about lessons",action_type: "collect_lead", action_value: null  },
+    { step_id: sLess, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain },
+    { step_id: sSoc,  choice_order: 1, label: "✉️ Send us your details", action_type: "collect_lead", action_value: null  },
+    { step_id: sSoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain },
+    { step_id: sLoc,  choice_order: 1, label: "📍 Get directions",       action_type: "url",          action_value: mapsUrl },
+    { step_id: sLoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain   },
+    // Other — guided sub-flow
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[golf-seed] Choice insert error:", cErr.message); return false; }
 
@@ -687,9 +709,9 @@ async function seedRacketSportsClubFlows(tenantId, name, websiteUrl, info) {
   const v = (val) => (val && val !== "null") ? val : null;
 
   const fMain  = crypto.randomUUID(), fMemb  = crypto.randomUUID(), fBook  = crypto.randomUUID();
-  const fCoach = crypto.randomUUID(), fEvt   = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const fCoach = crypto.randomUUID(), fEvt   = crypto.randomUUID(), fLoc   = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain  = crypto.randomUUID(), sMemb  = crypto.randomUUID(), sBook  = crypto.randomUUID();
-  const sCoach = crypto.randomUUID(), sEvt   = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+  const sCoach = crypto.randomUUID(), sEvt   = crypto.randomUUID(), sLoc   = crypto.randomUUID(), sOther = crypto.randomUUID();
 
   const contactEmail  = v(info.email)          || "[FILL IN: email]";
   const emailLink     = contactEmail !== "[FILL IN: email]"
@@ -719,6 +741,7 @@ async function seedRacketSportsClubFlows(tenantId, name, websiteUrl, info) {
     { id: fCoach, club_id: tenantId, name: "Coaching",         is_active: false },
     { id: fEvt,   club_id: tenantId, name: "Events & Leagues", is_active: false },
     { id: fLoc,   club_id: tenantId, name: "Find Us",          is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",            is_active: false },
   ]);
   if (fErr) { console.error("[racket-seed] Flow insert error:", fErr.message); return false; }
 
@@ -729,6 +752,7 @@ async function seedRacketSportsClubFlows(tenantId, name, websiteUrl, info) {
     { id: sCoach, workflow_id: fCoach, step_order: 1, bot_message: coachMsg },
     { id: sEvt,   workflow_id: fEvt,   step_order: 1, bot_message: evtMsg   },
     { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[racket-seed] Step insert error:", sErr.message); return false; }
 
@@ -738,17 +762,22 @@ async function seedRacketSportsClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain,  choice_order: 3, label: "🎓 Coaching",         action_type: "switch_flow", action_value: fCoach },
     { step_id: sMain,  choice_order: 4, label: "🏆 Events & leagues", action_type: "switch_flow", action_value: fEvt   },
     { step_id: sMain,  choice_order: 5, label: "📍 Find us",          action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain,  choice_order: 6, label: "💬 Something else",   action_type: "ai_fallback",  action_value: null   },
-    { step_id: sMemb,  choice_order: 1, label: "🌐 View membership",  action_type: "url",         action_value: membershipUrl },
-    { step_id: sMemb,  choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain         },
-    { step_id: sBook,  choice_order: 1, label: "📅 Book now",         action_type: "url",         action_value: bookingUrl },
-    { step_id: sBook,  choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain      },
-    { step_id: sCoach, choice_order: 1, label: "📧 Book a lesson",    action_type: "ai_fallback",  action_value: null   },
-    { step_id: sCoach, choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain  },
-    { step_id: sEvt,   choice_order: 1, label: "🌐 Visit website",    action_type: "url",         action_value: websiteUrl },
-    { step_id: sEvt,   choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain      },
-    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",   action_type: "url",         action_value: mapsUrl },
-    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",      action_type: "switch_flow", action_value: fMain   },
+    { step_id: sMain,  choice_order: 6, label: "💬 Something else",   action_type: "switch_flow",  action_value: fOther },
+    { step_id: sMemb,  choice_order: 1, label: "🌐 View membership",  action_type: "url",          action_value: membershipUrl },
+    { step_id: sMemb,  choice_order: 2, label: "✉️ Leave your details",action_type: "collect_lead", action_value: null          },
+    { step_id: sMemb,  choice_order: 3, label: "← Back to menu",      action_type: "switch_flow",  action_value: fMain         },
+    { step_id: sBook,  choice_order: 1, label: "📅 Book now",         action_type: "url",          action_value: bookingUrl },
+    { step_id: sBook,  choice_order: 2, label: "← Back to menu",      action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sCoach, choice_order: 1, label: "✉️ Book a lesson",    action_type: "collect_lead", action_value: null   },
+    { step_id: sCoach, choice_order: 2, label: "← Back to menu",      action_type: "switch_flow",  action_value: fMain  },
+    { step_id: sEvt,   choice_order: 1, label: "🌐 Visit website",    action_type: "url",          action_value: websiteUrl },
+    { step_id: sEvt,   choice_order: 2, label: "← Back to menu",      action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",   action_type: "url",          action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",      action_type: "switch_flow",  action_value: fMain   },
+    // Other — guided sub-flow
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[racket-seed] Choice insert error:", cErr.message); return false; }
 
@@ -766,9 +795,9 @@ async function seedYogaStudioFlows(tenantId, name, websiteUrl, info) {
   const v = (val) => (val && val !== "null") ? val : null;
 
   const fMain  = crypto.randomUUID(), fTrial = crypto.randomUUID(), fMemb  = crypto.randomUUID();
-  const fTT    = crypto.randomUUID(), fAbout = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const fTT    = crypto.randomUUID(), fAbout = crypto.randomUUID(), fLoc   = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain  = crypto.randomUUID(), sTrial = crypto.randomUUID(), sMemb  = crypto.randomUUID();
-  const sTT    = crypto.randomUUID(), sAbout = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+  const sTT    = crypto.randomUUID(), sAbout = crypto.randomUUID(), sLoc   = crypto.randomUUID(), sOther = crypto.randomUUID();
 
   const contactEmail  = v(info.email)          || "[FILL IN: email]";
   const emailLink     = contactEmail !== "[FILL IN: email]"
@@ -798,6 +827,7 @@ async function seedYogaStudioFlows(tenantId, name, websiteUrl, info) {
     { id: fTT,    club_id: tenantId, name: "Class Timetable",     is_active: false },
     { id: fAbout, club_id: tenantId, name: "About Our Classes",   is_active: false },
     { id: fLoc,   club_id: tenantId, name: "Find Us",             is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",               is_active: false },
   ]);
   if (fErr) { console.error("[yoga-seed] Flow insert error:", fErr.message); return false; }
 
@@ -808,6 +838,7 @@ async function seedYogaStudioFlows(tenantId, name, websiteUrl, info) {
     { id: sTT,    workflow_id: fTT,    step_order: 1, bot_message: ttMsg    },
     { id: sAbout, workflow_id: fAbout, step_order: 1, bot_message: aboutMsg },
     { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[yoga-seed] Step insert error:", sErr.message); return false; }
 
@@ -817,19 +848,24 @@ async function seedYogaStudioFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain,  choice_order: 3, label: "📅 Class timetable",      action_type: "switch_flow", action_value: fTT    },
     { step_id: sMain,  choice_order: 4, label: "🧘 About our classes",    action_type: "switch_flow", action_value: fAbout },
     { step_id: sMain,  choice_order: 5, label: "📍 Find us",              action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain,  choice_order: 6, label: "💬 Something else",       action_type: "ai_fallback",  action_value: null   },
-    { step_id: sTrial, choice_order: 1, label: "📅 Book a class",         action_type: "url",         action_value: bookingUrl },
-    { step_id: sTrial, choice_order: 2, label: "📧 Get in touch",         action_type: "ai_fallback",  action_value: null       },
-    { step_id: sTrial, choice_order: 3, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain      },
-    { step_id: sMemb,  choice_order: 1, label: "🌐 View options",         action_type: "url",         action_value: membershipUrl },
-    { step_id: sMemb,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain         },
-    { step_id: sTT,    choice_order: 1, label: "📅 View timetable",       action_type: "url",         action_value: bookingUrl },
-    { step_id: sTT,    choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain      },
-    { step_id: sAbout, choice_order: 1, label: "🆓 Try a class",          action_type: "switch_flow", action_value: fTrial },
+    { step_id: sMain,  choice_order: 6, label: "💬 Something else",       action_type: "switch_flow",  action_value: fOther },
+    { step_id: sTrial, choice_order: 1, label: "📅 Book a class",         action_type: "url",          action_value: bookingUrl },
+    { step_id: sTrial, choice_order: 2, label: "✉️ Reserve my spot",     action_type: "collect_lead", action_value: null       },
+    { step_id: sTrial, choice_order: 3, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sMemb,  choice_order: 1, label: "🌐 View options",         action_type: "url",          action_value: membershipUrl },
+    { step_id: sMemb,  choice_order: 2, label: "✉️ Leave your details",  action_type: "collect_lead", action_value: null          },
+    { step_id: sMemb,  choice_order: 3, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain         },
+    { step_id: sTT,    choice_order: 1, label: "📅 View timetable",       action_type: "url",          action_value: bookingUrl },
+    { step_id: sTT,    choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sAbout, choice_order: 1, label: "🆓 Try a class",          action_type: "switch_flow",  action_value: fTrial },
     { step_id: sAbout, choice_order: 2, label: "💬 Ask me anything",      action_type: "ai_fallback",  action_value: null   },
-    { step_id: sAbout, choice_order: 3, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain  },
-    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",       action_type: "url",         action_value: mapsUrl },
-    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain   },
+    { step_id: sAbout, choice_order: 3, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",       action_type: "url",          action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain   },
+    // Other — guided sub-flow
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[yoga-seed] Choice insert error:", cErr.message); return false; }
 
@@ -847,9 +883,9 @@ async function seedSwimClubFlows(tenantId, name, websiteUrl, info) {
   const v = (val) => (val && val !== "null") ? val : null;
 
   const fMain = crypto.randomUUID(), fMemb = crypto.randomUUID(), fLess = crypto.randomUUID();
-  const fPool = crypto.randomUUID(), fComp = crypto.randomUUID(), fLoc  = crypto.randomUUID();
+  const fPool = crypto.randomUUID(), fComp = crypto.randomUUID(), fLoc  = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain = crypto.randomUUID(), sMemb = crypto.randomUUID(), sLess = crypto.randomUUID();
-  const sPool = crypto.randomUUID(), sComp = crypto.randomUUID(), sLoc  = crypto.randomUUID();
+  const sPool = crypto.randomUUID(), sComp = crypto.randomUUID(), sLoc  = crypto.randomUUID(), sOther = crypto.randomUUID();
 
   const contactEmail  = v(info.email)          || "[FILL IN: email]";
   const emailLink     = contactEmail !== "[FILL IN: email]"
@@ -873,22 +909,24 @@ async function seedSwimClubFlows(tenantId, name, websiteUrl, info) {
   const compMsg = `We compete at national and regional level across all age groups. For information about our competitive squads:\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
 
   const { error: fErr } = await supabase.from("chat_workflows").insert([
-    { id: fMain, club_id: tenantId, name: "Main Menu",            is_active: true  },
-    { id: fMemb, club_id: tenantId, name: "Membership",           is_active: false },
-    { id: fLess, club_id: tenantId, name: "Lessons & Coaching",   is_active: false },
-    { id: fPool, club_id: tenantId, name: "Pool Timetable",       is_active: false },
-    { id: fComp, club_id: tenantId, name: "Competitive Swimming", is_active: false },
-    { id: fLoc,  club_id: tenantId, name: "Find Us",              is_active: false },
+    { id: fMain,  club_id: tenantId, name: "Main Menu",            is_active: true  },
+    { id: fMemb,  club_id: tenantId, name: "Membership",           is_active: false },
+    { id: fLess,  club_id: tenantId, name: "Lessons & Coaching",   is_active: false },
+    { id: fPool,  club_id: tenantId, name: "Pool Timetable",       is_active: false },
+    { id: fComp,  club_id: tenantId, name: "Competitive Swimming", is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",              is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",                is_active: false },
   ]);
   if (fErr) { console.error("[swim-seed] Flow insert error:", fErr.message); return false; }
 
   const { error: sErr } = await supabase.from("workflow_steps").insert([
-    { id: sMain, workflow_id: fMain, step_order: 1, bot_message: `Hi there! 🏊 Welcome to ${name}. What can I help you with?` },
-    { id: sMemb, workflow_id: fMemb, step_order: 1, bot_message: membMsg },
-    { id: sLess, workflow_id: fLess, step_order: 1, bot_message: lessMsg },
-    { id: sPool, workflow_id: fPool, step_order: 1, bot_message: poolMsg },
-    { id: sComp, workflow_id: fComp, step_order: 1, bot_message: compMsg },
-    { id: sLoc,  workflow_id: fLoc,  step_order: 1, bot_message: locLines },
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there! 🏊 Welcome to ${name}. What can I help you with?` },
+    { id: sMemb,  workflow_id: fMemb,  step_order: 1, bot_message: membMsg  },
+    { id: sLess,  workflow_id: fLess,  step_order: 1, bot_message: lessMsg  },
+    { id: sPool,  workflow_id: fPool,  step_order: 1, bot_message: poolMsg  },
+    { id: sComp,  workflow_id: fComp,  step_order: 1, bot_message: compMsg  },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[swim-seed] Step insert error:", sErr.message); return false; }
 
@@ -898,17 +936,22 @@ async function seedSwimClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain, choice_order: 3, label: "🕐 Pool timetable",       action_type: "switch_flow", action_value: fPool },
     { step_id: sMain, choice_order: 4, label: "🏆 Competitive swimming", action_type: "switch_flow", action_value: fComp },
     { step_id: sMain, choice_order: 5, label: "📍 Find us",              action_type: "switch_flow", action_value: fLoc  },
-    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "ai_fallback",  action_value: null  },
-    { step_id: sMemb, choice_order: 1, label: "🌐 View membership",      action_type: "url",         action_value: membershipUrl },
-    { step_id: sMemb, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain         },
-    { step_id: sLess, choice_order: 1, label: "📧 Register interest",    action_type: "ai_fallback",  action_value: null  },
-    { step_id: sLess, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain },
-    { step_id: sPool, choice_order: 1, label: "🕐 View timetable",       action_type: "url",         action_value: bookingUrl },
-    { step_id: sPool, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain      },
-    { step_id: sComp, choice_order: 1, label: "📧 Find out more",        action_type: "ai_fallback",  action_value: null  },
-    { step_id: sComp, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain },
-    { step_id: sLoc,  choice_order: 1, label: "📍 Get directions",       action_type: "url",         action_value: mapsUrl },
-    { step_id: sLoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow", action_value: fMain   },
+    { step_id: sMain, choice_order: 6, label: "💬 Something else",       action_type: "switch_flow",  action_value: fOther },
+    { step_id: sMemb, choice_order: 1, label: "🌐 View membership",      action_type: "url",          action_value: membershipUrl },
+    { step_id: sMemb, choice_order: 2, label: "✉️ Leave your details",  action_type: "collect_lead", action_value: null           },
+    { step_id: sMemb, choice_order: 3, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain          },
+    { step_id: sLess, choice_order: 1, label: "✉️ Register interest",   action_type: "collect_lead", action_value: null  },
+    { step_id: sLess, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain },
+    { step_id: sPool, choice_order: 1, label: "🕐 View timetable",       action_type: "url",          action_value: bookingUrl },
+    { step_id: sPool, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sComp, choice_order: 1, label: "✉️ Find out more",       action_type: "collect_lead", action_value: null  },
+    { step_id: sComp, choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain },
+    { step_id: sLoc,  choice_order: 1, label: "📍 Get directions",       action_type: "url",          action_value: mapsUrl },
+    { step_id: sLoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain   },
+    // Other — guided sub-flow
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[swim-seed] Choice insert error:", cErr.message); return false; }
 
@@ -926,9 +969,9 @@ async function seedTeamSportsClubFlows(tenantId, name, websiteUrl, info) {
   const v = (val) => (val && val !== "null") ? val : null;
 
   const fMain  = crypto.randomUUID(), fJoin  = crypto.randomUUID(), fTrain = crypto.randomUUID();
-  const fFix   = crypto.randomUUID(), fYouth = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const fFix   = crypto.randomUUID(), fYouth = crypto.randomUUID(), fLoc   = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain  = crypto.randomUUID(), sJoin  = crypto.randomUUID(), sTrain = crypto.randomUUID();
-  const sFix   = crypto.randomUUID(), sYouth = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+  const sFix   = crypto.randomUUID(), sYouth = crypto.randomUUID(), sLoc   = crypto.randomUUID(), sOther = crypto.randomUUID();
 
   const contactEmail  = v(info.email)          || "[FILL IN: email]";
   const emailLink     = contactEmail !== "[FILL IN: email]"
@@ -957,6 +1000,7 @@ async function seedTeamSportsClubFlows(tenantId, name, websiteUrl, info) {
     { id: fFix,   club_id: tenantId, name: "Fixtures & Results", is_active: false },
     { id: fYouth, club_id: tenantId, name: "Youth & Underage",   is_active: false },
     { id: fLoc,   club_id: tenantId, name: "Find Us",            is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",              is_active: false },
   ]);
   if (fErr) { console.error("[team-seed] Flow insert error:", fErr.message); return false; }
 
@@ -967,6 +1011,7 @@ async function seedTeamSportsClubFlows(tenantId, name, websiteUrl, info) {
     { id: sFix,   workflow_id: fFix,   step_order: 1, bot_message: fixMsg   },
     { id: sYouth, workflow_id: fYouth, step_order: 1, bot_message: youthMsg },
     { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[team-seed] Step insert error:", sErr.message); return false; }
 
@@ -976,19 +1021,23 @@ async function seedTeamSportsClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain,  choice_order: 3, label: "🏆 Fixtures & results",  action_type: "switch_flow", action_value: fFix   },
     { step_id: sMain,  choice_order: 4, label: "👶 Youth & underage",    action_type: "switch_flow", action_value: fYouth },
     { step_id: sMain,  choice_order: 5, label: "📍 Find us",             action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain,  choice_order: 6, label: "💬 Something else",      action_type: "ai_fallback",  action_value: null   },
-    { step_id: sJoin,  choice_order: 1, label: "🌐 View how to join",    action_type: "url",         action_value: membershipUrl },
-    { step_id: sJoin,  choice_order: 2, label: "📧 Get in touch",        action_type: "ai_fallback",  action_value: null          },
-    { step_id: sJoin,  choice_order: 3, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain         },
-    { step_id: sTrain, choice_order: 1, label: "🌐 Visit website",       action_type: "url",         action_value: websiteUrl },
+    { step_id: sMain,  choice_order: 6, label: "💬 Something else",      action_type: "switch_flow",  action_value: fOther },
+    { step_id: sJoin,  choice_order: 1, label: "🌐 View how to join",    action_type: "url",          action_value: membershipUrl },
+    { step_id: sJoin,  choice_order: 2, label: "✉️ Register interest",  action_type: "collect_lead", action_value: null          },
+    { step_id: sJoin,  choice_order: 3, label: "← Back to menu",         action_type: "switch_flow",  action_value: fMain         },
+    { step_id: sTrain, choice_order: 1, label: "🌐 Visit website",       action_type: "url",          action_value: websiteUrl },
     { step_id: sTrain, choice_order: 2, label: "💬 Ask me",              action_type: "ai_fallback",  action_value: null       },
-    { step_id: sTrain, choice_order: 3, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain      },
-    { step_id: sFix,   choice_order: 1, label: "🌐 View on website",     action_type: "url",         action_value: websiteUrl },
-    { step_id: sFix,   choice_order: 2, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain      },
-    { step_id: sYouth, choice_order: 1, label: "📧 Register a child",    action_type: "ai_fallback",  action_value: null   },
-    { step_id: sYouth, choice_order: 2, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain  },
-    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",      action_type: "url",         action_value: mapsUrl },
-    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",         action_type: "switch_flow", action_value: fMain   },
+    { step_id: sTrain, choice_order: 3, label: "← Back to menu",         action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sFix,   choice_order: 1, label: "🌐 View on website",     action_type: "url",          action_value: websiteUrl },
+    { step_id: sFix,   choice_order: 2, label: "← Back to menu",         action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sYouth, choice_order: 1, label: "✉️ Register a child",   action_type: "collect_lead", action_value: null   },
+    { step_id: sYouth, choice_order: 2, label: "← Back to menu",         action_type: "switch_flow",  action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",      action_type: "url",          action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",         action_type: "switch_flow",  action_value: fMain   },
+    // Other — guided sub-flow
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[team-seed] Choice insert error:", cErr.message); return false; }
 
@@ -1006,9 +1055,9 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
   const v = (val) => (val && val !== "null") ? val : null;
 
   const fMain  = crypto.randomUUID(), fMenu  = crypto.randomUUID(), fHours = crypto.randomUUID();
-  const fHire  = crypto.randomUUID(), fLoc   = crypto.randomUUID();
+  const fHire  = crypto.randomUUID(), fLoc   = crypto.randomUUID(), fOther = crypto.randomUUID();
   const sMain  = crypto.randomUUID(), sMenu  = crypto.randomUUID(), sHours = crypto.randomUUID();
-  const sHire  = crypto.randomUUID(), sLoc   = crypto.randomUUID();
+  const sHire  = crypto.randomUUID(), sLoc   = crypto.randomUUID(), sOther = crypto.randomUUID();
 
   const contactEmail = v(info.email) || "[FILL IN: email]";
   const emailLink    = contactEmail !== "[FILL IN: email]"
@@ -1034,6 +1083,7 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
     { id: fHours, club_id: tenantId, name: "Opening Hours",         is_active: false },
     { id: fHire,  club_id: tenantId, name: "Events & Private Hire", is_active: false },
     { id: fLoc,   club_id: tenantId, name: "Find Us",               is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",                 is_active: false },
   ]);
   if (fErr) { console.error("[cafe-seed] Flow insert error:", fErr.message); return false; }
 
@@ -1043,6 +1093,7 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
     { id: sHours, workflow_id: fHours, step_order: 1, bot_message: hoursMsg },
     { id: sHire,  workflow_id: fHire,  step_order: 1, bot_message: hireMsg  },
     { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
   ]);
   if (sErr) { console.error("[cafe-seed] Step insert error:", sErr.message); return false; }
 
@@ -1051,16 +1102,20 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain,  choice_order: 2, label: "🕐 Opening hours",         action_type: "switch_flow", action_value: fHours },
     { step_id: sMain,  choice_order: 3, label: "🎂 Events & private hire", action_type: "switch_flow", action_value: fHire  },
     { step_id: sMain,  choice_order: 4, label: "📍 Find us",               action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain,  choice_order: 5, label: "💬 Something else",        action_type: "ai_fallback",  action_value: null   },
-    { step_id: sMenu,  choice_order: 1, label: "🌐 View menu",             action_type: "url",         action_value: websiteUrl },
+    { step_id: sMain,  choice_order: 5, label: "💬 Something else",        action_type: "switch_flow",  action_value: fOther },
+    { step_id: sMenu,  choice_order: 1, label: "🌐 View menu",             action_type: "url",          action_value: websiteUrl },
     { step_id: sMenu,  choice_order: 2, label: "💬 Ask me anything",       action_type: "ai_fallback",  action_value: null       },
-    { step_id: sMenu,  choice_order: 3, label: "← Back to menu",           action_type: "switch_flow", action_value: fMain      },
-    { step_id: sHours, choice_order: 1, label: "📍 Get directions",        action_type: "url",         action_value: mapsUrl },
-    { step_id: sHours, choice_order: 2, label: "← Back to menu",           action_type: "switch_flow", action_value: fMain   },
-    { step_id: sHire,  choice_order: 1, label: "📧 Get in touch",          action_type: "ai_fallback",  action_value: null   },
-    { step_id: sHire,  choice_order: 2, label: "← Back to menu",           action_type: "switch_flow", action_value: fMain  },
-    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",        action_type: "url",         action_value: mapsUrl },
-    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",           action_type: "switch_flow", action_value: fMain   },
+    { step_id: sMenu,  choice_order: 3, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sHours, choice_order: 1, label: "📍 Get directions",        action_type: "url",          action_value: mapsUrl },
+    { step_id: sHours, choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain   },
+    { step_id: sHire,  choice_order: 1, label: "✉️ Send enquiry",         action_type: "collect_lead", action_value: null   },
+    { step_id: sHire,  choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",        action_type: "url",          action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain   },
+    // Other — guided sub-flow
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[cafe-seed] Choice insert error:", cErr.message); return false; }
 
@@ -9952,6 +10007,33 @@ app.use("/chat", (req, res, next) => {
   res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
+});
+
+// ── Lead capture — saves a name + email from the chat widget ─────────────────
+app.post("/api/chat/lead", async (req, res) => {
+  const { clubId, name, email, source } = req.body;
+  if (!clubId || !email) return res.status(400).json({ error: "Missing clubId or email" });
+  const { error } = await supabase.from("leads").insert({
+    tenant_id: clubId,
+    name:      (name  || "").trim() || null,
+    email:     email.toLowerCase().trim(),
+    source:    source || null,
+  });
+  if (error) { console.error("[lead] Insert error:", error.message); return res.status(500).json({ error: "Could not save lead" }); }
+  console.log(`[lead] Saved lead for ${clubId}: ${email}`);
+  res.json({ ok: true });
+});
+
+// GET /api/portal/leads — returns captured leads for this tenant
+app.get("/api/portal/leads", requireTenant, async (req, res) => {
+  const { data, error } = await supabase
+    .from("leads")
+    .select("id, name, email, source, created_at")
+    .eq("tenant_id", req.tenant.tenantId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
 });
 
 app.post("/chat", chatLimiter, async (req, res) => {

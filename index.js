@@ -5534,10 +5534,15 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
     const previewData = await previewResp.json();
     if (previewData.error) return res.json({ proration: null });
 
-    const amountDue  = previewData.amount_due; // negative = credit to member
-    const currency   = (previewData.currency || "eur").toUpperCase();
-    const isDowngrade = amountDue < 0;
-    const isUpgrade   = amountDue > 0;
+    // Sum proration line items directly — amount_due is clamped at 0 by Stripe for credits
+    const lines = (previewData.lines && previewData.lines.data) || [];
+    const prorationLines = lines.filter(function(l) { return l.proration; });
+    const netProration = prorationLines.reduce(function(sum, l) { return sum + l.amount; }, 0);
+
+    const currency    = (previewData.currency || "eur").toUpperCase();
+    const isDowngrade = netProration < 0; // net credit to member
+    const isUpgrade   = netProration > 0; // net charge to member
+    const amountDue   = netProration;
 
     return res.json({
       proration: {

@@ -3244,17 +3244,18 @@
           + "How would you like to handle this?";
 
         var refundBtn = document.createElement("button");
-        refundBtn.textContent = "💳 Refund " + amt + " to card now";
-        refundBtn.style.cssText = "background:#2563eb;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
+        refundBtn.textContent = "✓ Approve & Refund " + amt;
+        refundBtn.style.cssText = "background:#16a34a;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
         refundBtn.onclick = function() { modal.style.display = "none"; executeApprove(id, true, proration.amountAbs, proration.chargeId); };
 
-        var creditBtn = document.createElement("button");
-        creditBtn.textContent = "📋 Carry forward as account credit";
-        creditBtn.style.cssText = "background:#f9fafb;color:#374151;border:1.5px solid #d1d5db;border-radius:9px;padding:11px 0;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;";
-        creditBtn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
+        var creditLink = document.createElement("a");
+        creditLink.textContent = "or carry forward as account credit";
+        creditLink.href = "#";
+        creditLink.style.cssText = "display:block;text-align:center;font-size:12px;color:#6b7280;margin-top:6px;text-decoration:underline;cursor:pointer;";
+        creditLink.onclick = function(e) { e.preventDefault(); modal.style.display = "none"; executeApprove(id, false, 0); };
 
         btns.appendChild(refundBtn);
-        btns.appendChild(creditBtn);
+        btns.appendChild(creditLink);
       } else if (proration.isUpgrade) {
         var amt = "€" + (proration.amountAbs / 100).toFixed(2);
         title.textContent = "Approve — " + proration.fromPlan + " → " + proration.toPlan;

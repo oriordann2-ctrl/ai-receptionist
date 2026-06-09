@@ -5439,9 +5439,133 @@ app.get("/api/portal/membership-requests", requireTenant, async (req, res) => {
   res.json(data || []);
 });
 
+// GET /api/portal/membership-requests/:id/preview — calculate proration before approving
+app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req, res) => {
+  const tenantId  = req.tenant.tenantId;
+  const requestId = req.params.id;
+
+  const { data: request, error: reqErr } = await supabase
+    .from("membership_requests")
+    .select("*")
+    .eq("id", requestId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (reqErr || !request) return res.status(404).json({ error: "Request not found" });
+
+  // Only relevant for plan changes with a target type
+  const changeType = (request.requested_type || "").toLowerCase();
+  if (/cancel/i.test(changeType) || !request.target_membership_type || !request.member_email) {
+    return res.json({ proration: null });
+  }
+
+  let stripeKey = null;
+  try {
+    const { data: intg } = await supabase
+      .from("tenant_integrations")
+      .select("config, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "stripe")
+      .maybeSingle();
+    if (intg?.is_active && intg.config) {
+      const cfg = decryptIntgConfig(intg.config);
+      stripeKey = cfg.secret_key || null;
+    }
+  } catch (e) {}
+  if (!stripeKey) return res.json({ proration: null });
+
+  try {
+    const authHeader = "Basic " + Buffer.from(stripeKey + ":").toString("base64");
+
+    // Find customer
+    const custResp = await fetch(
+      "https://api.stripe.com/v1/customers?email=" + encodeURIComponent(request.member_email) + "&limit=1",
+      { headers: { Authorization: authHeader } }
+    );
+    const custData = await custResp.json();
+    if (!custData.data || !custData.data.length) return res.json({ proration: null });
+    const customer = custData.data[0];
+
+    // Find subscription
+    const subResp = await fetch(
+      "https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&limit=10",
+      { headers: { Authorization: authHeader } }
+    );
+    const subData = await subResp.json();
+    const sub = (subData.data || []).find(function(s) {
+      return ["active", "trialing", "past_due"].indexOf(s.status) !== -1;
+    });
+    if (!sub) return res.json({ proration: null });
+
+    const currentItem = sub.items && sub.items.data && sub.items.data[0];
+
+    // Find target product and price
+    const productsResp = await fetch(
+      "https://api.stripe.com/v1/products?limit=100&active=true",
+      { headers: { Authorization: authHeader } }
+    );
+    const productsData = await productsResp.json();
+    const targetProduct = (productsData.data || []).find(function(p) {
+      return p.name.toLowerCase() === request.target_membership_type.toLowerCase();
+    });
+    if (!targetProduct) return res.json({ proration: null });
+
+    const pricesResp = await fetch(
+      "https://api.stripe.com/v1/prices?product=" + targetProduct.id + "&active=true&limit=5",
+      { headers: { Authorization: authHeader } }
+    );
+    const pricesData = await pricesResp.json();
+    const targetPrice = pricesData.data && pricesData.data[0];
+    if (!targetPrice) return res.json({ proration: null });
+
+    // Preview upcoming invoice with proposed plan change — no changes made
+    const prorationDate = Math.floor(Date.now() / 1000);
+    const previewParams = new URLSearchParams({
+      customer:                          customer.id,
+      subscription:                      sub.id,
+      "subscription_items[0][id]":       currentItem ? currentItem.id : "",
+      "subscription_items[0][price]":    targetPrice.id,
+      subscription_proration_date:       String(prorationDate)
+    });
+
+    const previewResp = await fetch(
+      "https://api.stripe.com/v1/invoices/upcoming?" + previewParams.toString(),
+      { headers: { Authorization: authHeader } }
+    );
+    const previewData = await previewResp.json();
+    if (previewData.error) return res.json({ proration: null });
+
+    const amountDue  = previewData.amount_due; // negative = credit to member
+    const currency   = (previewData.currency || "eur").toUpperCase();
+    const isDowngrade = amountDue < 0;
+    const isUpgrade   = amountDue > 0;
+
+    return res.json({
+      proration: {
+        amountDue,
+        amountAbs:      Math.abs(amountDue),
+        currency,
+        isDowngrade,
+        isUpgrade,
+        fromPlan:       request.requested_type,
+        toPlan:         request.target_membership_type,
+        memberName:     request.member_name,
+        latestInvoice:  sub.latest_invoice,
+        customerId:     customer.id,
+        subscriptionId: sub.id,
+        currentItemId:  currentItem ? currentItem.id : null,
+        targetPriceId:  targetPrice.id
+      }
+    });
+
+  } catch (e) {
+    console.error("[Preview] Error:", e.message);
+    return res.json({ proration: null });
+  }
+});
+
 // POST /api/portal/membership-requests/:id/approve
 app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (req, res) => {
-  const { notes } = req.body || {};
+  const { notes, refundNow, prorationAmount } = req.body || {};
   const tenantId  = req.tenant.tenantId;
   const requestId = req.params.id;
 
@@ -5613,10 +5737,47 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
                     const newAmount = targetPrice.unit_amount;
                     const newCurrency = (targetPrice.currency || "eur").toUpperCase();
                     const newAmountFmt = newAmount != null ? "€" + (newAmount / 100).toFixed(2) : "";
+                    let refundNote = " Pro-rata credit applied to next invoice.";
+
+                    // Issue immediate cash refund if committee chose "Refund now"
+                    if (refundNow && prorationAmount && prorationAmount > 0) {
+                      try {
+                        // Get the latest invoice to find the original charge
+                        const invResp = await fetch(
+                          "https://api.stripe.com/v1/invoices/" + sub.latest_invoice,
+                          { headers: { Authorization: authHeader } }
+                        );
+                        const invData = await invResp.json();
+                        const chargeId = invData.charge;
+                        if (chargeId) {
+                          const refundResp = await fetch("https://api.stripe.com/v1/refunds", {
+                            method: "POST",
+                            headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
+                            body: new URLSearchParams({
+                              charge: chargeId,
+                              amount: String(Math.round(prorationAmount))
+                            }).toString()
+                          });
+                          const refundData = await refundResp.json();
+                          if (refundData.id) {
+                            refundNote = ` A refund of €${(prorationAmount / 100).toFixed(2)} has been issued to the member's card (5–10 days).`;
+                          } else {
+                            refundNote = " Refund could not be issued automatically — please process manually in Stripe Dashboard.";
+                            console.error("[Approve] Refund failed:", refundData);
+                          }
+                        } else {
+                          refundNote = " No charge found to refund — please process manually in Stripe Dashboard.";
+                        }
+                      } catch (refErr) {
+                        console.error("[Approve] Refund error:", refErr.message);
+                        refundNote = " Refund error — please process manually in Stripe Dashboard.";
+                      }
+                    }
+
                     stripeResult = {
                       ok: true,
                       action: "plan_changed",
-                      message: `✅ Subscription changed to ${targetType} (${newAmountFmt}/year). Pro-rata credit/charge applied automatically.`,
+                      message: `✅ Subscription changed to ${targetType} (${newAmountFmt}/year).${refundNote}`,
                       subscriptionId: sub.id,
                       customerId: customer.id,
                       stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id

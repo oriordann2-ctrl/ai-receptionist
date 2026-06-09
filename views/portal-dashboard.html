@@ -3185,11 +3185,82 @@
         });
     }
 
-    window.approveMemberRequest = function(id) {
-      if (!confirm("Approve this membership change and execute Stripe actions?")) return;
+    // ── Proration modal ────────────────────────────────────────────────────────
+    var prorationModal = document.createElement("div");
+    prorationModal.id = "prorationModal";
+    prorationModal.style.cssText = "display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;align-items:center;justify-content:center;";
+    prorationModal.innerHTML = [
+      '<div style="background:#fff;border-radius:16px;padding:28px 28px 22px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.18);">',
+        '<div style="font-size:17px;font-weight:700;color:#111827;margin-bottom:6px;" id="proModalTitle">Approve Membership Change</div>',
+        '<div style="font-size:14px;color:#374151;margin-bottom:18px;line-height:1.5;" id="proModalBody"></div>',
+        '<div style="display:flex;flex-direction:column;gap:10px;" id="proModalBtns"></div>',
+        '<button onclick="document.getElementById(\'prorationModal\').style.display=\'none\';" ',
+          'style="margin-top:12px;width:100%;background:none;border:none;color:#6b7280;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>',
+      '</div>'
+    ].join("");
+    document.body.appendChild(prorationModal);
 
+    function showProrationModal(id, proration) {
+      var modal = document.getElementById("prorationModal");
+      var title = document.getElementById("proModalTitle");
+      var body  = document.getElementById("proModalBody");
+      var btns  = document.getElementById("proModalBtns");
+      btns.innerHTML = "";
+
+      if (!proration) {
+        // No proration info — simple approve
+        title.textContent = "Approve Membership Change";
+        body.textContent  = "Execute Stripe actions for this request?";
+        var btn = document.createElement("button");
+        btn.textContent = "✓ Approve & Execute";
+        btn.style.cssText = "background:#16a34a;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
+        btn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
+        btns.appendChild(btn);
+      } else if (proration.isDowngrade) {
+        var amt = "€" + (proration.amountAbs / 100).toFixed(2);
+        title.textContent = "Approve — " + proration.fromPlan + " → " + proration.toPlan;
+        body.innerHTML = "<strong>" + (proration.memberName || "Member") + "</strong> is owed a pro-rata credit of <strong>" + amt + "</strong> for the unused portion of their current membership.<br><br>How would you like to handle this?";
+
+        var refundBtn = document.createElement("button");
+        refundBtn.textContent = "💳 Refund " + amt + " to card now";
+        refundBtn.style.cssText = "background:#2563eb;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
+        refundBtn.onclick = function() { modal.style.display = "none"; executeApprove(id, true, proration.amountAbs); };
+
+        var creditBtn = document.createElement("button");
+        creditBtn.textContent = "📋 Credit " + amt + " to next invoice";
+        creditBtn.style.cssText = "background:#f9fafb;color:#374151;border:1.5px solid #d1d5db;border-radius:9px;padding:11px 0;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;";
+        creditBtn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
+
+        btns.appendChild(refundBtn);
+        btns.appendChild(creditBtn);
+      } else if (proration.isUpgrade) {
+        var amt = "€" + (proration.amountAbs / 100).toFixed(2);
+        title.textContent = "Approve — " + proration.fromPlan + " → " + proration.toPlan;
+        body.innerHTML = "<strong>" + (proration.memberName || "Member") + "</strong> will be charged <strong>" + amt + "</strong> immediately for the pro-rata difference.";
+
+        var btn = document.createElement("button");
+        btn.textContent = "✓ Approve & Charge " + amt;
+        btn.style.cssText = "background:#16a34a;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
+        btn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
+        btns.appendChild(btn);
+      } else {
+        title.textContent = "Approve — " + proration.fromPlan + " → " + proration.toPlan;
+        body.textContent  = "No proration adjustment needed. Execute the plan change now?";
+        var btn = document.createElement("button");
+        btn.textContent = "✓ Approve & Execute";
+        btn.style.cssText = "background:#16a34a;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
+        btn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
+        btns.appendChild(btn);
+      }
+
+      modal.style.display = "flex";
+    }
+
+    function executeApprove(id, refundNow, prorationAmount) {
       fetch("/api/portal/membership-requests/" + id + "/approve", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({})
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refundNow: refundNow, prorationAmount: prorationAmount })
       })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -3197,8 +3268,8 @@
           if (sr) {
             var icon = sr.ok ? "✅" : "⚠️";
             var msg  = icon + " " + sr.message;
-            if (sr.ok && sr.action === "manual_required" && sr.stripeDashboardUrl) {
-              msg += "\n\nOpen in Stripe Dashboard:\n" + sr.stripeDashboardUrl;
+            if (sr.ok && sr.stripeDashboardUrl) {
+              msg += "\n\nStripe Dashboard:\n" + sr.stripeDashboardUrl;
             }
             alert(msg);
           } else {
@@ -3207,6 +3278,14 @@
           loadMemberRequests();
         })
         .catch(function() { alert("Something went wrong. Please try again."); });
+    }
+
+    window.approveMemberRequest = function(id) {
+      // First fetch proration preview, then show appropriate modal
+      fetch("/api/portal/membership-requests/" + id + "/preview")
+        .then(function(r) { return r.json(); })
+        .then(function(data) { showProrationModal(id, data.proration || null); })
+        .catch(function() { showProrationModal(id, null); });
     };
 
     window.rejectMemberRequest = function(id) {

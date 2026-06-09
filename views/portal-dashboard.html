@@ -2070,7 +2070,7 @@
       html += '<div style="margin-bottom:10px;">';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
         + '<label style="font-size:11px;font-weight:600;color:#6b7280;">Bot says…</label>'
-        + '<button type="button" onclick="pullFromKB(' + si + ')" style="font-size:11px;color:#2563eb;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;">↻ From KB</button>'
+        + '<button type="button" id="kbBtn_' + si + '" onclick="pullFromKB(' + si + ')" style="font-size:11px;color:#2563eb;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;">↻ From KB</button>'
         + '</div>';
       html += '<textarea class="wf-msg" data-si="' + si + '" oninput="editingSteps[' + si + '].bot_message=this.value" '
         + 'style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;color:#0f172a;outline:none;resize:vertical;min-height:72px;" '
@@ -2210,20 +2210,64 @@
     };
 
     window.pullFromKB = function(si) {
-      var query = window.prompt("Search your knowledge base for:", "");
-      if (!query || !query.trim()) return;
-      fetch("/api/portal/kb-search?q=" + encodeURIComponent(query.trim()))
+      var btnId = "kbBtn_" + si;
+      var barId = "kbBar_" + si;
+      // Toggle: if search bar already open, close it
+      var existing = document.getElementById(barId);
+      if (existing) { existing.remove(); return; }
+
+      var btn = document.getElementById(btnId);
+      if (!btn) return;
+
+      // Inject inline search bar below the button
+      var bar = document.createElement("div");
+      bar.id = barId;
+      bar.style.cssText = "display:flex;gap:6px;margin-top:6px;align-items:center;";
+      bar.innerHTML = '<input id="kbInput_' + si + '" type="text" placeholder="e.g. membership prices" '
+        + 'style="flex:1;padding:6px 10px;border:1.5px solid #2563eb;border-radius:7px;font-size:12px;font-family:inherit;outline:none;" />'
+        + '<button type="button" onclick="doKBSearch(' + si + ')" '
+        + 'style="padding:6px 12px;background:#2563eb;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Search</button>'
+        + '<button type="button" onclick="document.getElementById(\'' + barId + '\').remove()" '
+        + 'style="padding:6px 8px;background:none;border:none;color:#9ca3af;font-size:14px;cursor:pointer;line-height:1;">✕</button>';
+      btn.parentNode.insertBefore(bar, btn.nextSibling);
+      document.getElementById("kbInput_" + si).focus();
+
+      // Allow pressing Enter in the input to trigger search
+      document.getElementById("kbInput_" + si).addEventListener("keydown", function(e) {
+        if (e.key === "Enter") doKBSearch(si);
+      });
+    };
+
+    window.doKBSearch = function(si) {
+      var barId = "kbBar_" + si;
+      var input = document.getElementById("kbInput_" + si);
+      var query = input ? input.value.trim() : "";
+      if (!query) return;
+
+      input.disabled = true;
+      fetch("/api/portal/kb-search?q=" + encodeURIComponent(query))
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!data.content) { alert("No matching content found in your knowledge base."); return; }
-          var confirmed = window.confirm("Replace step content with this?\n\n" + data.content);
-          if (!confirmed) return;
+          var bar = document.getElementById(barId);
+          if (bar) bar.remove();
+          if (!data.content) {
+            // Show brief "not found" message inline
+            var msg = document.createElement("div");
+            msg.style.cssText = "font-size:11px;color:#dc2626;margin-top:4px;";
+            msg.textContent = "No matching content found in your knowledge base.";
+            var btn = document.getElementById("kbBtn_" + si);
+            if (btn) btn.parentNode.insertBefore(msg, btn.nextSibling);
+            setTimeout(function() { msg.remove(); }, 3000);
+            return;
+          }
           editingSteps[si].bot_message = data.content;
-          // Update the textarea in the DOM
           var ta = document.querySelector(".wf-msg[data-si='" + si + "']");
-          if (ta) ta.value = data.content;
+          if (ta) { ta.value = data.content; ta.style.borderColor = "#16a34a"; setTimeout(function(){ ta.style.borderColor = "#e2e8f0"; }, 2000); }
         })
-        .catch(function() { alert("Could not reach knowledge base. Please try again."); });
+        .catch(function() {
+          var bar = document.getElementById(barId);
+          if (bar) bar.remove();
+        });
     };
 
     window.wfCancelEdit = function () {

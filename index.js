@@ -7999,12 +7999,29 @@ async function getFullPageTextForKeyword(tenantId, keyword) {
   return allChunks.map(c => c.chunk_text).join("\n");
 }
 
-async function suggestAgentField(fieldKey, knowledgeText) {
-  let prompt = "";
+async function suggestAgentField(field, knowledgeText) {
+  // Accept either a field key string or a full field definition object
+  const fieldKey         = typeof field === "string" ? field : (field.key || "");
+  const fieldLabel       = typeof field === "object" && field.label       ? field.label       : fieldKey.replace(/_/g, " ");
+  const fieldHint        = typeof field === "object" && field.hint        ? field.hint        : "";
+  const fieldPlaceholder = typeof field === "object" && field.placeholder ? field.placeholder : "";
+
+  let prompt;
   if (fieldKey === "coaches") {
-    prompt = `You are extracting coach/instructor names and phone numbers from tennis club website content.\nList every named coach or instructor you can find.\nReturn ONLY a plain list, one coach per line, like this:\nName | phone_number\nIf no phone number is available, just use the name alone: Name\nIf absolutely no coaches are named, return an empty string.\nDo not include explanations, headers, or any other text.`;
+    // Specialised extraction for coaches — structured format required
+    prompt = `You are extracting coach/instructor names and phone numbers from business website content.\nList every named coach or instructor you can find.\nReturn ONLY a plain list, one per line, in this format:\nName | phone_number\nIf no phone number is available, just use the name alone.\nIf no coaches are found, return an empty string.\nDo not include explanations, headers, or any other text.`;
   } else {
-    return null; // no suggestion available for this field
+    // Generic extraction — use the field's label, hint and placeholder as context
+    prompt = [
+      `You are filling in a field for a customer service assistant, based on content scraped from a business website.`,
+      `Field name: "${fieldLabel}"`,
+      fieldHint        ? `Format guidance: ${fieldHint}`        : "",
+      fieldPlaceholder ? `Example of expected format:\n${fieldPlaceholder}` : "",
+      ``,
+      `Extract the most relevant content from the website text to populate this field.`,
+      `Return ONLY the field value — no labels, no headings, no explanation.`,
+      `If the information is not present in the text, return an empty string.`
+    ].filter(Boolean).join("\n");
   }
 
   const resp = await openai.chat.completions.create({
@@ -8062,7 +8079,7 @@ async function backfillEmptyAgentFields(tenantId) {
         if (config[field.key] && String(config[field.key]).trim()) continue; // already populated
 
         try {
-          const suggestion = await suggestAgentField(field.key, combined);
+          const suggestion = await suggestAgentField(field, combined);
           if (suggestion) {
             config[field.key] = suggestion;
             updated = true;
@@ -8736,26 +8753,33 @@ app.delete("/api/portal/agents/:tenantAgentId", requireTenant, async (req, res) 
 // POST /api/portal/agents/:tenantAgentId/suggest-field
 // Reads knowledge_chunks for this tenant and uses LLM to suggest a field value
 app.post("/api/portal/agents/:tenantAgentId/suggest-field", requireTenant, async (req, res) => {
-  const tenantId = req.tenant.tenantId;
-  const { field } = req.body;
-  if (!field) return res.status(400).json({ error: "field required" });
+  const tenantId       = req.tenant.tenantId;
+  const tenantAgentId  = req.params.tenantAgentId;
+  const { field: fieldKey } = req.body;
+  if (!fieldKey) return res.status(400).json({ error: "field required" });
 
   try {
-    // Prioritise chunks mentioning the field keyword, then add general content
-    // Reconstruct full page text for relevant pages — no arbitrary size limits
-    const keyword = field === "coaches" ? "%coach%" : "%";
+    // Look up the full field definition so LLM has label/hint/placeholder context
+    let fieldDef = fieldKey; // fallback: just pass the key string
+    try {
+      const { data: ta } = await supabase.from("tenant_agents").select("agent_id").eq("id", tenantAgentId).single();
+      if (ta?.agent_id) {
+        const { data: def } = await supabase.from("agent_definitions").select("config_schema").eq("id", ta.agent_id).single();
+        const found = (def?.config_schema?.fields || []).find(function(f) { return f.key === fieldKey; });
+        if (found) fieldDef = found;
+      }
+    } catch (e) { /* non-fatal — fall back to key string */ }
+
+    const keyword = fieldKey === "coaches" ? "%coach%" : "%";
     const combined = await getFullPageTextForKeyword(tenantId, keyword);
 
     if (!combined) {
       return res.json({ suggestion: null, message: "No website content found yet — make sure the website crawl has completed." });
     }
 
-    const suggestion = await suggestAgentField(field, combined);
-    if (suggestion === null && field !== "coaches") {
-      return res.json({ suggestion: null, message: "Suggestion not available for this field." });
-    }
+    const suggestion = await suggestAgentField(fieldDef, combined);
     if (!suggestion) {
-      return res.json({ suggestion: null, message: "No coaches found in your website content. You may need to add them manually." });
+      return res.json({ suggestion: null, message: "No relevant content found in your knowledge base for this field." });
     }
     res.json({ suggestion });
   } catch (err) {

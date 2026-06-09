@@ -5513,19 +5513,23 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
 
     const currentItem = sub.items && sub.items.data && sub.items.data[0];
 
-    // Capture the charge ID from the current latest invoice BEFORE any plan switch
-    // (after the switch, latest_invoice changes — we need the pre-switch charge for refunds)
+    // Find the original paid charge by searching paid invoice history.
+    // We must NOT use sub.latest_invoice — after a plan switch that creates proration,
+    // latest_invoice points to the proration invoice (e.g. €70 charge), not the original
+    // payment (e.g. €300 Family Sub). Searching paid invoices guarantees we find the
+    // right charge to refund regardless of whether the switch has already happened.
     let currentChargeId = null;
-    if (sub.latest_invoice) {
-      try {
-        const invResp = await fetch(
-          "https://api.stripe.com/v1/invoices/" + sub.latest_invoice,
-          { headers: { Authorization: authHeader } }
-        );
-        const invData = await invResp.json();
-        currentChargeId = invData.charge || null;
-      } catch (e) { /* non-fatal */ }
-    }
+    try {
+      const paidInvResp = await fetch(
+        "https://api.stripe.com/v1/invoices?subscription=" + sub.id + "&limit=20",
+        { headers: { Authorization: authHeader } }
+      );
+      const paidInvData = await paidInvResp.json();
+      const paidInvoice = (paidInvData.data || []).find(function(inv) {
+        return inv.status === "paid" && inv.charge && inv.amount_paid > 0;
+      });
+      currentChargeId = paidInvoice ? paidInvoice.charge : null;
+    } catch (e) { /* non-fatal */ }
 
     // Find target product and price
     const productsResp = await fetch(

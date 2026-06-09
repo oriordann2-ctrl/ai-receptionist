@@ -1097,12 +1097,16 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
   ]);
   if (sErr) { console.error("[cafe-seed] Step insert error:", sErr.message); return false; }
 
+  // Google review URL — generic fallback using business name + location
+  const reviewUrl = `https://www.google.com/maps/search/${encodeURIComponent(name + ", Ireland")}`;
+
   const { error: cErr } = await supabase.from("workflow_choices").insert([
     { step_id: sMain,  choice_order: 1, label: "📋 View our menu",         action_type: "switch_flow", action_value: fMenu  },
     { step_id: sMain,  choice_order: 2, label: "🕐 Opening hours",         action_type: "switch_flow", action_value: fHours },
     { step_id: sMain,  choice_order: 3, label: "🎂 Events & private hire", action_type: "switch_flow", action_value: fHire  },
     { step_id: sMain,  choice_order: 4, label: "📍 Find us",               action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain,  choice_order: 5, label: "💬 Something else",        action_type: "switch_flow",  action_value: fOther },
+    { step_id: sMain,  choice_order: 5, label: "⭐ Leave a Google review", action_type: "url",          action_value: reviewUrl },
+    { step_id: sMain,  choice_order: 6, label: "💬 Something else",        action_type: "switch_flow",  action_value: fOther },
     { step_id: sMenu,  choice_order: 1, label: "🌐 View menu",             action_type: "url",          action_value: websiteUrl },
     { step_id: sMenu,  choice_order: 2, label: "💬 Ask me anything",       action_type: "ai_fallback",  action_value: null       },
     { step_id: sMenu,  choice_order: 3, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain      },

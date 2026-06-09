@@ -4514,8 +4514,11 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
           setCrawlProgress(tenantId, 90, "Building your personalised chat flows…");
           const info = await extractTennisClubInfo(pages, website);
           await seedTennisClubFlows(tenantId, name, website, info);
-          await backfillEmptyAgentFields(tenantId);
         }
+
+        // Auto-populate empty agent config fields from KB for all business types
+        setCrawlProgress(tenantId, 92, "Filling in your assistant details…");
+        await backfillEmptyAgentFields(tenantId);
       } catch (seedErr) {
         console.error(`[crawl] Flow seed error for ${tenantId}:`, seedErr.message);
       }
@@ -8053,7 +8056,9 @@ async function backfillEmptyAgentFields(tenantId) {
       let   updated = false;
 
       for (const field of def.config_schema.fields) {
-        if (!field.suggest_from_knowledge) continue;
+        // Populate any KB-backed or freetext field that isn't already filled
+        const isKbField = field.suggest_from_knowledge || field.type === "textarea" || field.type === "multiline";
+        if (!isKbField) continue;
         if (config[field.key] && String(config[field.key]).trim()) continue; // already populated
 
         try {

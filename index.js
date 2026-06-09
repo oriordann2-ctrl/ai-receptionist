@@ -3439,6 +3439,31 @@ app.post("/api/admin/seed-tenant", requireAdmin, async (req, res) => {
   }
 });
 
+// ── Admin: inject KB content for any tenant ───────────────────────────────
+app.post("/api/admin/inject-kb", requireAdmin, async (req, res) => {
+  const { tenantId, title, text } = req.body;
+  if (!tenantId || !title || !text) return res.status(400).json({ error: "tenantId, title and text required" });
+  try {
+    const { data: doc, error } = await supabase.from("documents").insert({
+      original_filename: `${title.trim()}.txt`,
+      stored_filename:   `${title.trim()}.txt`,
+      storage_path:      null,
+      mimetype:          "text/plain",
+      document_type:     "Pasted Knowledge",
+      description:       title.trim(),
+      tags:              ["pasted"],
+      metadata_complete: true,
+      junior_accessible: true,
+      tenant_id:         tenantId
+    }).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    await generateAndStoreChunks(doc.id, text.trim(), null, "Pasted Knowledge", null, tenantId, { title: title.trim() });
+    res.json({ ok: true, documentId: doc.id, title });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get("/admin/mortgage-leads", requireAdmin, async (req, res) => {
   const leads = await fetchAllMortgageLeads();
   res.json(leads);

@@ -441,9 +441,8 @@
     setTimeout(function() {
       var lastEl = messages.lastElementChild;
       if (!lastEl) return;
-      // Centre the latest content in the visible area
-      var target = lastEl.offsetTop - Math.floor(messages.clientHeight * 0.4);
-      messages.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+      // Keep the latest content centred in the visible area
+      lastEl.scrollIntoView({ behavior: "smooth", block: "center" });
     }, delay || 0);
   }
 

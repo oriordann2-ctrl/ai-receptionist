@@ -92,6 +92,14 @@ const signupLimiter = rateLimit({
   message: { error: "Too many signup attempts from this address. Please try again in an hour." }
 });
 
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,       // 1 minute window
+  max: 30,                   // max 30 messages per IP per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many messages. Please slow down and try again shortly." }
+});
+
 // Redirect root to portal; admin is still accessible at /login or /admin
 app.get("/", (req, res) => res.redirect("/portal"));
 app.use(express.static(path.join(__dirname, "public")));
@@ -8772,7 +8780,7 @@ app.use("/chat", (req, res, next) => {
   next();
 });
 
-app.post("/chat", async (req, res) => {
+app.post("/chat", chatLimiter, async (req, res) => {
   try {
     const { userId, conversationId, message, voiceMode, clubId, workflowContext, agentTrigger } = req.body;
     const tenantId = clubId || "aom";

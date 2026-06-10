@@ -196,6 +196,14 @@ Google + TripAdvisor review buttons with logos, accessible from main menu. Imple
 
 ---
 
+## 🔄 Re-import: Website Disappears During Crawl
+
+**Bug / UX issue:** When a tenant clicks Re-import, the old website documents are deleted immediately before the crawl begins. This means the website disappears from the Knowledge Base uploads list for the full 2–3 minutes of the crawl, which looks broken to the tenant.
+
+**Fix:** Don't delete the old documents until the new crawl has completed successfully. Swap old for new atomically — insert new docs first, then delete old ones. Or keep old docs visible (read-only / greyed out) during the crawl and replace them when done.
+
+---
+
 ## 📊 Portal Leads View UI
 
 Backend endpoint exists (`GET /api/portal/leads`) but no UI built. Clients can't see their leads from the portal.

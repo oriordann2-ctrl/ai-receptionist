@@ -7704,9 +7704,26 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
 
   (async () => {
     try {
-      setCrawlProgress(tenantId, 5, "Clearing old website content…");
+      // ── Fetch tenant business type for crawl prioritisation ─────────────────
+      const { data: tenantRow } = await supabase
+        .from("tenants")
+        .select("business_type")
+        .eq("id", tenantId)
+        .maybeSingle();
+      const bizType = tenantRow?.business_type || null;
 
-      // ── Delete existing pages for this domain only ──────────────────────────
+      // ── Crawl FIRST — old docs stay visible until new ones are ready ─────────
+      // This prevents the website from disappearing from the KB list during crawl.
+      console.log(`[portal-import] Starting crawl for ${tenantId}: ${rootUrl} (biz: ${bizType || "unknown"})`);
+      setCrawlProgress(tenantId, 5, `Scanning ${domain}…`);
+      const pages = await crawlWebsite(rootUrl, 80, (count) => {
+        const pct = 5 + Math.round((count / 80) * 60);
+        setCrawlProgress(tenantId, Math.min(pct, 65), `${count} page${count === 1 ? "" : "s"} scanned…`);
+      }, bizType);
+      console.log(`[portal-import] Crawled ${pages.length} pages for ${tenantId}`);
+
+      // ── Now delete old pages — crawl is done, gap is milliseconds not minutes ─
+      setCrawlProgress(tenantId, 66, "Updating knowledge base…");
       const { data: existingDocs } = await supabase
         .from("documents")
         .select("id")
@@ -7721,23 +7738,7 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
         console.log(`[portal-import] Cleared ${oldIds.length} old pages for ${domain} (${tenantId})`);
       }
 
-      // ── Fetch tenant business type for crawl prioritisation ─────────────────
-      const { data: tenantRow } = await supabase
-        .from("tenants")
-        .select("business_type")
-        .eq("id", tenantId)
-        .maybeSingle();
-      const bizType = tenantRow?.business_type || null;
-
-      // ── Crawl fresh ─────────────────────────────────────────────────────────
-      console.log(`[portal-import] Starting crawl for ${tenantId}: ${rootUrl} (biz: ${bizType || "unknown"})`);
-      setCrawlProgress(tenantId, 12, `Scanning ${domain}…`);
-      const pages = await crawlWebsite(rootUrl, 80, (count) => {
-        const pct = 12 + Math.round((count / 80) * 55);
-        setCrawlProgress(tenantId, Math.min(pct, 67), `${count} page${count === 1 ? "" : "s"} scanned…`);
-      }, bizType);
-      console.log(`[portal-import] Crawled ${pages.length} pages for ${tenantId}`);
-
+      // ── Save new pages ───────────────────────────────────────────────────────
       setCrawlProgress(tenantId, 68, `Saving ${pages.length} pages to your knowledge base…`);
       let imported = 0;
       for (const page of pages) {

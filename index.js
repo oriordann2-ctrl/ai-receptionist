@@ -5657,11 +5657,13 @@ app.get("/api/check-url", async (req, res) => {
 // Scrapes an Instagram public profile page and returns up to maxImages CDN thumbnail URLs.
 // Instagram doesn't require auth for public profiles, but does rate-limit bots.
 // Falls back to [] on any error — never throws.
-async function fetchInstagramThumbnails(handle, maxImages = 9) {
+// Scrapes an Instagram public profile for post thumbnails and re-hosts them in
+// Supabase Storage so the URLs are permanent (Instagram CDN URLs expire within hours).
+async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
   if (!handle) return [];
   try {
-    const url = `https://www.instagram.com/${encodeURIComponent(handle)}/`;
-    const res = await fetch(url, {
+    const profileUrl = `https://www.instagram.com/${encodeURIComponent(handle)}/`;
+    const res = await fetch(profileUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -5679,23 +5681,42 @@ async function fetchInstagramThumbnails(handle, maxImages = 9) {
     }
     const html = await res.text();
 
-    // Instagram embeds post data in several JSON blobs — extract all CDN image URLs
+    // Extract CDN thumbnail URLs from embedded JSON blobs
     const seen = new Set();
-    const results = [];
-    // Match Instagram/Facebook CDN image URLs that look like post thumbnails
+    const cdnUrls = [];
     const cdnRe = /https:\/\/[a-z0-9_.-]+\.(?:cdninstagram|fbcdn)\.net\/[^"'\s\\]+\.(?:jpg|jpeg|webp)(?:\?[^"'\s\\]*)?/gi;
     let m;
-    while ((m = cdnRe.exec(html)) !== null && results.length < maxImages) {
+    while ((m = cdnRe.exec(html)) !== null && cdnUrls.length < maxImages) {
       const imgUrl = m[0].replace(/\\u0026/g, "&").replace(/\\/g, "");
-      // Skip tiny icons and profile pictures (usually flagged by "s150x150" or "s32x32" in path)
+      // Skip tiny thumbnails (s150x150, s32x32 etc.) — keep anything 300px+
       if (/s\d{1,3}x\d{1,3}/.test(imgUrl) && !/s[3-9]\d{2}x[3-9]\d{2}/.test(imgUrl)) continue;
-      if (!seen.has(imgUrl)) {
-        seen.add(imgUrl);
-        results.push(imgUrl);
+      if (!seen.has(imgUrl)) { seen.add(imgUrl); cdnUrls.push(imgUrl); }
+    }
+    console.log(`[ig-scrape] Found ${cdnUrls.length} CDN thumbnails for @${handle}`);
+    if (cdnUrls.length === 0) return [];
+
+    // Re-host each image in Supabase Storage — CDN URLs expire, Supabase URLs are permanent
+    const permanentUrls = [];
+    for (let i = 0; i < cdnUrls.length; i++) {
+      try {
+        const imgRes = await fetch(cdnUrls[i], { signal: AbortSignal.timeout(8000) });
+        if (!imgRes.ok) continue;
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        const ct = imgRes.headers.get("content-type") || "image/jpeg";
+        const ext = ct.includes("webp") ? "webp" : "jpg";
+        const storagePath = `social-images/${tenantId}/ig_${i}.${ext}`;
+        const { error: uploadErr } = await supabase.storage
+          .from(SUPABASE_BUCKET)
+          .upload(storagePath, buffer, { contentType: ct, upsert: true });
+        if (uploadErr) { console.log(`[ig-scrape] Upload failed for image ${i}: ${uploadErr.message}`); continue; }
+        const { data: { publicUrl } } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
+        permanentUrls.push(publicUrl);
+      } catch (e) {
+        console.log(`[ig-scrape] Re-host failed for image ${i}: ${e.message}`);
       }
     }
-    console.log(`[ig-scrape] Found ${results.length} thumbnails for @${handle}`);
-    return results;
+    console.log(`[ig-scrape] Re-hosted ${permanentUrls.length}/${cdnUrls.length} images for @${handle} (${tenantId})`);
+    return permanentUrls;
   } catch (err) {
     console.log(`[ig-scrape] Failed for @${handle}: ${err.message}`);
     return [];
@@ -5803,7 +5824,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         const igHandle = tenantMeta?.instagram_handle;
         if (igHandle) {
           setCrawlProgress(tenantId, 13, `Fetching photos from Instagram (@${igHandle})…`);
-          const thumbnails = await fetchInstagramThumbnails(igHandle, 9);
+          const thumbnails = await fetchInstagramThumbnails(igHandle, tenantId, 9);
           if (thumbnails.length > 0) {
             await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
             console.log(`[crawl] Stored ${thumbnails.length} IG thumbnails for ${tenantId}`);

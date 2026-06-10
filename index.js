@@ -8347,7 +8347,7 @@ app.post("/api/portal/knowledge-answer", requireTenant, async (req, res) => {
     }
 
     // 3. Fall back to KB chunk search
-    const relevantDocs = await findRelevantKnowledgeChunks(question, 5, tenantId);
+    const relevantDocs = await findRelevantKnowledgeChunks(question, 12, tenantId);
     const documentContext = relevantDocs.map(doc => `Source: ${doc.filename}\n${doc.text}`).join("\n\n");
 
     const completion = await openai.chat.completions.create({

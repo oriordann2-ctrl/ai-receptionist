@@ -5654,6 +5654,54 @@ app.get("/api/check-url", async (req, res) => {
 });
 
 // ── Background crawl (runs after email verification) ─────────────────────────
+// Extracts meaningful photos from crawled website HTML, downloads them, and
+// re-hosts in Supabase Storage. Returns permanent public URLs.
+// Skips tiny images (< 15 KB), icons, logos, and SVGs.
+async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
+  const seen = new Set();
+  const candidates = [];
+
+  for (const page of pages) {
+    if (!page.html) continue;
+    const srcRe = /<img[^>]+src=["']([^"'>\s]+)["'][^>]*>/gi;
+    let m;
+    while ((m = srcRe.exec(page.html)) !== null) {
+      const src = m[1];
+      if (!src || src.startsWith("data:")) continue;
+      let abs;
+      try { abs = new URL(src, page.url).href; } catch { continue; }
+      if (!/\.(jpe?g|png|webp)(\?|$)/i.test(abs)) continue;
+      if (/icon|logo|favicon|avatar|sprite|placeholder|banner|badge|arrow|bullet/i.test(abs)) continue;
+      if (!seen.has(abs)) { seen.add(abs); candidates.push(abs); }
+      if (candidates.length >= maxImages * 4) break;
+    }
+    if (candidates.length >= maxImages * 4) break;
+  }
+
+  const permanent = [];
+  for (const imgUrl of candidates) {
+    if (permanent.length >= maxImages) break;
+    try {
+      const r = await fetch(imgUrl, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) continue;
+      const ct = r.headers.get("content-type") || "";
+      if (!ct.startsWith("image/")) continue;
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length < 15000) continue; // skip anything under 15 KB — icons/thumbnails
+      const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
+      const path = `social-images/${tenantId}/site_${permanent.length}.${ext}`;
+      const { error } = await supabase.storage.from(SUPABASE_BUCKET).upload(path, buf, { contentType: ct, upsert: true });
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
+        permanent.push(publicUrl);
+      }
+    } catch {}
+  }
+
+  console.log(`[img-extract] Re-hosted ${permanent.length} website images for ${tenantId}`);
+  return permanent;
+}
+
 // Scrapes an Instagram public profile page and returns up to maxImages CDN thumbnail URLs.
 // Instagram doesn't require auth for public profiles, but does rate-limit bots.
 // Falls back to [] on any error — never throws.
@@ -5839,6 +5887,21 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         setCrawlProgress(tenantId, Math.min(pct, 66), `Lap ${lap} — ${count} page${count === 1 ? "" : "s"} scanned so far…`);
       });
       console.log(`[crawl] Crawled ${pages.length} pages for ${tenantId}`);
+
+      // ── Extract photos from crawled HTML if Instagram didn't provide any ────
+      try {
+        const { data: existing } = await supabase.from("tenants").select("social_images").eq("id", tenantId).maybeSingle();
+        let hasImages = false;
+        try { hasImages = Array.isArray(JSON.parse(existing?.social_images)) && JSON.parse(existing.social_images).length > 0; } catch {}
+        if (!hasImages && pages.length > 0) {
+          setCrawlProgress(tenantId, 67, "Gathering photos from your website…");
+          const siteImages = await extractAndRehostWebsiteImages(pages, tenantId, 9);
+          if (siteImages.length > 0) {
+            await supabase.from("tenants").update({ social_images: JSON.stringify(siteImages) }).eq("id", tenantId);
+            console.log(`[crawl] Stored ${siteImages.length} website images for ${tenantId}`);
+          }
+        }
+      } catch {}
 
       // ── Extract logo from crawled HTML (avoids second fetch for sites that block it) ──
       if (!logoUrl) {
@@ -14632,35 +14695,21 @@ function buildTenantSiteHtml(tenant) {
   // ── Social media sections ─────────────────────────────────────────────────
   // Facebook Page Plugin — shows live photos feed, no API key needed
   const fbSection = fbUrl ? `
-<section style="background:#f9fafb;padding:56px 24px;">
-  <div style="max-width:820px;margin:0 auto;text-align:center;">
-    <div class="section-label" style="text-align:center;">Follow Us</div>
-    <h2 style="font-size:26px;font-weight:800;color:#111827;margin-bottom:6px;">Latest from Facebook</h2>
-    <p style="color:#6b7280;font-size:15px;margin-bottom:28px;">Match reports, photos and club news — updated in real time.</p>
-    <div style="display:flex;justify-content:center;overflow:hidden;border-radius:14px;box-shadow:0 2px 20px rgba(0,0,0,0.09);">
-      <div class="fb-page"
-        data-href="${fbUrl}"
-        data-tabs="timeline"
-        data-width="780"
-        data-height="600"
-        data-small-header="true"
-        data-adapt-container-width="true"
-        data-hide-cover="false"
-        data-show-facepile="false">
-        <blockquote cite="${fbUrl}" class="fb-xfbml-parse-ignore">
-          <a href="${fbUrl}">${name} on Facebook</a>
-        </blockquote>
+<section style="padding:48px 24px;background:#f9fafb;text-align:center;">
+  <div style="max-width:440px;margin:0 auto;">
+    <div style="background:#1877f2;padding:3px;border-radius:16px;display:inline-block;">
+      <div style="background:white;border-radius:14px;padding:30px 36px;">
+        <div style="font-size:38px;margin-bottom:10px;">📘</div>
+        <h3 style="font-weight:800;color:#111827;margin-bottom:6px;">Follow us on Facebook</h3>
+        <p style="color:#6b7280;font-size:14px;line-height:1.6;margin-bottom:20px;">Match reports, photos, lotto results and club news — all on our Facebook page.</p>
+        <a href="${fbUrl}" target="_blank" rel="noopener"
+          style="display:inline-block;background:#1877f2;color:white;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;font-weight:700;">
+          Visit our Facebook page →
+        </a>
       </div>
     </div>
-    <a href="${fbUrl}" target="_blank" rel="noopener"
-      style="display:inline-block;margin-top:18px;background:#1877f2;color:white;text-decoration:none;padding:11px 24px;border-radius:9px;font-size:14px;font-weight:700;">
-      📘 Follow on Facebook →
-    </a>
   </div>
-</section>
-<div id="fb-root"></div>
-<script async defer crossorigin="anonymous"
-  src="https://connect.facebook.net/en_IE/sdk.js#xfbml=1&version=v18.0"></script>` : "";
+</section>` : "";
 
   // Instagram grid — real thumbnails if scraped, otherwise a branded card
   const igSection = igHandle ? (() => {

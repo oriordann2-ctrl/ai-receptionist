@@ -5127,7 +5127,63 @@ function isUsefulPageContent(title, text) {
   return true;
 }
 
-async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
+// Business-type specific probe paths — inserted at the FRONT of the crawl queue
+// so they're always visited before generic pages, even when maxPages is tight.
+const BUSINESS_TYPE_PROBE_PATHS = {
+  tennis_club: [
+    "/committee", "/about-us/committee", "/about/committee", "/our-committee",
+    "/club-committee", "/officers", "/club-officers", "/the-club",
+    "/membership", "/membership-fees", "/join", "/adult-membership", "/junior-membership",
+    "/courts", "/facilities", "/court-booking", "/book-a-court",
+    "/coaching", "/adult-coaching", "/junior-coaching", "/lessons",
+    "/fixtures", "/leagues", "/results", "/club-championship",
+  ],
+  racket_sports_club: [
+    "/committee", "/about-us/committee", "/officers",
+    "/membership", "/join", "/courts", "/facilities",
+    "/coaching", "/lessons", "/leagues", "/fixtures",
+  ],
+  golf_club: [
+    "/committee", "/about-us/committee", "/officers", "/club-officers",
+    "/membership", "/join", "/fees", "/green-fees",
+    "/course", "/facilities", "/pro-shop",
+    "/competitions", "/fixtures", "/results",
+    "/coaching", "/lessons",
+  ],
+  fitness_studio: [
+    "/classes", "/timetable", "/schedule", "/class-schedule",
+    "/membership", "/pricing", "/join", "/fees",
+    "/coaches", "/instructors", "/team", "/about",
+    "/facilities",
+  ],
+  yoga_studio: [
+    "/classes", "/timetable", "/schedule",
+    "/membership", "/pricing", "/join",
+    "/teachers", "/instructors", "/about",
+    "/workshops",
+  ],
+  swim_club: [
+    "/committee", "/about-us/committee", "/officers",
+    "/membership", "/join", "/fees",
+    "/training", "/squads", "/lessons",
+    "/gala", "/fixtures", "/results",
+  ],
+  team_sports_club: [
+    "/committee", "/about-us/committee", "/officers",
+    "/membership", "/join",
+    "/fixtures", "/results", "/leagues",
+    "/training", "/coaching", "/juvenile",
+  ],
+  cafe: [
+    "/menu", "/our-menu", "/food-menu", "/drinks-menu", "/food",
+    "/opening-hours", "/hours", "/times",
+    "/book-a-table", "/reservations", "/book",
+    "/specials", "/daily-specials",
+    "/about", "/about-us", "/our-story",
+  ],
+};
+
+async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessType = null) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
 
@@ -5152,13 +5208,24 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
   // Always include root
   if (!allUrls.some(u => canonicalUrl(u) === rootCanon)) allUrls.unshift(root);
 
-  // Always probe key paths — ensures important pages are in the queue even when
-  // a sitemap exists but doesn't include sub-pages like /membership/rates.
-  // Pages that don't exist will 404 and be silently skipped by the crawler.
+  // Always probe generic key paths (404s silently skipped)
   for (const p of PROBE_PATHS) {
     const probeUrl = root + p;
     const probeCanon = canonicalUrl(probeUrl);
     if (!allUrls.some(u => canonicalUrl(u) === probeCanon)) allUrls.push(probeUrl);
+  }
+
+  // Business-type specific paths — added to a priority list that goes to the
+  // FRONT of the crawl queue, before any sitemap/generic pages
+  const bizProbePaths = (businessType && BUSINESS_TYPE_PROBE_PATHS[businessType]) || [];
+  const bizPriorityUrls = [];
+  for (const p of bizProbePaths) {
+    const probeUrl = root + p;
+    const probeCanon = canonicalUrl(probeUrl);
+    if (!allUrls.some(u => canonicalUrl(u) === probeCanon)) {
+      allUrls.push(probeUrl); // add to full list for dedup
+    }
+    bizPriorityUrls.push(probeUrl); // always in priority list
   }
 
   // Hard-block URLs that are always duplicates or system pages
@@ -5184,12 +5251,19 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
   }
   allUrls = allUrls.filter(u => !isBlockedUrl(u));
 
-  // Priority pages first, noise pages only if budget allows
-  const priorityUrls = allUrls.filter(u => !isCrawlNoise(u));
+  // Queue order: business-type specific paths first, then general priority, then noise
+  const bizSet  = new Set(bizPriorityUrls.map(u => canonicalUrl(u)));
+  const priorityUrls = allUrls.filter(u => !isCrawlNoise(u) && !bizSet.has(canonicalUrl(u)));
   const noiseUrls    = allUrls.filter(u => isCrawlNoise(u));
-  const queue = [...priorityUrls, ...noiseUrls];
+  // bizPriorityUrls go first regardless of noise status — they're explicitly wanted
+  const queue = [
+    ...bizPriorityUrls.filter(u => !isBlockedUrl(u)),
+    ...priorityUrls,
+    ...noiseUrls,
+  ];
 
-  console.log(`[crawler] Queue: ${allUrls.length} total URLs (${priorityUrls.length} priority, ${noiseUrls.length} noise) — cap: ${maxPages} pages`);
+  const bizLabel = businessType ? ` | biz-type: ${businessType} (${bizPriorityUrls.length} priority paths)` : "";
+  console.log(`[crawler] Queue: ${allUrls.length} total URLs (${priorityUrls.length} priority, ${noiseUrls.length} noise)${bizLabel} — cap: ${maxPages} pages`);
 
   const pages   = [];
 
@@ -7646,13 +7720,21 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
         console.log(`[portal-import] Cleared ${oldIds.length} old pages for ${domain} (${tenantId})`);
       }
 
+      // ── Fetch tenant business type for crawl prioritisation ─────────────────
+      const { data: tenantRow } = await supabase
+        .from("tenants")
+        .select("business_type")
+        .eq("id", tenantId)
+        .maybeSingle();
+      const bizType = tenantRow?.business_type || null;
+
       // ── Crawl fresh ─────────────────────────────────────────────────────────
-      console.log(`[portal-import] Starting crawl for ${tenantId}: ${rootUrl}`);
+      console.log(`[portal-import] Starting crawl for ${tenantId}: ${rootUrl} (biz: ${bizType || "unknown"})`);
       setCrawlProgress(tenantId, 12, `Scanning ${domain}…`);
       const pages = await crawlWebsite(rootUrl, 40, (count) => {
         const pct = 12 + Math.round((count / 40) * 55);
         setCrawlProgress(tenantId, Math.min(pct, 67), `${count} page${count === 1 ? "" : "s"} scanned…`);
-      });
+      }, bizType);
       console.log(`[portal-import] Crawled ${pages.length} pages for ${tenantId}`);
 
       setCrawlProgress(tenantId, 68, `Saving ${pages.length} pages to your knowledge base…`);

@@ -5104,19 +5104,25 @@ function isCrawlNoise(url) {
 // Content-based page quality filter — runs after fetching, before storing.
 // Catches noise pages that URL patterns can't detect: blog posts with plain-English
 // titles ("May 28th", "Wild Spirit"), thin event recap pages, photo galleries etc.
-function isUsefulPageContent(title, text) {
-  const t    = (title || "").trim();
+function isUsefulPageContent(title, text, url = "") {
+  // Strip common site-name suffixes from title before pattern matching
+  // e.g. "May 28th | MonkstownLTCC" → "May 28th"
+  const t    = (title || "").trim().replace(/\s*[|\-–—]\s*.{3,40}$/, "").trim();
   const body = (text  || "").trim();
 
-  // 1. Too thin to be useful (photo pages, empty pages, pure nav pages)
-  if (body.length < 400) return false;
+  // 1. Too thin to be useful — but allow structural pages (committee, about, contact etc.)
+  //    which may be short by nature (a list of names, an address, opening hours)
+  const STRUCTURAL_PATHS = /\/(committee|about|contact|members|membership|menu|hours|opening|faq|coaches|team|officers|facilities|courts)\b/i;
+  const isStructural = STRUCTURAL_PATHS.test(url);
+  const MIN_LENGTH = isStructural ? 80 : 400;
+  if (body.length < MIN_LENGTH) return false;
 
   // 2. Title is a date or date fragment — "May 28th", "June 2024", "28th July"
   const MONTHS = "january|february|march|april|may|june|july|august|september|october|november|december";
   if (new RegExp(`^(${MONTHS})\\s+\\d{1,2}(st|nd|rd|th)?(,?\\s+\\d{4})?$`, "i").test(t)) return false;
   if (new RegExp(`^\\d{1,2}(st|nd|rd|th)\\s+(${MONTHS})`, "i").test(t)) return false;
 
-  // 3. Short title that matches known event/social post patterns AND thin content
+  // 3. Title matches known event/social post patterns AND thin content
   const EVENT_PATTERNS = [
     /dinner dance/i, /prize.?giving/i, /photoshoot/i, /\bbbq\b/i,
     /club night/i,  /social evening/i, /annual dinner/i, /open day/i,
@@ -5396,7 +5402,7 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
     const errors = [];
 
     for (const page of pages) {
-      if (!isUsefulPageContent(page.title, page.text)) {
+      if (!isUsefulPageContent(page.title, page.text, page.url)) {
         console.log(`[import-website] Skipping noise page: "${page.title}" (${page.text?.length || 0} chars)`);
         continue;
       }
@@ -7739,7 +7745,7 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
           console.log(`[portal-import] Quota reached (${CRAWL_QUOTA_DOCS} docs) for ${tenantId} — stopping`);
           break;
         }
-        if (!isUsefulPageContent(page.title, page.text)) {
+        if (!isUsefulPageContent(page.title, page.text, page.url)) {
           console.log(`[portal-import] Skipping noise page: "${page.title}" (${page.text?.length || 0} chars)`);
           continue;
         }

@@ -5633,8 +5633,14 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       // Extract logo + brand colour + description from homepage
       let logoUrl = null;
       try {
+        // Don't overwrite a manually-set logo
+        const { data: existingLogoData } = await supabase.from("tenants").select("logo_url").eq("id", tenantId).maybeSingle();
+        if (existingLogoData?.logo_url) {
+          logoUrl = existingLogoData.logo_url;
+          console.log(`[crawl] Logo already set for ${tenantId}, skipping auto-detection`);
+        }
 
-        try {
+        if (!logoUrl) try {
           setCrawlProgress(tenantId, 5, "Reading your homepage…");
           const homepageRes = await fetch(website, {
             headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
@@ -5700,7 +5706,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
           } catch {}
         }
 
-        if (logoUrl) {
+        if (logoUrl && !existingLogoData?.logo_url) {
           await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
         }
       } catch (err) {

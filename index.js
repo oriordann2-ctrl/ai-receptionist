@@ -4496,21 +4496,27 @@ function getBestKnowledgeSnippet(text, message) {
 }
 
 // ── Query expansion — rephrase the user's question 2 ways so vector search
-// covers more semantic ground (e.g. "who is president of monkstown" also
-// searches as "who is the club president" and "club committee president").
-async function expandQuery(message) {
+// covers more semantic ground. Accepts optional conversation history so
+// follow-up questions ("what about self-employed?") are rewritten as
+// standalone queries before embedding.
+// Change 2: one specific + one general rephrase (temperature 0.5 for diversity)
+// Change 3: conversation history passed in and included in prompt
+async function expandQuery(message, conversationHistory = "") {
   try {
+    const historyPrefix = conversationHistory
+      ? `Recent conversation:\n${conversationHistory}\n\n`
+      : "";
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: 'Rephrase the question 2 different ways to improve knowledge base search coverage. Different wording, same meaning. Return JSON only: {"alternatives": ["phrasing1", "phrasing2"]}'
+          content: 'Rephrase the question twice to improve knowledge base search coverage: (1) a more specific version adding relevant technical terms or context, (2) a more general version with broader phrasing. If given conversation history, rewrite the question as a fully self-contained standalone query first. Return JSON only: {"alternatives": ["specific_phrasing", "general_phrasing"]}'
         },
-        { role: "user", content: message }
+        { role: "user", content: `${historyPrefix}Question: ${message}` }
       ],
-      temperature: 0.3,
-      max_tokens: 100
+      temperature: 0.5,   // higher than before → more lexical diversity between variants
+      max_tokens: 120
     });
     const parsed = JSON.parse(resp.choices[0].message.content);
     return Array.isArray(parsed.alternatives) ? parsed.alternatives.slice(0, 2) : [];
@@ -4519,49 +4525,85 @@ async function expandQuery(message) {
   }
 }
 
-async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom") {
+// ── Reciprocal Rank Fusion — merges vector + keyword result lists
+// k=60 is the standard constant from the original RRF paper (Cormack 2009)
+function reciprocalRankFusion(resultLists, k = 60) {
+  const scores = new Map(); // key → { chunk, score }
+  for (const list of resultLists) {
+    if (!list) continue;
+    list.forEach((chunk, rank) => {
+      const key = `${chunk.document_id}-${chunk.chunk_index}`;
+      const entry = scores.get(key) || { chunk, score: 0 };
+      entry.score += 1 / (k + rank + 1);
+      scores.set(key, entry);
+    });
+  }
+  return [...scores.values()]
+    .sort((a, b) => b.score - a.score)
+    .map(e => e.chunk);
+}
+
+// Change 1: MIN_SIMILARITY raised from 0.30 → 0.42
+// Change 3: accepts conversationHistory for context-aware query rewriting
+// Change 4: hybrid BM25 + vector search with RRF fusion
+async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom", conversationHistory = "") {
   try {
-    // 1. Expand query into 3 variants (original + 2 rephrases), embed all in one batch
-    const alternatives = await expandQuery(message);
+    // 1. Expand query with diversity + conversation context
+    const alternatives = await expandQuery(message, conversationHistory);
     const allQueries = [message, ...alternatives];
 
+    // 2. Embed all query variants in one batched API call
     const embResp = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: allQueries
     });
     const embeddings = embResp.data.map(d => d.embedding);
 
-    // 2. Run vector search for all embeddings in parallel
-    const searchResults = await Promise.all(
-      embeddings.map(embedding =>
+    // 3. Run vector searches (all variants) + BM25 keyword search in parallel
+    //    Keyword search uses search_chunks_keyword RPC — graceful fallback if not yet created
+    const [keywordResult, ...vectorResults] = await Promise.all([
+      supabase.rpc("search_chunks_keyword", {
+        query_text: message,
+        match_count: matchCount * 3,
+        p_tenant_id: tenantId
+      }).catch(() => ({ data: null })),
+      ...embeddings.map(embedding =>
         supabase.rpc("match_chunks", {
           query_embedding: embedding,
-          match_count: matchCount,
+          match_count: matchCount * 2,
           filter_lender: null,
           filter_document_type: null,
           p_tenant_id: tenantId
         })
       )
-    );
+    ]);
 
-    // 3. Merge results — keep best similarity score per unique chunk
-    const chunkMap = new Map();
-    for (const { data: chunks } of searchResults) {
-      if (!chunks) continue;
-      for (const chunk of chunks) {
+    // 4. Fuse all result lists via Reciprocal Rank Fusion
+    const allLists = [
+      keywordResult.data,
+      ...vectorResults.map(r => r.data)
+    ];
+    const fused = reciprocalRankFusion(allLists);
+
+    // 5. Build a map of best vector similarity per chunk for quality filtering
+    const vectorSimMap = new Map();
+    vectorResults.forEach(({ data: chunks }) => {
+      if (!chunks) return;
+      chunks.forEach(chunk => {
         const key = `${chunk.document_id}-${chunk.chunk_index}`;
-        const existing = chunkMap.get(key);
-        if (!existing || chunk.similarity > existing.similarity) {
-          chunkMap.set(key, chunk);
-        }
-      }
-    }
+        const existing = vectorSimMap.get(key);
+        if (!existing || chunk.similarity > existing) vectorSimMap.set(key, chunk.similarity);
+      });
+    });
 
-    // 4. Filter, sort, return top results
-    const MIN_SIMILARITY = 0.30;
-    const goodChunks = [...chunkMap.values()]
-      .sort((a, b) => b.similarity - a.similarity)
-      .filter(c => (c.similarity || 0) >= MIN_SIMILARITY)
+    // 6. Filter: keep chunk if vector similarity ≥ threshold OR pure keyword-only match
+    const MIN_SIMILARITY = 0.42;
+    const goodChunks = fused
+      .filter(chunk => {
+        const key = `${chunk.document_id}-${chunk.chunk_index}`;
+        const sim = vectorSimMap.get(key);
+        return sim === undefined || sim >= MIN_SIMILARITY; // undefined = keyword-only hit
+      })
       .slice(0, matchCount);
 
     if (!goodChunks.length) return [];
@@ -4571,7 +4613,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
         ? `${chunk.lender} — ${chunk.document_type}`
         : (chunk.document_type || "Knowledge Base"),
       text: chunk.chunk_text,
-      similarity: chunk.similarity
+      similarity: vectorSimMap.get(`${chunk.document_id}-${chunk.chunk_index}`) || 0.5
     }));
 
   } catch (err) {
@@ -10755,7 +10797,13 @@ Use plain numbers where possible.
 } else {
 
   // 🔥 NEW: Check knowledge base documents FIRST
-  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId);
+  // Build recent conversation history for context-aware query rewriting
+  const recentHistory = chatLogs
+    .filter(log => log.conversationId === conversationId)
+    .slice(-4)
+    .map(log => `${log.sender === "user" ? "User" : "Assistant"}: ${log.message}`)
+    .join("\n");
+  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId, recentHistory);
 
   console.log("Relevant knowledge docs:", relevantDocs);
 
@@ -10827,8 +10875,13 @@ Use plain numbers where possible.
       } else {
 
       // ── KB search + optional live EBO court availability (in parallel) ────────
+      const recentHistoryGeneral = chatLogs
+        .filter(log => log.conversationId === conversationId)
+        .slice(-4)
+        .map(log => `${log.sender === "user" ? "User" : "Assistant"}: ${log.message}`)
+        .join("\n");
       const [relevantDocs, eboContext] = await Promise.all([
-        findRelevantKnowledgeChunks(trimmedMessage, 8, tenantId),
+        findRelevantKnowledgeChunks(trimmedMessage, 8, tenantId, recentHistoryGeneral),
         maybeGetEboContext(tenantId, trimmedMessage)
       ]);
 

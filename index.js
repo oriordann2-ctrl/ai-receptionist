@@ -14853,12 +14853,13 @@ ${widgetScript}</body></html>`;
 app.get("/sites/:tenantId", async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const { data: tenant } = await supabase
+    const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
       .select("id, name, email, website, logo_url, brand_color, business_description, business_type")
       .eq("id", tenantId)
       .maybeSingle();
-    if (!tenant) return res.status(404).send("Page not found");
+    if (tenantErr) console.error("[sites] Supabase error:", tenantErr.message, "for", tenantId);
+    if (!tenant) return res.status(404).send(`Not found: ${tenantId}${tenantErr ? " — DB error: " + tenantErr.message : ""}`);
     const html = buildTenantSiteHtml(tenant);
     res.setHeader("Content-Type", "text/html");
     res.setHeader("Cache-Control", "public, max-age=300");

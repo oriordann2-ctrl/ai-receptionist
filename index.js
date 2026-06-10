@@ -14395,123 +14395,459 @@ function esc(str) {
 }
 
 function buildTenantSiteHtml(tenant) {
-  const name   = esc(tenant.name || "");
-  const desc   = esc(tenant.business_description || "");
-  const email  = esc(tenant.email || "");
-  const site   = tenant.website  || "";
-  const logo   = esc(tenant.logo_url || "");
-  const btype  = tenant.business_type || "other";
-  const tid    = esc(tenant.id || "");
+  const name  = esc(tenant.name || "");
+  const desc  = esc(tenant.business_description || "");
+  const email = esc(tenant.email || "");
+  const site  = tenant.website || "";
+  const logo  = esc(tenant.logo_url || "");
+  const btype = tenant.business_type || "other";
+  const tid   = esc(tenant.id || "");
 
-  // Colour palette per business type
   const palettes = {
-    gaa_club:         { primary: "#14532d", accent: "#ca8a04", light: "#f0fdf4", text: "#052e16" },
-    team_sports_club: { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff", text: "#1e3a8a" },
-    tennis_club:      { primary: "#166534", accent: "#eab308", light: "#f0fdf4", text: "#052e16" },
-    golf_club:        { primary: "#166534", accent: "#a16207", light: "#fefce8", text: "#052e16" },
-    cafe:             { primary: "#78350f", accent: "#f59e0b", light: "#fffbeb", text: "#451a03" },
-    fitness_studio:   { primary: "#1e1b4b", accent: "#7c3aed", light: "#f5f3ff", text: "#1e1b4b" },
-    yoga_studio:      { primary: "#4a1d96", accent: "#ec4899", light: "#fdf4ff", text: "#3b0764" },
-    swim_club:        { primary: "#0c4a6e", accent: "#0ea5e9", light: "#f0f9ff", text: "#082f49" },
+    gaa_club:         { primary: "#14532d", accent: "#ca8a04", light: "#f0fdf4" },
+    team_sports_club: { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff" },
+    tennis_club:      { primary: "#14532d", accent: "#eab308", light: "#f0fdf4" },
+    golf_club:        { primary: "#1a3a1a", accent: "#a16207", light: "#fefce8" },
+    cafe:             { primary: "#78350f", accent: "#f59e0b", light: "#fffbeb" },
+    fitness_studio:   { primary: "#111827", accent: "#7c3aed", light: "#f5f3ff" },
+    yoga_studio:      { primary: "#4a1d96", accent: "#ec4899", light: "#fdf4ff" },
+    swim_club:        { primary: "#0c4a6e", accent: "#0ea5e9", light: "#f0f9ff" },
   };
-  const pal = (tenant.brand_color && !palettes[btype])
-    ? { primary: tenant.brand_color, accent: "#f59e0b", light: "#f8fafc", text: "#0f172a" }
-    : (palettes[btype] || { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff", text: "#1e3a8a" });
-
-  // Override primary with brand_color if set
+  const pal     = palettes[btype] || { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff" };
   const primary = tenant.brand_color || pal.primary;
+  const accent  = pal.accent;
+  const light   = pal.light;
 
-  // Business-type specific taglines + section copy
-  const copy = {
-    gaa_club:         { tagline: "Your local GAA club", teams: "Hurling · Football · Camogie · Ladies Football · Underage", cta: "Ask about membership, fixtures, Club Lotto, Cúl Camps and more." },
-    team_sports_club: { tagline: "Your local sports club", teams: null, cta: "Ask about membership, training, fixtures and more." },
-    tennis_club:      { tagline: "Your local tennis club", teams: null, cta: "Ask about membership, court bookings, coaching and more." },
-    golf_club:        { tagline: "Your local golf club", teams: null, cta: "Ask about membership, green fees, competitions and more." },
-    cafe:             { tagline: "Great food, great coffee", teams: null, cta: "Ask about our menu, opening hours, dog policy and more." },
-    fitness_studio:   { tagline: "Your local fitness studio", teams: null, cta: "Ask about classes, membership, coaches and more." },
-    yoga_studio:      { tagline: "Your local yoga studio", teams: null, cta: "Ask about classes, timetable, teachers and more." },
-    swim_club:        { tagline: "Your local swimming club", teams: null, cta: "Ask about squads, training, membership and more." },
-  };
-  const c = copy[btype] || { tagline: "Powered by Sprimal", teams: null, cta: "Ask us anything." };
+  // ── Shared building blocks ────────────────────────────────────────────────
+  const logoImg = logo
+    ? `<img src="${logo}" alt="${name}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;background:white;padding:5px;box-shadow:0 2px 16px rgba(0,0,0,0.22);margin-bottom:18px;">`
+    : `<div style="width:88px;height:88px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:18px;">🏆</div>`;
 
-  const logoHtml = logo
-    ? `<img src="${logo}" alt="${name} logo" style="width:80px;height:80px;border-radius:50%;object-fit:cover;background:white;padding:6px;margin-bottom:20px;box-shadow:0 2px 12px rgba(0,0,0,0.18);">`
-    : `<div style="width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:20px;">🏆</div>`;
+  const chatUrl  = `https://app.sprimal.com/chat/${tid}`;
+  const emailBtn = email ? `<a href="mailto:${email}" style="display:inline-flex;align-items:center;gap:6px;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">✉️ ${email}</a>` : "";
+  const siteBtn  = site  ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:white;color:#374151;border:2px solid #d1d5db;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">🌐 Visit website</a>` : "";
 
-  const teamsHtml = c.teams
-    ? `<div style="font-size:14px;color:${pal.accent};font-weight:600;letter-spacing:0.04em;margin-top:8px;">${c.teams}</div>` : "";
+  const stickyBar = (email || site) ? `
+<div style="position:sticky;top:0;z-index:99;background:${primary};color:white;padding:8px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;">
+  <strong style="font-size:14px;">${name}</strong>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    ${email ? `<a href="mailto:${email}" style="color:rgba(255,255,255,0.9);text-decoration:none;">✉️ ${email}</a>` : ""}
+    ${site  ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="color:rgba(255,255,255,0.9);text-decoration:none;">🌐 Website</a>` : ""}
+  </div>
+</div>` : "";
 
-  const aboutHtml = desc
-    ? `<section style="max-width:720px;margin:0 auto;padding:60px 24px;text-align:center;">
-        <h2 style="font-size:26px;font-weight:800;color:#111827;margin-bottom:16px;">About ${name}</h2>
-        <p style="font-size:17px;color:#374151;line-height:1.7;">${desc}</p>
-      </section>` : "";
+  const aboutSection = desc ? `
+<section style="max-width:740px;margin:0 auto;padding:56px 24px;text-align:center;">
+  <h2 style="font-size:26px;font-weight:800;color:#111827;margin-bottom:16px;">About ${name}</h2>
+  <p style="font-size:17px;color:#374151;line-height:1.75;">${desc}</p>
+</section>` : "";
 
-  const emailHtml = email
-    ? `<a href="mailto:${email}" style="display:inline-block;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;margin:6px 4px;">✉️ ${email}</a>` : "";
+  const aiSection = (cta) => `
+<section id="chat" style="background:${light};padding:56px 24px;text-align:center;">
+  <div style="max-width:540px;margin:0 auto;background:white;border-radius:18px;padding:36px 28px;box-shadow:0 2px 20px rgba(0,0,0,0.07);border:1.5px solid ${primary}18;">
+    <div style="font-size:34px;margin-bottom:10px;">💬</div>
+    <h2 style="font-size:21px;font-weight:800;color:#111827;margin-bottom:8px;">Ask our AI assistant</h2>
+    <p style="font-size:15px;color:#6b7280;margin-bottom:22px;line-height:1.6;">${cta}</p>
+    <a href="${chatUrl}" target="_blank" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 28px;border-radius:9px;font-size:15px;font-weight:700;">Start chatting →</a>
+    <p style="margin-top:12px;font-size:12px;color:#9ca3af;">Available 24/7 · No app needed</p>
+  </div>
+</section>`;
 
-  const websiteHtml = site
-    ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="display:inline-block;background:white;color:#374151;border:2px solid #d1d5db;text-decoration:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;margin:6px 4px;">🌐 Original website →</a>` : "";
+  const contactSection = (emailBtn || siteBtn) ? `
+<section style="padding:50px 24px;text-align:center;background:#fff;">
+  <h2 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:8px;">Get in touch</h2>
+  <p style="font-size:15px;color:#6b7280;margin-bottom:20px;">We'd love to hear from you.</p>
+  ${emailBtn}${siteBtn}
+</section>` : "";
 
-  const contactSection = (emailHtml || websiteHtml)
-    ? `<section style="background:${pal.light};padding:50px 24px;text-align:center;">
-        <h2 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:8px;">Get in touch</h2>
-        <p style="font-size:15px;color:#6b7280;margin-bottom:20px;">We'd love to hear from you.</p>
-        ${emailHtml}${websiteHtml}
-      </section>` : "";
+  const footer = (govBody, govLink) => `
+<footer style="background:#111827;color:#6b7280;text-align:center;padding:28px 24px;font-size:13px;line-height:2;">
+  <div><strong style="color:#9ca3af;">${name}</strong></div>
+  ${govBody ? `<div><a href="${govLink}" target="_blank" rel="noopener" style="color:#6b7280;text-decoration:none;">${govBody}</a></div>` : ""}
+  <div style="margin-top:8px;"><a href="https://sprimal.com" target="_blank" style="color:#4b5563;text-decoration:none;">Powered by Sprimal</a></div>
+</footer>`;
 
-  return `<!DOCTYPE html>
+  const baseHead = (extraMeta) => `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${name}</title>
+  ${extraMeta || ""}
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#111827}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;color:#111827}
     a{color:inherit}
-    @media(max-width:600px){.hero h1{font-size:30px!important}.chat-inner{padding:32px 16px!important}}
+    .badge{display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin:4px;}
+    .code-card{background:white;border-radius:12px;padding:18px 22px;text-align:left;box-shadow:0 1px 6px rgba(0,0,0,0.07);border-left:4px solid ${accent};}
+    .tier-card{background:white;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 8px rgba(0,0,0,0.07);}
+    .cta-primary{display:inline-block;background:white;color:${primary};font-weight:800;text-decoration:none;padding:14px 30px;border-radius:10px;font-size:16px;box-shadow:0 4px 14px rgba(0,0,0,0.15);}
+    .cta-secondary{display:inline-block;background:rgba(255,255,255,0.15);color:white;font-weight:700;text-decoration:none;padding:13px 26px;border-radius:10px;font-size:15px;border:2px solid rgba(255,255,255,0.5);}
+    .section-label{font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${accent};margin-bottom:8px;}
+    @media(max-width:640px){
+      h1{font-size:28px!important}
+      .hero-btns{flex-direction:column!important;align-items:center!important}
+      .grid-2,.grid-3,.grid-4{grid-template-columns:1fr!important}
+    }
   </style>
 </head>
-<body>
+<body>`;
 
-<!-- HERO -->
-<section class="hero" style="background:linear-gradient(135deg,${primary} 0%,${primary}cc 100%);color:white;padding:70px 24px 60px;text-align:center;">
-  ${logoHtml}
-  <h1 style="font-size:40px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
-  <p style="font-size:18px;opacity:0.85;margin-bottom:4px;">${c.tagline}</p>
-  ${teamsHtml}
-  <a href="#chat" style="display:inline-block;background:white;color:${primary};font-weight:800;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:16px;margin-top:28px;box-shadow:0 4px 14px rgba(0,0,0,0.15);">Chat with us →</a>
-</section>
+  const widgetScript = `<script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${name.replace(/&quot;/g,'"')}" defer></script>`;
 
-${aboutHtml}
+  // ── GAA CLUB ──────────────────────────────────────────────────────────────
+  if (btype === "gaa_club") {
+    return baseHead() + stickyBar + `
 
-<!-- CHAT WIDGET -->
-<section id="chat" style="background:#fff;padding:60px 24px;text-align:center;">
-  <div class="chat-inner" style="max-width:560px;margin:0 auto;padding:40px 32px;background:${pal.light};border-radius:20px;border:1.5px solid ${primary}22;">
-    <div style="font-size:36px;margin-bottom:12px;">💬</div>
-    <h2 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:8px;">Ask our AI assistant</h2>
-    <p style="font-size:15px;color:#6b7280;margin-bottom:24px;line-height:1.6;">${c.cta}</p>
-    <a href="https://app.sprimal.com/chat/${tid}" target="_blank"
-      style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 28px;border-radius:9px;font-size:15px;font-weight:700;box-shadow:0 3px 10px rgba(0,0,0,0.12);">
-      Start chatting →
-    </a>
-    <p style="margin-top:14px;font-size:12px;color:#9ca3af;">Available 24/7 — no app needed</p>
+<section style="background:linear-gradient(160deg,${primary} 0%,#052e16 100%);color:white;padding:70px 24px 56px;text-align:center;">
+  ${logoImg}
+  <div class="badge">GAA</div><div class="badge">Foireann Affiliated</div>
+  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 6px;">${name}</h1>
+  <p style="font-size:14px;opacity:0.7;margin-bottom:4px;letter-spacing:0.05em;">HURLING · FOOTBALL · CAMOGIE · LADIES FOOTBALL · UNDERAGE</p>
+  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:14px auto 0;line-height:1.6;">${desc}</p>` : ""}
+  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:28px;">
+    <a href="${chatUrl}" class="cta-primary">Join the club →</a>
+    <a href="${chatUrl}" class="cta-secondary">View fixtures</a>
   </div>
 </section>
 
+<section style="background:${accent};color:white;padding:20px 24px;text-align:center;">
+  <div style="max-width:800px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">
+    <div style="font-size:22px;">🎰</div>
+    <div>
+      <div style="font-weight:800;font-size:17px;">Club Lotto — Play this week</div>
+      <div style="font-size:13px;opacity:0.9;">Support your club · Great prizes every week</div>
+    </div>
+    <a href="${chatUrl}" style="background:white;color:${accent};font-weight:800;text-decoration:none;padding:10px 22px;border-radius:8px;font-size:14px;white-space:nowrap;">Buy tickets →</a>
+  </div>
+</section>
+
+${aboutSection}
+
+<section style="background:${light};padding:50px 24px;">
+  <div style="max-width:800px;margin:0 auto;">
+    <div class="section-label" style="text-align:center;">Our Codes</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:28px;">All codes, all abilities</h2>
+    <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">⚽ Football</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
+      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🏑 Hurling</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
+      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🏐 Ladies Football</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
+      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🥍 Camogie</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
+    </div>
+  </div>
+</section>
+
+<section style="padding:50px 24px;">
+  <div style="max-width:800px;margin:0 auto;">
+    <div class="section-label" style="text-align:center;">Membership</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:10px;">Join ${name}</h2>
+    <p style="text-align:center;color:#6b7280;margin-bottom:28px;">New members are always welcome — all ages, all abilities.</p>
+    <div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🧑</div><div style="font-weight:700;font-size:14px;">Adult</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🎓</div><div style="font-weight:700;font-size:14px;">Student</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👨‍👩‍👧‍👦</div><div style="font-weight:700;font-size:14px;">Family</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👶</div><div style="font-weight:700;font-size:14px;">Juvenile</div></div>
+    </div>
+    <div style="text-align:center;"><a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 30px;border-radius:9px;font-size:15px;font-weight:700;">Ask about membership →</a></div>
+  </div>
+</section>
+
+<section style="background:${primary};color:white;padding:42px 24px;text-align:center;">
+  <div style="font-size:28px;margin-bottom:10px;">🏕️</div>
+  <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Cúl Camps</h2>
+  <p style="font-size:15px;opacity:0.85;max-width:480px;margin:0 auto 20px;line-height:1.6;">The official GAA Summer Camps for boys and girls aged 6–13. Book through Croke Park — ask our assistant for details.</p>
+  <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;">Find out more →</a>
+</section>
+
+${aiSection("Ask about membership, fixtures, Club Lotto, Cúl Camps, training times and more.")}
 ${contactSection}
+${footer("Official GAA Member Club · Foireann.ie", "https://www.foireann.ie")}
+<p style="text-align:center;font-size:11px;color:#9ca3af;padding:12px;background:#111827;">Child Safeguarding Statement available on request · <a href="${chatUrl}" style="color:#6b7280;">Contact us</a></p>
+${widgetScript}</body></html>`;
+  }
 
-<!-- FOOTER -->
-<footer style="background:#111827;color:#9ca3af;text-align:center;padding:24px;font-size:13px;">
-  <span>${name}</span>
-  <span style="margin:0 10px;">·</span>
-  <a href="https://sprimal.com" target="_blank" style="color:#6b7280;text-decoration:none;">Powered by Sprimal</a>
-</footer>
+  // ── CAFÉ ──────────────────────────────────────────────────────────────────
+  if (btype === "cafe") {
+    return baseHead() + `
+<div style="background:${primary};color:white;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;">
+  <strong>${name}</strong>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;">
+    ${email ? `<a href="mailto:${email}" style="color:rgba(255,255,255,0.85);text-decoration:none;">✉️ ${email}</a>` : ""}
+    <a href="${chatUrl}" style="color:${accent};font-weight:700;text-decoration:none;">⏰ Opening hours →</a>
+  </div>
+</div>
 
-<script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${name.replace(/&quot;/g, '"')}" defer></script>
-</body>
-</html>`;
+<section style="background:linear-gradient(160deg,${primary} 0%,#451a03 100%);color:white;padding:72px 24px 60px;text-align:center;">
+  ${logoImg}
+  <h1 style="font-size:40px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
+  <p style="font-size:18px;opacity:0.85;margin-bottom:20px;">${desc || "Great food, great coffee."}</p>
+  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="${chatUrl}" class="cta-primary">📋 View menu</a>
+    <a href="${chatUrl}" class="cta-secondary">🪑 Book a table</a>
+  </div>
+</section>
+
+<section style="background:${accent};color:white;padding:16px 24px;text-align:center;font-size:14px;font-weight:700;">
+  ⏰ Ask our assistant for today's opening hours · 🐕 Dog-friendly · ☕ Specialty coffee
+</section>
+
+${aboutSection}
+
+<section style="background:${light};padding:50px 24px;">
+  <div style="max-width:700px;margin:0 auto;">
+    <div class="section-label" style="text-align:center;">Quick info</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:24px;">Everything you need to know</h2>
+    <div class="grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+      <div class="tier-card"><div style="font-size:26px;margin-bottom:8px;">📋</div><div style="font-weight:700;font-size:14px;margin-bottom:4px;">Our Menu</div><div style="font-size:12px;color:#6b7280;">Full menu available via chat</div></div>
+      <div class="tier-card"><div style="font-size:26px;margin-bottom:8px;">⏰</div><div style="font-weight:700;font-size:14px;margin-bottom:4px;">Opening Hours</div><div style="font-size:12px;color:#6b7280;">Ask for today's hours</div></div>
+      <div class="tier-card"><div style="font-size:26px;margin-bottom:8px;">📍</div><div style="font-weight:700;font-size:14px;margin-bottom:4px;">Find Us</div><div style="font-size:12px;color:#6b7280;">${email ? email : "Ask for our address"}</div></div>
+    </div>
+  </div>
+</section>
+
+${aiSection("Ask about today's menu, opening hours, allergens, booking a table and more.")}
+${contactSection}
+${footer("", "")}
+${widgetScript}</body></html>`;
+  }
+
+  // ── TENNIS CLUB ──────────────────────────────────────────────────────────
+  if (btype === "tennis_club") {
+    return baseHead() + stickyBar + `
+
+<section style="background:linear-gradient(160deg,${primary} 0%,#052e16 100%);color:white;padding:70px 24px 56px;text-align:center;">
+  ${logoImg}
+  <div class="badge">Tennis Ireland Affiliated</div>
+  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 10px;">${name}</h1>
+  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:0 auto 20px;line-height:1.6;">${desc}</p>` : ""}
+  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="${chatUrl}" class="cta-primary">🎾 Book a court</a>
+    <a href="${chatUrl}" class="cta-secondary">Join the club</a>
+  </div>
+</section>
+
+${aboutSection}
+
+<section style="background:${light};padding:50px 24px;">
+  <div style="max-width:800px;margin:0 auto;">
+    <div class="section-label" style="text-align:center;">Membership</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:10px;">Join ${name}</h2>
+    <p style="text-align:center;color:#6b7280;margin-bottom:28px;">All abilities welcome. Ask our assistant for current rates.</p>
+    <div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🧑</div><div style="font-weight:700;font-size:14px;">Adult</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🎓</div><div style="font-weight:700;font-size:14px;">Student</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👨‍👩‍👧‍👦</div><div style="font-weight:700;font-size:14px;">Family</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👶</div><div style="font-weight:700;font-size:14px;">Junior</div></div>
+    </div>
+    <div style="text-align:center;"><a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 28px;border-radius:9px;font-size:15px;font-weight:700;">Ask about membership →</a></div>
+  </div>
+</section>
+
+<section style="padding:50px 24px;background:white;">
+  <div style="max-width:700px;margin:0 auto;text-align:center;">
+    <div style="font-size:28px;margin-bottom:10px;">🏓</div>
+    <div class="section-label">Junior Programme</div>
+    <h2 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:10px;">Tennis for kids</h2>
+    <p style="color:#6b7280;font-size:15px;line-height:1.6;margin-bottom:20px;">We run junior coaching terms throughout the year for all ages and abilities. Ask our assistant for term dates, costs and how to register.</p>
+    <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;">Register a junior →</a>
+  </div>
+</section>
+
+${aiSection("Ask about court booking, membership rates, coaching, junior programmes and fixtures.")}
+${contactSection}
+${footer("Tennis Ireland Affiliated Club", "https://www.tennisireland.ie")}
+<p style="text-align:center;font-size:11px;color:#9ca3af;padding:12px;background:#111827;">Child Safeguarding Statement available on request</p>
+${widgetScript}</body></html>`;
+  }
+
+  // ── GOLF CLUB ─────────────────────────────────────────────────────────────
+  if (btype === "golf_club") {
+    return baseHead() + stickyBar + `
+
+<section style="background:linear-gradient(160deg,${primary} 0%,#0a1f0a 100%);color:white;padding:70px 24px 56px;text-align:center;">
+  ${logoImg}
+  <div class="badge">Golf Ireland Affiliated</div>
+  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 10px;">${name}</h1>
+  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:0 auto 20px;line-height:1.6;">${desc}</p>` : ""}
+  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="${chatUrl}" class="cta-primary">⛳ Book a tee time</a>
+    <a href="${chatUrl}" class="cta-secondary">Visitor green fees</a>
+  </div>
+</section>
+
+<section style="background:${light};padding:50px 24px;">
+  <div style="max-width:800px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:24px;" class="grid-2">
+    <div style="background:white;border-radius:14px;padding:28px;box-shadow:0 1px 8px rgba(0,0,0,0.07);">
+      <div style="font-size:28px;margin-bottom:10px;">🏌️</div>
+      <h3 style="font-weight:800;color:#111827;margin-bottom:8px;">Members</h3>
+      <p style="color:#6b7280;font-size:14px;line-height:1.6;margin-bottom:16px;">Book tee times, view competition results, check your handicap and manage your membership.</p>
+      <a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;">Members area →</a>
+    </div>
+    <div style="background:white;border-radius:14px;padding:28px;box-shadow:0 1px 8px rgba(0,0,0,0.07);">
+      <div style="font-size:28px;margin-bottom:10px;">🚗</div>
+      <h3 style="font-weight:800;color:#111827;margin-bottom:8px;">Visitors</h3>
+      <p style="color:#6b7280;font-size:14px;line-height:1.6;margin-bottom:16px;">Visiting golfers are welcome. Ask about green fees, availability and what to expect on the day.</p>
+      <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;">Visitor green fees →</a>
+    </div>
+  </div>
+</section>
+
+${aboutSection}
+${aiSection("Ask about tee time booking, green fees, membership, competitions and the course.")}
+${contactSection}
+${footer("Golf Ireland Affiliated Club", "https://www.golfireland.ie")}
+${widgetScript}</body></html>`;
+  }
+
+  // ── FITNESS STUDIO ────────────────────────────────────────────────────────
+  if (btype === "fitness_studio") {
+    return baseHead() + stickyBar + `
+
+<section style="background:linear-gradient(160deg,${primary} 0%,#000 100%);color:white;padding:70px 24px 60px;text-align:center;">
+  ${logoImg}
+  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
+  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:0 auto 20px;line-height:1.6;">${desc}</p>` : ""}
+  <div style="background:${accent};color:white;display:inline-block;padding:10px 24px;border-radius:8px;font-weight:800;font-size:15px;margin-bottom:20px;">🎯 FREE TRIAL WEEK — No commitment</div>
+  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="${chatUrl}" class="cta-primary">Claim free trial →</a>
+    <a href="${chatUrl}" class="cta-secondary">View class schedule</a>
+  </div>
+</section>
+
+${aboutSection}
+
+<section style="background:${light};padding:50px 24px;">
+  <div style="max-width:800px;margin:0 auto;text-align:center;">
+    <div class="section-label">Classes &amp; Schedule</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;margin-bottom:10px;">Find a class that works for you</h2>
+    <p style="color:#6b7280;font-size:15px;margin-bottom:24px;">Ask our assistant for the full timetable, class descriptions and how to book.</p>
+    <a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 28px;border-radius:9px;font-size:15px;font-weight:700;">View schedule →</a>
+  </div>
+</section>
+
+${aiSection("Ask about classes, the free trial, membership pricing, coaches and the schedule.")}
+${contactSection}
+${footer("", "")}
+${widgetScript}</body></html>`;
+  }
+
+  // ── YOGA STUDIO ───────────────────────────────────────────────────────────
+  if (btype === "yoga_studio") {
+    return baseHead() + stickyBar + `
+
+<section style="background:linear-gradient(160deg,${primary} 0%,#1e0a2e 100%);color:white;padding:72px 24px 60px;text-align:center;">
+  ${logoImg}
+  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
+  ${desc ? `<p style="font-size:18px;opacity:0.85;max-width:560px;margin:0 auto 20px;line-height:1.7;">${desc}</p>` : ""}
+  <div style="background:rgba(255,255,255,0.12);display:inline-block;padding:12px 28px;border-radius:10px;font-size:15px;font-weight:700;margin-bottom:20px;border:1px solid rgba(255,255,255,0.25);">✨ Intro Offer — First 2 weeks from €20</div>
+  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="${chatUrl}" class="cta-primary">Claim intro offer →</a>
+    <a href="${chatUrl}" class="cta-secondary">View timetable</a>
+  </div>
+</section>
+
+<section style="background:white;padding:50px 24px;text-align:center;">
+  <div style="max-width:700px;margin:0 auto;">
+    <div class="section-label">Our Teachers</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;margin-bottom:12px;">Meet your teachers</h2>
+    <p style="color:#6b7280;font-size:15px;line-height:1.6;margin-bottom:22px;">Our qualified teachers bring years of experience to every class. Ask our assistant about who teaches what, and when.</p>
+    <a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;font-weight:700;">Meet our teachers →</a>
+  </div>
+</section>
+
+${aboutSection}
+${aiSection("Ask about the intro offer, class timetable, teachers, pricing and what to bring.")}
+${contactSection}
+${footer("", "")}
+${widgetScript}</body></html>`;
+  }
+
+  // ── SWIM CLUB ─────────────────────────────────────────────────────────────
+  if (btype === "swim_club") {
+    return baseHead() + stickyBar + `
+
+<section style="background:linear-gradient(160deg,${primary} 0%,#082f49 100%);color:white;padding:70px 24px 56px;text-align:center;">
+  ${logoImg}
+  <div class="badge">Swim Ireland Affiliated</div>
+  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 10px;">${name}</h1>
+  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:0 auto 20px;line-height:1.6;">${desc}</p>` : ""}
+  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="${chatUrl}" class="cta-primary">Join the club →</a>
+    <a href="${chatUrl}" class="cta-secondary">Training times</a>
+  </div>
+</section>
+
+<section style="background:${accent};color:white;padding:28px 24px;text-align:center;">
+  <div style="max-width:680px;margin:0 auto;">
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:8px;">🏊 Finished swimming lessons?</h2>
+    <p style="font-size:15px;opacity:0.92;margin-bottom:16px;line-height:1.6;">Joining a club is the natural next step. We cater for all ages from beginners right through to competitive squads.</p>
+    <a href="${chatUrl}" style="display:inline-block;background:white;color:${accent};font-weight:800;text-decoration:none;padding:11px 24px;border-radius:8px;font-size:14px;">Here's how to join →</a>
+  </div>
+</section>
+
+${aboutSection}
+
+<section style="background:${light};padding:50px 24px;">
+  <div style="max-width:800px;margin:0 auto;text-align:center;">
+    <div class="section-label">Squads &amp; Age Groups</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;margin-bottom:10px;">A squad for every level</h2>
+    <p style="color:#6b7280;font-size:15px;margin-bottom:24px;line-height:1.6;">From Learn to Swim through to competitive squads — ask our assistant which squad is right for you or your child.</p>
+    <a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 28px;border-radius:9px;font-size:15px;font-weight:700;">Find the right squad →</a>
+  </div>
+</section>
+
+${aiSection("Ask about squads, membership, training times, galas and how to join.")}
+${contactSection}
+${footer("Swim Ireland Affiliated Club", "https://www.swimireland.ie")}
+<p style="text-align:center;font-size:11px;color:#9ca3af;padding:12px;background:#111827;">Child Safeguarding Statement available on request</p>
+${widgetScript}</body></html>`;
+  }
+
+  // ── TEAM SPORTS CLUB (rugby, soccer, hockey etc.) ─────────────────────────
+  if (btype === "team_sports_club") {
+    return baseHead() + stickyBar + `
+
+<section style="background:linear-gradient(160deg,${primary} 0%,#0f172a 100%);color:white;padding:70px 24px 56px;text-align:center;">
+  ${logoImg}
+  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
+  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:0 auto 20px;line-height:1.6;">${desc}</p>` : ""}
+  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="${chatUrl}" class="cta-primary">Register now →</a>
+    <a href="${chatUrl}" class="cta-secondary">Fixtures &amp; results</a>
+  </div>
+</section>
+
+${aboutSection}
+
+<section style="background:${light};padding:50px 24px;">
+  <div style="max-width:700px;margin:0 auto;text-align:center;">
+    <div class="section-label">Junior Programme</div>
+    <h2 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:10px;">Youth teams</h2>
+    <p style="color:#6b7280;font-size:15px;line-height:1.6;margin-bottom:20px;">We run teams from U8 all the way through to senior level. All abilities welcome.</p>
+    <a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;font-weight:700;">Register a player →</a>
+  </div>
+</section>
+
+${aiSection("Ask about registering, training times, fixtures, underage teams and more.")}
+${contactSection}
+${footer("", "")}
+<p style="text-align:center;font-size:11px;color:#9ca3af;padding:12px;background:#111827;">Child Safeguarding Statement available on request</p>
+${widgetScript}</body></html>`;
+  }
+
+  // ── GENERIC FALLBACK ──────────────────────────────────────────────────────
+  return baseHead() + stickyBar + `
+<section style="background:linear-gradient(160deg,${primary} 0%,#0f172a 100%);color:white;padding:70px 24px 56px;text-align:center;">
+  ${logoImg}
+  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin-bottom:12px;">${name}</h1>
+  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:0 auto 22px;line-height:1.6;">${desc}</p>` : ""}
+  <a href="${chatUrl}" class="cta-primary">Chat with us →</a>
+</section>
+${aboutSection}
+${aiSection("Ask us anything — we're available 24/7.")}
+${contactSection}
+${footer("", "")}
+${widgetScript}</body></html>`;
 }
 
 app.get("/sites/:tenantId", async (req, res) => {

@@ -4585,7 +4585,9 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     ];
     const fused = reciprocalRankFusion(allLists);
 
-    // 5. Build a map of best vector similarity per chunk for quality filtering
+    // 5. Build maps for filtering:
+    //    vectorSimMap — best vector similarity score per chunk
+    //    keywordKeys  — chunks that appeared in the BM25 keyword results
     const vectorSimMap = new Map();
     vectorResults.forEach(({ data: chunks }) => {
       if (!chunks) return;
@@ -4596,13 +4598,17 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       });
     });
 
-    // 6. Filter: keep chunk if vector similarity ≥ threshold OR pure keyword-only match
-    const MIN_SIMILARITY = 0.42;
+    const keywordKeys = new Set(
+      (keywordResult.data || []).map(c => `${c.document_id}-${c.chunk_index}`)
+    );
+
+    // 6. Filter: keep if found by keyword search (exact match bypasses threshold)
+    //    OR if vector similarity meets threshold (0.35 — conservative middle ground)
+    const MIN_SIMILARITY = 0.35;
     const goodChunks = fused
       .filter(chunk => {
         const key = `${chunk.document_id}-${chunk.chunk_index}`;
-        const sim = vectorSimMap.get(key);
-        return sim === undefined || sim >= MIN_SIMILARITY; // undefined = keyword-only hit
+        return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
       })
       .slice(0, matchCount);
 

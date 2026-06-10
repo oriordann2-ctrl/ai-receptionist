@@ -862,6 +862,27 @@
     </div>
   </div>
 
+  <!-- Your Website -->
+  <div class="card" style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <div>
+        <div class="card-title" style="color:#14532d;">🌐 Your Sprimal Website</div>
+        <div style="font-size:13px;color:#166534;margin-bottom:14px;line-height:1.5;">A free website for your business — built from your knowledge base, with your AI assistant built in.</div>
+        <code style="font-size:13px;background:#dcfce7;color:#14532d;padding:6px 12px;border-radius:6px;display:inline-block;margin-bottom:14px;">app.sprimal.com/sites/TENANT_ID_PLACEHOLDER</code>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <a href="https://app.sprimal.com/sites/TENANT_ID_PLACEHOLDER" target="_blank"
+        style="display:inline-block;background:#14532d;color:white;text-decoration:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:700;">
+        View website →
+      </a>
+      <button onclick="navigator.clipboard.writeText('https://app.sprimal.com/sites/TENANT_ID_PLACEHOLDER').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy link',1500)})"
+        style="background:white;border:1.5px solid #bbf7d0;color:#14532d;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">
+        Copy link
+      </button>
+    </div>
+  </div>
+
   <!-- Analytics -->
   <div class="card" style="padding:0;">
     <details id="analyticsDetails">

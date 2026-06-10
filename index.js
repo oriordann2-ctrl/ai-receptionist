@@ -14389,6 +14389,150 @@ app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
   }
 });
 
+// ── GET /sites/:tenantId — Auto-generated tenant website ──────────────────────
+function esc(str) {
+  return String(str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function buildTenantSiteHtml(tenant) {
+  const name   = esc(tenant.name || "");
+  const desc   = esc(tenant.business_description || "");
+  const email  = esc(tenant.email || "");
+  const site   = tenant.website  || "";
+  const logo   = esc(tenant.logo_url || "");
+  const btype  = tenant.business_type || "other";
+  const tid    = esc(tenant.id || "");
+
+  // Colour palette per business type
+  const palettes = {
+    gaa_club:         { primary: "#14532d", accent: "#ca8a04", light: "#f0fdf4", text: "#052e16" },
+    team_sports_club: { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff", text: "#1e3a8a" },
+    tennis_club:      { primary: "#166534", accent: "#eab308", light: "#f0fdf4", text: "#052e16" },
+    golf_club:        { primary: "#166534", accent: "#a16207", light: "#fefce8", text: "#052e16" },
+    cafe:             { primary: "#78350f", accent: "#f59e0b", light: "#fffbeb", text: "#451a03" },
+    fitness_studio:   { primary: "#1e1b4b", accent: "#7c3aed", light: "#f5f3ff", text: "#1e1b4b" },
+    yoga_studio:      { primary: "#4a1d96", accent: "#ec4899", light: "#fdf4ff", text: "#3b0764" },
+    swim_club:        { primary: "#0c4a6e", accent: "#0ea5e9", light: "#f0f9ff", text: "#082f49" },
+  };
+  const pal = (tenant.brand_color && !palettes[btype])
+    ? { primary: tenant.brand_color, accent: "#f59e0b", light: "#f8fafc", text: "#0f172a" }
+    : (palettes[btype] || { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff", text: "#1e3a8a" });
+
+  // Override primary with brand_color if set
+  const primary = tenant.brand_color || pal.primary;
+
+  // Business-type specific taglines + section copy
+  const copy = {
+    gaa_club:         { tagline: "Your local GAA club", teams: "Hurling · Football · Camogie · Ladies Football · Underage", cta: "Ask about membership, fixtures, Club Lotto, Cúl Camps and more." },
+    team_sports_club: { tagline: "Your local sports club", teams: null, cta: "Ask about membership, training, fixtures and more." },
+    tennis_club:      { tagline: "Your local tennis club", teams: null, cta: "Ask about membership, court bookings, coaching and more." },
+    golf_club:        { tagline: "Your local golf club", teams: null, cta: "Ask about membership, green fees, competitions and more." },
+    cafe:             { tagline: "Great food, great coffee", teams: null, cta: "Ask about our menu, opening hours, dog policy and more." },
+    fitness_studio:   { tagline: "Your local fitness studio", teams: null, cta: "Ask about classes, membership, coaches and more." },
+    yoga_studio:      { tagline: "Your local yoga studio", teams: null, cta: "Ask about classes, timetable, teachers and more." },
+    swim_club:        { tagline: "Your local swimming club", teams: null, cta: "Ask about squads, training, membership and more." },
+  };
+  const c = copy[btype] || { tagline: "Powered by Sprimal", teams: null, cta: "Ask us anything." };
+
+  const logoHtml = logo
+    ? `<img src="${logo}" alt="${name} logo" style="width:80px;height:80px;border-radius:50%;object-fit:cover;background:white;padding:6px;margin-bottom:20px;box-shadow:0 2px 12px rgba(0,0,0,0.18);">`
+    : `<div style="width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:20px;">🏆</div>`;
+
+  const teamsHtml = c.teams
+    ? `<div style="font-size:14px;color:${pal.accent};font-weight:600;letter-spacing:0.04em;margin-top:8px;">${c.teams}</div>` : "";
+
+  const aboutHtml = desc
+    ? `<section style="max-width:720px;margin:0 auto;padding:60px 24px;text-align:center;">
+        <h2 style="font-size:26px;font-weight:800;color:#111827;margin-bottom:16px;">About ${name}</h2>
+        <p style="font-size:17px;color:#374151;line-height:1.7;">${desc}</p>
+      </section>` : "";
+
+  const emailHtml = email
+    ? `<a href="mailto:${email}" style="display:inline-block;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;margin:6px 4px;">✉️ ${email}</a>` : "";
+
+  const websiteHtml = site
+    ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="display:inline-block;background:white;color:#374151;border:2px solid #d1d5db;text-decoration:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;margin:6px 4px;">🌐 Original website →</a>` : "";
+
+  const contactSection = (emailHtml || websiteHtml)
+    ? `<section style="background:${pal.light};padding:50px 24px;text-align:center;">
+        <h2 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:8px;">Get in touch</h2>
+        <p style="font-size:15px;color:#6b7280;margin-bottom:20px;">We'd love to hear from you.</p>
+        ${emailHtml}${websiteHtml}
+      </section>` : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${name}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#111827}
+    a{color:inherit}
+    @media(max-width:600px){.hero h1{font-size:30px!important}.chat-inner{padding:32px 16px!important}}
+  </style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero" style="background:linear-gradient(135deg,${primary} 0%,${primary}cc 100%);color:white;padding:70px 24px 60px;text-align:center;">
+  ${logoHtml}
+  <h1 style="font-size:40px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
+  <p style="font-size:18px;opacity:0.85;margin-bottom:4px;">${c.tagline}</p>
+  ${teamsHtml}
+  <a href="#chat" style="display:inline-block;background:white;color:${primary};font-weight:800;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:16px;margin-top:28px;box-shadow:0 4px 14px rgba(0,0,0,0.15);">Chat with us →</a>
+</section>
+
+${aboutHtml}
+
+<!-- CHAT WIDGET -->
+<section id="chat" style="background:#fff;padding:60px 24px;text-align:center;">
+  <div class="chat-inner" style="max-width:560px;margin:0 auto;padding:40px 32px;background:${pal.light};border-radius:20px;border:1.5px solid ${primary}22;">
+    <div style="font-size:36px;margin-bottom:12px;">💬</div>
+    <h2 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:8px;">Ask our AI assistant</h2>
+    <p style="font-size:15px;color:#6b7280;margin-bottom:24px;line-height:1.6;">${c.cta}</p>
+    <a href="https://app.sprimal.com/chat/${tid}" target="_blank"
+      style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 28px;border-radius:9px;font-size:15px;font-weight:700;box-shadow:0 3px 10px rgba(0,0,0,0.12);">
+      Start chatting →
+    </a>
+    <p style="margin-top:14px;font-size:12px;color:#9ca3af;">Available 24/7 — no app needed</p>
+  </div>
+</section>
+
+${contactSection}
+
+<!-- FOOTER -->
+<footer style="background:#111827;color:#9ca3af;text-align:center;padding:24px;font-size:13px;">
+  <span>${name}</span>
+  <span style="margin:0 10px;">·</span>
+  <a href="https://sprimal.com" target="_blank" style="color:#6b7280;text-decoration:none;">Powered by Sprimal</a>
+</footer>
+
+<script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${name.replace(/&quot;/g, '"')}" defer></script>
+</body>
+</html>`;
+}
+
+app.get("/sites/:tenantId", async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("id, name, email, website, logo_url, brand_color, business_description, business_type")
+      .eq("id", tenantId)
+      .maybeSingle();
+    if (!tenant) return res.status(404).send("Page not found");
+    const html = buildTenantSiteHtml(tenant);
+    res.setHeader("Content-Type", "text/html");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.send(html);
+  } catch (err) {
+    console.error("[sites] Error:", err.message);
+    res.status(500).send("Something went wrong");
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

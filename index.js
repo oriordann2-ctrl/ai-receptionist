@@ -8348,6 +8348,8 @@ app.post("/api/portal/knowledge-answer", requireTenant, async (req, res) => {
 
     // 3. Fall back to KB chunk search
     const relevantDocs = await findRelevantKnowledgeChunks(question, 12, tenantId);
+    console.log(`[kb-assistant] "${question}" → ${relevantDocs.length} chunks retrieved:`);
+    relevantDocs.forEach((d, i) => console.log(`  [${i+1}] (${d.similarity.toFixed(3)}) ${d.filename} | ${d.text.slice(0, 120).replace(/\n/g, ' ')}`));
     const documentContext = relevantDocs.map(doc => `Source: ${doc.filename}\n${doc.text}`).join("\n\n");
 
     const completion = await openai.chat.completions.create({

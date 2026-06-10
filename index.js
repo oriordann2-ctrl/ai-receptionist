@@ -5622,6 +5622,54 @@ app.get("/api/check-url", async (req, res) => {
 });
 
 // ── Background crawl (runs after email verification) ─────────────────────────
+// Scrapes an Instagram public profile page and returns up to maxImages CDN thumbnail URLs.
+// Instagram doesn't require auth for public profiles, but does rate-limit bots.
+// Falls back to [] on any error — never throws.
+async function fetchInstagramThumbnails(handle, maxImages = 9) {
+  if (!handle) return [];
+  try {
+    const url = `https://www.instagram.com/${encodeURIComponent(handle)}/`;
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      console.log(`[ig-scrape] HTTP ${res.status} for @${handle}`);
+      return [];
+    }
+    const html = await res.text();
+
+    // Instagram embeds post data in several JSON blobs — extract all CDN image URLs
+    const seen = new Set();
+    const results = [];
+    // Match Instagram/Facebook CDN image URLs that look like post thumbnails
+    const cdnRe = /https:\/\/[a-z0-9_.-]+\.(?:cdninstagram|fbcdn)\.net\/[^"'\s\\]+\.(?:jpg|jpeg|webp)(?:\?[^"'\s\\]*)?/gi;
+    let m;
+    while ((m = cdnRe.exec(html)) !== null && results.length < maxImages) {
+      const imgUrl = m[0].replace(/\\u0026/g, "&").replace(/\\/g, "");
+      // Skip tiny icons and profile pictures (usually flagged by "s150x150" or "s32x32" in path)
+      if (/s\d{1,3}x\d{1,3}/.test(imgUrl) && !/s[3-9]\d{2}x[3-9]\d{2}/.test(imgUrl)) continue;
+      if (!seen.has(imgUrl)) {
+        seen.add(imgUrl);
+        results.push(imgUrl);
+      }
+    }
+    console.log(`[ig-scrape] Found ${results.length} thumbnails for @${handle}`);
+    return results;
+  } catch (err) {
+    console.log(`[ig-scrape] Failed for @${handle}: ${err.message}`);
+    return [];
+  }
+}
+
 async function startBackgroundCrawl({ tenantId, name, website, email, portalPassword }) {
   try {
     let imported = 0;
@@ -5712,6 +5760,24 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       } catch (err) {
         console.error(`[crawl] Logo extraction error for ${tenantId}:`, err.message);
       }
+
+      // ── Social image scrape (Instagram thumbnails for generated site) ────────
+      try {
+        const { data: tenantMeta } = await supabase
+          .from("tenants")
+          .select("instagram_handle")
+          .eq("id", tenantId)
+          .maybeSingle();
+        const igHandle = tenantMeta?.instagram_handle;
+        if (igHandle) {
+          setCrawlProgress(tenantId, 13, `Fetching photos from Instagram (@${igHandle})…`);
+          const thumbnails = await fetchInstagramThumbnails(igHandle, 9);
+          if (thumbnails.length > 0) {
+            await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
+            console.log(`[crawl] Stored ${thumbnails.length} IG thumbnails for ${tenantId}`);
+          }
+        }
+      } catch {}
 
       setCrawlProgress(tenantId, 14, "On the track — scanning your website…");
       const pages = await crawlWebsite(website, 60, (count) => {
@@ -14427,6 +14493,12 @@ function buildTenantSiteHtml(tenant) {
   const fbUrl    = esc(tenant.facebook_url    || "");
   const igHandle = esc(tenant.instagram_handle || "");
   const twHandle = esc(tenant.twitter_handle  || "");
+  let socialImages = [];
+  try {
+    const raw = tenant.social_images;
+    socialImages = Array.isArray(raw) ? raw : (typeof raw === "string" ? JSON.parse(raw) : []);
+  } catch {}
+  socialImages = socialImages.slice(0, 9);
   const emailBtn = email ? `<a href="mailto:${email}" style="display:inline-flex;align-items:center;gap:6px;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">✉️ ${email}</a>` : "";
   const siteBtn  = site  ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:white;color:#374151;border:2px solid #d1d5db;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">🌐 Visit website</a>` : "";
   const socialBar = (fbUrl || igHandle || twHandle) ? `
@@ -14504,6 +14576,91 @@ function buildTenantSiteHtml(tenant) {
 
   const widgetScript = `<script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${name.replace(/&quot;/g,'"')}" defer></script>`;
 
+  // ── Social media sections ─────────────────────────────────────────────────
+  // Facebook Page Plugin — shows live photos feed, no API key needed
+  const fbSection = fbUrl ? `
+<section style="background:#f9fafb;padding:56px 24px;">
+  <div style="max-width:820px;margin:0 auto;text-align:center;">
+    <div class="section-label" style="text-align:center;">Follow Us</div>
+    <h2 style="font-size:26px;font-weight:800;color:#111827;margin-bottom:6px;">Latest from Facebook</h2>
+    <p style="color:#6b7280;font-size:15px;margin-bottom:28px;">Match reports, photos and club news — updated in real time.</p>
+    <div style="display:flex;justify-content:center;overflow:hidden;border-radius:14px;box-shadow:0 2px 20px rgba(0,0,0,0.09);">
+      <div class="fb-page"
+        data-href="${fbUrl}"
+        data-tabs="photos"
+        data-width="780"
+        data-height="520"
+        data-small-header="true"
+        data-adapt-container-width="true"
+        data-hide-cover="false"
+        data-show-facepile="false">
+        <blockquote cite="${fbUrl}" class="fb-xfbml-parse-ignore">
+          <a href="${fbUrl}">${name} on Facebook</a>
+        </blockquote>
+      </div>
+    </div>
+    <a href="${fbUrl}" target="_blank" rel="noopener"
+      style="display:inline-block;margin-top:18px;background:#1877f2;color:white;text-decoration:none;padding:11px 24px;border-radius:9px;font-size:14px;font-weight:700;">
+      📘 Follow on Facebook →
+    </a>
+  </div>
+</section>
+<div id="fb-root"></div>
+<script async defer crossorigin="anonymous"
+  src="https://connect.facebook.net/en_IE/sdk.js#xfbml=1&version=v18.0"></script>` : "";
+
+  // Instagram grid — real thumbnails if scraped, otherwise a branded card
+  const igSection = igHandle ? (() => {
+    if (socialImages.length >= 3) {
+      const cells = socialImages.map(imgUrl =>
+        `<a href="https://instagram.com/${igHandle}" target="_blank" rel="noopener"
+          style="display:block;aspect-ratio:1;overflow:hidden;border-radius:8px;background:#e5e7eb;">
+          <img src="${esc(imgUrl)}" alt="${name} on Instagram" loading="lazy"
+            style="width:100%;height:100%;object-fit:cover;transition:transform 0.25s;"
+            onmouseover="this.style.transform='scale(1.04)'"
+            onmouseout="this.style.transform='scale(1)'">
+        </a>`
+      ).join("");
+      return `
+<section style="padding:56px 24px;background:white;">
+  <div style="max-width:820px;margin:0 auto;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div class="section-label">Instagram</div>
+      <h2 style="font-size:26px;font-weight:800;color:#111827;margin-bottom:6px;">Match action &amp; club life</h2>
+      <a href="https://instagram.com/${igHandle}" target="_blank" rel="noopener"
+        style="color:#6b7280;font-size:14px;text-decoration:none;">@${igHandle}</a>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;">
+      ${cells}
+    </div>
+    <div style="text-align:center;">
+      <a href="https://instagram.com/${igHandle}" target="_blank" rel="noopener"
+        style="display:inline-block;background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);color:white;text-decoration:none;padding:12px 28px;border-radius:9px;font-size:14px;font-weight:700;">
+        📷 Follow @${igHandle} →
+      </a>
+    </div>
+  </div>
+</section>`;
+    }
+    // Fallback: branded card with no real images
+    return `
+<section style="padding:48px 24px;background:white;text-align:center;">
+  <div style="max-width:440px;margin:0 auto;">
+    <div style="background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);padding:3px;border-radius:16px;display:inline-block;">
+      <div style="background:white;border-radius:14px;padding:30px 36px;">
+        <div style="font-size:38px;margin-bottom:10px;">📷</div>
+        <h3 style="font-weight:800;color:#111827;margin-bottom:6px;">See our photos</h3>
+        <p style="color:#6b7280;font-size:14px;line-height:1.6;margin-bottom:20px;">Match action, training sessions and club events — all on Instagram.</p>
+        <a href="https://instagram.com/${igHandle}" target="_blank" rel="noopener"
+          style="display:inline-block;background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);color:white;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;font-weight:700;">
+          @${igHandle} →
+        </a>
+      </div>
+    </div>
+  </div>
+</section>`;
+  })() : "";
+
   // ── GAA CLUB ──────────────────────────────────────────────────────────────
   if (btype === "gaa_club") {
     return baseHead() + stickyBar + `
@@ -14568,6 +14725,8 @@ ${aboutSection}
   <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;">Find out more →</a>
 </section>
 
+${fbSection}
+${igSection}
 ${aiSection("Ask about membership, fixtures, Club Lotto, Cúl Camps, training times and more.")}
 ${contactSection}
 ${socialBar}
@@ -14865,7 +15024,7 @@ app.get("/sites/:tenantId", async (req, res) => {
     const { tenantId } = req.params;
     const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
-      .select("id, name, email, website, logo_url, business_description, business_type, facebook_url, instagram_handle, twitter_handle")
+      .select("id, name, email, website, logo_url, business_description, business_type, facebook_url, instagram_handle, twitter_handle, social_images")
       .eq("id", tenantId)
       .maybeSingle();
     if (tenantErr) console.error("[sites] Supabase error:", tenantErr.message, "for", tenantId);

@@ -5290,6 +5290,7 @@ const BUSINESS_TYPE_PROBE_PATHS = {
 async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessType = null) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
+  const rootDomain = new URL(root).hostname.replace(/^www\./, "").toLowerCase();
 
   // Canonical form: strip www., normalise protocol to https, remove trailing slash
   // Used for deduplication — different spellings of the same URL map to one key.
@@ -5300,6 +5301,12 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
       parsed.protocol = "https:";
       return (parsed.origin + parsed.pathname).replace(/\/$/, "") + parsed.search;
     } catch { return u; }
+  }
+
+  // Returns true if a URL belongs to the root domain (prevents following cross-domain redirects)
+  function isSameDomain(u) {
+    try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase() === rootDomain; }
+    catch { return false; }
   }
 
   // Seed queue from sitemap if available — catches Wix & other JS-nav sites
@@ -5385,6 +5392,14 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
       clearTimeout(timeout);
 
       if (!response.ok) { console.log(`[crawler] Skip ${url}: HTTP ${response.status}`); return null; }
+
+      // Reject pages where a redirect took us to a different domain (e.g. .ie → .com alias)
+      const finalDomain = new URL(response.url).hostname.replace(/^www\./, "").toLowerCase();
+      if (finalDomain !== rootDomain) {
+        console.log(`[crawler] Skip ${url}: redirected to different domain (${finalDomain})`);
+        return null;
+      }
+
       const ct = response.headers.get("content-type") || "";
       if (!ct.includes("text/html")) { console.log(`[crawler] Skip ${url}: content-type "${ct}"`); return null; }
 
@@ -5469,6 +5484,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
       pages.push(result.page);
       for (const link of result.links) {
         if (isBlockedUrl(link)) continue;
+        if (!isSameDomain(link)) continue; // never follow cross-domain links
         const lc = canonicalUrl(link);
         if (!visited.has(lc) && !queue.some(q => canonicalUrl(q) === lc)) queue.push(link);
       }

@@ -5074,6 +5074,32 @@ function isCrawlNoise(url) {
   } catch (e) { return false; }
 }
 
+// Content-based page quality filter — runs after fetching, before storing.
+// Catches noise pages that URL patterns can't detect: blog posts with plain-English
+// titles ("May 28th", "Wild Spirit"), thin event recap pages, photo galleries etc.
+function isUsefulPageContent(title, text) {
+  const t    = (title || "").trim();
+  const body = (text  || "").trim();
+
+  // 1. Too thin to be useful (photo pages, empty pages, pure nav pages)
+  if (body.length < 400) return false;
+
+  // 2. Title is a date or date fragment — "May 28th", "June 2024", "28th July"
+  const MONTHS = "january|february|march|april|may|june|july|august|september|october|november|december";
+  if (new RegExp(`^(${MONTHS})\\s+\\d{1,2}(st|nd|rd|th)?(,?\\s+\\d{4})?$`, "i").test(t)) return false;
+  if (new RegExp(`^\\d{1,2}(st|nd|rd|th)\\s+(${MONTHS})`, "i").test(t)) return false;
+
+  // 3. Short title that matches known event/social post patterns AND thin content
+  const EVENT_PATTERNS = [
+    /dinner dance/i, /prize.?giving/i, /photoshoot/i, /\bbbq\b/i,
+    /club night/i,  /social evening/i, /annual dinner/i, /open day/i,
+    /championship (bbq|dinner|party|night)/i, /coffee morning/i,
+  ];
+  if (EVENT_PATTERNS.some(p => p.test(t)) && body.length < 1200) return false;
+
+  return true;
+}
+
 async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
@@ -5274,6 +5300,10 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
     const errors = [];
 
     for (const page of pages) {
+      if (!isUsefulPageContent(page.title, page.text)) {
+        console.log(`[import-website] Skipping noise page: "${page.title}" (${page.text?.length || 0} chars)`);
+        continue;
+      }
       try {
         const { data: doc, error: insertError } = await supabase
           .from("documents")
@@ -7604,6 +7634,10 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
         if (imported >= CRAWL_QUOTA_DOCS) {
           console.log(`[portal-import] Quota reached (${CRAWL_QUOTA_DOCS} docs) for ${tenantId} — stopping`);
           break;
+        }
+        if (!isUsefulPageContent(page.title, page.text)) {
+          console.log(`[portal-import] Skipping noise page: "${page.title}" (${page.text?.length || 0} chars)`);
+          continue;
         }
         try {
           const { data: doc, error: insertError } = await supabase

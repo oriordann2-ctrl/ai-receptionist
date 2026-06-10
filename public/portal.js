@@ -277,25 +277,22 @@
 
   // ── Re-import website ─────────────────────────────────────────────────────
   window.portalReimportWebsite = function(domain, sampleUrl) {
-    if (!confirm("Re-import " + domain + "?\n\nThis will remove the existing pages for this site and re-scan it from scratch — upgrading them to the latest AI format.\n\nOther websites and uploaded documents are not affected.\n\nThis takes 2–3 minutes.")) return;
-
-    // Derive root URL from sampleUrl
-    var rootUrl;
-    try { rootUrl = new URL(sampleUrl).origin; } catch(e) { rootUrl = "https://" + domain; }
+    if (!confirm("Re-import website?\n\nThis will remove the existing pages and re-scan your website from scratch — upgrading them to the latest AI format.\n\nOther websites and uploaded documents are not affected.\n\nThis takes 2–3 minutes.")) return;
 
     var status = document.getElementById("uploadStatus");
     status.className = "upload-status loading";
-    status.textContent = "⏳ Re-importing " + domain + "… this takes 2–3 minutes. You can leave this page.";
+    status.textContent = "⏳ Re-importing website… this takes 2–3 minutes. You can leave this page.";
     status.style.display = "block";
 
-    fetch("/api/portal/import-website", {
+    // Use /api/portal/recrawl — reads tenants.website fresh from DB so the
+    // correct URL is always used even if the website field was recently updated.
+    fetch("/api/portal/recrawl", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: rootUrl })
+      headers: { "Content-Type": "application/json" }
     })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (data.success) {
+        if (data.ok) {
           status.className = "upload-status success";
           status.textContent = "✅ Re-import started — refreshing in 30 seconds…";
           setTimeout(function() { loadDocuments(); status.style.display = "none"; }, 30000);

@@ -5251,18 +5251,13 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
   }
   allUrls = allUrls.filter(u => !isBlockedUrl(u));
 
-  // Queue order: business-type specific paths first, then general priority, then noise
-  const bizSet  = new Set(bizPriorityUrls.map(u => canonicalUrl(u)));
-  const priorityUrls = allUrls.filter(u => !isCrawlNoise(u) && !bizSet.has(canonicalUrl(u)));
+  // Queue order: priority pages first (non-noise), noise pages only if budget remains.
+  // No artificial front-jumping — pages are discovered naturally from the sitemap and links.
+  const priorityUrls = allUrls.filter(u => !isCrawlNoise(u));
   const noiseUrls    = allUrls.filter(u => isCrawlNoise(u));
-  // bizPriorityUrls go first regardless of noise status — they're explicitly wanted
-  const queue = [
-    ...bizPriorityUrls.filter(u => !isBlockedUrl(u)),
-    ...priorityUrls,
-    ...noiseUrls,
-  ];
+  const queue = [...priorityUrls, ...noiseUrls];
 
-  const bizLabel = businessType ? ` | biz-type: ${businessType} (${bizPriorityUrls.length} priority paths)` : "";
+  const bizLabel = businessType ? ` | biz-type: ${businessType}` : "";
   console.log(`[crawler] Queue: ${allUrls.length} total URLs (${priorityUrls.length} priority, ${noiseUrls.length} noise)${bizLabel} — cap: ${maxPages} pages`);
 
   const pages   = [];
@@ -5394,7 +5389,7 @@ app.post("/api/import-website", requireSenior, async (req, res) => {
 
   try {
     console.log(`[import-website] Starting crawl of ${rootUrl}`);
-    const pages = await crawlWebsite(rootUrl, 40);
+    const pages = await crawlWebsite(rootUrl, 80);
     console.log(`[import-website] Crawled ${pages.length} pages`);
 
     let imported = 0;
@@ -7731,8 +7726,8 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
       // ── Crawl fresh ─────────────────────────────────────────────────────────
       console.log(`[portal-import] Starting crawl for ${tenantId}: ${rootUrl} (biz: ${bizType || "unknown"})`);
       setCrawlProgress(tenantId, 12, `Scanning ${domain}…`);
-      const pages = await crawlWebsite(rootUrl, 40, (count) => {
-        const pct = 12 + Math.round((count / 40) * 55);
+      const pages = await crawlWebsite(rootUrl, 80, (count) => {
+        const pct = 12 + Math.round((count / 80) * 55);
         setCrawlProgress(tenantId, Math.min(pct, 67), `${count} page${count === 1 ? "" : "s"} scanned…`);
       }, bizType);
       console.log(`[portal-import] Crawled ${pages.length} pages for ${tenantId}`);

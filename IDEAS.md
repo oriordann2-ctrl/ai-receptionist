@@ -5,6 +5,53 @@
 
 ---
 
+## 🔊 Alexa Skill per Tenant (with Cloned Voice)
+
+**What:** On signup, automatically provision an Alexa skill for the tenant. They add it to their own Alexa device (home, club reception, bar). Alexa answers questions using the same knowledge base — in the chairman's cloned voice (via ElevenLabs, see voice idea below).
+
+**How it works:**
+- Alexa Skill receives spoken query → hits Sprimal backend (same `/chat` endpoint + same KB)
+- Response text → ElevenLabs TTS using tenant's cloned voice_id → audio returned to Alexa
+- Alexa speaks the answer in the chairman's voice through the device
+
+**The scenario:**
+- Kinsale GAA installs an Echo Dot in the clubhouse reception
+- Member walks in: *"Alexa, ask Kinsale GAA when is the next match?"*
+- Alexa (in the chairman's voice): *"The next match is Saturday at 2pm, away to Nemo Rangers..."*
+- Or at home: *"Alexa, ask Cosy Café what time do you close on Saturday?"*
+
+**Tenant experience:**
+- Portal: "Your Alexa Skill is ready — click here to add it to your device"
+- One-click skill enablement via Alexa app deep link
+- No technical knowledge required from the tenant
+
+**Technical path:**
+- Alexa Skills Kit (ASK) — custom skill with a single catch-all intent that passes the full utterance to Sprimal
+- Alexa-hosted skill OR self-hosted (Lambda or existing Express server via ngrok/public endpoint)
+- Alexa's built-in TTS replaced with ElevenLabs audio (return MP3 URL in SSML `<audio src="...">`)
+- Each tenant gets their own skill (or one shared skill with tenant routing via account linking)
+
+**Shared skill vs per-tenant skill:**
+- Per-tenant: cleaner UX, but Alexa approval process per skill (slow)
+- Shared skill: one approval, tenant identified via Alexa account linking — much faster to ship
+
+**Why it's interesting:**
+- Businesses with physical premises (café, club, hotel) can put an Echo Dot on the counter
+- Completely hands-free for customers
+- Hearing a familiar local voice through Alexa is memorable and on-brand
+- Pairs perfectly with the voice cloning idea — same voice_id, different channel
+- No app to download, no website to visit — just talk
+
+**Status:** Idea only. Depends on ElevenLabs voice cloning being in place first.
+
+**Next steps when ready:**
+- Register as Alexa Developer, create one shared custom skill
+- Catch-all intent → POST to `/chat` with tenant_id from account linking
+- SSML audio response using ElevenLabs MP3
+- Portal UI: "Enable your Alexa skill" button with deep link
+
+---
+
 ## 📞 AI Voice Receptionist (Phone Number + ElevenLabs)
 
 **What:** Surface a dedicated phone number to the tenant at signup. When a customer calls it, the AI answers and handles the same journey as the chat widget — same knowledge base, same flows, same personality.

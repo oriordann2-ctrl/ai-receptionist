@@ -276,6 +276,8 @@
   var rootFlowId = null;     // ID of the entry-point (active) flow — used for "Back to menu"
   var lastWorkflowMsg = null; // last workflow bot_message shown — passed as context to AI so it can answer follow-up questions
   var brandColor = "#111827"; // updated when tenant config loads
+  var wfFetchDone        = false; // true once workflow fetch has returned
+  var openedBeforeWfFetch = false; // true if panel opened before fetch returned (race condition guard)
 
   // Pre-fetch all flows in background (non-AOM only)
   if (clubId !== "aom") {
@@ -293,10 +295,22 @@
           wfSteps = wfFlowMap[d.workflow.id] || [];
           rootFlowId = d.workflow.id;
         }
+        wfFetchDone = true;
+        // Race condition fix: if the panel was already opened before this fetch returned,
+        // it will have shown the plain AI greeting instead of the workflow buttons.
+        // Detect that and switch to workflow mode now.
+        if (openedBeforeWfFetch && isOpen && wfSteps.length && !wfMode) {
+          if (messages) messages.innerHTML = "";
+          wfMode = true;
+          var footer = document.getElementById("sprimal-footer");
+          if (footer) footer.style.display = "none";
+          showWorkflowStep(wfSteps[0]);
+        }
         // Fullscreen mode: auto-open now that wfSteps is ready
         if (fullscreen && !hasOpened) openPanel();
       })
       .catch(function () {
+        wfFetchDone = true;
         // Fullscreen mode: open even if workflow fetch failed (AI mode)
         if (fullscreen && !hasOpened) openPanel();
       });
@@ -1117,7 +1131,9 @@
           if (footer) footer.style.display = "none";
           showWorkflowStep(wfSteps[0]); // first step bot_message already serves as greeting
         } else {
-          // Fresh start — standard AI mode
+          // Fresh start — wfSteps empty (fetch still in flight or no workflows)
+          // Show greeting now; if fetch returns with workflows, race condition handler will replace it
+          if (!wfFetchDone) openedBeforeWfFetch = true;
           var greeting = "Hi there 👋 I'm " + botName + ", your " + clubName + " assistant.\n\nWhat would you like to know?";
           addMsg(greeting, "bot");
           setTimeout(function () { if (input) input.focus(); }, 100);

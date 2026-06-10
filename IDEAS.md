@@ -5,6 +5,52 @@
 
 ---
 
+## 📞 AI Voice Receptionist (Phone Number + ElevenLabs)
+
+**What:** Surface a dedicated phone number to the tenant at signup. When a customer calls it, the AI answers and handles the same journey as the chat widget — same knowledge base, same flows, same personality.
+
+**How it works:**
+- Provision a local phone number during signup (Twilio — already partially set up)
+- Inbound call → Twilio webhook → server → same workflow engine as chat
+- Speech-to-text (Twilio / Deepgram) converts caller speech to text
+- Existing AI chat logic handles the response
+- Text-to-speech (ElevenLabs) speaks the response back to the caller
+
+**The ElevenLabs voice cloning angle (big differentiator):**
+- In the portal, tenant can record a short voice sample (2–5 min)
+- OR upload an audio file of whoever they want (e.g. a committee member, the owner)
+- ElevenLabs clones the voice → stores the `voice_id` against the tenant
+- Every call now answers in *that person's* voice
+- Example: Kinsale GAA — chairman records his voice, every caller hears him answer
+
+**Portal integration:**
+- "Voice Settings" section in portal
+- Record directly in browser (MediaRecorder API) or upload MP3/WAV
+- Preview button — play back a sample in the cloned voice
+- "Active voice" selector if they want to switch between multiple clones
+
+**Tiers / pricing angle:**
+- Basic: generic AI voice (free / included)
+- Pro: 1 custom cloned voice (e.g. €X/month)
+- Premium: multiple voice profiles (e.g. different voices for different departments)
+
+**Why it's powerful:**
+- Small businesses often miss calls — this never misses one
+- The voice sounds like *them*, not a robot
+- Same knowledge base means consistent answers across chat + phone
+- Club scenario: callers hear the chairman's voice even at 2am
+
+**Status:** Idea only. Twilio already partially integrated (blocked on CRO/regulatory bundle). ElevenLabs not yet integrated.
+
+**Next steps when ready:**
+- Twilio Voice webhook (separate from SMS)
+- Deepgram or Twilio built-in STT for real-time transcription
+- ElevenLabs `/voices/add` API for voice cloning
+- Store `elevenlabs_voice_id` on tenant record in Supabase
+- Portal UI: record / upload / preview voice
+
+---
+
 ## 🌐 Auto-Generated Websites (post-crawl)
 
 **What:** After crawling a small business website, automatically generate a modern replacement site with the Sprimal chat widget pre-embedded.

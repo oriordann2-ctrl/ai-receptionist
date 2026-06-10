@@ -4562,11 +4562,15 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     // 3. Run vector searches (all variants) + BM25 keyword search in parallel
     //    Keyword search uses search_chunks_keyword RPC — graceful fallback if not yet created
     const [keywordResult, ...vectorResults] = await Promise.all([
-      supabase.rpc("search_chunks_keyword", {
-        query_text: message,
-        match_count: matchCount * 3,
-        p_tenant_id: tenantId
-      }).catch(() => ({ data: null })),
+      (async () => {
+        try {
+          return await supabase.rpc("search_chunks_keyword", {
+            query_text: message,
+            match_count: matchCount * 3,
+            p_tenant_id: tenantId
+          });
+        } catch { return { data: null }; }
+      })(),
       ...embeddings.map(embedding =>
         supabase.rpc("match_chunks", {
           query_embedding: embedding,

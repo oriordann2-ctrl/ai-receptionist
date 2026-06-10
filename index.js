@@ -4495,37 +4495,77 @@ function getBestKnowledgeSnippet(text, message) {
   return fullText.slice(bestIndex, bestIndex + 4000);
 }
 
+// ── Query expansion — rephrase the user's question 2 ways so vector search
+// covers more semantic ground (e.g. "who is president of monkstown" also
+// searches as "who is the club president" and "club committee president").
+async function expandQuery(message) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: 'Rephrase the question 2 different ways to improve knowledge base search coverage. Different wording, same meaning. Return JSON only: {"alternatives": ["phrasing1", "phrasing2"]}'
+        },
+        { role: "user", content: message }
+      ],
+      temperature: 0.3,
+      max_tokens: 100
+    });
+    const parsed = JSON.parse(resp.choices[0].message.content);
+    return Array.isArray(parsed.alternatives) ? parsed.alternatives.slice(0, 2) : [];
+  } catch {
+    return []; // fail gracefully — original query still runs
+  }
+}
+
 async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom") {
   try {
-    // 1. Embed the query
-    const embeddingResponse = await openai.embeddings.create({
+    // 1. Expand query into 3 variants (original + 2 rephrases), embed all in one batch
+    const alternatives = await expandQuery(message);
+    const allQueries = [message, ...alternatives];
+
+    const embResp = await openai.embeddings.create({
       model: "text-embedding-3-small",
-      input: message
+      input: allQueries
     });
-    const queryEmbedding = embeddingResponse.data[0].embedding;
+    const embeddings = embResp.data.map(d => d.embedding);
 
-    // 2. Vector similarity search
-    const { data: chunks, error } = await supabase.rpc("match_chunks", {
-      query_embedding: queryEmbedding,
-      match_count: matchCount,
-      filter_lender: null,
-      filter_document_type: null,
-      p_tenant_id: tenantId
-    });
+    // 2. Run vector search for all embeddings in parallel
+    const searchResults = await Promise.all(
+      embeddings.map(embedding =>
+        supabase.rpc("match_chunks", {
+          query_embedding: embedding,
+          match_count: matchCount,
+          filter_lender: null,
+          filter_document_type: null,
+          p_tenant_id: tenantId
+        })
+      )
+    );
 
-    if (error) {
-      console.error("[vector search] match_chunks error:", error);
-      return [];
+    // 3. Merge results — keep best similarity score per unique chunk
+    const chunkMap = new Map();
+    for (const { data: chunks } of searchResults) {
+      if (!chunks) continue;
+      for (const chunk of chunks) {
+        const key = `${chunk.document_id}-${chunk.chunk_index}`;
+        const existing = chunkMap.get(key);
+        if (!existing || chunk.similarity > existing.similarity) {
+          chunkMap.set(key, chunk);
+        }
+      }
     }
 
-    if (!chunks || chunks.length === 0) return [];
-
-    // 3. Filter out low-quality matches (below 0.30 similarity)
+    // 4. Filter, sort, return top results
     const MIN_SIMILARITY = 0.30;
-    const goodChunks = chunks.filter(c => (c.similarity || 0) >= MIN_SIMILARITY);
+    const goodChunks = [...chunkMap.values()]
+      .sort((a, b) => b.similarity - a.similarity)
+      .filter(c => (c.similarity || 0) >= MIN_SIMILARITY)
+      .slice(0, matchCount);
+
     if (!goodChunks.length) return [];
 
-    // 4. Return in the shape callers expect: { filename, text, similarity }
     return goodChunks.map(chunk => ({
       filename: chunk.lender
         ? `${chunk.lender} — ${chunk.document_type}`

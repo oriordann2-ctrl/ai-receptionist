@@ -211,14 +211,14 @@ async function detectBusinessType(name, description, pageText) {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: `Classify this business into exactly one category. Reply with ONLY the category key, nothing else.\nCategories:\n- tennis_club\n- fitness_studio\n- golf_club\n- racket_sports_club\n- yoga_studio\n- swim_club\n- team_sports_club\n- cafe\n- other\n\nNotes: racket_sports_club = squash/badminton/padel/table tennis clubs. yoga_studio = yoga/pilates/reformer studios. swim_club = swimming clubs/aquatic centres. team_sports_club = GAA/rugby/soccer/football/hurling/hockey clubs. cafe = cafés/coffee shops/restaurants/delis.` },
+        { role: "system", content: `Classify this business into exactly one category. Reply with ONLY the category key, nothing else.\nCategories:\n- tennis_club\n- fitness_studio\n- golf_club\n- racket_sports_club\n- yoga_studio\n- swim_club\n- gaa_club\n- team_sports_club\n- cafe\n- other\n\nNotes: racket_sports_club = squash/badminton/padel/table tennis clubs. yoga_studio = yoga/pilates/reformer studios. swim_club = swimming clubs/aquatic centres. gaa_club = GAA clubs playing hurling/football/camogie/ladies football — use this instead of team_sports_club for any GAA club. team_sports_club = rugby/soccer/cricket/hockey clubs (non-GAA). cafe = cafés/coffee shops/restaurants/delis.` },
         { role: "user",   content: `Name: ${name}\nDescription: ${description}\nPage text: ${pageText.slice(0, 600)}` }
       ],
       temperature: 0,
       max_tokens: 10
     });
     const raw  = (resp.choices[0].message.content || "other").trim().toLowerCase().replace(/[^a-z_]/g, "");
-    const valid = ["tennis_club", "fitness_studio", "golf_club", "racket_sports_club", "yoga_studio", "swim_club", "team_sports_club", "cafe"];
+    const valid = ["tennis_club", "fitness_studio", "golf_club", "racket_sports_club", "yoga_studio", "swim_club", "gaa_club", "team_sports_club", "cafe"];
     return valid.includes(raw) ? raw : "other";
   } catch (e) {
     console.error("[biz-type] Detection failed:", e.message);
@@ -1018,6 +1018,93 @@ async function seedTeamSportsClubFlows(tenantId, name, websiteUrl, info) {
   return true;
 }
 
+// ── Seed GAA club chat flows ──────────────────────────────────────────────────
+async function seedGAAClubFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[gaa-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain  = crypto.randomUUID(), fJoin  = crypto.randomUUID(), fTeams = crypto.randomUUID();
+  const fFix   = crypto.randomUUID(), fLotto = crypto.randomUUID(), fYouth = crypto.randomUUID();
+  const fLoc   = crypto.randomUUID(), fOther = crypto.randomUUID();
+  const sMain  = crypto.randomUUID(), sJoin  = crypto.randomUUID(), sTeams = crypto.randomUUID();
+  const sFix   = crypto.randomUUID(), sLotto = crypto.randomUUID(), sYouth = crypto.randomUUID();
+  const sLoc   = crypto.randomUUID(), sOther = crypto.randomUUID();
+
+  const contactEmail  = v(info.email)          || "[FILL IN: email]";
+  const emailLink     = contactEmail !== "[FILL IN: email]"
+    ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : "[FILL IN: email]";
+  const membershipUrl = v(info.membership_url) || websiteUrl;
+  const mapsQuery     = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl       = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const locLines = buildLocLines(info, name, mapsUrl, emailLink);
+
+  const joinMsg  = `We'd love to have you join ${name}! Membership is open to all ages and abilities.\n\nWe have options for:\n• Adult (Male & Female)\n• Student / Under 21\n• Juvenile (Under 16)\n• Family\n• OAP / Retired\n• Social / Non-playing\n\nTo register or find out more:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\n📧 ${emailLink}`;
+  const teamsMsg = `${name} competes across multiple codes:\n\n🏑 Senior Hurling\n⚽ Senior Football\n🏐 Ladies Football\n🏑 Camogie\n👶 Underage (all codes)\n\nFor squad news, training times, and more:\n\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]`;
+  const fixMsg   = `For the latest fixtures, results, and county championship draws:\n\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\nOr check your county board website for the full draw.`;
+  const lottoMsg = `The ${name} Club Lotto runs every week — great prizes and all funds go directly to the club.\n\nTo buy tickets or check results:\n\n🔗 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]\n\n📧 ${emailLink}`;
+  const youthMsg = `We cater for all ages from the youngest Go Games right through to Minor and Under 21.\n\n🏕️ We also host GAA Cúl Camps during the summer — a great way to get kids started.\n\nTo register a child or find out more:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}`;
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain,  club_id: tenantId, name: "Main Menu",          is_active: true  },
+    { id: fJoin,  club_id: tenantId, name: "Membership",         is_active: false },
+    { id: fTeams, club_id: tenantId, name: "Our Teams",          is_active: false },
+    { id: fFix,   club_id: tenantId, name: "Fixtures & Results", is_active: false },
+    { id: fLotto, club_id: tenantId, name: "Club Lotto",         is_active: false },
+    { id: fYouth, club_id: tenantId, name: "Underage & Cúl Camps", is_active: false },
+    { id: fLoc,   club_id: tenantId, name: "Find Us",            is_active: false },
+    { id: fOther, club_id: tenantId, name: "Other",              is_active: false },
+  ]);
+  if (fErr) { console.error("[gaa-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain,  workflow_id: fMain,  step_order: 1, bot_message: `Hi there! 👋 Welcome to ${name} GAA. What can I help you with today?` },
+    { id: sJoin,  workflow_id: fJoin,  step_order: 1, bot_message: joinMsg  },
+    { id: sTeams, workflow_id: fTeams, step_order: 1, bot_message: teamsMsg },
+    { id: sFix,   workflow_id: fFix,   step_order: 1, bot_message: fixMsg   },
+    { id: sLotto, workflow_id: fLotto, step_order: 1, bot_message: lottoMsg },
+    { id: sYouth, workflow_id: fYouth, step_order: 1, bot_message: youthMsg },
+    { id: sLoc,   workflow_id: fLoc,   step_order: 1, bot_message: locLines },
+    { id: sOther, workflow_id: fOther, step_order: 1, bot_message: `No problem! How else can I help?` },
+  ]);
+  if (sErr) { console.error("[gaa-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain,  choice_order: 1, label: "🏅 Membership",            action_type: "switch_flow",  action_value: fJoin  },
+    { step_id: sMain,  choice_order: 2, label: "🏑 Our teams",             action_type: "switch_flow",  action_value: fTeams },
+    { step_id: sMain,  choice_order: 3, label: "🏆 Fixtures & results",    action_type: "switch_flow",  action_value: fFix   },
+    { step_id: sMain,  choice_order: 4, label: "🎰 Club Lotto",            action_type: "switch_flow",  action_value: fLotto },
+    { step_id: sMain,  choice_order: 5, label: "👶 Underage & Cúl Camps",  action_type: "switch_flow",  action_value: fYouth },
+    { step_id: sMain,  choice_order: 6, label: "📍 Find us",               action_type: "switch_flow",  action_value: fLoc   },
+    { step_id: sMain,  choice_order: 7, label: "💬 Something else",        action_type: "switch_flow",  action_value: fOther },
+    { step_id: sJoin,  choice_order: 1, label: "🌐 View membership info",  action_type: "url",          action_value: membershipUrl },
+    { step_id: sJoin,  choice_order: 2, label: "✉️ Register interest",    action_type: "collect_lead", action_value: null          },
+    { step_id: sJoin,  choice_order: 3, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain         },
+    { step_id: sTeams, choice_order: 1, label: "🌐 Visit website",         action_type: "url",          action_value: websiteUrl },
+    { step_id: sTeams, choice_order: 2, label: "💬 Ask me",                action_type: "ai_fallback",  action_value: null       },
+    { step_id: sTeams, choice_order: 3, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sFix,   choice_order: 1, label: "🌐 View on website",       action_type: "url",          action_value: websiteUrl },
+    { step_id: sFix,   choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sLotto, choice_order: 1, label: "🌐 Buy lotto tickets",     action_type: "url",          action_value: websiteUrl },
+    { step_id: sLotto, choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain      },
+    { step_id: sYouth, choice_order: 1, label: "✉️ Register a child",     action_type: "collect_lead", action_value: null   },
+    { step_id: sYouth, choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain  },
+    { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",        action_type: "url",          action_value: mapsUrl },
+    { step_id: sLoc,   choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain   },
+    { step_id: sOther, choice_order: 1, label: "💬 I have a question",     action_type: "ai_fallback",  action_value: null  },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",            action_type: "message",      action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",      action_type: "switch_flow",  action_value: fMain },
+  ]);
+  if (cErr) { console.error("[gaa-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[gaa-seed] ✅ Seeded 8 GAA club flows for ${tenantId} (${name})`);
+  return true;
+}
+
 // ── Seed café / coffee shop chat flows ────────────────────────────────────────
 async function seedCafeFlows(tenantId, name, websiteUrl, info) {
   const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
@@ -1118,6 +1205,7 @@ async function seedFlowsForType(tenantId, name, websiteUrl, bizType, pages) {
     case "racket_sports_club": return seedRacketSportsClubFlows(tenantId, name, websiteUrl, info);
     case "yoga_studio":        return seedYogaStudioFlows(tenantId, name, websiteUrl, info);
     case "swim_club":          return seedSwimClubFlows(tenantId, name, websiteUrl, info);
+    case "gaa_club":           return seedGAAClubFlows(tenantId, name, websiteUrl, info);
     case "team_sports_club":   return seedTeamSportsClubFlows(tenantId, name, websiteUrl, info);
     case "cafe":               return seedCafeFlows(tenantId, name, websiteUrl, info);
     default:
@@ -5173,6 +5261,16 @@ const BUSINESS_TYPE_PROBE_PATHS = {
     "/membership", "/join", "/fees",
     "/training", "/squads", "/lessons",
     "/gala", "/fixtures", "/results",
+  ],
+  gaa_club: [
+    "/committee", "/about-us/committee", "/officers", "/board",
+    "/membership", "/join", "/become-a-member",
+    "/hurling", "/football", "/camogie", "/ladies-football", "/ladies",
+    "/fixtures", "/results", "/leagues", "/championship",
+    "/lotto", "/club-lotto",
+    "/training", "/coaching", "/underage", "/juvenile", "/youth",
+    "/cul-camps", "/summer-camps",
+    "/contact", "/find-us",
   ],
   team_sports_club: [
     "/committee", "/about-us/committee", "/officers",

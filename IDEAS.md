@@ -1,7 +1,47 @@
 # Sprimal — Product Ideas & Backlog
 
 > Maintained across sessions. Add ideas here as they come up.
-> Last updated: 2026-06-11
+> Last updated: 2026-06-10
+
+---
+
+## 🟢 Cosy Café Kinsale — Active Client Onboarding
+
+Deal closed 2026-06-10 with Sebastien Perey. €100 deposit + €200 go-live + €49/month recurring.
+
+### Immediate (today)
+- [ ] Send €100 Stripe payment link to Sebastian
+- [x] Confirm his WhatsApp / email for ongoing comms
+
+### Week 1 — Design & Content (Sebastian's actions)
+- [ ] Sebastian picks design theme (The Local / Modern Artisan / Dark Roast / Wild Atlantic)
+- [ ] Sebastian registers **cosycafe.ie** on Blacknight.com (€5.99/yr — his cost)
+- [ ] Sebastian sends menu, opening hours, and any photos
+- [ ] Sebastian points cosycafe.ie DNS to Sprimal once registered
+
+### Week 1 — Setup (your actions)
+- [ ] Create Cosy Café tenant in Sprimal
+- [ ] Seed/import their website KB (cosycafe.net crawl)
+- [ ] Build chat flows: Menu · Opening Hours · Find Us · Book a Table · Dog Policy · Leave a Review
+
+### Week 2 — Build & Train
+- [ ] Build website using chosen design theme
+- [ ] Train KB on full menu, hours, story, FAQs
+- [ ] Configure cosycafe.ie DNS and SSL
+- [ ] Send preview link to Sebastian for feedback
+
+### Week 3 — Test & Refine
+- [ ] QA all chat flows on mobile and desktop
+- [ ] Schema markup validation
+- [ ] Sebastian sign-off
+
+### Week 4 — Go Live
+- [ ] Set up 301 redirect: cosycafe.net → cosycafe.ie
+- [ ] Sebastian updates Google Business Profile URL to cosycafe.ie
+- [ ] Go live on cosycafe.ie
+- [ ] Send €200 completion Stripe invoice to Sebastian
+- [ ] Set up €49/month Stripe recurring subscription
+- [ ] Portal walkthrough with Sebastian (KB updates, leads, chat logs)
 
 ---
 
@@ -163,30 +203,107 @@ A small café with 50 calls/month × 4 exchanges × ~100 chars = ~20,000 chars �
 
 ---
 
-## 🌐 Auto-Generated Websites (post-crawl)
+## 🌐 Auto-Generated Websites — Social Media + Crawl at Signup
 
-**What:** After crawling a small business website, automatically generate a modern replacement site with the Sprimal chat widget pre-embedded.
+**What:** During signup, automatically generate a modern website for the tenant using:
+1. **Knowledge crawl** — pulls name, address, phone, email, hours, logo from their existing website
+2. **Social media images** — pulls real photos from their Instagram (and optionally Facebook/TikTok) so the generated site looks like *their* brand, not a placeholder template
+3. **GPT fills the template** — combines both sources to produce a fully populated site
+4. Hosted on Sprimal — live at `app.sprimal.com/{tenant-slug}` within minutes of signup
+
+**Why this is powerful:**
+- Tenant signs up → crawl runs → Instagram scraped → website generated → live in under 5 minutes
+- No placeholder images, no "lorem ipsum" — it looks real from day one
+- The pitch becomes: *"Give us your website URL and Instagram handle at signup. We'll have a new site live for you before the end of the call."*
+- Cosy Café proved this works — their Instagram (@cosycafekinsale) had exactly the photos needed
 
 **How it works:**
+- Signup form takes: existing website URL + Instagram handle (optional)
 - `extractGenericInfo()` already pulls name, address, phone, email, hours, logo URL
-- Post-crawl: GPT fills one of the 4 design templates with that data
-- HTML file written to `public/{tenant-slug}.html` → instantly live at `app.sprimal.com/{tenant-slug}`
-- Zero extra hosting cost (static file on existing Render server)
+- Instagram scraper fetches the 6–9 most recent posts (public accounts, no auth needed via basic scrape)
+- GPT selects the best images for hero, about, menu sections based on content
+- Post-crawl: fills one of the 4 design templates with real data + real photos
+- HTML file written to `public/{tenant-slug}.html` → instantly live
 
 **Hosting tiers:**
 - Starter: `app.sprimal.com/businessname` (free)
 - Pro: `businessname.sprimal.com` (subdomain via Cloudflare)
 - Premium: client's own custom domain (they point DNS)
 
-**Product pitch:** *"As part of your AI receptionist package, we'll give you a modern website — live within minutes of sign-up."*
-
-**Status:** Design templates built (`cosy-cafe-designs.html`). Auto-generator not yet built.
+**Status:** Design templates built (`cosy-cafe-designs.html`). Auto-generator not yet built. Instagram scraping not yet built.
 
 **Next steps:**
 - Build `generateTenantSite(tenantId)` function — runs post-crawl, writes themed HTML
+- Add Instagram handle field to signup form
+- Build `scrapeInstagramImages(handle)` — fetch recent public post images
+- GPT image selector — pick best images for hero / about / menu slots
 - Add theme picker in client portal
-- Add simple edit form (headline, about text, hero image URL)
+- Add simple edit form (headline, about text, swap images)
 - Publish button
+
+---
+
+## 🔐 Portal Login Security — 2FA + Password Reset
+
+**Issues:**
+- No two-factor authentication on portal login — anyone with the password has full access
+- No password reset flow — if a tenant forgets their password there's no self-service recovery
+
+**What to build:**
+- **2FA:** TOTP (Google Authenticator / Authy) via a library like `speakeasy`. On login, after email/password, prompt for 6-digit code. Store encrypted secret per tenant in Supabase.
+- **Password reset:** "Forgot password?" link on login page → sends a time-limited reset token to their email → they set a new password. Standard flow via Supabase Auth or a custom token table.
+
+**Priority:** Medium — no live clients self-serve yet, but needed before wider rollout.
+
+---
+
+## 📱 Sprimal Mobile App — Google Play & App Store
+
+**What:** A native or PWA mobile app for tenants so they can manage their assistant from their phone. Check chat logs, see new leads, update KB, get notified when a lead comes in.
+
+**Options:**
+- **PWA (Progressive Web App)** — quickest to ship. Add a manifest + service worker to the portal. Tenants "install" it from Chrome. No app store approval needed.
+- **React Native / Expo** — full native app, proper push notifications, App Store + Play Store listing. More work but more credible.
+
+**Play Store / App Store listing** is a trust signal even if most usage is web — "Download the Sprimal app" on the marketing site looks professional.
+
+**Priority:** PWA first (low effort, high value for tenant experience). Native app later.
+
+---
+
+## 📣 Marketing Strategy
+
+**How to get more clients like Cosy Café:**
+- Direct outreach to local businesses in Kinsale / Cork — personal intro works (proved today)
+- Nathan affiliate programme (`?ref=nathan`) — 15% recurring, not yet built
+- Sebastian referral programme — he knows every café/guesthouse in Kinsale
+- Google Ads targeting "AI chatbot for small business Ireland" / "website for café Ireland"
+- Content marketing — case study: "How Cosy Café went from no AI to 24/7 receptionist in 4 weeks"
+- Local business Facebook groups / Cork business networks
+- Partner with web designers who don't want to build AI features themselves
+
+**Status:** No marketing built yet. Referral programme not yet implemented.
+
+---
+
+## 🤝 Cross-Tenant Agent Communication (Agent-to-Agent)
+
+**The idea:** If agents are publicly exposed via an API, could one tenant's agent query another? For example:
+- A "Kinsale Tourism" agent that knows about multiple local businesses
+- Monkstown Tennis agent asks the Passage West agent about upcoming fixtures
+- A "Cork GAA" umbrella agent that routes to individual club agents
+
+**Why it's interesting:**
+- Agents could form a network — "ask your local area agent" routes to the right specialist
+- Federation model: one entry point, many knowledge bases
+- A Kinsale agent could answer "where's a good café?" by querying the Cosy Café agent
+
+**Questions to resolve:**
+- Are tenant agents currently publicly exposed? (Check `/chat` endpoint auth)
+- Should inter-agent calls be authenticated or open?
+- Who pays for the tokens when Agent A queries Agent B?
+
+**Status:** Raw idea. Worth exploring once multi-tenant is stable.
 
 ---
 
@@ -268,6 +385,103 @@ Switch Monkstown Tennis Club from test key to live Stripe key when ready.
 ## 🏗️ CRO Company Registration
 
 Needed before Twilio regulatory bundle can be submitted.
+
+---
+
+## 🔧 Admin — Editable Boilerplate Chat Flows per Business Type
+
+**What:** Allow the admin to edit the default chat flows for each business type (café, tennis club, GAA club, restaurant, etc.) directly from the admin panel — without touching code.
+
+**Why:** Currently boilerplate flows are hardcoded in seed functions in `index.js`. Every time you want to tweak a default flow for a business type you have to redeploy. An admin UI would let you update the template flows instantly, and every new tenant of that type gets the latest version.
+
+**How it would work:**
+- Admin panel gets a "Flow Templates" section
+- Lists business types: Café · Tennis Club · GAA Club · Restaurant · etc.
+- Each type has editable default flows (button labels, responses, sub-menus)
+- When a new tenant is seeded/created, flows are generated from the current template, not hardcoded JS
+- Option to "push updated template to all tenants of this type" (bulk update)
+
+**Status:** Idea only. Flows currently hardcoded in seed functions.
+
+---
+
+## 🏐 GAA Club Logo Database (Cork + National)
+
+**What:** gaacork.ie/clubs/ lists every Cork GAA club with their crests. The images lazy-load via JS so a basic crawl misses them — but a headless browser scrape would capture all ~200 club logos in one pass. Same pattern likely exists for every county board site.
+
+**Why:** Every time a GAA club tenant is added, their logo has to be manually found and set. A pre-built lookup table of club name → crest URL would make onboarding instant.
+
+**How:**
+- Puppeteer/Playwright headless scrape of gaacork.ie/clubs/ → extract all club names + crest URLs
+- Store in a `gaa_clubs` lookup table in Supabase
+- When a GAA tenant is created, auto-match by club name and set `logo_url` automatically
+- Extend to other county boards (gaadublin.ie, connacht GAA etc.)
+
+**Fallback already working:** `unavatar.io/twitter/{handle}` works well for clubs with active Twitter accounts.
+
+**Status:** Idea only.
+
+---
+
+## 📧 Billy Cotter — Passage West GAA Partnership (Free Tier for Word of Mouth)
+
+**Who:** Billy Cotter — heavily involved in Passage West GAA Club.
+
+**Deal idea:** Give Passage West GAA Sprimal + a new website for free, in exchange for word-of-mouth promotion across the GAA community in Cork.
+
+**Why this is worth it:**
+- GAA clubs are tightly networked — clubs talk at county board meetings, on the sideline, at matches
+- One happy GAA club recommending Sprimal to other clubs = direct pipeline into Cork GAA (hundreds of clubs)
+- Passage West already crawled and in the system — cost to set them up is near zero
+- A free website + AI receptionist is a compelling gift that will generate genuine enthusiasm
+
+**What to offer:**
+- Sprimal AI receptionist — free, no monthly fee, in exchange for word of mouth
+- New website (use the Auto-Generated Website feature once built, or hand-build using the design templates)
+- Help setting up: club lotto flow, fixtures & results, underage/Cúl Camps, membership
+
+**Actions:**
+- [ ] Draft email to Billy Cotter introducing Sprimal and the free offer
+- [ ] Set up Passage West GAA tenant (or confirm it's already crawled)
+- [ ] Fix Passage West logo (SQL: `logo_url = 'https://unavatar.io/twitter/passageGAA'`)
+- [ ] Delete old team_sports_club flows + recrawl → seeds proper GAA flows
+- [ ] Build / generate their website using GAA design template
+- [ ] Agree word-of-mouth terms (informal — just ask Billy to mention it to other club officers)
+
+---
+
+## 📱 Social Media Crawl — Enrich KB from Facebook / Instagram / Twitter
+
+**What:** During the crawl (and recrawl), also pull content from the tenant's social media accounts to enrich the knowledge base — not just the website.
+
+**Why:** Many small businesses (especially GAA clubs, cafés, sports clubs) post their most up-to-date info on social media rather than their website. Fixtures, opening hours changes, events, lotto results, news — it all lives on Facebook and Instagram, not on the website. If Sprimal only crawls the website, the KB goes stale.
+
+**Sources to crawl:**
+- **Facebook page** — posts, about section (address, hours, phone), upcoming events
+- **Instagram** — captions from recent posts (useful for specials, announcements, new products)
+- **Twitter/X** — tweets (especially good for sports clubs — @passageGAA posts fixtures and match results)
+
+**How it could work:**
+- Signup form / portal settings takes: Facebook URL + Instagram handle + Twitter handle (all optional)
+- Post-crawl step: fetch recent public posts from each platform
+  - Facebook: `graph.facebook.com/{page-id}/posts` (requires app token, but Pages API is public for public pages)
+  - Instagram: scrape public profile page (no auth needed for public accounts — `instagram.com/{handle}` returns JSON in script tags)
+  - Twitter/X: `unavatar.io` already works for logos; post scraping needs Nitter or X API v2 (free tier: 1500 reads/month)
+- Chunk and embed social posts the same way as website pages — `document_type: "Social Media"`
+- Re-index social media separately from website (don't delete social chunks on recrawl — social has its own re-import button)
+
+**GAA use case:** Club lotto results, match reports, upcoming fixtures are posted weekly to Facebook/Twitter — if the KB includes these, the agent can answer "what was the lotto result last week?" or "when's the next match?"
+
+**Logo bonus:** Twitter handle already solves the logo problem for clubs with broken websites (proven: Cookie Jimmy via bltc.ie, Passage West via @passageGAA).
+
+**Status:** Not built. Logo-from-Twitter already works via `unavatar.io` in the favicon proxy.
+
+**Next steps:**
+- Add social handles to tenant profile (portal settings page)
+- Add `scrapeInstagramPosts(handle)` — fetch recent captions from public profile
+- Add `scrapeTwitterPosts(handle)` — via X API v2 free tier or Nitter fallback
+- Facebook: evaluate Graph API (requires app review for some endpoints) vs. scraping
+- Add "Social Media" document type + separate recrawl button in portal
 
 ---
 

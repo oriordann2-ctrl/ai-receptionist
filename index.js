@@ -14640,9 +14640,9 @@ function buildTenantSiteHtml(tenant) {
     <div style="display:flex;justify-content:center;overflow:hidden;border-radius:14px;box-shadow:0 2px 20px rgba(0,0,0,0.09);">
       <div class="fb-page"
         data-href="${fbUrl}"
-        data-tabs="photos"
+        data-tabs="timeline"
         data-width="780"
-        data-height="520"
+        data-height="600"
         data-small-header="true"
         data-adapt-container-width="true"
         data-hide-cover="false"

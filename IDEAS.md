@@ -1,7 +1,32 @@
 # Sprimal — Product Ideas & Backlog
 
 > Maintained across sessions. Add ideas here as they come up.
-> Last updated: 2026-06-10 (voice cost analysis added)
+> Last updated: 2026-06-11
+
+---
+
+## 📊 Retrieval Telemetry — Log Similarity Scores Per Query
+
+**Why:** We tried raising the vector similarity threshold from 0.30 → 0.42 based on research recommendations, but it broke retrieval for valid documents that were scoring 0.30–0.41. We had no data on what scores real answers actually produce, so the change was blind.
+
+**What to build:** Log every retrieval event to a `retrieval_events` table:
+```
+{ conversation_id, tenant_id, query, expanded_queries,
+  chunks_returned, similarity_scores[], answer_source, timestamp }
+```
+
+**What this unlocks:**
+- See the actual score distribution for real queries vs noise
+- Set the threshold at the natural gap between good hits and bad hits (data-driven, not guesswork)
+- Measure whether query expansion / BM25 hybrid search is actually improving recall
+- Identify tenants whose KB is thin or poorly matched to how users ask questions
+- Run RAGAS-style evaluation: correct answer rate before/after any retrieval change
+
+**Current state:** No chunk-level telemetry. Only `answerSource` ("kb" / "generic") is logged.
+
+**Implementation:** Non-blocking background insert in `findRelevantKnowledgeChunks` after returning results — don't await it, so it never adds latency to the chat response.
+
+**Do this before:** Any future attempt to raise the similarity threshold above 0.30.
 
 ---
 

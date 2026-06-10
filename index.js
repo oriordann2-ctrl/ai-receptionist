@@ -4606,27 +4606,38 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       (keywordResult.data || []).map(c => `${c.document_id}-${c.chunk_index}`)
     );
 
-    // 6. Filter: keep if found by keyword search OR similarity meets threshold.
-    //    Uploaded docs (PDFs, policies, club docs) BYPASS the threshold entirely —
-    //    they are authoritative and should always be considered regardless of score.
-    //    Threshold kept at 0.30 for website content — raising requires score telemetry first.
+    // 6. Website content: filter by keyword match OR similarity threshold
     const MIN_SIMILARITY = 0.30;
-    const filtered = fused.filter(chunk => {
-      const key = `${chunk.document_id}-${chunk.chunk_index}`;
-      const isUploadedDoc = chunk.document_type !== "Website Content";
-      return isUploadedDoc || keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
+    const websiteChunks = fused
+      .filter(c => c.document_type === "Website Content")
+      .filter(c => {
+        const key = `${c.document_id}-${c.chunk_index}`;
+        return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
+      });
+
+    // 7. Uploaded docs: fetch ALL directly from the database — no vector threshold.
+    //    PDFs, policies, club docs are authoritative. The vector search may rank them
+    //    below the match_count cap entirely when queries contain place names that only
+    //    appear in website content. Direct DB fetch guarantees they're always included.
+    const { data: uploadedDocRows } = await supabase
+      .from("knowledge_chunks")
+      .select("document_id, chunk_index, chunk_text, document_type, lender")
+      .eq("tenant_id", tenantId)
+      .neq("document_type", "Website Content")
+      .limit(30);
+
+    // Sort uploaded docs by their vector score where available, otherwise 0
+    const sortedUploadedDocs = (uploadedDocRows || []).sort((a, b) => {
+      const scoreA = vectorSimMap.get(`${a.document_id}-${a.chunk_index}`) || 0;
+      const scoreB = vectorSimMap.get(`${b.document_id}-${b.chunk_index}`) || 0;
+      return scoreB - scoreA;
     });
 
-    // 7. Split into uploaded docs vs website content.
-    //    Uploaded docs get guaranteed slots so blog posts / event pages can't crowd them out.
-    const uploadedChunks = filtered.filter(c => c.document_type !== "Website Content");
-    const websiteChunks  = filtered.filter(c => c.document_type === "Website Content");
-
-    const UPLOADED_SLOTS = Math.min(4, uploadedChunks.length);
-    const websiteSlots   = matchCount - UPLOADED_SLOTS;
+    // Combine: uploaded docs first (up to 5), then best website chunks
+    const UPLOADED_SLOTS = Math.min(5, sortedUploadedDocs.length);
     const goodChunks = [
-      ...uploadedChunks.slice(0, UPLOADED_SLOTS),
-      ...websiteChunks.slice(0, Math.max(websiteSlots, 0))
+      ...sortedUploadedDocs.slice(0, UPLOADED_SLOTS),
+      ...websiteChunks.slice(0, matchCount - UPLOADED_SLOTS)
     ].slice(0, matchCount);
 
     if (!goodChunks.length) return [];

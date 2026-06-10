@@ -9136,6 +9136,35 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
 // Avoids hotlinking blocks and CORS issues entirely.
 const faviconCache = new Map(); // tenantId → { buffer, contentType, ts }
 
+// Fetches an image buffer, falling back to SSL-bypass for broken certs
+function fetchImageBuffer(url) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith("https") ? require("https") : require("http");
+    const opts = url.startsWith("https") ? { rejectUnauthorized: false } : {};
+    const parsedUrl = new URL(url);
+    const options = {
+      hostname: parsedUrl.hostname,
+      path: parsedUrl.pathname + parsedUrl.search,
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      timeout: 6000,
+      ...opts,
+    };
+    const req = mod.get(options, (res) => {
+      // Follow redirects (max 3)
+      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+        return fetchImageBuffer(res.headers.location).then(resolve).catch(reject);
+      }
+      if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ buffer: Buffer.concat(chunks), contentType: res.headers["content-type"] || "image/png" }));
+      res.on("error", reject);
+    });
+    req.on("timeout", () => { req.destroy(); reject(new Error("timeout")); });
+    req.on("error", reject);
+  });
+}
+
 app.get("/api/tenant-favicon/:tenantId", async (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Cache-Control", "public, max-age=3600");
@@ -9157,33 +9186,25 @@ app.get("/api/tenant-favicon/:tenantId", async (req, res) => {
 
   if (!data) return res.status(404).end();
 
-  let imgUrl = data.logo_url || null;
-  if (!imgUrl && data.website) {
+  const domain = data.website ? new URL(data.website).hostname.replace(/^www\./, "") : null;
+
+  // Build candidate URLs in priority order
+  const candidates = [];
+  if (data.logo_url) candidates.push(data.logo_url);
+  if (domain) candidates.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
+
+  for (const imgUrl of candidates) {
     try {
-      const domain = new URL(data.website).hostname.replace(/^www\./, "");
-      imgUrl = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
-    } catch {}
+      const { buffer, contentType } = await fetchImageBuffer(imgUrl);
+      faviconCache.set(tenantId, { buffer, contentType, ts: Date.now() });
+      res.setHeader("Content-Type", contentType);
+      return res.send(buffer);
+    } catch (err) {
+      console.warn(`[favicon-proxy] Failed to fetch ${imgUrl} for ${tenantId}: ${err.message}`);
+    }
   }
 
-  if (!imgUrl) return res.status(404).end();
-
-  try {
-    const imgRes = await fetch(imgUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-      signal: AbortSignal.timeout(6000)
-    });
-    if (!imgRes.ok) return res.status(404).end();
-
-    const buffer = Buffer.from(await imgRes.arrayBuffer());
-    const contentType = imgRes.headers.get("content-type") || "image/png";
-
-    faviconCache.set(tenantId, { buffer, contentType, ts: Date.now() });
-    res.setHeader("Content-Type", contentType);
-    res.send(buffer);
-  } catch (err) {
-    console.error(`[favicon-proxy] Error for ${tenantId}:`, err.message);
-    res.status(404).end();
-  }
+  res.status(404).end();
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

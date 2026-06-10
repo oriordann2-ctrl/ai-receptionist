@@ -4610,12 +4610,23 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     //    OR if vector similarity meets threshold.
     //    Threshold kept at 0.30 (original) — raising it requires score telemetry first
     const MIN_SIMILARITY = 0.30;
-    const goodChunks = fused
-      .filter(chunk => {
-        const key = `${chunk.document_id}-${chunk.chunk_index}`;
-        return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
-      })
-      .slice(0, matchCount);
+    const filtered = fused.filter(chunk => {
+      const key = `${chunk.document_id}-${chunk.chunk_index}`;
+      return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
+    });
+
+    // 7. Split into uploaded docs vs website content.
+    //    Uploaded docs (PDFs, policies, club docs) are authoritative — give them guaranteed
+    //    slots so blog posts / event pages can't crowd them out entirely.
+    const uploadedChunks = filtered.filter(c => c.document_type !== "Website Content");
+    const websiteChunks  = filtered.filter(c => c.document_type === "Website Content");
+
+    const UPLOADED_SLOTS = Math.min(4, uploadedChunks.length);
+    const websiteSlots   = matchCount - UPLOADED_SLOTS;
+    const goodChunks = [
+      ...uploadedChunks.slice(0, UPLOADED_SLOTS),
+      ...websiteChunks.slice(0, Math.max(websiteSlots, 0))
+    ].slice(0, matchCount);
 
     if (!goodChunks.length) return [];
 

@@ -7468,6 +7468,8 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
 
   (async () => {
     try {
+      setCrawlProgress(tenantId, 5, "Clearing old website content…");
+
       // ── Delete existing pages for this domain only ──────────────────────────
       const { data: existingDocs } = await supabase
         .from("documents")
@@ -7485,8 +7487,14 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
 
       // ── Crawl fresh ─────────────────────────────────────────────────────────
       console.log(`[portal-import] Starting crawl for ${tenantId}: ${rootUrl}`);
-      const pages = await crawlWebsite(rootUrl, 40);
+      setCrawlProgress(tenantId, 12, `Scanning ${domain}…`);
+      const pages = await crawlWebsite(rootUrl, 40, (count) => {
+        const pct = 12 + Math.round((count / 40) * 55);
+        setCrawlProgress(tenantId, Math.min(pct, 67), `${count} page${count === 1 ? "" : "s"} scanned…`);
+      });
       console.log(`[portal-import] Crawled ${pages.length} pages for ${tenantId}`);
+
+      setCrawlProgress(tenantId, 68, `Saving ${pages.length} pages to your knowledge base…`);
       let imported = 0;
       for (const page of pages) {
         if (imported >= CRAWL_QUOTA_DOCS) {
@@ -7511,13 +7519,17 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
           if (insertError) { console.error(`[portal-import] Insert error:`, insertError.message); continue; }
           await generateAndStoreChunks(doc.id, page.text, null, "Website Content", null, tenantId, { title: page.title || page.url });
           imported++;
+          const savePct = 68 + Math.round((imported / pages.length) * 28);
+          setCrawlProgress(tenantId, Math.min(savePct, 96), `Saving page ${imported} of ${pages.length}…`);
         } catch (err) {
           console.error(`[portal-import] Page error:`, err.message);
         }
       }
       console.log(`[portal-import] Done — imported ${imported} pages for ${tenantId}`);
+      setCrawlProgress(tenantId, 100, `✅ Done — ${imported} page${imported === 1 ? "" : "s"} imported`, true);
     } catch (err) {
       console.error(`[portal-import] Crawl failed for ${tenantId}:`, err.message);
+      setCrawlProgress(tenantId, 100, "⚠️ Re-import encountered an error — please try again", true);
     }
   })();
 });

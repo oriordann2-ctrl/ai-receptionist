@@ -5290,7 +5290,7 @@ const BUSINESS_TYPE_PROBE_PATHS = {
 async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessType = null) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
-  const rootDomain = new URL(root).hostname.replace(/^www\./, "").toLowerCase();
+  let rootDomain = new URL(root).hostname.replace(/^www\./, "").toLowerCase();
 
   // Canonical form: strip www., normalise protocol to https, remove trailing slash
   // Used for deduplication — different spellings of the same URL map to one key.
@@ -5308,6 +5308,22 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
     try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase() === rootDomain; }
     catch { return false; }
   }
+
+  // Detect domain alias: if the root URL immediately redirects to a different domain
+  // (e.g. .ie → .com custom domain), adopt the final domain as the crawl root.
+  // This runs once before the main crawl loop.
+  try {
+    const aliasCheck = await fetch(root, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+      signal: AbortSignal.timeout(6000),
+      redirect: "follow",
+    });
+    const finalDomain = new URL(aliasCheck.url).hostname.replace(/^www\./, "").toLowerCase();
+    if (finalDomain !== rootDomain) {
+      console.log(`[crawler] Domain alias detected: ${rootDomain} → ${finalDomain} — crawling ${finalDomain}`);
+      rootDomain = finalDomain;
+    }
+  } catch { /* ignore — main crawl will handle fetch errors */ }
 
   // Seed queue from sitemap if available — catches Wix & other JS-nav sites
   const sitemapUrls = await fetchSitemapUrls(root);

@@ -4606,18 +4606,19 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       (keywordResult.data || []).map(c => `${c.document_id}-${c.chunk_index}`)
     );
 
-    // 6. Filter: keep if found by keyword search (exact match bypasses threshold)
-    //    OR if vector similarity meets threshold.
-    //    Threshold kept at 0.30 (original) — raising it requires score telemetry first
+    // 6. Filter: keep if found by keyword search OR similarity meets threshold.
+    //    Uploaded docs (PDFs, policies, club docs) BYPASS the threshold entirely —
+    //    they are authoritative and should always be considered regardless of score.
+    //    Threshold kept at 0.30 for website content — raising requires score telemetry first.
     const MIN_SIMILARITY = 0.30;
     const filtered = fused.filter(chunk => {
       const key = `${chunk.document_id}-${chunk.chunk_index}`;
-      return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
+      const isUploadedDoc = chunk.document_type !== "Website Content";
+      return isUploadedDoc || keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
     });
 
     // 7. Split into uploaded docs vs website content.
-    //    Uploaded docs (PDFs, policies, club docs) are authoritative — give them guaranteed
-    //    slots so blog posts / event pages can't crowd them out entirely.
+    //    Uploaded docs get guaranteed slots so blog posts / event pages can't crowd them out.
     const uploadedChunks = filtered.filter(c => c.document_type !== "Website Content");
     const websiteChunks  = filtered.filter(c => c.document_type === "Website Content");
 
@@ -5065,6 +5066,8 @@ const CRAWL_NOISE_PATTERNS = [
   /\/author(\/|$)/i,
   /\/page\/\d/i,
   /\?.*page=/i,
+  /\/portfolio(\/|$)/i,
+  /\/event-details?(\/|$)/i,
 ];
 
 function isCrawlNoise(url) {

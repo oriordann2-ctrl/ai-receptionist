@@ -1,7 +1,7 @@
 # Sprimal — Product Ideas & Backlog
 
 > Maintained across sessions. Add ideas here as they come up.
-> Last updated: 2026-06-10
+> Last updated: 2026-06-10 (voice cost analysis added)
 
 ---
 
@@ -95,6 +95,46 @@
 - ElevenLabs `/voices/add` API for voice cloning
 - Store `elevenlabs_voice_id` on tenant record in Supabase
 - Portal UI: record / upload / preview voice
+
+---
+
+### 💰 Voice Cost Analysis
+
+**ElevenLabs charges per character of text spoken.** A typical response (~100 chars) costs fractions of a cent — but it adds up across tenants.
+
+| ElevenLabs Plan | Cost | Characters/month | ~Responses |
+|---|---|---|---|
+| Free | €0 | 10,000 | ~100 |
+| Starter | €5/month | 30,000 | ~300 |
+| Creator | €22/month | 100,000 | ~1,000 |
+
+A small café with 50 calls/month × 4 exchanges × ~100 chars = ~20,000 chars → fits **free tier**. Most small tenants are cheap to serve.
+
+**TTS provider comparison (cheapest to most expensive):**
+
+| Provider | Cost | Voice Cloning | Notes |
+|---|---|---|---|
+| Google Cloud TTS | €0.004/1M chars | ❌ | Cheapest, good quality |
+| OpenAI TTS | €0.015/1M chars | ❌ | Already in stack — easiest to add |
+| PlayHT | ~€0.004/1M chars | ✅ | Good cloning, competitive |
+| Cartesia | Competitive | ✅ | Very fast, excellent quality |
+| ElevenLabs | ~€0.03/1M chars | ✅ Best | Best cloning quality, priciest |
+
+**Realistic all-in cost per 3-minute call:**
+- Twilio voice: ~€0.04
+- Deepgram STT: ~€0.01
+- OpenAI GPT response: ~€0.02
+- TTS (OpenAI, no cloning): ~€0.002
+- **Total: ~€0.07/call**
+
+50 calls/month = ~€3.50 in API costs. Charge €15/month for voice add-on = **€11.50 margin per tenant**.
+
+**Recommended phased approach:**
+1. **Phase 1 — launch cheaply:** Use OpenAI TTS (already in stack, no cloning). Prove the channel works. Cost is negligible.
+2. **Phase 2 — premium upsell:** Add ElevenLabs cloned voice at €15–20/month add-on. Covers API cost + margin.
+3. **Cost saver at any phase:** Pre-cache audio for the 5–10 most common responses (hours, location, booking). Generated once, served as static MP3 every time. Cuts TTS bill by ~70–80%.
+
+**Key rule:** Voice is a **paid add-on from day one** — never bundled free. The cloned voice ("chairman's voice") is the premium upsell on top of that.
 
 ---
 

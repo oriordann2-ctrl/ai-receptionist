@@ -14414,7 +14414,7 @@ function buildTenantSiteHtml(tenant) {
     swim_club:        { primary: "#0c4a6e", accent: "#0ea5e9", light: "#f0f9ff" },
   };
   const pal     = palettes[btype] || { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff" };
-  const primary = tenant.brand_color || pal.primary;
+  const primary = pal.primary;
   const accent  = pal.accent;
   const light   = pal.light;
 
@@ -14855,7 +14855,7 @@ app.get("/sites/:tenantId", async (req, res) => {
     const { tenantId } = req.params;
     const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
-      .select("id, name, email, website, logo_url, brand_color, business_description, business_type")
+      .select("id, name, email, website, logo_url, business_description, business_type")
       .eq("id", tenantId)
       .maybeSingle();
     if (tenantErr) console.error("[sites] Supabase error:", tenantErr.message, "for", tenantId);

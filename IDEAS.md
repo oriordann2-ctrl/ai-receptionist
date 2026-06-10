@@ -196,6 +196,43 @@ Google + TripAdvisor review buttons with logos, accessible from main menu. Imple
 
 ---
 
+## 🚨 URGENT — Admin Panel Password & Access Control
+
+**Security issue:** The admin panel password is a weak, guessable password and a real user (Cormac) is actively using it. The admin panel has destructive capabilities — deleting tenants, seeding data etc. This is a serious risk.
+
+**Actions needed:**
+1. **Change the admin password immediately** to something long and random — store it in an environment variable, not hardcoded
+2. **Audit what Cormac actually needs** — if he only needs portal access (chat logs, KB, leads), give him a portal login for his tenant only
+3. **Block admin panel access** for anyone who isn't the system owner — consider IP-restricting `/admin` or adding a second factor
+4. **Do not share the admin URL or password** with any tenant going forward
+
+**Risk:** Anyone who knows the password can delete all tenant data, access all accounts, and run seed functions against live clients including Monkstown.
+
+---
+
+## 🚨 URGENT — Widget Buttons Missing on First Load (Wix)
+
+**Bug:** On the Monkstown Tennis Club website (Wix), opening the chat widget sometimes shows the greeting message but no choice buttons. A page refresh fixes it. Happens intermittently.
+
+**Likely cause:** Race condition — the widget initialises and renders the greeting before the API call for workflows/flows has returned. The buttons are data-driven (fetched from the server) so if the response is slow or arrives after the initial render, they never get injected into the DOM.
+
+**Fix options:**
+1. Show a loading spinner in place of buttons while flows are fetching, then replace with buttons on response
+2. Retry rendering buttons if they're empty after a short delay (e.g. 1.5s timeout fallback re-render)
+3. Inline the initial workflow data into the widget script tag so no async fetch is needed on first paint
+
+**Priority:** Urgent — this is a live client (Monkstown) and a real visitor could hit this and see a broken widget.
+
+---
+
+## 🔐 Portal Login: Wrong Credentials Auto-filled by Browser
+
+**Bug / Security concern:** Every time the portal login page is opened, the browser auto-fills the eBooking admin username and password into the email and password fields. This is browser autofill picking up saved credentials from a different service and applying them to the Sprimal portal form.
+
+**Fix:** Add `autocomplete="off"` on the form, or more specifically `autocomplete="username"` / `autocomplete="current-password"` on the individual fields so the browser maps them to the correct saved credentials. Alternatively add `autocomplete="new-password"` on the password field to suppress autofill entirely.
+
+---
+
 ## 🔄 Re-import: Website Disappears During Crawl
 
 **Bug / UX issue:** When a tenant clicks Re-import, the old website documents are deleted immediately before the crawl begins. This means the website disappears from the Knowledge Base uploads list for the full 2–3 minutes of the crawl, which looks broken to the tenant.

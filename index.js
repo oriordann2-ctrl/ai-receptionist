@@ -5001,7 +5001,20 @@ const PROBE_PATHS = [
   "/coaching", "/lessons", "/tennis", "/facilities", "/courts",
   "/events", "/leagues", "/news", "/location", "/find-us",
   "/book", "/book-a-court", "/booking", "/court-booking", "/online-booking",
-  "/play", "/book-online"
+  "/play", "/book-online",
+  // Committee / club officers — often a sub-page of About Us, not linked from homepage
+  "/committee", "/our-committee", "/club-committee", "/officers", "/club-officers",
+  "/about-us/committee", "/about/committee", "/about-us/officers", "/about/officers",
+  "/the-club", "/the-club/committee", "/club-info", "/club-info/committee",
+  "/management", "/board", "/committee-members", "/club-management",
+  // Menu / food for cafes/restaurants
+  "/menu", "/our-menu", "/food", "/drinks",
+  // Opening hours
+  "/hours", "/opening-hours", "/times",
+  // Services
+  "/services", "/what-we-do", "/offerings",
+  // FAQ
+  "/faq", "/faqs", "/frequently-asked-questions", "/help",
 ];
 
 async function fetchSitemapUrls(rootUrl) {

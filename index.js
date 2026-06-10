@@ -4603,8 +4603,9 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     );
 
     // 6. Filter: keep if found by keyword search (exact match bypasses threshold)
-    //    OR if vector similarity meets threshold (0.35 — conservative middle ground)
-    const MIN_SIMILARITY = 0.35;
+    //    OR if vector similarity meets threshold.
+    //    Threshold kept at 0.30 (original) — raising it requires score telemetry first
+    const MIN_SIMILARITY = 0.30;
     const goodChunks = fused
       .filter(chunk => {
         const key = `${chunk.document_id}-${chunk.chunk_index}`;

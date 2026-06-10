@@ -14404,7 +14404,7 @@ function buildTenantSiteHtml(tenant) {
   const tid   = esc(tenant.id || "");
 
   const palettes = {
-    gaa_club:         { primary: "#14532d", accent: "#ca8a04", light: "#f0fdf4" },
+    gaa_club:         { primary: "#14532d", accent: "#166534", light: "#f0fdf4" },
     team_sports_club: { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff" },
     tennis_club:      { primary: "#14532d", accent: "#eab308", light: "#f0fdf4" },
     golf_club:        { primary: "#1a3a1a", accent: "#a16207", light: "#fefce8" },
@@ -14424,8 +14424,17 @@ function buildTenantSiteHtml(tenant) {
     : `<div style="width:88px;height:88px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:18px;">🏆</div>`;
 
   const chatUrl  = `https://app.sprimal.com/chat/${tid}`;
+  const fbUrl    = esc(tenant.facebook_url    || "");
+  const igHandle = esc(tenant.instagram_handle || "");
+  const twHandle = esc(tenant.twitter_handle  || "");
   const emailBtn = email ? `<a href="mailto:${email}" style="display:inline-flex;align-items:center;gap:6px;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">✉️ ${email}</a>` : "";
   const siteBtn  = site  ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:white;color:#374151;border:2px solid #d1d5db;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">🌐 Visit website</a>` : "";
+  const socialBar = (fbUrl || igHandle || twHandle) ? `
+<div style="background:#111827;padding:14px 24px;text-align:center;display:flex;justify-content:center;gap:20px;flex-wrap:wrap;">
+  ${fbUrl    ? `<a href="${fbUrl}" target="_blank" rel="noopener" style="color:#9ca3af;text-decoration:none;font-size:14px;font-weight:600;">📘 Facebook</a>` : ""}
+  ${igHandle ? `<a href="https://instagram.com/${igHandle}" target="_blank" rel="noopener" style="color:#9ca3af;text-decoration:none;font-size:14px;font-weight:600;">📷 Instagram</a>` : ""}
+  ${twHandle ? `<a href="https://twitter.com/${twHandle}" target="_blank" rel="noopener" style="color:#9ca3af;text-decoration:none;font-size:14px;font-weight:600;">🐦 Twitter/X</a>` : ""}
+</div>` : "";
 
   const stickyBar = (email || site) ? `
 <div style="position:sticky;top:0;z-index:99;background:${primary};color:white;padding:8px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;">
@@ -14561,6 +14570,7 @@ ${aboutSection}
 
 ${aiSection("Ask about membership, fixtures, Club Lotto, Cúl Camps, training times and more.")}
 ${contactSection}
+${socialBar}
 ${footer("Official GAA Member Club · Foireann.ie", "https://www.foireann.ie")}
 <p style="text-align:center;font-size:11px;color:#9ca3af;padding:12px;background:#111827;">Child Safeguarding Statement available on request · <a href="${chatUrl}" style="color:#6b7280;">Contact us</a></p>
 ${widgetScript}</body></html>`;
@@ -14855,7 +14865,7 @@ app.get("/sites/:tenantId", async (req, res) => {
     const { tenantId } = req.params;
     const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
-      .select("id, name, email, website, logo_url, business_description, business_type")
+      .select("id, name, email, website, logo_url, business_description, business_type, facebook_url, instagram_handle, twitter_handle")
       .eq("id", tenantId)
       .maybeSingle();
     if (tenantErr) console.error("[sites] Supabase error:", tenantErr.message, "for", tenantId);

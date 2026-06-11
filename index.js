@@ -5706,10 +5706,10 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length < 15000) continue; // skip anything under 15 KB — icons/thumbnails
       const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
-      const path = `social-images/${tenantId}/site_${permanent.length}.${ext}`;
-      const { error } = await supabase.storage.from(SUPABASE_BUCKET).upload(path, buf, { contentType: ct, upsert: true });
+      const path = `${tenantId}/site_${permanent.length}.${ext}`;
+      const { error } = await supabase.storage.from("social-images").upload(path, buf, { contentType: ct, upsert: true });
       if (!error) {
-        const { data: { publicUrl } } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
+        const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(path);
         permanent.push(publicUrl);
       }
     } catch {}
@@ -5796,12 +5796,12 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
         const buffer = Buffer.from(await imgRes.arrayBuffer());
         const ct = imgRes.headers.get("content-type") || "image/jpeg";
         const ext = ct.includes("webp") ? "webp" : "jpg";
-        const storagePath = `social-images/${tenantId}/ig_${i}.${ext}`;
+        const storagePath = `${tenantId}/ig_${i}.${ext}`;
         const { error: uploadErr } = await supabase.storage
-          .from(SUPABASE_BUCKET)
+          .from("social-images")
           .upload(storagePath, buffer, { contentType: ct, upsert: true });
         if (uploadErr) { console.log(`[ig-scrape] Upload failed for image ${i}: ${uploadErr.message}`); continue; }
-        const { data: { publicUrl } } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
+        const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
         permanentUrls.push(publicUrl);
       } catch (e) {
         console.log(`[ig-scrape] Re-host failed for image ${i}: ${e.message}`);
@@ -15190,8 +15190,14 @@ app.get("/sites/:tenantId", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
   startEmailPolling();
   scheduleMorningDigest();
+
+  // Ensure public bucket exists for social/profile images (img tags need public URLs)
+  try {
+    await supabase.storage.createBucket("social-images", { public: true });
+    console.log("[storage] Created public bucket: social-images");
+  } catch { /* already exists */ }
 });

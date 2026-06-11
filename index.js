@@ -6315,6 +6315,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         console.error(`[crawl] Flow seed error for ${tenantId}:`, seedErr.message);
       }
 
+      await supabase.from("tenants").update({ last_crawl_at: new Date().toISOString(), last_crawl_pages: imported }).eq("id", tenantId);
       setCrawlProgress(tenantId, 100, "🏁 Your assistant is ready!", true);
     }
 
@@ -7845,13 +7846,15 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
         .order("uploaded_at", { ascending: false }),
       supabase
         .from("tenants")
-        .select("created_at")
+        .select("created_at, last_crawl_at, last_crawl_pages")
         .eq("id", tid)
         .maybeSingle()
     ]);
 
     const tenantCreatedAt = tenantMeta?.created_at || null;
-    const docListHtml = buildDocListHtml(docs || [], tid, req.tenant.website || null, tenantCreatedAt);
+    const lastCrawlAt = tenantMeta?.last_crawl_at || null;
+    const lastCrawlPages = tenantMeta?.last_crawl_pages ?? null;
+    const docListHtml = buildDocListHtml(docs || [], tid, req.tenant.website || null, tenantCreatedAt, lastCrawlAt, lastCrawlPages);
 
     // Chat logs are lazy-loaded via /api/portal/chat-logs when the section is opened,
     // preventing large HTML blobs from being embedded in the page and freezing the browser.
@@ -7890,7 +7893,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
   }
 });
 
-function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt) {
+function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt, lastCrawlAt, lastCrawlPages) {
   function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
   const websites = docs.filter(d => d.document_type === "Website Content");
@@ -7937,7 +7940,17 @@ function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt) {
         + '</div>';
     }
 
-    // Case 3: Website URL exists but tenant is older than 10 minutes with no docs — crawl stalled or failed
+    // Case 3a: Crawl ran recently but got 0 pages — likely bot protection
+    if (lastCrawlAt && lastCrawlPages === 0) {
+      return '<div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">'
+        + '<div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:6px;">&#9888;&#65039; Website crawl was blocked</div>'
+        + '<div style="font-size:13px;color:#b45309;line-height:1.6;">The crawl ran but your website blocked access (likely Cloudflare bot protection). Try importing again — it may work now, or you can paste content manually below.</div>'
+        + '<div style="font-size:12px;color:#d97706;margin-top:6px;">Website: <strong>' + esc(normalizedSite) + '</strong></div>'
+        + retryBtn
+        + '</div>';
+    }
+
+    // Case 3b: Website URL exists but tenant is older than 10 minutes with no docs — crawl never ran or stalled
     return '<div style="margin-top:24px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:20px 24px;">'
       + '<div style="font-size:14px;font-weight:700;color:#991b1b;margin-bottom:6px;">&#9888;&#65039; Website import didn\'t complete</div>'
       + '<div style="font-size:13px;color:#b91c1c;line-height:1.6;">Your knowledge base is empty — it looks like the website crawl didn\'t finish. Click below to import your website now.</div>'
@@ -8447,6 +8460,7 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
         console.error(`[portal-import] Post-import enrichment error:`, e.message);
       }
 
+      await supabase.from("tenants").update({ last_crawl_at: new Date().toISOString(), last_crawl_pages: imported }).eq("id", tenantId);
       setCrawlProgress(tenantId, 100, `✅ Done — ${imported} page${imported === 1 ? "" : "s"} imported`, true);
     } catch (err) {
       console.error(`[portal-import] Crawl failed for ${tenantId}:`, err.message);

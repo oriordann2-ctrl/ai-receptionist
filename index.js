@@ -9704,13 +9704,18 @@ app.post("/api/portal/social-images/remove", requireSeniorTenant, async (req, re
 
 app.post("/api/portal/social-images/refetch", requireSeniorTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
-  const { data: tenant } = await supabase.from("tenants").select("instagram_handle").eq("id", tenantId).maybeSingle();
+  const { data: tenant } = await supabase.from("tenants").select("instagram_handle, social_images").eq("id", tenantId).maybeSingle();
   if (!tenant?.instagram_handle) return res.status(400).json({ error: "No Instagram handle set. Save it in Social Media settings first." });
   res.json({ ok: true });
   fetchInstagramThumbnails(tenant.instagram_handle, tenantId, 9).then(async (thumbnails) => {
     if (thumbnails.length >= 1) {
-      await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
-      console.log(`[ig-refetch] Stored ${thumbnails.length} images for ${tenantId}`);
+      // Preserve existing site_* images — only replace ig_* images
+      let existing = [];
+      try { existing = JSON.parse(tenant.social_images) || []; } catch {}
+      const siteImgs = existing.filter(u => /\/site_\d+\./.test(u));
+      const combined = [...thumbnails, ...siteImgs].slice(0, 12);
+      await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+      console.log(`[ig-refetch] Stored ${thumbnails.length} IG + ${siteImgs.length} site images for ${tenantId}`);
     }
   }).catch(err => console.error("[ig-refetch]", err.message));
 });
@@ -15247,13 +15252,13 @@ function buildTenantSiteHtml(tenant) {
 </section>` : "";
 
   // Photo gallery — real club images (from Instagram scrape + website crawl)
-  // Shows with any number of images: 1 = full-width hero, 2 = two-col, 3+ = 3-col grid
+  // Requires 3+ images to show a grid — fewer looks broken
   const igSection = igHandle ? (() => {
-    if (socialImages.length >= 1) {
-      const cols = socialImages.length === 1 ? "1fr" : socialImages.length === 2 ? "1fr 1fr" : "repeat(3,1fr)";
+    if (socialImages.length >= 3) {
+      const cols = "repeat(3,1fr)";
       const cells = socialImages.map(imgUrl =>
         `<a href="https://instagram.com/${igHandle}" target="_blank" rel="noopener"
-          style="display:block;aspect-ratio:${socialImages.length === 1 ? "16/7" : "1"};overflow:hidden;border-radius:10px;background:#e5e7eb;">
+          style="display:block;aspect-ratio:1;overflow:hidden;border-radius:10px;background:#e5e7eb;">
           <img src="${esc(imgUrl)}" alt="${name}" loading="lazy"
             style="width:100%;height:100%;object-fit:cover;transition:transform 0.3s;"
             onmouseover="this.style.transform='scale(1.04)'"
@@ -15450,7 +15455,9 @@ ${widgetScript}</body></html>`;
     const ocean    = "#1e6fba";
 
     const tnLogoImg = logo
-      ? `<img src="${logo}" alt="${name}" style="width:130px;height:130px;border-radius:50%;object-fit:contain;background:white;padding:4px;box-shadow:0 4px 24px rgba(0,0,0,0.3);margin:0 auto 20px;display:block;" onerror="this.outerHTML='<div style=\\'width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:52px;margin:0 auto 20px;\\'>🎾</div>'">`
+      ? `<div style="width:130px;height:130px;border-radius:50%;background:white;box-shadow:0 4px 24px rgba(0,0,0,0.35);margin:0 auto 20px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+           <img src="${logo}" alt="${name}" style="width:120px;height:120px;object-fit:contain;" onerror="this.parentElement.innerHTML='<span style=\\'font-size:52px;\\'>🎾</span>'">
+         </div>`
       : `<div style="width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:52px;margin:0 auto 20px;">🎾</div>`;
 
     const tnStyles = `<style>
@@ -15459,7 +15466,7 @@ ${widgetScript}</body></html>`;
   .tn-nav-logo{width:38px;height:38px;border-radius:50%;object-fit:contain;background:white;padding:3px;}
   .tn-nav-name{color:white;font-weight:900;font-size:15px;}
   .tn-nav-book{background:${ball};color:${navyDark};font-weight:900;text-decoration:none;padding:9px 18px;border-radius:8px;font-size:13px;white-space:nowrap;}
-  .tn-hero{position:relative;min-height:88vh;display:flex;align-items:center;justify-content:center;text-align:center;color:white;padding:80px 24px 90px;background:linear-gradient(165deg,rgba(6,14,51,0.90) 0%,rgba(13,32,96,0.75) 55%,rgba(30,111,186,0.65) 100%)${heroImg ? `,url(${heroImg}) center/cover no-repeat` : ""};}
+  .tn-hero{position:relative;min-height:88vh;display:flex;align-items:center;justify-content:center;text-align:center;color:white;padding:80px 24px 90px;background:linear-gradient(165deg,rgba(6,14,51,0.90) 0%,rgba(13,32,96,0.75) 55%,rgba(30,111,186,0.65) 100%)${heroImg ? `,url("${heroImg}") center/cover no-repeat` : ""};}
   .tn-hero-inner{max-width:680px;margin:0 auto;position:relative;z-index:1;}
   .tn-badge{display:inline-block;background:rgba(200,245,0,0.14);border:1px solid rgba(200,245,0,0.45);color:${ball};padding:5px 14px;border-radius:20px;font-size:12px;font-weight:800;letter-spacing:0.1em;margin-bottom:18px;}
   .tn-h1{font-size:42px;font-weight:900;letter-spacing:-0.5px;line-height:1.12;margin-bottom:14px;}

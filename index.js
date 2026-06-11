@@ -4984,6 +4984,70 @@ function isGenericFavicon(url) {
   return GENERIC_FAVICON_PATTERNS.some(p => url.includes(p));
 }
 
+function instagramHandleScore(name, handle) {
+  const tokens = name.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter(t => t.length > 2 && !["the", "and", "for", "our", "club"].includes(t));
+  const norm = handle.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!tokens.length) return 0;
+  return tokens.filter(t => norm.includes(t)).length / tokens.length;
+}
+
+async function detectInstagramHandle(name, pages) {
+  const SKIP = new Set(["p", "reel", "reels", "explore", "tv", "stories", "accounts",
+    "direct", "web", "about", "legal", "privacy", "safety", "help", "sharedfiles"]);
+
+  const seen = new Set();
+  const candidates = [];
+
+  // 1. Scan crawled pages for instagram.com links — highest confidence
+  for (const page of pages) {
+    const content = (page.html || "") + " " + (page.text || "");
+    const re = /(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9_.]{2,30})/g;
+    let m;
+    while ((m = re.exec(content)) !== null) {
+      const handle = m[1].replace(/\/?$/, "");
+      if (SKIP.has(handle.toLowerCase()) || seen.has(handle.toLowerCase())) continue;
+      seen.add(handle.toLowerCase());
+      const score = instagramHandleScore(name, handle);
+      // Found on the club's own website — already high confidence
+      candidates.push({ handle, confidence: score >= 0.5 ? 0.95 : score >= 0.3 ? 0.80 : 0.55, source: "website" });
+    }
+  }
+
+  candidates.sort((a, b) => b.confidence - a.confidence);
+  if (candidates[0]?.confidence >= 0.60) return candidates[0];
+
+  // 2. DuckDuckGo search fallback
+  try {
+    const q = encodeURIComponent(`"${name}" site:instagram.com`);
+    const res = await fetch(`https://lite.duckduckgo.com/lite/?q=${q}`, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const re2 = /instagram\.com\/([a-zA-Z0-9_.]{2,30})/g;
+      const searchSeen = new Set();
+      let m2;
+      while ((m2 = re2.exec(html)) !== null) {
+        const handle = m2[1].replace(/\/?$/, "");
+        if (SKIP.has(handle.toLowerCase()) || searchSeen.has(handle.toLowerCase())) continue;
+        searchSeen.add(handle.toLowerCase());
+        const score = instagramHandleScore(name, handle);
+        if (score >= 0.4) candidates.push({ handle, confidence: score * 0.82, source: "search" });
+      }
+      candidates.sort((a, b) => b.confidence - a.confidence);
+      if (candidates[0]?.confidence >= 0.60) return candidates[0];
+    }
+  } catch (e) {
+    console.log(`[ig-detect] DuckDuckGo failed: ${e.message}`);
+  }
+
+  return null;
+}
+
 async function fetchWikipediaLogo(name) {
   try {
     const searchRes = await fetch(
@@ -5991,6 +6055,28 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         setCrawlProgress(tenantId, Math.min(pct, 66), `Lap ${lap} — ${count} page${count === 1 ? "" : "s"} scanned so far…`);
       });
       console.log(`[crawl] Crawled ${pages.length} pages for ${tenantId}`);
+
+      // ── Auto-detect Instagram handle from crawled pages + search ────────────────
+      try {
+        const { data: igCheck } = await supabase.from("tenants").select("instagram_handle").eq("id", tenantId).maybeSingle();
+        if (!igCheck?.instagram_handle) {
+          setCrawlProgress(tenantId, 67, "Looking for your Instagram profile…");
+          const detected = await detectInstagramHandle(name, pages);
+          if (detected) {
+            console.log(`[ig-detect] Found @${detected.handle} for ${tenantId} (confidence ${detected.confidence.toFixed(2)}, source: ${detected.source})`);
+            await supabase.from("tenants").update({ instagram_handle: detected.handle }).eq("id", tenantId);
+            const thumbnails = await fetchInstagramThumbnails(detected.handle, tenantId, 9);
+            if (thumbnails.length > 0) {
+              await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
+              console.log(`[ig-detect] Stored ${thumbnails.length} IG photos for ${tenantId} (@${detected.handle})`);
+            }
+          } else {
+            console.log(`[ig-detect] No Instagram handle found for ${tenantId}`);
+          }
+        }
+      } catch (e) {
+        console.log(`[ig-detect] Error: ${e.message}`);
+      }
 
       // ── Extract photos from crawled HTML — always runs to supplement IG images ─
       try {

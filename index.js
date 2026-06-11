@@ -15199,5 +15199,11 @@ app.listen(PORT, async () => {
   try {
     await supabase.storage.createBucket("social-images", { public: true });
     console.log("[storage] Created public bucket: social-images");
-  } catch { /* already exists */ }
+  } catch {
+    // Bucket may already exist — ensure it's public regardless
+    try {
+      await supabase.storage.updateBucket("social-images", { public: true });
+      console.log("[storage] Ensured social-images bucket is public");
+    } catch {}
+  }
 });

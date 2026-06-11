@@ -208,6 +208,16 @@ function setCrawlProgress(tenantId, pct, message, done = false) {
 
 // ── Business type detection ───────────────────────────────────────────────────
 async function detectBusinessType(name, description, pageText) {
+  // Fast name-based heuristic — catches obvious cases without an API call
+  const n = (name + " " + description).toLowerCase();
+  if (/\bgaa\b/.test(n) || /cumann lúthchleas gael/i.test(n)) return "gaa_club";
+  if (/\btennis club\b/.test(n)) return "tennis_club";
+  if (/\bgolf club\b/.test(n)) return "golf_club";
+  if (/\bswim(ming)? club\b/.test(n)) return "swim_club";
+  if (/\byoga\b|\bpilates\b/.test(n)) return "yoga_studio";
+  if (/\bfitness\b|\bgym\b/.test(n)) return "fitness_studio";
+  if (/\bcafé\b|\bcafe\b|\bcoffee\b|\brestaurant\b/.test(n)) return "cafe";
+
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",

@@ -1543,11 +1543,13 @@
     var params = new URLSearchParams(window.location.search);
     if (params.get("new") === "1") {
       var siteUrl = "https://app.sprimal.com/sites/" + window.tenantId;
-      // Open the generated site in a new tab
-      window.open(siteUrl, "_blank");
+      // Store the URL — tab opens only when crawl completes
+      window._openSiteOnCrawlComplete = siteUrl;
       // Show the welcome banner
       var banner = document.getElementById("newSignupBanner");
       if (banner) banner.style.display = "block";
+      var bannerSub = banner ? banner.querySelector(".new-banner-sub") : null;
+      if (bannerSub) bannerSub.innerHTML = "We’re crawling your website now — your generated site will open in a new tab once it’s ready. <a id=\"newSignupSiteLink\" href=\"" + siteUrl + "\" target=\"_blank\" style=\"color:#1e40af;font-weight:700;text-decoration:underline;\">Open it early →</a>";
       var link = document.getElementById("newSignupSiteLink");
       if (link) link.href = siteUrl;
       // Clean ?new=1 from the URL without a page reload
@@ -3247,6 +3249,16 @@
         clearInterval(pollTimer);
         if (flagEl) flagEl.classList.add('waving');
         if (card) card.classList.add('race-done');
+        // Open generated site in new tab if this is a fresh signup
+        if (window._openSiteOnCrawlComplete) {
+          window.open(window._openSiteOnCrawlComplete, "_blank");
+          var banner = document.getElementById("newSignupBanner");
+          if (banner) {
+            var sub = banner.querySelector(".new-banner-sub");
+            if (sub) sub.innerHTML = "Your site is ready and has opened in a new tab. <a href=\"" + window._openSiteOnCrawlComplete + "\" target=\"_blank\" style=\"color:#1e40af;font-weight:700;text-decoration:underline;\">Open it again →</a>";
+          }
+          window._openSiteOnCrawlComplete = null;
+        }
         // Wave the flag for 2.5 s, then smoothly collapse the widget and reload
         setTimeout(finishAndFade, 2500);
       }

@@ -582,6 +582,37 @@ The email-poll loop is processing AOM mortgage emails (Cormac's firm), classifyi
 
 ---
 
+## 📸 Instagram OAuth — Proper API Integration
+
+**Problem:** The current Instagram image scraping is a hack — Instagram actively blocks scrapers, returns rate limits (429), and at best yields 1 profile image. Clubs with no public posts get nothing. The proper solution is OAuth.
+
+**What to build:** An "Connect Instagram" button in the portal Connections/Integrations section. The club logs in with their Instagram account and grants Sprimal read access to their posts via the official API. No scraping, no rate limits, actual post photos.
+
+**How it works:**
+1. Club clicks "Connect Instagram" in portal
+2. OAuth redirect → Instagram login → club approves read permissions
+3. Callback stores access token against tenant in Supabase
+4. Sprimal fetches their media via Instagram Graph API (`/me/media?fields=media_url,thumbnail_url`)
+5. Photos stored in `social_images` and used in the generated website
+
+**Why this is the right solution:**
+- Access to all the club's actual post photos, not just what's public-visible to a scraper
+- No rate limiting — authenticated API calls have proper quotas
+- Works for private/restricted accounts that can't be scraped at all
+- The "Connect Instagram" integration tile in the portal makes sense now — it currently does nothing
+
+**Requirements:**
+- Facebook Developer app with `instagram_basic` and `pages_show_list` permissions
+- OAuth callback route in index.js
+- Store `instagram_access_token` + `instagram_user_id` on tenant record
+- App Review by Meta required for `instagram_basic` (1–2 week process)
+
+**First test case:** Monkstown LTCC — access to their Instagram account already available.
+
+**Status:** Idea. Scraping hack in place as interim. OAuth is the correct long-term solution.
+
+---
+
 ## 🏐 Foireann Integration (GAA Official Platform)
 
 **What:** foireann.ie is the GAA's official club and member management system. An `api.foireann.ie` endpoint exists (used internally by their React SPA) but is not publicly documented. If Sprimal could tap into this, the AI could answer live questions like "when's the next match?", "what was the lotto result?", "is registration open?" directly from official GAA data.

@@ -5869,9 +5869,9 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
   const candidates = [];
 
   for (const page of pages) {
-    // 1. Extract from raw HTML <img src="..."> tags (direct fetches)
+    // 1. Extract from raw HTML <img src="..."> and data-src (Wix/lazy-loaded sites) tags (direct fetches)
     if (page.html) {
-      const srcRe = /<img[^>]+src=["']([^"'>\s]+)["'][^>]*>/gi;
+      const srcRe = /<img[^>]+(?:src|data-src|data-lazy-src|data-original)=["']([^"'>\s]+)["'][^>]*/gi;
       let m;
       while ((m = srcRe.exec(page.html)) !== null) {
         const src = m[1];

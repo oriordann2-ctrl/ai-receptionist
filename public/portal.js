@@ -575,14 +575,21 @@
       // Club Photos
       + '<div style="margin-bottom:20px;">'
       + '<div class="toggle-label" style="margin-bottom:4px;">Club Photos</div>'
-      + '<div class="toggle-sub" style="margin-bottom:12px;">Photos shown on your club website. Paste any image URL to add, or re-fetch from Instagram.</div>'
+      + '<div class="toggle-sub" style="margin-bottom:12px;">Photos shown on your club website. Upload from your device, paste a URL, or re-fetch from Instagram.</div>'
       + '<div id="photoGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'
       + renderPhotoGrid(d.social_images || [])
       + '</div>'
       + '<div id="photoUrlPreview" style="margin-bottom:8px;"></div>'
+      + '<div style="margin-bottom:8px;">'
+      + '<label style="display:inline-flex;align-items:center;gap:8px;background:#111827;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">'
+      + '📁 Upload photos from device'
+      + '<input id="photoFileInput" type="file" accept="image/*" multiple style="display:none;" onchange="uploadPhotoFiles(this.files)">'
+      + '</label>'
+      + '<span id="photoUploadStatus" style="font-size:13px;color:#6b7280;margin-left:10px;"></span>'
+      + '</div>'
       + '<div style="display:flex;gap:8px;margin-bottom:6px;">'
-      + '<input id="photoUrlInput" type="url" placeholder="Paste image URL to add…" oninput="previewPhotoUrl(this.value)" style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">'
-      + '<button onclick="addPhotoFromUrl()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">Add photo</button>'
+      + '<input id="photoUrlInput" type="url" placeholder="Or paste image URL…" oninput="previewPhotoUrl(this.value)" style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '<button onclick="addPhotoFromUrl()" style="background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">Add</button>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:10px;">'
       + '<button onclick="refetchInstagram()" style="background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;">↺ Re-fetch from Instagram</button>'
@@ -699,6 +706,27 @@
       var grid = document.getElementById("photoGrid");
       if (grid) grid.innerHTML = renderPhotoGrid(d.images);
       if (status) { status.textContent = "Added ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
+  };
+
+  window.uploadPhotoFiles = function(files) {
+    if (!files || !files.length) return;
+    var status = document.getElementById("photoUploadStatus");
+    if (status) status.textContent = "Uploading " + files.length + " photo" + (files.length > 1 ? "s" : "") + "…";
+    var form = new FormData();
+    for (var i = 0; i < files.length; i++) form.append("photos", files[i]);
+    fetch("/api/portal/social-images/upload-file", { method: "POST", body: form })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) throw new Error(d.error || "upload failed");
+      var grid = document.getElementById("photoGrid");
+      if (grid) grid.innerHTML = renderPhotoGrid(d.images);
+      var input = document.getElementById("photoFileInput");
+      if (input) input.value = "";
+      if (status) { status.textContent = "Uploaded " + d.added.length + " photo" + (d.added.length !== 1 ? "s" : "") + " ✓"; setTimeout(function() { status.textContent = ""; }, 3000); }
     })
     .catch(function(err) {
       if (status) status.textContent = "Error: " + err.message;

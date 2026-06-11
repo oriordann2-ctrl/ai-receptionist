@@ -1,5 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
+const multer  = require("multer");
 const sizeOf = require("image-size");
 const path = require("path");
 const fs = require("fs");
@@ -9640,6 +9641,29 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
 
 // ── Portal: social images management ─────────────────────────────────────────
 
+const memUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+app.post("/api/portal/social-images/upload-file", requireSeniorTenant, memUpload.array("photos", 9), async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  if (!req.files || req.files.length === 0) return res.status(400).json({ error: "no files" });
+  const { data: tenant } = await supabase.from("tenants").select("social_images").eq("id", tenantId).maybeSingle();
+  let images = [];
+  try { images = JSON.parse(tenant?.social_images) || []; } catch {}
+  const added = [];
+  for (const file of req.files) {
+    const ext = file.mimetype.includes("png") ? "png" : file.mimetype.includes("webp") ? "webp" : "jpg";
+    const storagePath = `${tenantId}/manual_${Date.now()}_${added.length}.${ext}`;
+    const { error } = await supabase.storage.from("social-images").upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: true });
+    if (error) { console.error(`[photo-upload] Failed: ${error.message}`); continue; }
+    const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
+    images.push(publicUrl);
+    added.push(publicUrl);
+  }
+  if (images.length > 12) images = images.slice(-12);
+  await supabase.from("tenants").update({ social_images: JSON.stringify(images) }).eq("id", tenantId);
+  res.json({ ok: true, added, images });
+});
+
 app.post("/api/portal/social-images/add", requireSeniorTenant, async (req, res) => {
   const { url } = req.body;
   if (!url || typeof url !== "string") return res.status(400).json({ error: "url required" });
@@ -15426,7 +15450,7 @@ ${widgetScript}</body></html>`;
     const ocean    = "#1e6fba";
 
     const tnLogoImg = logo
-      ? `<img src="${logo}" alt="${name}" style="width:130px;height:130px;border-radius:50%;object-fit:cover;box-shadow:0 4px 24px rgba(0,0,0,0.3);margin:0 auto 20px;display:block;" onerror="this.outerHTML='<div style=\\'width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:52px;margin:0 auto 20px;\\'>🎾</div>'">`
+      ? `<img src="${logo}" alt="${name}" style="width:130px;height:130px;border-radius:50%;object-fit:contain;background:white;padding:4px;box-shadow:0 4px 24px rgba(0,0,0,0.3);margin:0 auto 20px;display:block;" onerror="this.outerHTML='<div style=\\'width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:52px;margin:0 auto 20px;\\'>🎾</div>'">`
       : `<div style="width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:52px;margin:0 auto 20px;">🎾</div>`;
 
     const tnStyles = `<style>

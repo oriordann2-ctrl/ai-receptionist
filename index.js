@@ -5870,29 +5870,35 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
     if (candidates.length >= maxImages * 4) break;
   }
 
+  console.log(`[img-extract] ${candidates.length} candidate image URLs found for ${tenantId}`);
+
   // Download all candidates and rank by resolution before uploading
   const downloaded = [];
   for (const imgUrl of candidates) {
     if (downloaded.length >= maxImages * 3) break;
     try {
-      const r = await fetch(imgUrl, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) continue;
+      const r = await fetch(imgUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "Referer": imgUrl },
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!r.ok) { console.log(`[img-extract] Skip ${imgUrl}: HTTP ${r.status}`); continue; }
       const ct = r.headers.get("content-type") || "";
-      if (!ct.startsWith("image/")) continue;
+      if (!ct.startsWith("image/")) { console.log(`[img-extract] Skip ${imgUrl}: content-type ${ct}`); continue; }
       const buf = Buffer.from(await r.arrayBuffer());
-      if (buf.length < 15000) continue;
-      let pixels = buf.length; // file size as resolution proxy
+      if (buf.length < 10000) { console.log(`[img-extract] Skip ${imgUrl}: too small (${buf.length} bytes)`); continue; }
+      let pixels = buf.length;
       try { const d = sizeOf(buf); pixels = (d.width || 0) * (d.height || 0); } catch {}
-      downloaded.push({ buf, ct, pixels });
-    } catch {}
+      downloaded.push({ buf, ct, pixels, url: imgUrl });
+    } catch (e) { console.log(`[img-extract] Fetch error ${imgUrl}: ${e.message}`); }
   }
+  console.log(`[img-extract] ${downloaded.length} images downloaded successfully for ${tenantId}`);
 
   // Sort highest resolution first
   downloaded.sort((a, b) => b.pixels - a.pixels);
 
   const permanent = [];
   for (let i = 0; i < Math.min(maxImages, downloaded.length); i++) {
-    const { buf, ct } = downloaded[i];
+    const { buf, ct, url } = downloaded[i];
     const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
     const storagePath = `${tenantId}/site_${i}.${ext}`;
     const { error } = await supabase.storage.from("social-images").upload(storagePath, buf, { contentType: ct, upsert: true });
@@ -5900,6 +5906,7 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
       console.error(`[img-extract] Upload failed for ${storagePath}: ${error.message}`);
     } else {
       const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
+      console.log(`[img-extract] Uploaded site_${i} from ${url}`);
       permanent.push(publicUrl);
     }
   }

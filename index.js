@@ -5932,17 +5932,19 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       });
       console.log(`[crawl] Crawled ${pages.length} pages for ${tenantId}`);
 
-      // ── Extract photos from crawled HTML if Instagram didn't provide any ────
+      // ── Extract photos from crawled HTML — always runs to supplement IG images ─
       try {
         const { data: existing } = await supabase.from("tenants").select("social_images").eq("id", tenantId).maybeSingle();
-        let hasImages = false;
-        try { hasImages = Array.isArray(JSON.parse(existing?.social_images)) && JSON.parse(existing.social_images).length > 0; } catch {}
-        if (!hasImages && pages.length > 0) {
+        let currentImages = [];
+        try { currentImages = JSON.parse(existing?.social_images) || []; } catch {}
+        const needed = 9 - currentImages.length;
+        if (needed > 0 && pages.length > 0) {
           setCrawlProgress(tenantId, 67, "Gathering photos from your website…");
-          const siteImages = await extractAndRehostWebsiteImages(pages, tenantId, 9);
+          const siteImages = await extractAndRehostWebsiteImages(pages, tenantId, needed);
           if (siteImages.length > 0) {
-            await supabase.from("tenants").update({ social_images: JSON.stringify(siteImages) }).eq("id", tenantId);
-            console.log(`[crawl] Stored ${siteImages.length} website images for ${tenantId}`);
+            const combined = [...currentImages, ...siteImages].slice(0, 9);
+            await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+            console.log(`[crawl] Stored ${combined.length} total images for ${tenantId} (${currentImages.length} social + ${siteImages.length} website)`);
           }
         }
       } catch {}
@@ -14755,14 +14757,16 @@ function buildTenantSiteHtml(tenant) {
   </div>
 </section>` : "";
 
-  // Instagram grid — real thumbnails if scraped, otherwise a branded card
+  // Photo gallery — real club images (from Instagram scrape + website crawl)
+  // Shows with any number of images: 1 = full-width hero, 2 = two-col, 3+ = 3-col grid
   const igSection = igHandle ? (() => {
-    if (socialImages.length >= 3) {
+    if (socialImages.length >= 1) {
+      const cols = socialImages.length === 1 ? "1fr" : socialImages.length === 2 ? "1fr 1fr" : "repeat(3,1fr)";
       const cells = socialImages.map(imgUrl =>
         `<a href="https://instagram.com/${igHandle}" target="_blank" rel="noopener"
-          style="display:block;aspect-ratio:1;overflow:hidden;border-radius:8px;background:#e5e7eb;">
-          <img src="${esc(imgUrl)}" alt="${name} on Instagram" loading="lazy"
-            style="width:100%;height:100%;object-fit:cover;transition:transform 0.25s;"
+          style="display:block;aspect-ratio:${socialImages.length === 1 ? "16/7" : "1"};overflow:hidden;border-radius:10px;background:#e5e7eb;">
+          <img src="${esc(imgUrl)}" alt="${name}" loading="lazy"
+            style="width:100%;height:100%;object-fit:cover;transition:transform 0.3s;"
             onmouseover="this.style.transform='scale(1.04)'"
             onmouseout="this.style.transform='scale(1)'">
         </a>`
@@ -14771,12 +14775,12 @@ function buildTenantSiteHtml(tenant) {
 <section style="padding:56px 24px;background:white;">
   <div style="max-width:820px;margin:0 auto;">
     <div style="text-align:center;margin-bottom:28px;">
-      <div class="section-label">Instagram</div>
+      <div class="section-label">Club Photos</div>
       <h2 style="font-size:26px;font-weight:800;color:#111827;margin-bottom:6px;">Match action &amp; club life</h2>
       <a href="https://instagram.com/${igHandle}" target="_blank" rel="noopener"
-        style="color:#6b7280;font-size:14px;text-decoration:none;">@${igHandle}</a>
+        style="color:#6b7280;font-size:14px;text-decoration:none;">@${igHandle} on Instagram</a>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;">
+    <div style="display:grid;grid-template-columns:${cols};gap:8px;margin-bottom:20px;">
       ${cells}
     </div>
     <div style="text-align:center;">

@@ -5430,10 +5430,12 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
   if (!allUrls.some(u => canonicalUrl(u) === rootCanon)) allUrls.unshift(root);
 
   // Always probe generic key paths (404s silently skipped)
+  const probeSet = new Set(); // track speculative probes — skip Jina fallback for these
   for (const p of PROBE_PATHS) {
     const probeUrl = root + p;
     const probeCanon = canonicalUrl(probeUrl);
     if (!allUrls.some(u => canonicalUrl(u) === probeCanon)) allUrls.push(probeUrl);
+    probeSet.add(probeCanon);
   }
 
   // Business-type specific paths — added to a priority list that goes to the
@@ -5446,6 +5448,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
     if (!allUrls.some(u => canonicalUrl(u) === probeCanon)) {
       allUrls.push(probeUrl); // add to full list for dedup
     }
+    probeSet.add(probeCanon);
     bizPriorityUrls.push(probeUrl); // always in priority list
   }
 
@@ -5491,6 +5494,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
   ];
 
   async function fetchOnePage(url) {
+    const isProbe = probeSet.has(canonicalUrl(url));
     try {
       console.log(`[crawler] Fetching: ${url}`);
       const controller = new AbortController();
@@ -5525,6 +5529,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
       const isBotProtected = BOT_PROTECTION_PHRASES.some(p => text.toLowerCase().includes(p));
 
       if (text.length < 80 || isBotProtected) {
+        if (isProbe) { console.log(`[crawler] Probe skip (thin/bot) ${url}`); return null; }
         return await jinaFallback(url, html, isBotProtected ? "bot-protection page detected" : "text too short");
       }
 
@@ -5532,7 +5537,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
 
     } catch (err) {
       if (err.name === "AbortError" || err.name === "TypeError") {
-        // Timeout or network error — try Jina (shorter timeout so it doesn't stall the batch)
+        if (isProbe) { console.log(`[crawler] Probe skip (${err.name}) ${url}`); return null; }
         return await jinaFallback(url, "", `fetch failed (${err.name})`);
       }
       console.error(`[crawler] Error fetching ${url}:`, err.message);
@@ -14850,7 +14855,7 @@ function buildTenantSiteHtml(tenant) {
     swim_club:        { primary: "#0c4a6e", accent: "#0ea5e9", light: "#f0f9ff" },
   };
   const pal     = palettes[btype] || { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff" };
-  const primary = pal.primary;
+  const primary = (tenant.brand_color && /^#[0-9a-f]{6}$/i.test(tenant.brand_color)) ? tenant.brand_color : pal.primary;
   const accent  = pal.accent;
   const light   = pal.light;
 
@@ -15408,7 +15413,7 @@ app.get("/sites/:tenantId", async (req, res) => {
     const { tenantId } = req.params;
     const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
-      .select("id, name, email, website, logo_url, business_description, business_type, facebook_url, instagram_handle, twitter_handle, social_images")
+      .select("id, name, email, website, logo_url, business_description, business_type, brand_color, facebook_url, instagram_handle, twitter_handle, social_images")
       .eq("id", tenantId)
       .maybeSingle();
     if (tenantErr) console.error("[sites] Supabase error:", tenantErr.message, "for", tenantId);

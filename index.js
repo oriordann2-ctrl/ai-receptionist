@@ -123,6 +123,13 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 if (!ADMIN_PASSWORD) { console.error("FATAL: ADMIN_PASSWORD env var not set"); process.exit(1); }
 const sessions = new Map();
 
+const JINA_API_KEY = process.env.JINA_API_KEY || null;
+const jinaHeaders = () => ({
+  "Accept": "text/plain",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  ...(JINA_API_KEY ? { "Authorization": `Bearer ${JINA_API_KEY}` } : {})
+});
+
 //const { ElevenLabsClient } = require("elevenlabs");
 
 //const elevenlabs = new ElevenLabsClient({
@@ -5300,7 +5307,7 @@ async function fetchSitemapUrls(rootUrl) {
       console.log(`[crawler] Sitemap bot-protected — trying Jina Reader for ${base}/sitemap.xml`);
       try {
         const jinaRes = await fetch(`https://r.jina.ai/${base}/sitemap.xml`, {
-          headers: { "Accept": "text/plain" },
+          headers: jinaHeaders(),
           signal: AbortSignal.timeout(15000)
         });
         if (jinaRes.ok) xml = await jinaRes.text();
@@ -5625,8 +5632,8 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
     try {
       console.log(`[crawler] ${reason} — trying Jina Reader for ${url}`);
       const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
-        headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
-        signal: AbortSignal.timeout(10000)
+        headers: jinaHeaders(),
+        signal: AbortSignal.timeout(15000)
       });
       if (!jinaRes.ok) return null;
       const jinaText = (await jinaRes.text()).trim();
@@ -5960,7 +5967,7 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
       try {
         console.log(`[ig-scrape] Trying Jina Reader for @${handle}`);
         const jinaRes = await fetch(`https://r.jina.ai/https://www.instagram.com/${encodeURIComponent(handle)}/`, {
-          headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0" },
+          headers: jinaHeaders(),
           signal: AbortSignal.timeout(15000),
         });
         if (jinaRes.ok) {

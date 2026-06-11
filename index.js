@@ -15122,9 +15122,10 @@ function buildTenantSiteHtml(tenant) {
   const siteImgs = socialImages.filter(u => /\/site_\d+\./.test(u));
   const igImgs   = socialImages.filter(u => /\/ig_\d+\./.test(u));
   const bgImages = [...siteImgs, ...igImgs];
-  const heroImg = bgImages[0] || "";
-  const bgImg1  = bgImages[1] || "";
-  const bgImg2  = bgImages[2] || "";
+  // Prefer JPG/WEBP for hero — PNGs on Wix tend to be graphics/banners, not action photos
+  const heroImg = bgImages.find(u => /\.(jpe?g|webp)(\?|$)/i.test(u)) || bgImages[0] || "";
+  const bgImg1  = bgImages.find(u => u !== heroImg && /\.(jpe?g|webp)(\?|$)/i.test(u)) || bgImages[1] || "";
+  const bgImg2  = bgImages.find(u => u !== heroImg && u !== bgImg1) || bgImages[2] || "";
   const emailBtn = email ? `<a href="mailto:${email}" style="display:inline-flex;align-items:center;gap:6px;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">✉️ ${email}</a>` : "";
   const siteBtn  = site  ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:white;color:#374151;border:2px solid #d1d5db;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">🌐 Visit website</a>` : "";
   const socialBar = (fbUrl || igHandle || twHandle) ? `
@@ -15425,8 +15426,8 @@ ${widgetScript}</body></html>`;
     const ocean    = "#1e6fba";
 
     const tnLogoImg = logo
-      ? `<img src="${logo}" alt="${name}" style="width:110px;height:110px;border-radius:50%;object-fit:contain;background:white;padding:9px;box-shadow:0 4px 24px rgba(0,0,0,0.3);margin:0 auto 20px;display:block;" onerror="this.outerHTML='<div style=\\'width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:46px;margin:0 auto 20px;\\'>🎾</div>'">`
-      : `<div style="width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:46px;margin:0 auto 20px;">🎾</div>`;
+      ? `<img src="${logo}" alt="${name}" style="width:130px;height:130px;border-radius:50%;object-fit:cover;box-shadow:0 4px 24px rgba(0,0,0,0.3);margin:0 auto 20px;display:block;" onerror="this.outerHTML='<div style=\\'width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:52px;margin:0 auto 20px;\\'>🎾</div>'">`
+      : `<div style="width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:52px;margin:0 auto 20px;">🎾</div>`;
 
     const tnStyles = `<style>
   .tn-nav{position:sticky;top:0;z-index:100;background:${navyDark};display:flex;align-items:center;justify-content:space-between;padding:10px 24px;box-shadow:0 2px 12px rgba(6,14,51,0.5);}

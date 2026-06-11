@@ -1,6 +1,5 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const multer  = require("multer");
 const sizeOf = require("image-size");
 const path = require("path");
 const fs = require("fs");

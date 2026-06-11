@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cosy Café × Sprimal — Proposal 2026</title>
+  <!-- Google Fonts removed for offline use -->
+  <!-- Offline fallback: if Google Fonts unavailable, system fonts are used automatically -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #080E1F; }
+    body { font-family: 'Inter', -apple-system, sans-serif; }
+
+    /* ── DECK ── */
+    .deck { width: 100vw; height: 100vh; position: relative; }
+
+    .slide {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      opacity: 0; transform: translateX(48px);
+      transition: opacity 0.38s ease, transform 0.38s ease;
+      pointer-events: none; overflow: hidden;
+    }
+    .slide.active  { opacity: 1; transform: translateX(0); pointer-events: all; }
+    .slide.exit    { opacity: 0; transform: translateX(-48px); }
+
+    /* ── BOTTOM NAV ── */
+    #nav {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
+      background: rgba(8,14,31,0.88); backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 28px; z-index: 9999;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 8px; }
+    .nav-brand-text { font-size: 0.72rem; font-weight: 700; color: rgba(255,255,255,0.45); letter-spacing: 0.08em; }
+    .nav-dots { display: flex; gap: 5px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.2); cursor: pointer; transition: background 0.2s; }
+    .dot.on { background: #4F76F6; }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-ctr { font-size: 0.75rem; color: rgba(255,255,255,0.35); min-width: 44px; text-align: right; }
+    .nbtn {
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+      color: rgba(255,255,255,0.7); padding: 5px 14px; border-radius: 4px;
+      cursor: pointer; font-size: 0.75rem; font-family: inherit; font-weight: 600;
+      transition: background 0.15s; user-select: none;
+    }
+    .nbtn:hover { background: rgba(255,255,255,0.16); }
+
+    /* ── SHARED ATOMS ── */
+    .logo-mark {
+      position: absolute; top: 22px; left: 28px;
+      display: flex; align-items: center; gap: 9px; z-index: 20;
+    }
+    .logo-word { font-size: 0.8rem; font-weight: 800; letter-spacing: 0.04em; }
+
+    .eyebrow {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.22em;
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+    .sh1 { font-weight: 900; line-height: 1.04; letter-spacing: -0.025em; }
+    .sh2 { font-weight: 800; line-height: 1.1; letter-spacing: -0.018em; }
+    .body-text { font-size: 0.97rem; font-weight: 400; line-height: 1.65; }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 14px; border-radius: 100px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+    }
+    .tag {
+      display: inline-block; padding: 4px 10px; border-radius: 4px;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+
+    /* ══════════════════════════════════════════
+       SLIDE 1 — COVER
+    ══════════════════════════════════════════ */
+    #s1 {
+      background: linear-gradient(140deg, #080E1F 0%, #0F1D40 55%, #0a1630 100%);
+      justify-content: center; padding: 0 88px 64px;
+    }
+    #s1 .logo-word { color: rgba(255,255,255,0.5); }
+    #s1 .eyebrow { color: #4F76F6; }
+    #s1 .sh1 { font-size: clamp(3rem, 5.5vw, 5rem); color: #fff; margin-bottom: 22px; }
+    #s1 .sh1 em { color: #C4622D; font-style: normal; }
+    #s1 .body-text { color: rgba(255,255,255,0.55); max-width: 500px; margin-bottom: 52px; }
+    .s1-meta { display: flex; gap: 36px; }
+    .s1-mi label { font-size: 0.68rem; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 4px; }
+    .s1-mi span { font-size: 0.88rem; color: rgba(255,255,255,0.7); font-weight: 600; }
+    .s1-corner {
+      position: absolute; right: 88px; bottom: 80px;
+      text-align: right;
+    }
+    .s1-corner-logo { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-bottom: 6px; }
+    .s1-corner-name { font-size: 1.5rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; }
+    .s1-corner-sub { font-size: 0.75rem; color: rgba(255,255,255,0.3); }
+    .s1-line {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #4F76F6, #C4622D, #1C3A2A);
+    }
+
+    /* ══════════════════════════════════════════
+       SLIDE 2 — TODAY
+    ══════════════════════════════════════════ */
+    #s2 { background: #F8F9FB; padding: 72px 88px 64px; }
+    #s2 .logo-word { color: #0F1D40; }
+    #s2 .eyebrow { color: #4F76F6; }
+    #s2 .sh2 { font-size: 2.4rem; color: #0F1D40; margin-bottom: 10px; }
+    #s2 .intro { font-size: 0.97rem; color: #6B7280; margin-bottom: 44px; max-width: 560px; }
+    .s2-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .s2-card {
+      background: #fff; border-radius: 12px; padding: 28px 26px;
+      border: 1.5px solid #E5E7EB;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .s2-icon { font-size: 2rem; margin-bottom: 14px; }
+    .s2-card h3 { font-size: 1rem; font-weight: 700; color: #0F1D40; margin-bottom: 8px; }
+    .s2-card p { font-size: 0.88rem; color: #6B7280; line-height: 1.6; }
+    .s2-card.highlight { background: #0F1D40; border-color: #0F1D40; }
+    .s2-card.highlight h3 { color: #fff; }
+    .s2-card.highlight p { color: rgba(255,255,255,0.6); }
+
+    /* ══════════════════════════════════════════
+       SLIDE 3 — REVIEWS ARE GOLD
+    ══════════════════════════════════════════ */
+    #s3 { background: #fff; padding: 72px 88px 64px; }
+    #s3 .logo-word { color: #0F1D40; }
+    #s3 .eyebrow { color: #00AA6C; }
+    #s3 .sh2 { font-size: 2.4rem; color: #0F1D40; margin-bottom: 10px; }
+    #s3 .intro { font-size: 0.97rem; color: #6B7280; margin-bottom: 48px; max-width: 560px; }
+    .s3-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-bottom: 36px; }
+    .s3-card {
+      border-radius: 14px; padding: 32px 28px;
+      text-align: center;
+    }
+    .s3-platform { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 16px; }
+    .s3-num { font-size: 4.5rem; font-weight: 900; line-height: 1; letter-spacing: -0.03em; margin-bottom: 6px; }
+    .s3-stars { font-size: 1.2rem; margin-bottom: 10px; }
+    .s3-sub { font-size: 0.82rem; font-weight: 500; }
+    .s3-ta { background: #F0FFF8; }
+    .s3-ta .s3-platform { color: #00AA6C; }
+    .s3-ta .s3-num { color: #00AA6C; }
+    .s3-ta .s3-stars { color: #00AA6C; }
+    .s3-ta .s3-sub { color: #047857; }
+    .s3-g { background: #FFF8F0; }
+    .s3-g .s3-platform { color: #EA4335; }
+    .s3-g .s3-num { color: #EA4335; }
+    .s3-g .s3-stars { color: #FBBC04; }
+    .s3-g .s3-sub { color: #B45309; }
+    .s3-y { background: #FFF1F0; }
+    .s3-y .s3-platform { color: #D32323; }
+    .s3-y .s3-num { color: #D32323; }
+    .s3-y .s3-stars { color: #D32323; }
+    .s3-y .s3-sub { color: #9B1C1C; }
+    .s3-badge-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .s3-badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: #F0FFF8; border: 1.5px solid #00AA6C;
+      border-radius: 8px; padding: 10px 18px;
+    }
+    .s3-badge-text strong { font-size: 0.82rem; color: #00AA6C; display: block; font-weight: 800; }
+    .s3-badge-text span { font-size: 0.72rem; color: #6B7280; }
+    .s3-callout {
+      font-size: 1rem; font-weight: 700; color: #0F1D40;
+      background: #F0F4FF; border-radius: 8px; padding: 14px 20px;
+      border-left: 4px solid #4F76F6;
+    }
+
+    /* ══════════════════════════════════════════
+       SLIDE 4 — THE GAP
+    ══════════════════════════════════════════ */
+    #s4 { background: #0F1D40; padding: 72px 88px 64px; }
+    #s4 .logo-word { color: rgba(255,255,255,0.5); }
+    #s4 .eyebrow { color: #F59E0B; }
+    #s4 .sh2 { font-size: 2.4rem; color: #fff; margin-bottom: 10px; }
+    #s4 .intro { font-size: 0.97rem; color: rgba(255,255,255,0.5); margin-bottom: 44px; max-width: 540px; }
+    .s4-list { display: flex; flex-direction: column; gap: 18px; max-width: 820px; }
+    .s4-item {
+      display: flex; align-items: flex-start; gap: 18px;
+      background: rgba(255,255,255,0.05); border-radius: 10px;
+      padding: 20px 24px; border: 1px solid rgba(255,255,255,0.07);
+    }
+    .s4-icon { font-size: 1.4rem; flex-shrink: 0; margin-top: 2px; }
+    .s4-item h3 { font-size: 0.95rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .s4-item p { font-size: 0.85rem; color: rgba(255,255,255,0.5); line-height: 1.5; }
+    .s4-item.fix { border-color: rgba(79,118,246,0.3); }
+    .s4-item.fix h3 { color: #7DA4FA; }
+
+    /* ══════════════════════════════════════════
+       SLIDE 5 — 4 DESIGN CONCEPTS
+    ══════════════════════════════════════════ */
+    #s5 { background: #F8F9FB; padding: 72px 88px 64px; }
+    #s5 .logo-word { color: #0F1D40; }
+    #s5 .eyebrow { color: #4F76F6; }
+    #s5 .sh2 { font-size: 2.2rem; color: #0F1D40; margin-bottom: 8px; }
+    #s5 .intro { font-size: 0.92rem; color: #6B7280; margin-bottom: 36px; max-width: 520px; }
+    .s5-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .s5-card {
+      border-radius: 12px; overflow: hidden;
+      border: 2px solid transparent;
+      transition: transform 0.2s;
+      cursor: pointer;
+    }
+    .s5-card:hover { transform: translateY(-4px); }
+    .s5-swatch { height: 120px; display: flex; align-items: center; justify-content: center; }
+    .s5-swatch .s5-emoji { font-size: 2.2rem; }
+    .s5-info { padding: 16px; }
+    .s5-info h3 { font-size: 0.88rem; font-weight: 800; margin-bottom: 4px; }
+    .s5-info p { font-size: 0.78rem; line-height: 1.4; }
+    .s5-t1 .s5-swatch { background: linear-gradient(135deg, #1C3A2A, #2d5c42); }
+    .s5-t1 .s5-swatch .s5-emoji::after { content: '🌿'; font-size: 1.4rem; }
+    .s5-t1 .s5-info { background: #EDE2D4; }
+    .s5-t1 .s5-info h3 { color: #1C3A2A; }
+    .s5-t1 .s5-info p { color: #6B5744; }
+    .s5-t1 { border-color: #1C3A2A; }
+    .s5-t2 .s5-swatch { background: linear-gradient(135deg, #1A1A1A, #2d2d2d); }
+    .s5-t2 .s5-swatch .s5-emoji::after { content: '⬛'; font-size: 1.4rem; }
+    .s5-t2 .s5-info { background: #F0EDE8; }
+    .s5-t2 .s5-info h3 { color: #1A1A1A; }
+    .s5-t2 .s5-info p { color: #6B6560; }
+    .s5-t2 { border-color: #E8A020; }
+    .s5-t3 .s5-swatch { background: linear-gradient(135deg, #2C1810, #4a2815); }
+    .s5-t3 .s5-swatch .s5-emoji::after { content: '☕'; font-size: 1.4rem; }
+    .s5-t3 .s5-info { background: #3D2015; }
+    .s5-t3 .s5-info h3 { color: #F5C842; }
+    .s5-t3 .s5-info p { color: rgba(232,213,183,0.7); }
+    .s5-t3 { border-color: #F5C842; }
+    .s5-t4 .s5-swatch { background: linear-gradient(135deg, #2B4C7E, #3a6aad); }
+    .s5-t4 .s5-swatch .s5-emoji::after { content: '🌊'; font-size: 1.4rem; }
+    .s5-t4 .s5-info { background: #EDF4F8; }
+    .s5-t4 .s5-info h3 { color: #1A2E45; }
+    .s5-t4 .s5-info p { color: #5A7A9A; }
+    .s5-t4 { border-color: #2B4C7E; }
+    .s5-cta {
+      margin-top: 28px; font-size: 0.9rem; color: #6B7280;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .s5-cta a { color: #4F76F6; font-weight: 700; text-decoration: none; }
+
+    /* ══════════════════════════════════════════
+       SLIDE 6 — OLD VS NEW
+    ══════════════════════════════════════════ */
+    #s6 { background: #fff; padding: 72px 88px 64px; }
+    #s6 .logo-word { color: #0F1D40; }
+    #s6 .eyebrow { color: #4F76F6; }
+    #s6 .sh2 { font-size: 2.2rem; color: #0F1D40; margin-bottom: 36px; }
+    .s6-table { width: 100%; border-collapse: collapse; }
+    .s6-table th {
+      padding: 12px 20px; text-align: left; font-size: 0.72rem;
+      font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      border-bottom: 2px solid #E5E7EB;
+    }
+    .s6-table th:first-child { color: #9CA3AF; width: 28%; }
+    .s6-table th:nth-child(2) { color: #EF4444; background: #FEF2F2; border-radius: 8px 8px 0 0; width: 36%; }
+    .s6-table th:nth-child(3) { color: #10B981; background: #F0FDF4; border-radius: 8px 8px 0 0; width: 36%; }
+    .s6-table td { padding: 11px 20px; font-size: 0.88rem; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }
+    .s6-table td:first-child { color: #6B7280; font-weight: 600; }
+    .s6-table td:nth-child(2) { background: rgba(254,242,242,0.4); color: #7F1D1D; }
+    .s6-table td:nth-child(3) { background: rgba(240,253,244,0.4); color: #064E3B; font-weight: 600; }
+    .s6-table tr:last-child td { border-bottom: none; }
+    .bad::before { content: '✗  '; color: #EF4444; font-weight: 900; }
+    .good::before { content: '✓  '; color: #10B981; font-weight: 900; }
+
+    /* ══════════════════════════════════════════
+       SLIDE 7 — SEO
+    ══════════════════════════════════════════ */
+    #s7 { background: #0F1D40; padding: 72px 88px 64px; }
+    #s7 .logo-word { color: rgba(255,255,255,0.5); }
+    #s7 .eyebrow { color: #4F76F6; }
+    #s7 .sh2 { font-size: 2.2rem; color: #fff; margin-bottom: 8px; }
+    #s7 .intro { font-size: 0.97rem; color: rgba(255,255,255,0.5); margin-bottom: 40px; max-width: 600px; }
+    .s7-two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .s7-col h3 { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 16px; }
+    .s7-left h3 { color: #EF4444; }
+    .s7-right h3 { color: #10B981; }
+    .s7-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      margin-bottom: 14px;
+    }
+    .s7-bullet {
+      width: 24px; height: 24px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+    }
+    .s7-left .s7-bullet { background: rgba(239,68,68,0.15); color: #EF4444; }
+    .s7-right .s7-bullet { background: rgba(16,185,129,0.15); color: #10B981; }
+    .s7-item p { font-size: 0.88rem; color: rgba(255,255,255,0.65); line-height: 1.5; }
+    .s7-item strong { color: #fff; }
+    .s7-bottom {
+      margin-top: 28px; background: rgba(79,118,246,0.12); border: 1px solid rgba(79,118,246,0.3);
+      border-radius: 10px; padding: 18px 24px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .s7-bottom p { font-size: 0.9rem; color: rgba(255,255,255,0.7); }
+    .s7-bottom strong { color: #7DA4FA; }
+
+    /* ══════════════════════════════════════════
+       SLIDE 8 — MEET MAEVE
+    ══════════════════════════════════════════ */
+    #s8 { background: #F8F9FB; padding: 72px 88px 64px; }
+    #s8 .logo-word { color: #0F1D40; }
+    #s8 .eyebrow { color: #4F76F6; }
+    #s8 .sh2 { font-size: 2.2rem; color: #0F1D40; margin-bottom: 8px; }
+    #s8 .intro { font-size: 0.97rem; color: #6B7280; margin-bottom: 40px; max-width: 520px; }
+    .s8-two { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: start; }
+    .s8-features { display: flex; flex-direction: column; gap: 16px; }
+    .s8-feat {
+      display: flex; align-items: flex-start; gap: 16px;
+      background: #fff; border-radius: 10px; padding: 18px 20px;
+      border: 1.5px solid #E5E7EB;
+    }
+    .s8-feat-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .s8-feat h3 { font-size: 0.9rem; font-weight: 700; color: #0F1D40; margin-bottom: 4px; }
+    .s8-feat p { font-size: 0.82rem; color: #6B7280; line-height: 1.5; }
+    .s8-widget-mock {
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      border: 1px solid #E5E7EB;
+    }
+    .s8-wh {
+      background: #1C3A2A; padding: 14px 18px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .s8-wh-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); }
+    .s8-wh-name { font-size: 0.88rem; font-weight: 700; color: #fff; }
+    .s8-wh-sub { font-size: 0.72rem; color: rgba(255,255,255,0.5); }
+    .s8-wbody { padding: 16px; }
+    .s8-bot { background: #F3F4F6; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+    .s8-bot p { font-size: 0.82rem; color: #374151; line-height: 1.5; }
+    .s8-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .s8-chip {
+      border: 1.5px solid #C4622D; color: #C4622D; border-radius: 20px;
+      padding: 5px 12px; font-size: 0.75rem; font-weight: 600;
+    }
+
+    /* ══════════════════════════════════════════
+       SLIDE 9 — ROADMAP
+    ══════════════════════════════════════════ */
+    #s9 { background: #fff; padding: 72px 88px 64px; }
+    #s9 .logo-word { color: #0F1D40; }
+    #s9 .eyebrow { color: #4F76F6; }
+    #s9 .sh2 { font-size: 2.2rem; color: #0F1D40; margin-bottom: 8px; }
+    #s9 .intro { font-size: 0.97rem; color: #6B7280; margin-bottom: 44px; max-width: 560px; }
+    .s9-track { display: flex; gap: 0; position: relative; margin-bottom: 36px; }
+    .s9-track::before {
+      content: ''; position: absolute; top: 22px; left: 22px; right: 22px;
+      height: 3px; background: #E5E7EB; z-index: 0;
+    }
+    .s9-step { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; }
+    .s9-node {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; margin-bottom: 14px; font-weight: 800;
+    }
+    .s9-step h3 { font-size: 0.82rem; font-weight: 800; color: #0F1D40; margin-bottom: 8px; text-align: center; }
+    .s9-step ul { list-style: none; text-align: center; }
+    .s9-step ul li { font-size: 0.78rem; color: #6B7280; line-height: 1.7; }
+    .s9-w1 .s9-node { background: #EEF2FF; color: #4F76F6; border: 2px solid #4F76F6; }
+    .s9-w2 .s9-node { background: #FFF8EC; color: #D97706; border: 2px solid #D97706; }
+    .s9-w3 .s9-node { background: #F0FDF4; color: #16A34A; border: 2px solid #16A34A; }
+    .s9-launch .s9-node { background: #0F1D40; color: #fff; border: 2px solid #0F1D40; font-size: 1.1rem; }
+    .s9-launch h3 { color: #0F1D40; font-size: 0.9rem; }
+    .s9-callout {
+      background: #F0F4FF; border-radius: 10px; padding: 16px 22px;
+      border-left: 4px solid #4F76F6; font-size: 0.88rem; color: #374151;
+      max-width: 700px;
+    }
+    .s9-callout strong { color: #1E3A8A; }
+
+    /* ══════════════════════════════════════════
+       SLIDE 10 — PRICING
+    ══════════════════════════════════════════ */
+    #s10 { background: #0F1D40; padding: 72px 88px 64px; }
+    #s10 .logo-word { color: rgba(255,255,255,0.5); }
+    #s10 .eyebrow { color: #C4622D; }
+    #s10 .sh2 { font-size: 2.2rem; color: #fff; margin-bottom: 8px; }
+    #s10 .intro { font-size: 0.97rem; color: rgba(255,255,255,0.5); margin-bottom: 40px; max-width: 520px; }
+    .s10-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 860px; }
+    .s10-card {
+      border-radius: 16px; padding: 32px 28px;
+      border: 1.5px solid rgba(255,255,255,0.1);
+    }
+    .s10-card.main { background: linear-gradient(135deg, #1C3A2A, #264d38); border-color: #C4622D; }
+    .s10-card.secondary { background: rgba(255,255,255,0.05); }
+    .s10-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 12px; }
+    .s10-card.main .s10-label { color: #E8A87C; }
+    .s10-card.secondary .s10-label { color: rgba(255,255,255,0.4); }
+    .s10-price { display: flex; align-items: flex-end; gap: 6px; margin-bottom: 6px; }
+    .s10-eur { font-size: 1.6rem; font-weight: 800; color: #fff; line-height: 1; margin-bottom: 6px; }
+    .s10-amount { font-size: 3.8rem; font-weight: 900; color: #fff; line-height: 1; letter-spacing: -0.04em; }
+    .s10-per { font-size: 0.88rem; color: rgba(255,255,255,0.45); margin-bottom: 8px; }
+    .s10-desc { font-size: 0.82rem; color: rgba(255,255,255,0.55); margin-bottom: 22px; line-height: 1.5; }
+    .s10-list { list-style: none; }
+    .s10-list li { font-size: 0.84rem; color: rgba(255,255,255,0.7); padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.07); display: flex; align-items: center; gap: 8px; }
+    .s10-list li:last-child { border-bottom: none; }
+    .s10-list li::before { content: '✓'; color: #10B981; font-weight: 800; font-size: 0.82rem; }
+    .s10-card.main .s10-list li::before { color: #86EFAC; }
+    .s10-note {
+      margin-top: 32px; font-size: 0.88rem; color: rgba(255,255,255,0.4);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .s10-note strong { color: rgba(255,255,255,0.7); }
+
+    /* ══════════════════════════════════════════
+       SLIDE 11 — REFERRAL
+    ══════════════════════════════════════════ */
+    #s11 { background: #F8F9FB; padding: 72px 88px 64px; }
+    #s11 .logo-word { color: #0F1D40; }
+    #s11 .eyebrow { color: #10B981; }
+    #s11 .sh2 { font-size: 2.2rem; color: #0F1D40; margin-bottom: 8px; }
+    #s11 .intro { font-size: 0.97rem; color: #6B7280; margin-bottom: 40px; max-width: 540px; }
+    .s11-two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+    .s11-steps { display: flex; flex-direction: column; gap: 14px; }
+    .s11-step {
+      display: flex; gap: 16px; align-items: flex-start;
+      background: #fff; border-radius: 10px; padding: 18px 20px;
+      border: 1.5px solid #E5E7EB;
+    }
+    .s11-num {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: #0F1D40; color: #fff; font-size: 0.82rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .s11-step h3 { font-size: 0.9rem; font-weight: 700; color: #0F1D40; margin-bottom: 4px; }
+    .s11-step p { font-size: 0.82rem; color: #6B7280; line-height: 1.5; }
+    .s11-calc {
+      background: #0F1D40; border-radius: 14px; padding: 28px 28px;
+    }
+    .s11-calc h3 { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 22px; }
+    .s11-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .s11-row:last-of-type { border-bottom: none; }
+    .s11-row label { font-size: 0.85rem; color: rgba(255,255,255,0.55); }
+    .s11-row span { font-size: 0.95rem; font-weight: 700; color: #fff; }
+    .s11-row span.green { color: #34D399; }
+    .s11-row span.big { font-size: 2rem; font-weight: 900; color: #34D399; letter-spacing: -0.03em; }
+    .s11-free {
+      margin-top: 20px; background: rgba(52,211,153,0.1);
+      border: 1px solid rgba(52,211,153,0.3); border-radius: 8px;
+      padding: 12px 16px; text-align: center;
+    }
+    .s11-free p { font-size: 0.85rem; color: rgba(255,255,255,0.7); }
+    .s11-free strong { color: #34D399; }
+
+    /* ══════════════════════════════════════════
+       SLIDE 14 — CTA / NEXT STEPS
+    ══════════════════════════════════════════ */
+    #s14 {
+      background: linear-gradient(140deg, #1C3A2A 0%, #0F1D40 100%);
+      justify-content: center; align-items: flex-start;
+      padding: 0 88px 64px;
+    }
+    #s14 .logo-word { color: rgba(255,255,255,0.5); }
+    #s14 .eyebrow { color: #E8A87C; }
+    #s14 .sh1 { font-size: clamp(2.8rem, 5vw, 4.2rem); color: #fff; margin-bottom: 22px; }
+    #s14 .sh1 em { color: #E8A87C; font-style: normal; }
+    .s14-steps { display: flex; flex-direction: column; gap: 14px; margin-bottom: 44px; max-width: 520px; }
+    .s14-step {
+      display: flex; gap: 16px; align-items: center;
+    }
+    .s14-n {
+      width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.1);
+      color: #fff; font-weight: 800; font-size: 0.9rem;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .s14-step p { font-size: 0.95rem; color: rgba(255,255,255,0.75); }
+    .s14-step strong { color: #fff; }
+    .s14-contact { display: flex; gap: 28px; flex-wrap: wrap; }
+    .s14-ci label { font-size: 0.68rem; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 4px; }
+    .s14-ci a { font-size: 0.92rem; color: #E8A87C; font-weight: 600; text-decoration: none; }
+    .s14-ci a:hover { color: #fff; }
+    .s14-line {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #C4622D, #4F76F6, #1C3A2A);
+    }
+  </style>
+</head>
+<body>
+  <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e40af;color:#fff;text-align:center;padding:6px;font-size:12px;font-family:sans-serif;font-weight:600;letter-spacing:0.05em;">
+    OFFLINE VERSION — sprimal.com
+  </div>
+  <div style="height:28px"></div>
+
+<div class="deck">
+
+  <!-- ══ SLIDE 1: COVER ══ -->
+  <div id="s1" class="slide active">
+    <div class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word">Sprimal</span>
+    </div>
+    <div class="s1-content">
+      <div class="eyebrow">Prepared for Sebastien Perey · Cosy Café Kinsale</div>
+      <h1 class="sh1">Your café.<br>Your <em>digital future.</em></h1>
+      <p class="body-text">A new website, an AI receptionist, and a roadmap that puts Cosy Café where it deserves to be — at the top.</p>
+      <div class="s1-meta">
+        <div class="s1-mi"><label>Date</label><span>June 2026</span></div>
+        <div class="s1-mi"><label>Presented by</label><span>Sprimal</span></div>
+        <div class="s1-mi"><label>Contact</label><span>oriordann@gmail.com</span></div>
+      </div>
+    </div>
+    <div class="s1-corner">
+      <div class="s1-corner-logo">
+        <svg width="36" height="36" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+        <span class="s1-corner-name">Sprimal</span>
+      </div>
+      <div class="s1-corner-sub">AI-powered web presence for local businesses</div>
+    </div>
+    <div class="s1-line"></div>
+  </div>
+
+  <!-- ══ SLIDE 2: TODAY ══ -->
+  <div id="s2" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">Where you stand today</div>
+      <h2 class="sh2">A solid foundation — with big gaps</h2>
+      <p class="intro">Cosy Café has a fantastic reputation. But your current website isn't doing justice to the business you've built.</p>
+      <div class="s2-grid">
+        <div class="s2-card">
+          <div class="s2-icon">🌐</div>
+          <h3>Website exists</h3>
+          <p>You have an online presence — but it's not optimised to rank, convert, or answer questions at 2am.</p>
+        </div>
+        <div class="s2-card">
+          <div class="s2-icon">📄</div>
+          <h3>PDF menus</h3>
+          <p>Menu PDFs aren't indexed by Google and aren't mobile-friendly. Visitors bounce trying to pinch and zoom.</p>
+        </div>
+        <div class="s2-card">
+          <div class="s2-icon">🏆</div>
+          <h3>Outstanding reviews</h3>
+          <p>4.8★ on TripAdvisor, Best of the Best 2026, #2 in Kinsale — but your website barely mentions them.</p>
+        </div>
+        <div class="s2-card highlight">
+          <div class="s2-icon">🤖</div>
+          <h3>No AI receptionist</h3>
+          <p>Every question that goes unanswered out-of-hours is a potential customer who went somewhere else.</p>
+        </div>
+        <div class="s2-card">
+          <div class="s2-icon">⭐</div>
+          <h3>No stars in Google results</h3>
+          <p>You rank #1 on Google — but your 4.8★ never appears next to the result. Schema markup changes that instantly.</p>
+        </div>
+        <div class="s2-card">
+          <div class="s2-icon">🔄</div>
+          <h3>Hard to update</h3>
+          <p>Any change to your site needs a developer. With Sprimal, you update your own content from a simple portal.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 3: REVIEWS ══ -->
+  <div id="s3" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word" style="color:#0F1D40">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">Your reputation</div>
+      <h2 class="sh2">Your reviews are your superpower ⚡</h2>
+      <p class="intro">You've built something exceptional. These numbers are the envy of every café in Munster. The job is to make sure the internet knows it.</p>
+      <div class="s3-grid">
+        <div class="s3-card s3-ta">
+          <div class="s3-platform">TripAdvisor</div>
+          <div class="s3-num">4.8</div>
+          <div class="s3-stars">★★★★★</div>
+          <div class="s3-sub">299 reviews</div>
+        </div>
+        <div class="s3-card s3-g">
+          <div class="s3-platform">Google</div>
+          <div class="s3-num">4.7</div>
+          <div class="s3-stars">★★★★★</div>
+          <div class="s3-sub">Multiple sources</div>
+        </div>
+        <div class="s3-card s3-y">
+          <div class="s3-platform">Yelp</div>
+          <div class="s3-num">4.5+</div>
+          <div class="s3-stars">★★★★★</div>
+          <div class="s3-sub">Active listing</div>
+        </div>
+      </div>
+      <div class="s3-badge-row">
+        <div class="s3-badge">
+          <span style="font-size:1.3rem">🏆</span>
+          <div class="s3-badge-text">
+            <strong>Best of the Best 2026</strong>
+            <span>#2 of 50 Restaurants in Kinsale · TripAdvisor</span>
+          </div>
+        </div>
+        <div class="s3-callout">
+          💡 Your new website will display every one of these credentials — front and centre.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 4: THE GAP ══ -->
+  <div id="s4" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word" style="color:rgba(255,255,255,0.5)">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">The opportunity</div>
+      <h2 class="sh2">What your website is missing — and how we fix it</h2>
+      <p class="intro">The good news: the product is world class. The gap is purely digital. Here's exactly what we're solving.</p>
+      <div class="s4-list">
+        <div class="s4-item">
+          <span class="s4-icon">⭐</span>
+          <div>
+            <h3>Your 4.8★ is invisible in Google results</h3>
+            <p>You rank #1 in both Maps and organic search — but without schema markup, your five stars never appear next to the result. We add them on day one.</p>
+          </div>
+        </div>
+        <div class="s4-item">
+          <span class="s4-icon">📵</span>
+          <div>
+            <h3>Calls and questions go unanswered after hours</h3>
+            <p>"What time do you open?" "Do you take dogs?" "Can I book a table?" Your AI assistant Maeve answers instantly, 24/7.</p>
+          </div>
+        </div>
+        <div class="s4-item">
+          <span class="s4-icon">📊</span>
+          <div>
+            <h3>Your review gold isn't on display</h3>
+            <p>4.8★, Best of the Best, #2 in Kinsale — none of this is on your homepage. New visitors don't see what regulars know.</p>
+          </div>
+        </div>
+        <div class="s4-item fix">
+          <span class="s4-icon">✅</span>
+          <div>
+            <h3>All of this is fixable in 4 weeks</h3>
+            <p>New site live, AI trained on your menu and hours, reviews front and centre, Google signals updated — within four weeks.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 5: 4 CONCEPTS ══ -->
+  <div id="s5" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">Design concepts</div>
+      <h2 class="sh2">Your new website — built on your story</h2>
+      <p class="intro">Four distinct visual identities, all using real Cosy Café photography, your real reviews, your real menu. Pick the one that feels like you.</p>
+      <div class="s5-grid">
+        <div class="s5-card s5-t1">
+          <div class="s5-swatch"><span class="s5-emoji"></span></div>
+          <div class="s5-info">
+            <h3>🌿 The Local</h3>
+            <p>Forest green & terracotta. Warm, earthy, rooted. Feels like Kinsale itself.</p>
+          </div>
+        </div>
+        <div class="s5-card s5-t2">
+          <div class="s5-swatch"><span class="s5-emoji"></span></div>
+          <div class="s5-info">
+            <h3>⬛ Modern Artisan</h3>
+            <p>Black & amber. Bold editorial. The café as a design statement.</p>
+          </div>
+        </div>
+        <div class="s5-card s5-t3">
+          <div class="s5-swatch"><span class="s5-emoji"></span></div>
+          <div class="s5-info">
+            <h3>☕ Dark Roast</h3>
+            <p>Espresso & gold. Intimate, cinematic. Every visit feels like a ritual.</p>
+          </div>
+        </div>
+        <div class="s5-card s5-t4">
+          <div class="s5-swatch"><span class="s5-emoji"></span></div>
+          <div class="s5-info">
+            <h3>🌊 Wild Atlantic</h3>
+            <p>Coastal blue & sand. Friendly, bright, for visitors off the road.</p>
+          </div>
+        </div>
+      </div>
+      <div class="s5-cta">
+        <span>Live preview at</span>
+        <a href="https://app.sprimal.com/cosy-cafe-designs.html" target="_blank">app.sprimal.com/cosy-cafe-designs.html</a>
+        <span style="color:#9CA3AF">— open now, switch between themes, see your AI chat widget live</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 6: OLD VS NEW ══ -->
+  <div id="s6" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">Head to head</div>
+      <h2 class="sh2">Current site vs Sprimal — side by side</h2>
+      <table class="s6-table">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Current website</th>
+            <th>Sprimal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Design</td><td class="bad">Static, hard to update</td><td class="good">4 premium concepts, self-service portal</td></tr>
+          <tr><td>Menu</td><td class="bad">PDF download — not mobile or Google friendly</td><td class="good">Clean, scannable, fully indexed by Google</td></tr>
+          <tr><td>AI Assistant</td><td class="bad">None — calls go unanswered after hours</td><td class="good">Maeve answers 24/7, same knowledge every time</td></tr>
+          <tr><td>Review showcase</td><td class="bad">Not featured prominently</td><td class="good">4.8★ · Best of the Best · #2 Kinsale front &amp; centre</td></tr>
+          <tr><td>SEO &amp; schema</td><td class="bad">Ranks #1 but no stars in results — schema missing</td><td class="good">Review schema adds ★★★★★ stars directly in Google results</td></tr>
+          <tr><td>Mobile experience</td><td class="bad">Basic — zoom required for menus</td><td class="good">Fully optimised, fast, finger-friendly</td></tr>
+          <tr><td>Updates</td><td class="bad">Needs developer</td><td class="good">You update from your own portal, instantly</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 7: SEO ══ -->
+  <div id="s7" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word" style="color:rgba(255,255,255,0.5)">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">Search engine performance</div>
+      <h2 class="sh2">Already #1 on Google — now add your stars ⭐</h2>
+      <p class="intro">You're doing something rare: ranking first in both Google Maps and organic search. Here's what we found this morning — and the one thing that makes a #1 result even more powerful.</p>
+
+      <!-- 3 stat boxes -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
+        <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:16px 18px;text-align:center">
+          <div style="font-size:1.6rem;margin-bottom:6px">🗺️</div>
+          <div style="font-size:0.68rem;font-weight:700;color:#34D399;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Google Maps</div>
+          <div style="font-size:2rem;font-weight:900;color:#fff;line-height:1">#1</div>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-top:4px">724 reviews · 4.7★</div>
+        </div>
+        <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:16px 18px;text-align:center">
+          <div style="font-size:1.6rem;margin-bottom:6px">🔍</div>
+          <div style="font-size:0.68rem;font-weight:700;color:#34D399;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Organic Search</div>
+          <div style="font-size:2rem;font-weight:900;color:#fff;line-height:1">#1</div>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-top:4px">"best breakfast Kinsale"</div>
+        </div>
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:16px 18px;text-align:center">
+          <div style="font-size:1.6rem;margin-bottom:6px">⭐</div>
+          <div style="font-size:0.68rem;font-weight:700;color:#F59E0B;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Missing from result</div>
+          <div style="font-size:1.1rem;font-weight:900;color:#fff;line-height:1.2">Star rating</div>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-top:4px">4.8★ not shown in listing</div>
+        </div>
+      </div>
+
+      <div class="s7-two">
+        <div class="s7-col s7-left">
+          <h3>🔍 Your Google result right now</h3>
+          <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:14px 16px;margin-bottom:14px;border:1px solid rgba(255,255,255,0.08)">
+            <div style="font-size:0.72rem;color:rgba(255,255,255,0.35);margin-bottom:3px">cosycafe.net</div>
+            <div style="font-size:0.92rem;font-weight:600;color:#7DA4FA;margin-bottom:4px">Cosy Cafe - Kinsale</div>
+            <div style="font-size:0.8rem;color:rgba(255,255,255,0.55);line-height:1.5">A dog-friendly cafe in Kinsale, Co. Cork serving up the most delicious breakfast, brunch, lunch...</div>
+            <div style="margin-top:8px;font-size:0.75rem;color:rgba(239,68,68,0.75)">← No star rating visible here</div>
+          </div>
+          <div class="s7-item"><div class="s7-bullet">✗</div><p><strong>No review stars</strong> — 4.8★ never shows next to your result. Customers see plain text instead of ★★★★★.</p></div>
+          <div class="s7-item"><div class="s7-bullet">✗</div><p><strong>No schema markup</strong> — Google can't confirm your opening hours, category or price range from the website</p></div>
+          <div class="s7-item"><div class="s7-bullet">✗</div><p><strong>No Open Graph</strong> — Facebook &amp; Instagram shares of your link show no photo or description</p></div>
+        </div>
+        <div class="s7-col s7-right">
+          <h3>✅ With Sprimal — the full picture</h3>
+          <div style="background:rgba(16,185,129,0.08);border-radius:8px;padding:14px 16px;margin-bottom:14px;border:1px solid rgba(16,185,129,0.2)">
+            <div style="font-size:0.72rem;color:rgba(255,255,255,0.35);margin-bottom:3px">cosycafe.ie</div>
+            <div style="font-size:0.92rem;font-weight:600;color:#7DA4FA;margin-bottom:3px">Cosy Café Kinsale — Breakfast, Brunch &amp; Lunch</div>
+            <div style="font-size:0.95rem;color:#F59E0B;margin-bottom:3px">★★★★★</div>
+            <div style="font-size:0.8rem;color:rgba(255,255,255,0.55);line-height:1.5">4.8 · 299 reviews · Dog-friendly · Open 8am–5pm · Wild Atlantic Way</div>
+          </div>
+          <div class="s7-item"><div class="s7-bullet">✓</div><p><strong>Review aggregate schema</strong> — your ★★★★★ 4.8 appear as golden stars directly in Google results</p></div>
+          <div class="s7-item"><div class="s7-bullet">✓</div><p><strong>LocalBusiness + Restaurant schema</strong> — Google gets your hours, category, location and price range</p></div>
+          <div class="s7-item"><div class="s7-bullet">✓</div><p><strong>Open Graph + social tags</strong> — every share on Facebook, Instagram or WhatsApp shows your photo and description</p></div>
+        </div>
+      </div>
+      <div class="s7-bottom">
+        <span style="font-size:1.3rem">💡</span>
+        <p><strong>Live demo:</strong> Search <strong style="color:#fff">"best breakfast Kinsale"</strong> on Google right now — you're #1. The only thing missing from that result is your five stars.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 8: MAEVE ══ -->
+  <div id="s8" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">Your AI receptionist</div>
+      <h2 class="sh2">Meet Maeve — she never misses a question 🤖</h2>
+      <p class="intro">Maeve is trained on your menu, hours, location and story. She answers instantly, consistently, and at 2am if needed.</p>
+      <div class="s8-two">
+        <div class="s8-features">
+          <div class="s8-feat">
+            <span class="s8-feat-icon">⏰</span>
+            <div>
+              <h3>Available 24/7</h3>
+              <p>Opening hours, directions, table bookings, dog policy — answered the moment anyone asks, day or night.</p>
+            </div>
+          </div>
+          <div class="s8-feat">
+            <span class="s8-feat-icon">🧠</span>
+            <div>
+              <h3>Trained on your knowledge base</h3>
+              <p>Every question gets the right answer — from your actual menu and your actual information, not a generic AI.</p>
+            </div>
+          </div>
+          <div class="s8-feat">
+            <span class="s8-feat-icon">📥</span>
+            <div>
+              <h3>Captures leads</h3>
+              <p>Visitors who enquire about bookings or events can leave their name and email. You see them in your portal.</p>
+            </div>
+          </div>
+          <div class="s8-feat">
+            <span class="s8-feat-icon">🎨</span>
+            <div>
+              <h3>Matches your brand</h3>
+              <p>Colours, name and personality all match whichever design theme you choose. Looks like part of your site.</p>
+            </div>
+          </div>
+        </div>
+        <div class="s8-widget-mock">
+          <div class="s8-wh">
+            <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:1rem;">🤖</div>
+            <div style="margin-left:8px">
+              <div class="s8-wh-name">Maeve</div>
+              <div class="s8-wh-sub">Cosy Café · Online now</div>
+            </div>
+          </div>
+          <div class="s8-wbody">
+            <div class="s8-bot">
+              <p>Hi there 👋 I'm Maeve, your Cosy Café assistant.<br><br>What can I help you with today?</p>
+            </div>
+            <div class="s8-chips">
+              <div class="s8-chip">View Menu</div>
+              <div class="s8-chip">Opening Hours</div>
+              <div class="s8-chip">Book a Table</div>
+              <div class="s8-chip">Find Us</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 9: ROADMAP ══ -->
+  <div id="s9" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">Timeline</div>
+      <h2 class="sh2">Live in 4 weeks — here's exactly how 🗓️</h2>
+      <p class="intro">We move fast but we don't cut corners. You go live on a dedicated, stable environment — not until we're both happy.</p>
+      <div class="s9-track">
+        <div class="s9-step s9-w1">
+          <div class="s9-node">1</div>
+          <h3>Week One<br>Design &amp; Content</h3>
+          <ul>
+            <li>Choose your design today</li>
+            <li>Confirm menu &amp; hours</li>
+            <li>Sign off on copy</li>
+            <li>Provide any photos</li>
+          </ul>
+        </div>
+        <div class="s9-step s9-w2">
+          <div class="s9-node">2</div>
+          <h3>Week Two<br>Build &amp; Train</h3>
+          <ul>
+            <li>Site built &amp; deployed</li>
+            <li>Maeve trained on your KB</li>
+            <li>Domain DNS configured</li>
+            <li>Review &amp; feedback round</li>
+          </ul>
+        </div>
+        <div class="s9-step s9-w3">
+          <div class="s9-node">3</div>
+          <h3>Week Three<br>Test &amp; Refine</h3>
+          <ul>
+            <li>Final QA &amp; tweaks</li>
+            <li>Mobile &amp; performance check</li>
+            <li>Schema validation</li>
+            <li>Your sign-off</li>
+          </ul>
+        </div>
+        <div class="s9-step s9-launch">
+          <div class="s9-node">🚀</div>
+          <h3>Go Live</h3>
+          <ul>
+            <li>Zero downtime launch</li>
+            <li>Dedicated environment</li>
+            <li>Monitored &amp; supported</li>
+          </ul>
+        </div>
+      </div>
+      <div class="s9-callout">
+        🔒 <strong>Our promise:</strong> Your site goes live on its own dedicated environment — completely separate from our development systems. Zero downtime. We don't flip the switch until we're both confident.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 10: DOMAIN ══ -->
+  <div id="s10" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow" style="color:#4F76F6">Your domain name</div>
+      <h2 class="sh2" style="font-size:2.2rem;color:#0F1D40;margin-bottom:8px">Your domain is your address — own it 🌐</h2>
+      <p class="intro" style="color:#6B7280;margin-bottom:36px;max-width:580px">A domain name is yours forever, belongs to you regardless of which platform you use — and cosycafe.ie is available right now for just €5.99/year. Here's what we recommend.</p>
+      <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:32px;align-items:start">
+        <div>
+          <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:28px">
+            <div style="display:flex;align-items:center;gap:16px;background:#F0FDF4;border:1.5px solid #10B981;border-radius:10px;padding:16px 20px">
+              <span style="font-size:1.6rem">⭐</span>
+              <div>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:3px">
+                  <span style="font-size:1rem;font-weight:800;color:#064E3B">cosycafe.ie</span>
+                  <span style="background:#10B981;color:#fff;font-size:0.68rem;font-weight:800;padding:2px 8px;border-radius:100px;letter-spacing:0.06em">AVAILABLE · €5.99/yr</span>
+                </div>
+                <div style="font-size:0.82rem;color:#065F46">Our top recommendation — .ie is the most trusted domain in Ireland. Signals a genuine local business to Google and to customers.</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;background:#F8F9FB;border:1.5px solid #E5E7EB;border-radius:10px;padding:16px 20px">
+              <span style="font-size:1.4rem">2️⃣</span>
+              <div>
+                <div style="font-size:0.95rem;font-weight:700;color:#0F1D40">cosycafekinsale.ie</div>
+                <div style="font-size:0.82rem;color:#6B7280;margin-top:3px">Fallback if cosycafe.ie is taken. Has an SEO bonus — "Kinsale" is right in your domain name.</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;background:#F8F9FB;border:1.5px solid #E5E7EB;border-radius:10px;padding:16px 20px">
+              <span style="font-size:1.4rem">3️⃣</span>
+              <div>
+                <div style="font-size:0.95rem;font-weight:700;color:#0F1D40">cosycafe.com</div>
+                <div style="font-size:0.82rem;color:#6B7280;margin-top:3px">Good for international reach. Worth checking availability — may already be taken.</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;background:#FFF8F0;border:1.5px solid #FCD34D;border-radius:10px;padding:16px 20px">
+              <span style="font-size:1.4rem">⚠️</span>
+              <div>
+                <div style="font-size:0.95rem;font-weight:700;color:#92400E">cosycafe.net</div>
+                <div style="font-size:0.82rem;color:#B45309;margin-top:3px">.net reads as tech infrastructure, not a café. Only fall back to this if everything else is taken.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#0F1D40;border-radius:14px;padding:28px 24px">
+          <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:18px">Important notes</div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;gap:10px">
+              <span style="color:#34D399;font-weight:800;font-size:0.9rem;flex-shrink:0">✓</span>
+              <p style="font-size:0.85rem;color:rgba(255,255,255,0.7);line-height:1.5"><strong style="color:#fff">Your cost, your asset.</strong> cosycafe.ie is available right now for just €5.99/year — yours to own no matter what platform you use.</p>
+            </div>
+            <div style="display:flex;gap:10px">
+              <span style="color:#34D399;font-weight:800;font-size:0.9rem;flex-shrink:0">✓</span>
+              <p style="font-size:0.85rem;color:rgba(255,255,255,0.7);line-height:1.5"><strong style="color:#fff">Register through Blacknight.com</strong> — Ireland's largest registrar. Much better than Network Solutions for .ie domains. Fast, Irish-based support.</p>
+            </div>
+            <div style="display:flex;gap:10px">
+              <span style="color:#34D399;font-weight:800;font-size:0.9rem;flex-shrink:0">✓</span>
+              <p style="font-size:0.85rem;color:rgba(255,255,255,0.7);line-height:1.5"><strong style="color:#fff">We handle the DNS.</strong> Once you register, point it to us — we configure everything. Takes about 10 minutes on your end.</p>
+            </div>
+            <div style="display:flex;gap:10px">
+              <span style="color:#F59E0B;font-weight:800;font-size:0.9rem;flex-shrink:0">!</span>
+              <p style="font-size:0.85rem;color:rgba(255,255,255,0.7);line-height:1.5"><strong style="color:#fff">Do this in Week 1.</strong> DNS propagation takes 24–48 hours — the sooner you register, the sooner we can point it live.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 12: PRICING ══ -->
+  <div id="s12" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word" style="color:rgba(255,255,255,0.5)">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">Investment</div>
+      <h2 class="sh2">Simple, honest pricing — less than €2 a day 💰</h2>
+      <p class="intro">No hidden fees. No surprise bills. Everything you need to be found, to look great, and to answer every question.</p>
+      <div class="s10-cards">
+        <div class="s10-card main">
+          <div class="s10-label">One-time setup</div>
+          <div class="s10-price"><span class="s10-eur">€</span><span class="s10-amount">100</span></div>
+          <div class="s10-per">deposit today · secures your build</div>
+          <div class="s10-desc">Gets your design and build underway. Remaining balance settled on go-live.</div>
+          <ul class="s10-list">
+            <li>Custom website from your chosen design</li>
+            <li>Real photos, menus and reviews built in</li>
+            <li>AI assistant trained on your content</li>
+            <li>Full SEO &amp; schema setup</li>
+          </ul>
+        </div>
+        <div class="s10-card secondary">
+          <div class="s10-label">Monthly (min. 3 months)</div>
+          <div class="s10-price"><span class="s10-eur">€</span><span class="s10-amount">49</span></div>
+          <div class="s10-per">per month · rolling after month 3</div>
+          <div class="s10-desc">Hosting, AI, portal, updates and support — all in. Cancel any time after month 3.</div>
+          <ul class="s10-list">
+            <li>Hosting &amp; uptime included</li>
+            <li>Maeve AI receptionist included</li>
+            <li>Self-service content portal</li>
+            <li>Lead capture dashboard</li>
+            <li>Support &amp; updates</li>
+          </ul>
+        </div>
+      </div>
+      <div class="s10-note">
+        💡 <strong>50 calls a month?</strong> That's less than €1 per customer touchpoint your website handles for you — all day, every day.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 13: REFERRAL ══ -->
+  <div id="s13" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word">Sprimal</span>
+    </div>
+    <div style="margin-top:68px">
+      <div class="eyebrow">The referral programme</div>
+      <h2 class="sh2">Refer a business. Earn every month. 🤝</h2>
+      <p class="intro">Kinsale is a tight-knit town. You know every café, guesthouse and restaurant owner. That local network is worth something — and we want to reward it.</p>
+      <div class="s11-two">
+        <div class="s11-steps">
+          <div class="s11-step">
+            <div class="s11-num">1</div>
+            <div>
+              <h3>You get a personal referral code</h3>
+              <p>Unique to you — e.g. <strong>ref=cosycafe</strong>. Share it with any business owner you think would benefit.</p>
+            </div>
+          </div>
+          <div class="s11-step">
+            <div class="s11-num">2</div>
+            <div>
+              <h3>They sign up using your code</h3>
+              <p>Any local business — café, guesthouse, restaurant, pub, tourist attraction. Not just food &amp; drink.</p>
+            </div>
+          </div>
+          <div class="s11-step">
+            <div class="s11-num">3</div>
+            <div>
+              <h3>You earn 15% every month they stay</h3>
+              <p>Not a one-off. A monthly recurring payment for as long as they remain a customer. Passive income.</p>
+            </div>
+          </div>
+        </div>
+        <div class="s11-calc">
+          <h3>💶 The numbers</h3>
+          <div class="s11-row"><label>Monthly fee per business</label><span>€49</span></div>
+          <div class="s11-row"><label>Your 15% share</label><span class="green">€7.35 / month</span></div>
+          <div class="s11-row"><label>3 referrals earning</label><span class="green">€22/month</span></div>
+          <div class="s11-row"><label>7 referrals earning</label><span class="big">€51.45</span></div>
+          <div class="s11-free">
+            <p>Refer just <strong>7 businesses</strong> and your own platform is effectively <strong>free forever</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 14: CTA ══ -->
+  <div id="s14" class="slide">
+    <div class="logo-mark">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="11" r="4.5" fill="white"/><circle cx="38.5" cy="36" r="4.5" fill="white"/><circle cx="9.5" cy="36" r="4.5" fill="white"/></svg>
+      <span class="logo-word" style="color:rgba(255,255,255,0.5)">Sprimal</span>
+    </div>
+    <div style="margin-top:100px; max-width:680px">
+      <div class="eyebrow">Next steps</div>
+      <h1 class="sh1">Let's get <em>started</em> today. 🚀</h1>
+      <div class="s14-steps">
+        <div class="s14-step">
+          <div class="s14-n">1</div>
+          <p><strong>Choose your design</strong> — pick The Local, Modern Artisan, Dark Roast or Wild Atlantic</p>
+        </div>
+        <div class="s14-step">
+          <div class="s14-n">2</div>
+          <p><strong>€100 deposit today</strong> — secures your build slot and kicks off Week One</p>
+        </div>
+        <div class="s14-step">
+          <div class="s14-n">3</div>
+          <p><strong>Live in 4 weeks</strong> — dedicated environment, zero downtime, your sign-off before anything goes public</p>
+        </div>
+        <div class="s14-step">
+          <div class="s14-n">4</div>
+          <p><strong>Refer a business</strong> — get your personal code, share it, earn €7.35/month per referral that sticks</p>
+        </div>
+      </div>
+      <div class="s14-contact">
+        <div class="s14-ci"><label>Email</label><a href="mailto:oriordann@gmail.com">oriordann@gmail.com</a></div>
+        <div class="s14-ci"><label>Platform</label><a href="https://app.sprimal.com" target="_blank">app.sprimal.com</a></div>
+        <div class="s14-ci"><label>Live preview</label><a href="https://app.sprimal.com/cosy-cafe-designs.html" target="_blank">cosy-cafe-designs.html</a></div>
+      </div>
+    </div>
+    <div class="s14-line"></div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- BOTTOM NAV -->
+<div id="nav">
+  <div class="nav-brand">
+    <svg width="18" height="18" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="11" fill="#4f76f6"/><line x1="24" y1="11" x2="38.5" y2="36" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="38.5" y1="36" x2="9.5" y2="36" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="9.5" y1="36" x2="24" y2="11" stroke="white" stroke-width="2.5" stroke-linecap="round"/><circle cx="24" cy="11" r="4" fill="white"/><circle cx="38.5" cy="36" r="4" fill="white"/><circle cx="9.5" cy="36" r="4" fill="white"/></svg>
+    <span class="nav-brand-text">Sprimal · Cosy Café Proposal 2026</span>
+  </div>
+  <div class="nav-dots" id="dots"></div>
+  <div class="nav-right">
+    <button class="nbtn" onclick="prev()">← Prev</button>
+    <span class="nav-ctr" id="ctr">1 / 14</span>
+    <button class="nbtn" onclick="next()">Next →</button>
+    <button class="nbtn" onclick="fs()" title="Fullscreen (F)">⛶</button>
+  </div>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total  = slides.length;
+  let cur = 0;
+
+  // Build dots
+  const dotsEl = document.getElementById('dots');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    d.onclick = () => goTo(i);
+    dotsEl.appendChild(d);
+  });
+
+  function goTo(n, dir) {
+    if (n < 0 || n >= total) return;
+    slides[cur].classList.remove('active');
+    slides[cur].classList.add('exit');
+    setTimeout(() => slides[cur].classList.remove('exit'), 400);
+    cur = n;
+    slides[cur].classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('on', i === cur));
+    document.getElementById('ctr').textContent = (cur + 1) + ' / ' + total;
+  }
+
+  function next() { goTo(cur + 1); }
+  function prev() { goTo(cur - 1); }
+
+  function fs() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    { e.preventDefault(); prev(); }
+    if (e.key === 'f' || e.key === 'F') fs();
+  });
+
+  // Swipe support
+  let tx = 0;
+  document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+  document.addEventListener('touchend',   e => {
+    const dx = tx - e.changedTouches[0].clientX;
+    if (Math.abs(dx) > 50) dx > 0 ? next() : prev();
+  });
+</script>
+</body>
+</html>

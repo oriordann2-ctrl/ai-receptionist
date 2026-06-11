@@ -1338,7 +1338,25 @@ const INTEGRATION_CATALOG = [
     name:           "Mailchimp",
     logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#FFE01B;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto;">🐒</div>',
     description:    "Email marketing and newsletters",
-    business_types: null,
+    business_types: ["tennis_club", "squash_club", "badminton_club", "gym", "yoga_studio", "pilates_studio", "crossfit_box", "swimming_club", "cycling_club", "running_club", "golf_club", "other"],
+    coming_soon:    true,
+    fields:         []
+  },
+  {
+    provider:       "clubforce",
+    name:           "Clubforce",
+    logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#0057A8;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:13px;font-family:sans-serif;margin:0 auto;">CF</div>',
+    description:    "Membership management and online payments for GAA clubs",
+    business_types: ["gaa_club", "team_sports_club"],
+    coming_soon:    true,
+    fields:         []
+  },
+  {
+    provider:       "foireann",
+    name:           "Foireann",
+    logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#009A44;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:13px;font-family:sans-serif;margin:0 auto;">GAA</div>',
+    description:    "GAA player registration and club administration",
+    business_types: ["gaa_club"],
     coming_soon:    true,
     fields:         []
   }
@@ -15062,7 +15080,7 @@ function buildTenantSiteHtml(tenant) {
   const palettes = {
     gaa_club:         { primary: "#14532d", accent: "#166534", light: "#f0fdf4" },
     team_sports_club: { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff" },
-    tennis_club:      { primary: "#14532d", accent: "#eab308", light: "#f0fdf4" },
+    tennis_club:      { primary: "#0d2060", accent: "#c9a720", light: "#f0f5ff" },
     golf_club:        { primary: "#1a3a1a", accent: "#a16207", light: "#fefce8" },
     cafe:             { primary: "#78350f", accent: "#f59e0b", light: "#fffbeb" },
     fitness_studio:   { primary: "#111827", accent: "#7c3aed", light: "#f5f3ff" },
@@ -15076,7 +15094,7 @@ function buildTenantSiteHtml(tenant) {
 
   // ── Shared building blocks ────────────────────────────────────────────────
   const logoImg = logo
-    ? `<img src="${logo}" alt="${name}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;background:white;padding:5px;box-shadow:0 2px 16px rgba(0,0,0,0.22);margin-bottom:18px;">`
+    ? `<img src="${logo}" alt="${name}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;background:white;padding:5px;box-shadow:0 2px 16px rgba(0,0,0,0.22);margin-bottom:18px;" onerror="this.outerHTML='<div style=\\'width:88px;height:88px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:18px;\\'>🏆</div>'">`
     : `<div style="width:88px;height:88px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:18px;">🏆</div>`;
 
   const chatUrl  = `https://app.sprimal.com/chat/${tid}`;
@@ -15391,47 +15409,205 @@ ${widgetScript}</body></html>`;
 
   // ── TENNIS CLUB ──────────────────────────────────────────────────────────
   if (btype === "tennis_club") {
-    return baseHead() + stickyBar + `
+    const navy     = "#0d2060";
+    const navyDark = "#060e33";
+    const ball     = "#c8f500";
+    const ocean    = "#1e6fba";
 
-<section style="background:linear-gradient(160deg,${primary} 0%,#052e16 100%);color:white;padding:70px 24px 56px;text-align:center;">
-  ${logoImg}
-  <div class="badge">Tennis Ireland Affiliated</div>
-  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 10px;">${name}</h1>
-  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:0 auto 20px;line-height:1.6;">${desc}</p>` : ""}
-  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-    <a href="${chatUrl}" class="cta-primary">🎾 Book a court</a>
-    <a href="${chatUrl}" class="cta-secondary">Join the club</a>
+    const tnLogoImg = logo
+      ? `<img src="${logo}" alt="${name}" style="width:110px;height:110px;border-radius:50%;object-fit:contain;background:white;padding:9px;box-shadow:0 4px 24px rgba(0,0,0,0.3);margin:0 auto 20px;display:block;" onerror="this.outerHTML='<div style=\\'width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:46px;margin:0 auto 20px;\\'>🎾</div>'">`
+      : `<div style="width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:46px;margin:0 auto 20px;">🎾</div>`;
+
+    const tnStyles = `<style>
+  .tn-nav{position:sticky;top:0;z-index:100;background:${navyDark};display:flex;align-items:center;justify-content:space-between;padding:10px 24px;box-shadow:0 2px 12px rgba(6,14,51,0.5);}
+  .tn-nav-left{display:flex;align-items:center;gap:10px;}
+  .tn-nav-logo{width:38px;height:38px;border-radius:50%;object-fit:contain;background:white;padding:3px;}
+  .tn-nav-name{color:white;font-weight:900;font-size:15px;}
+  .tn-nav-book{background:${ball};color:${navyDark};font-weight:900;text-decoration:none;padding:9px 18px;border-radius:8px;font-size:13px;white-space:nowrap;}
+  .tn-hero{position:relative;min-height:88vh;display:flex;align-items:center;justify-content:center;text-align:center;color:white;padding:80px 24px 90px;background:linear-gradient(165deg,rgba(6,14,51,0.90) 0%,rgba(13,32,96,0.75) 55%,rgba(30,111,186,0.65) 100%)${heroImg ? `,url(${heroImg}) center/cover no-repeat` : ""};}
+  .tn-hero-inner{max-width:680px;margin:0 auto;position:relative;z-index:1;}
+  .tn-badge{display:inline-block;background:rgba(200,245,0,0.14);border:1px solid rgba(200,245,0,0.45);color:${ball};padding:5px 14px;border-radius:20px;font-size:12px;font-weight:800;letter-spacing:0.1em;margin-bottom:18px;}
+  .tn-h1{font-size:42px;font-weight:900;letter-spacing:-0.5px;line-height:1.12;margin-bottom:14px;}
+  .tn-h1 span{color:${ball};}
+  .tn-desc{font-size:16px;opacity:0.8;max-width:520px;margin:0 auto 30px;line-height:1.7;}
+  .tn-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+  .tn-cta-p{background:${ball};color:${navyDark};font-weight:900;text-decoration:none;padding:15px 30px;border-radius:10px;font-size:15px;}
+  .tn-cta-s{background:rgba(255,255,255,0.13);color:white;font-weight:700;text-decoration:none;padding:15px 30px;border-radius:10px;font-size:15px;border:1.5px solid rgba(255,255,255,0.38);}
+  .tn-wave{position:absolute;bottom:-2px;left:0;right:0;line-height:0;}
+  .tn-strip{background:${navy};padding:18px 24px;}
+  .tn-strip-inner{max-width:900px;margin:0 auto;display:flex;justify-content:center;flex-wrap:wrap;}
+  .tn-stat{color:white;text-align:center;padding:10px 24px;border-right:1px solid rgba(255,255,255,0.1);}
+  .tn-stat:last-child{border-right:none;}
+  .tn-stat-n{font-size:22px;font-weight:900;color:${ball};line-height:1;}
+  .tn-stat-l{font-size:11px;color:rgba(255,255,255,0.55);font-weight:600;letter-spacing:0.06em;margin-top:4px;}
+  .tn-book-box{background:linear-gradient(135deg,${ocean} 0%,${navy} 100%);border-radius:18px;padding:44px 32px;color:white;text-align:center;}
+  .tn-book-btn{display:inline-block;background:${ball};color:${navyDark};font-weight:900;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:15px;}
+  .tn-card{background:white;border-radius:14px;padding:26px;box-shadow:0 2px 14px rgba(13,32,96,0.08);}
+  .tn-grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .tn-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+  .tn-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .tn-tier{background:white;border-radius:13px;padding:22px 16px;text-align:center;box-shadow:0 2px 10px rgba(13,32,96,0.07);border:2px solid transparent;}
+  .tn-tier.feat{border-color:${navy};}
+  .tn-tier-badge{background:${navy};color:white;font-size:10px;font-weight:800;padding:3px 9px;border-radius:6px;display:inline-block;margin-bottom:9px;}
+  .tn-coach-card{background:white;border-radius:13px;padding:26px;box-shadow:0 2px 10px rgba(13,32,96,0.07);border-top:4px solid ${navy};}
+  .tn-slabel{font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:${ocean};margin-bottom:8px;}
+  .tn-h2{font-size:26px;font-weight:900;color:#0d1a3a;margin-bottom:10px;line-height:1.2;}
+  .tn-sub{color:#5a6a8a;font-size:15px;line-height:1.7;margin-bottom:28px;max-width:540px;}
+  .tn-ai-box{background:linear-gradient(135deg,${navy} 0%,#1a3080 100%);border-radius:18px;padding:44px 32px;color:white;text-align:center;}
+  .tn-chip{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;display:inline-block;margin:4px;}
+  .tn-social-btn{display:inline-flex;align-items:center;gap:8px;background:white;border:1.5px solid #dde3f0;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:700;color:#0d1a3a;text-decoration:none;margin:5px;}
+  @media(max-width:680px){.tn-h1{font-size:28px!important}.tn-grid2,.tn-grid3,.tn-grid4{grid-template-columns:1fr!important}.tn-strip-inner{gap:0}}
+</style>`;
+
+    return baseHead(tnStyles) + `
+
+<nav class="tn-nav">
+  <div class="tn-nav-left">
+    ${logo ? `<img class="tn-nav-logo" src="${logo}" alt="${name}" onerror="this.style.display='none'">` : ""}
+    <span class="tn-nav-name">${name}</span>
   </div>
-</section>
+  <a class="tn-nav-book" href="${chatUrl}">🎾 Book a Court</a>
+</nav>
 
-${aboutSection}
-
-<section style="background:${light};padding:50px 24px;">
-  <div style="max-width:800px;margin:0 auto;">
-    <div class="section-label" style="text-align:center;">Membership</div>
-    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:10px;">Join ${name}</h2>
-    <p style="text-align:center;color:#6b7280;margin-bottom:28px;">All abilities welcome. Ask our assistant for current rates.</p>
-    <div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
-      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🧑</div><div style="font-weight:700;font-size:14px;">Adult</div></div>
-      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🎓</div><div style="font-weight:700;font-size:14px;">Student</div></div>
-      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👨‍👩‍👧‍👦</div><div style="font-weight:700;font-size:14px;">Family</div></div>
-      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👶</div><div style="font-weight:700;font-size:14px;">Junior</div></div>
+<section class="tn-hero">
+  <div class="tn-hero-inner">
+    ${tnLogoImg}
+    <div class="tn-badge">🏆 Tennis Ireland Affiliated</div>
+    <h1 class="tn-h1">${name}<br><span>Tennis Club</span></h1>
+    ${desc ? `<p class="tn-desc">${desc}</p>` : ""}
+    <div class="tn-btns">
+      <a href="${chatUrl}" class="tn-cta-p">🎾 Book a Court</a>
+      <a href="${chatUrl}" class="tn-cta-s">Join the Club</a>
     </div>
-    <div style="text-align:center;"><a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 28px;border-radius:9px;font-size:15px;font-weight:700;">Ask about membership →</a></div>
+  </div>
+  <div class="tn-wave">
+    <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="width:100%;height:60px;display:block;"><path d="M0,30 C240,60 480,0 720,30 C960,60 1200,0 1440,30 L1440,60 L0,60 Z" fill="${navyDark}"/></svg>
   </div>
 </section>
 
-<section style="padding:50px 24px;background:white;">
-  <div style="max-width:700px;margin:0 auto;text-align:center;">
-    <div style="font-size:28px;margin-bottom:10px;">🏓</div>
-    <div class="section-label">Junior Programme</div>
-    <h2 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:10px;">Tennis for kids</h2>
-    <p style="color:#6b7280;font-size:15px;line-height:1.6;margin-bottom:20px;">We run junior coaching terms throughout the year for all ages and abilities. Ask our assistant for term dates, costs and how to register.</p>
-    <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;">Register a junior →</a>
+<div class="tn-strip">
+  <div class="tn-strip-inner">
+    <div class="tn-stat"><div class="tn-stat-n">🌧️</div><div class="tn-stat-l">All-Weather Courts</div></div>
+    <div class="tn-stat"><div class="tn-stat-n">💡</div><div class="tn-stat-l">Floodlit Play</div></div>
+    <div class="tn-stat"><div class="tn-stat-n">🏆</div><div class="tn-stat-l">Coaching for All Levels</div></div>
+    <div class="tn-stat"><div class="tn-stat-n">👶</div><div class="tn-stat-l">Junior &amp; Summer Camps</div></div>
+    <div class="tn-stat"><div class="tn-stat-n">🏅</div><div class="tn-stat-l">Winter &amp; Regional Leagues</div></div>
+  </div>
+</div>
+
+<section style="background:${navyDark};padding:56px 24px;">
+  <div style="max-width:860px;margin:0 auto;">
+    <div class="tn-book-box">
+      <div style="font-size:44px;margin-bottom:14px;">🎾</div>
+      <h2 style="font-size:28px;font-weight:900;margin-bottom:10px;">Book a Court Online</h2>
+      <p style="font-size:15px;opacity:0.85;max-width:460px;margin:0 auto 24px;line-height:1.65;">Reserve your court in seconds — choose your slot, confirm and you're on. Available for members 24/7.</p>
+      <a href="${chatUrl}" class="tn-book-btn">Check availability →</a>
+    </div>
   </div>
 </section>
 
-${aiSection("Ask about court booking, membership rates, coaching, junior programmes and fixtures.")}
+${desc ? `
+<section style="background:white;padding:60px 24px;">
+  <div style="max-width:860px;margin:0 auto;">
+    <div class="tn-slabel">About the Club</div>
+    <h2 class="tn-h2">Welcome to ${name}</h2>
+    <p style="color:#5a6a8a;font-size:16px;line-height:1.75;max-width:640px;">${desc}</p>
+  </div>
+</section>` : ""}
+
+<section style="background:#f0f5ff;padding:60px 24px;" id="membership">
+  <div style="max-width:860px;margin:0 auto;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div class="tn-slabel">Membership</div>
+      <h2 class="tn-h2">Join ${name}</h2>
+      <p class="tn-sub" style="margin:0 auto;">All abilities welcome. Ask our assistant for current rates and how to register.</p>
+    </div>
+    <div class="tn-grid4" style="margin-bottom:28px;">
+      <div class="tn-tier feat"><div class="tn-tier-badge">Most Popular</div><div style="font-size:26px;margin-bottom:8px;">🧑</div><div style="font-weight:900;font-size:14px;color:#0d1a3a;margin-bottom:4px;">Adult</div><div style="font-size:13px;color:#5a6a8a;">Full court access, leagues &amp; social events</div></div>
+      <div class="tn-tier"><div style="font-size:26px;margin-bottom:8px;">👨‍👩‍👧‍👦</div><div style="font-weight:900;font-size:14px;color:#0d1a3a;margin-bottom:4px;">Family</div><div style="font-size:13px;color:#5a6a8a;">Two adults plus all children under 18</div></div>
+      <div class="tn-tier"><div style="font-size:26px;margin-bottom:8px;">🎓</div><div style="font-weight:900;font-size:14px;color:#0d1a3a;margin-bottom:4px;">Student</div><div style="font-size:13px;color:#5a6a8a;">Reduced rate for full-time students</div></div>
+      <div class="tn-tier"><div style="font-size:26px;margin-bottom:8px;">👶</div><div style="font-weight:900;font-size:14px;color:#0d1a3a;margin-bottom:4px;">Junior</div><div style="font-size:13px;color:#5a6a8a;">Under 18s — includes junior coaching</div></div>
+    </div>
+    <div style="text-align:center;"><a href="${chatUrl}" style="display:inline-block;background:${navy};color:white;text-decoration:none;padding:13px 28px;border-radius:10px;font-size:15px;font-weight:800;">Ask about membership rates →</a></div>
+  </div>
+</section>
+
+<section style="background:white;padding:60px 24px;" id="coaching">
+  <div style="max-width:860px;margin:0 auto;">
+    <div class="tn-slabel">Coaching</div>
+    <h2 class="tn-h2">Improve Your Game</h2>
+    <p class="tn-sub">Coaching caters for complete beginners through to competitive players — throughout the year for adults and juniors.</p>
+    <div class="tn-grid3" style="margin-bottom:28px;">
+      <div class="tn-coach-card"><div style="font-size:28px;margin-bottom:10px;">🏃</div><h3 style="font-size:16px;font-weight:900;color:#0d1a3a;margin-bottom:7px;">Group Lessons</h3><p style="font-size:14px;color:#5a6a8a;line-height:1.65;margin-bottom:12px;">Small group coaching for adults of all levels — beginners, improvers and advanced.</p><a href="${chatUrl}" style="color:${ocean};font-size:13px;font-weight:800;text-decoration:none;">Find a group →</a></div>
+      <div class="tn-coach-card"><div style="font-size:28px;margin-bottom:10px;">🎯</div><h3 style="font-size:16px;font-weight:900;color:#0d1a3a;margin-bottom:7px;">Private Coaching</h3><p style="font-size:14px;color:#5a6a8a;line-height:1.65;margin-bottom:12px;">One-to-one sessions tailored to your game — ideal for fast improvement or league prep.</p><a href="${chatUrl}" style="color:${ocean};font-size:13px;font-weight:800;text-decoration:none;">Book a session →</a></div>
+      <div class="tn-coach-card"><div style="font-size:28px;margin-bottom:10px;">☀️</div><h3 style="font-size:16px;font-weight:900;color:#0d1a3a;margin-bottom:7px;">Summer Camps</h3><p style="font-size:14px;color:#5a6a8a;line-height:1.65;margin-bottom:12px;">Week-long junior camps during school holidays. All equipment provided — places fill fast.</p><a href="${chatUrl}" style="color:${ocean};font-size:13px;font-weight:800;text-decoration:none;">Register a place →</a></div>
+    </div>
+  </div>
+</section>
+
+<section style="background:#e8f4fd;padding:56px 24px;">
+  <div style="max-width:720px;margin:0 auto;text-align:center;">
+    <div style="font-size:40px;margin-bottom:14px;">🧒</div>
+    <div class="tn-slabel">Junior Programme</div>
+    <h2 class="tn-h2">Tennis for Every Age</h2>
+    <p style="color:#5a6a8a;font-size:15px;line-height:1.75;margin-bottom:28px;max-width:540px;margin-left:auto;margin-right:auto;">From mini tennis for young children through to competitive underage leagues — qualified, Garda-vetted coaches run programmes year-round.</p>
+    <div class="tn-grid3" style="margin-bottom:26px;text-align:left;">
+      <div class="tn-card" style="text-align:center;border-top:4px solid #4caf50;"><div style="font-size:22px;margin-bottom:8px;">🟢</div><div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#0d1a3a;">Mini Tennis</div><div style="font-size:13px;color:#5a6a8a;">Ages 4–8. Fun first.</div></div>
+      <div class="tn-card" style="text-align:center;border-top:4px solid ${ocean};"><div style="font-size:22px;margin-bottom:8px;">🟡</div><div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#0d1a3a;">Development</div><div style="font-size:13px;color:#5a6a8a;">Ages 8–14. Skills &amp; match play.</div></div>
+      <div class="tn-card" style="text-align:center;border-top:4px solid ${navy};"><div style="font-size:22px;margin-bottom:8px;">🔴</div><div style="font-weight:900;font-size:14px;margin-bottom:4px;color:#0d1a3a;">Competitive</div><div style="font-size:13px;color:#5a6a8a;">Ages 14–18. Leagues &amp; tournaments.</div></div>
+    </div>
+    <a href="${chatUrl}" style="display:inline-block;background:${navy};color:white;font-weight:900;text-decoration:none;padding:13px 28px;border-radius:10px;font-size:14px;">Register your child →</a>
+    <p style="margin-top:14px;font-size:12px;color:#5a6a8a;">Child Safeguarding Statement available on request.</p>
+  </div>
+</section>
+
+<section style="background:white;padding:56px 24px;">
+  <div style="max-width:860px;margin:0 auto;">
+    <div class="tn-slabel">Competition</div>
+    <h2 class="tn-h2">Leagues &amp; Match Play</h2>
+    <p class="tn-sub">Teams at multiple levels — there's a place for every standard of player.</p>
+    <div class="tn-grid2">
+      <div class="tn-card" style="border-left:5px solid ${navy};"><div style="font-size:30px;margin-bottom:10px;">🏆</div><h3 style="font-size:17px;font-weight:900;color:#0d1a3a;margin-bottom:7px;">Winter League</h3><p style="font-size:14px;color:#5a6a8a;line-height:1.65;">Ladies, Mens and Mixed teams across multiple grades. Ask our assistant about the current schedule.</p></div>
+      <div class="tn-card" style="border-left:5px solid ${ocean};"><div style="font-size:30px;margin-bottom:10px;">🌍</div><h3 style="font-size:17px;font-weight:900;color:#0d1a3a;margin-bottom:7px;">Regional League</h3><p style="font-size:14px;color:#5a6a8a;line-height:1.65;">Munster and national competitions across multiple grades — ask about trials and selection.</p></div>
+    </div>
+  </div>
+</section>
+
+${igSection}
+${fbSection}
+
+<section style="background:${navyDark};padding:56px 24px;">
+  <div style="max-width:680px;margin:0 auto;">
+    <div class="tn-ai-box">
+      <div style="font-size:36px;margin-bottom:12px;">🤖</div>
+      <h2 style="font-size:24px;font-weight:900;margin-bottom:10px;">Ask Our Club Assistant</h2>
+      <p style="font-size:15px;opacity:0.8;max-width:440px;margin:0 auto 20px;line-height:1.65;">Instant answers about court booking, membership, coaching, junior programmes and fixtures — 24/7.</p>
+      <div style="margin-bottom:22px;">
+        <span class="tn-chip">Book a court</span>
+        <span class="tn-chip">Membership rates</span>
+        <span class="tn-chip">Summer camps</span>
+        <span class="tn-chip">Junior coaching</span>
+        <span class="tn-chip">League fixtures</span>
+      </div>
+      <a href="${chatUrl}" style="display:inline-block;background:${ball};color:${navyDark};font-weight:900;text-decoration:none;padding:13px 28px;border-radius:10px;font-size:14px;">Chat with our assistant →</a>
+    </div>
+  </div>
+</section>
+
+${(fbUrl || igHandle || twHandle) ? `
+<section style="background:white;padding:48px 24px;text-align:center;">
+  <div style="max-width:500px;margin:0 auto;">
+    <div class="tn-slabel">Follow Us</div>
+    <h2 class="tn-h2">Stay in the Loop</h2>
+    <p style="color:#5a6a8a;font-size:15px;line-height:1.6;margin-bottom:20px;">Match reports, fixtures, news and events — follow us across our channels.</p>
+    <div>
+      ${fbUrl    ? `<a class="tn-social-btn" href="${fbUrl}" target="_blank" rel="noopener">📘 Facebook</a>` : ""}
+      ${igHandle ? `<a class="tn-social-btn" href="https://instagram.com/${igHandle}" target="_blank" rel="noopener">📷 @${igHandle}</a>` : ""}
+      ${twHandle ? `<a class="tn-social-btn" href="https://twitter.com/${twHandle}" target="_blank" rel="noopener">🐦 @${twHandle}</a>` : ""}
+    </div>
+  </div>
+</section>` : ""}
+
 ${contactSection}
 ${footer("Tennis Ireland Affiliated Club", "https://www.tennisireland.ie")}
 <p style="text-align:center;font-size:11px;color:#9ca3af;padding:12px;background:#111827;">Child Safeguarding Statement available on request</p>

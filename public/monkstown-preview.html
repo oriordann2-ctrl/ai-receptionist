@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monkstown LTCC — Tennis &amp; Croquet Since 1880</title>
+  <style>
+    :root {
+      --navy:       #0d2060;
+      --navy-dark:  #060e33;
+      --navy-mid:   #1a3080;
+      --yellow:     #c8f500;
+      --yellow-dark:#a0c200;
+      --ocean:      #1e6fba;
+      --ocean-light:#e8f4fd;
+      --light:      #f0f5ff;
+      --text:       #0d1a3a;
+      --muted:      #5a6a8a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: var(--text); line-height: 1.5; }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; }
+
+    /* ── Nav ── */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--navy-dark);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 28px;
+      box-shadow: 0 2px 16px rgba(6,14,51,0.5);
+    }
+    .nav-left { display: flex; align-items: center; gap: 12px; }
+    .nav-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: contain; background: white; padding: 3px; }
+    .nav-name { color: white; font-weight: 900; font-size: 15px; letter-spacing: -0.2px; }
+    .nav-est  { color: rgba(255,255,255,0.45); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; }
+    .nav-right { display: flex; gap: 10px; align-items: center; }
+    .nav-book { background: var(--yellow); color: var(--navy-dark); font-weight: 900; padding: 9px 20px; border-radius: 8px; font-size: 13px; white-space: nowrap; }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative; min-height: 92vh;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; color: white; padding: 80px 24px 100px;
+      background:
+        linear-gradient(175deg, rgba(6,14,51,0.88) 0%, rgba(13,32,96,0.72) 55%, rgba(30,111,186,0.65) 100%),
+        url('https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=1600&q=80&fit=crop') center/cover no-repeat;
+    }
+    .hero-inner { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
+    .hero-logo { width: 120px; height: 120px; border-radius: 50%; object-fit: contain; background: white; padding: 10px; box-shadow: 0 6px 30px rgba(0,0,0,0.4); margin: 0 auto 22px; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(200,245,0,0.15); border: 1px solid rgba(200,245,0,0.5); color: var(--yellow); padding: 6px 16px; border-radius: 24px; font-size: 12px; font-weight: 800; letter-spacing: 0.1em; margin-bottom: 20px; }
+    .hero h1 { font-size: 48px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; margin-bottom: 10px; }
+    .hero h1 span { color: var(--yellow); }
+    .hero-tagline { font-size: 19px; opacity: 0.8; font-weight: 400; margin-bottom: 16px; letter-spacing: 0.02em; }
+    .hero-desc { font-size: 16px; opacity: 0.75; max-width: 540px; margin: 0 auto 34px; line-height: 1.7; }
+    .hero-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .cta-primary { background: var(--yellow); color: var(--navy-dark); font-weight: 900; padding: 16px 32px; border-radius: 10px; font-size: 15px; }
+    .cta-secondary { background: rgba(255,255,255,0.12); color: white; font-weight: 700; padding: 16px 32px; border-radius: 10px; font-size: 15px; border: 1.5px solid rgba(255,255,255,0.35); }
+    /* Wave divider */
+    .wave-bottom { position: absolute; bottom: -2px; left: 0; right: 0; line-height: 0; }
+
+    /* ── Stats strip ── */
+    .strip { background: var(--navy); padding: 20px 28px; }
+    .strip-inner { max-width: 900px; margin: 0 auto; display: flex; justify-content: center; gap: 0; flex-wrap: wrap; }
+    .strip-item { color: white; text-align: center; padding: 10px 28px; border-right: 1px solid rgba(255,255,255,0.1); }
+    .strip-item:last-child { border-right: none; }
+    .strip-num { font-size: 26px; font-weight: 900; color: var(--yellow); line-height: 1; }
+    .strip-label { font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; letter-spacing: 0.06em; margin-top: 4px; }
+
+    /* ── Sections ── */
+    .section { padding: 64px 24px; }
+    .section-inner { max-width: 880px; margin: 0 auto; }
+    .section-label { font-size: 11px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: var(--ocean); margin-bottom: 8px; }
+    .section-title { font-size: 30px; font-weight: 900; color: var(--text); margin-bottom: 12px; line-height: 1.2; }
+    .section-sub { color: var(--muted); font-size: 15px; line-height: 1.7; margin-bottom: 32px; max-width: 560px; }
+    .light-bg { background: var(--light); }
+    .ocean-bg { background: var(--ocean-light); }
+    .navy-bg  { background: var(--navy-dark); color: white; }
+    .white-bg { background: white; }
+
+    /* ── Cards ── */
+    .card { background: white; border-radius: 16px; padding: 28px; box-shadow: 0 2px 16px rgba(13,32,96,0.08); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+
+    /* ── Booking ── */
+    .booking-box { background: linear-gradient(135deg, var(--ocean) 0%, var(--navy) 100%); border-radius: 20px; padding: 48px 36px; color: white; text-align: center; }
+    .booking-box h2 { font-size: 30px; font-weight: 900; margin-bottom: 12px; }
+    .booking-box p { font-size: 16px; opacity: 0.85; max-width: 480px; margin: 0 auto 26px; line-height: 1.65; }
+    .booking-btn { display: inline-block; background: var(--yellow); color: var(--navy-dark); font-weight: 900; padding: 15px 34px; border-radius: 10px; font-size: 15px; }
+
+    /* ── About / location ── */
+    .about-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
+    .about-image { border-radius: 20px; overflow: hidden; position: relative; }
+    .about-img-main {
+      width: 100%; height: 360px; object-fit: cover;
+      background:
+        linear-gradient(180deg, rgba(13,32,96,0.2) 0%, rgba(30,111,186,0.4) 100%),
+        url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80&fit=crop') center/cover no-repeat;
+    }
+    .location-tag { position: absolute; bottom: 16px; left: 16px; background: rgba(6,14,51,0.85); color: white; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+
+    /* ── Membership tiers ── */
+    .tier { background: white; border-radius: 14px; padding: 24px 18px; text-align: center; box-shadow: 0 2px 12px rgba(13,32,96,0.07); border: 2px solid transparent; transition: border-color .2s; }
+    .tier:hover { border-color: var(--ocean); }
+    .tier.featured { border-color: var(--navy); }
+    .tier-badge { background: var(--navy); color: white; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 6px; display: inline-block; margin-bottom: 10px; }
+    .tier-icon { font-size: 28px; margin-bottom: 10px; }
+    .tier-name { font-size: 15px; font-weight: 900; color: var(--text); margin-bottom: 5px; }
+    .tier-desc { font-size: 13px; color: var(--muted); line-height: 1.55; }
+
+    /* ── Coaching ── */
+    .coaching-card { background: white; border-radius: 14px; padding: 28px; box-shadow: 0 2px 12px rgba(13,32,96,0.07); border-top: 4px solid var(--navy); }
+    .coaching-card h3 { font-size: 17px; font-weight: 900; color: var(--text); margin-bottom: 8px; }
+    .coaching-card p { font-size: 14px; color: var(--muted); line-height: 1.65; margin-bottom: 14px; }
+    .coaching-link { color: var(--ocean); font-size: 13px; font-weight: 800; }
+
+    /* ── Photo gallery ── */
+    .gallery-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; border-radius: 16px; overflow: hidden; }
+    .gallery-cell {
+      aspect-ratio: 1; background: var(--light);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 24px; overflow: hidden; position: relative;
+    }
+    .gallery-cell img { width: 100%; height: 100%; object-fit: cover; }
+    .gallery-overlay { position: absolute; inset: 0; background: rgba(13,32,96,0); display: flex; align-items: center; justify-content: center; transition: background .2s; }
+    .gallery-cell:hover .gallery-overlay { background: rgba(13,32,96,0.35); }
+
+    /* ── Social ── */
+    .social-btn { display: flex; align-items: center; gap: 10px; background: white; border: 1.5px solid #dde3f0; padding: 12px 22px; border-radius: 10px; font-size: 14px; font-weight: 700; color: var(--text); }
+    .social-btn:hover { border-color: var(--navy); color: var(--navy); }
+
+    /* ── AI ── */
+    .ai-box { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 100%); border-radius: 20px; padding: 48px 36px; color: white; text-align: center; }
+    .ai-chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: white; padding: 7px 16px; border-radius: 24px; font-size: 13px; font-weight: 600; display: inline-block; margin: 4px; }
+
+    /* ── Contact ── */
+    .contact-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 36px; align-items: start; }
+    .contact-item { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
+    .contact-icon { width: 42px; height: 42px; border-radius: 10px; background: var(--light); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .contact-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+    .contact-value { font-size: 15px; font-weight: 600; color: var(--text); }
+    .map-frame { border-radius: 16px; overflow: hidden; border: 2px solid #dde3f0; }
+
+    /* ── Footer ── */
+    .footer { background: var(--navy-dark); padding: 44px 24px 28px; text-align: center; }
+    .footer-logo-wrap { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px; }
+    .footer-logo-wrap img { width: 44px; height: 44px; border-radius: 50%; object-fit: contain; background: white; padding: 4px; }
+    .footer-club { color: white; font-weight: 900; font-size: 17px; }
+    .footer-est  { color: rgba(255,255,255,0.4); font-size: 12px; }
+    .footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+    .footer-link { color: rgba(255,255,255,0.55); font-size: 13px; }
+    .footer-link:hover { color: white; }
+    .footer-bottom { font-size: 12px; color: rgba(255,255,255,0.25); line-height: 1.7; }
+
+    /* ── Responsive ── */
+    @media (max-width: 700px) {
+      .hero h1 { font-size: 32px; }
+      .hero-tagline { font-size: 16px; }
+      .grid-2, .grid-3, .grid-4, .about-grid, .contact-grid { grid-template-columns: 1fr; }
+      .section { padding: 48px 20px; }
+      .strip-item { padding: 10px 16px; }
+      .gallery-grid { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-left">
+    <img class="nav-logo" src="https://static.wixstatic.com/media/3990b6_96f146bfa3ad4a8f837c04f0b3298c85~mv2.png" alt="Monkstown LTCC" onerror="this.outerHTML='<div style=\'width:40px;height:40px;border-radius:50%;background:var(--yellow);display:flex;align-items:center;justify-content:center;font-size:20px;\'>🎾</div>'">
+    <div>
+      <div class="nav-name">Monkstown LTCC</div>
+      <div class="nav-est">EST. 1880 · MONKSTOWN, CORK</div>
+    </div>
+  </div>
+  <a class="nav-book" href="https://app.sprimal.com/chat/monkstown">🎾 Book a Court</a>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-inner">
+    <img class="hero-logo"
+      src="https://static.wixstatic.com/media/3990b6_96f146bfa3ad4a8f837c04f0b3298c85~mv2.png"
+      alt="Monkstown LTCC"
+      onerror="this.outerHTML='<div style=\'width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:52px;margin:0 auto 22px;\'>🎾</div>'">
+    <div class="hero-badge">🏆 Est. 1880 &nbsp;·&nbsp; Tennis Ireland Affiliated</div>
+    <h1>Monkstown LTCC<br><span>Tennis by the Sea</span></h1>
+    <p class="hero-tagline">Monkstown Village · Cork Harbour · Since 1880</p>
+    <p class="hero-desc">Set on the historic grounds of the De Vesci Estate, overlooking Monkstown Marina and Cork Harbour — one of Ireland's oldest and most beloved tennis clubs. All-weather courts, expert coaching and a warm welcome for all.</p>
+    <div class="hero-btns">
+      <a href="https://app.sprimal.com/chat/monkstown" class="cta-primary">🎾 Book a Court</a>
+      <a href="https://app.sprimal.com/chat/monkstown" class="cta-secondary">Join the Club</a>
+    </div>
+  </div>
+  <!-- Wave -->
+  <div class="wave-bottom">
+    <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="width:100%;height:60px;display:block;">
+      <path d="M0,30 C240,60 480,0 720,30 C960,60 1200,0 1440,30 L1440,60 L0,60 Z" fill="#060e33"/>
+    </svg>
+  </div>
+</section>
+
+<!-- Stats strip -->
+<div class="strip">
+  <div class="strip-inner">
+    <div class="strip-item">
+      <div class="strip-num">1880</div>
+      <div class="strip-label">Founded</div>
+    </div>
+    <div class="strip-item">
+      <div class="strip-num">144</div>
+      <div class="strip-label">Years of Tennis</div>
+    </div>
+    <div class="strip-item">
+      <div class="strip-num">🌧️</div>
+      <div class="strip-label">All-Weather Courts</div>
+    </div>
+    <div class="strip-item">
+      <div class="strip-num">💡</div>
+      <div class="strip-label">Floodlit Evening Play</div>
+    </div>
+    <div class="strip-item">
+      <div class="strip-num">👶</div>
+      <div class="strip-label">Junior &amp; Camps</div>
+    </div>
+  </div>
+</div>
+
+<!-- Court Booking -->
+<section class="section navy-bg">
+  <div class="section-inner">
+    <div class="booking-box">
+      <div style="font-size:46px;margin-bottom:16px;">🎾</div>
+      <h2>Book a Court Online</h2>
+      <p>Reserve your court in seconds — choose your slot, confirm your booking and you're on. Online booking available for members 24/7.</p>
+      <a href="https://app.sprimal.com/chat/monkstown" class="booking-btn">Check availability →</a>
+    </div>
+  </div>
+</section>
+
+<!-- About / Location -->
+<section class="section white-bg" id="about">
+  <div class="section-inner">
+    <div class="about-grid">
+      <div>
+        <div class="section-label">Our Story</div>
+        <h2 class="section-title">Where Tennis Meets the Sea</h2>
+        <p style="color:var(--muted);font-size:15px;line-height:1.75;margin-bottom:14px;">
+          Founded in 1880 on the grounds of the historic De Vesci Estate, Monkstown LTCC is one of the oldest sports clubs in Ireland. The club sits in the heart of Monkstown village on the western shore of Cork Harbour — with Monkstown Castle rising above and the marina below.
+        </p>
+        <p style="color:var(--muted);font-size:15px;line-height:1.75;margin-bottom:14px;">
+          Just 15km from Cork city, the club has been a cornerstone of the Monkstown community for over a century and a half — running competitive leagues, junior programmes, summer camps and social events while maintaining the warmth of a true village club.
+        </p>
+        <p style="color:var(--muted);font-size:15px;line-height:1.75;margin-bottom:28px;">
+          Whether you're a competitive player or picking up a racket for the first time — all abilities, all ages, all welcome.
+        </p>
+        <a href="https://app.sprimal.com/chat/monkstown" style="display:inline-block;background:var(--navy);color:white;padding:13px 26px;border-radius:10px;font-size:14px;font-weight:800;">Join the club →</a>
+      </div>
+      <div class="about-image">
+        <div class="about-img-main" style="height:380px;border-radius:16px;"></div>
+        <div class="location-tag">📍 Monkstown Village, Cork Harbour</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Membership -->
+<section class="section light-bg" id="membership">
+  <div class="section-inner">
+    <div style="text-align:center;margin-bottom:36px;">
+      <div class="section-label">Membership</div>
+      <h2 class="section-title">Join Monkstown LTCC</h2>
+      <p class="section-sub" style="margin:0 auto 0;">All abilities welcome — from complete beginners to competitive league players. Ask our assistant for current rates and how to register.</p>
+    </div>
+    <div class="grid-4" style="margin-bottom:30px;">
+      <div class="tier featured">
+        <div class="tier-badge">Most Popular</div>
+        <div class="tier-icon">🧑</div>
+        <div class="tier-name">Adult</div>
+        <div class="tier-desc">Full court access, leagues and social events</div>
+      </div>
+      <div class="tier">
+        <div class="tier-icon">👨‍👩‍👧‍👦</div>
+        <div class="tier-name">Family</div>
+        <div class="tier-desc">Two adults plus all children under 18</div>
+      </div>
+      <div class="tier">
+        <div class="tier-icon">🎓</div>
+        <div class="tier-name">Student</div>
+        <div class="tier-desc">Reduced rate for full-time students with valid ID</div>
+      </div>
+      <div class="tier">
+        <div class="tier-icon">👶</div>
+        <div class="tier-name">Junior</div>
+        <div class="tier-desc">Under 18s — includes junior coaching access</div>
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <a href="https://app.sprimal.com/chat/monkstown" style="display:inline-block;background:var(--navy);color:white;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:800;">Ask about membership rates →</a>
+    </div>
+  </div>
+</section>
+
+<!-- Coaching -->
+<section class="section white-bg" id="coaching">
+  <div class="section-inner">
+    <div style="margin-bottom:32px;">
+      <div class="section-label">Coaching</div>
+      <h2 class="section-title">Improve Your Game</h2>
+      <p class="section-sub">Coaching at Monkstown caters for complete beginners through to competitive players. Qualified coaches run programmes throughout the year for adults and juniors.</p>
+    </div>
+    <div class="grid-3" style="margin-bottom:30px;">
+      <div class="coaching-card">
+        <div style="font-size:30px;margin-bottom:12px;">🏃</div>
+        <h3>Group Lessons</h3>
+        <p>Small group coaching for adults of all levels. Beginners, improvers and advanced groups available. Ask for current term dates and how to sign up.</p>
+        <a href="https://app.sprimal.com/chat/monkstown" class="coaching-link">Find a group →</a>
+      </div>
+      <div class="coaching-card">
+        <div style="font-size:30px;margin-bottom:12px;">🎯</div>
+        <h3>Private Coaching</h3>
+        <p>One-to-one sessions tailored to your game — ideal for fast-tracking improvement or preparing for league competition. Book through the assistant.</p>
+        <a href="https://app.sprimal.com/chat/monkstown" class="coaching-link">Book a session →</a>
+      </div>
+      <div class="coaching-card">
+        <div style="font-size:30px;margin-bottom:12px;">☀️</div>
+        <h3>Summer Camps</h3>
+        <p>Hugely popular week-long camps for juniors during school holidays. All equipment provided. Places fill fast — register early via the assistant.</p>
+        <a href="https://app.sprimal.com/chat/monkstown" class="coaching-link">Register a place →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Junior -->
+<section class="section ocean-bg">
+  <div class="section-inner" style="max-width:780px;text-align:center;">
+    <div style="font-size:44px;margin-bottom:16px;">🧒</div>
+    <div class="section-label">Junior Programme</div>
+    <h2 class="section-title">Tennis for Kids of Every Age</h2>
+    <p style="color:var(--muted);font-size:15px;line-height:1.75;margin-bottom:32px;max-width:580px;margin-left:auto;margin-right:auto;">From mini tennis for young children right through to competitive underage leagues — Monkstown LTCC has a long tradition of developing juniors. Qualified, Garda-vetted coaches run terms year-round.</p>
+    <div class="grid-3" style="margin-bottom:30px;text-align:left;">
+      <div class="card" style="text-align:center;border-top:4px solid #4caf50;">
+        <div style="font-size:26px;margin-bottom:10px;">🟢</div>
+        <div style="font-weight:900;font-size:15px;margin-bottom:5px;">Mini Tennis</div>
+        <div style="font-size:13px;color:var(--muted);">Ages 4–8. Scaled-down equipment, fun first.</div>
+      </div>
+      <div class="card" style="text-align:center;border-top:4px solid var(--ocean);">
+        <div style="font-size:26px;margin-bottom:10px;">🟡</div>
+        <div style="font-weight:900;font-size:15px;margin-bottom:5px;">Junior Development</div>
+        <div style="font-size:13px;color:var(--muted);">Ages 8–14. Skills, tactics and match play.</div>
+      </div>
+      <div class="card" style="text-align:center;border-top:4px solid var(--navy);">
+        <div style="font-size:26px;margin-bottom:10px;">🔴</div>
+        <div style="font-weight:900;font-size:15px;margin-bottom:5px;">Junior Competitive</div>
+        <div style="font-size:13px;color:var(--muted);">Ages 14–18. Leagues and tournaments.</div>
+      </div>
+    </div>
+    <a href="https://app.sprimal.com/chat/monkstown" style="display:inline-block;background:var(--navy);color:white;font-weight:900;padding:14px 30px;border-radius:10px;font-size:14px;">Register your child →</a>
+    <p style="margin-top:14px;font-size:12px;color:var(--muted);">Child Safeguarding Statement available on request.</p>
+  </div>
+</section>
+
+<!-- Leagues -->
+<section class="section white-bg">
+  <div class="section-inner">
+    <div style="margin-bottom:32px;">
+      <div class="section-label">Competition</div>
+      <h2 class="section-title">Leagues &amp; Match Play</h2>
+      <p class="section-sub">Monkstown competes in Winter and Regional leagues with teams across multiple levels — there's a team for every standard.</p>
+    </div>
+    <div class="grid-2">
+      <div class="card" style="border-left:5px solid var(--navy);">
+        <div style="font-size:32px;margin-bottom:12px;">🏆</div>
+        <h3 style="font-size:18px;font-weight:900;margin-bottom:8px;">Winter League</h3>
+        <p style="font-size:14px;color:var(--muted);line-height:1.65;">Indoor and outdoor league play through the winter months. Teams at Ladies, Mens and Mixed levels across multiple grades. Ask our assistant about the current schedule.</p>
+      </div>
+      <div class="card" style="border-left:5px solid var(--ocean);">
+        <div style="font-size:32px;margin-bottom:12px;">🌍</div>
+        <h3 style="font-size:18px;font-weight:900;margin-bottom:8px;">Regional League</h3>
+        <p style="font-size:14px;color:var(--muted);line-height:1.65;">Munster and national competitions. Competitive teams across multiple grades — ask about trials and selection for the coming season.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Photo Gallery -->
+<section class="section light-bg">
+  <div class="section-inner">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="section-label">Gallery</div>
+        <h2 class="section-title" style="margin-bottom:0;">Life at Monkstown LTCC</h2>
+      </div>
+      <a href="https://www.instagram.com/monkstowntennisclub" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;background:white;border:1.5px solid #dde3f0;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:800;color:var(--text);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="#E1306C" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="#E1306C" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1" fill="#E1306C"/></svg>
+        @monkstowntennisclub
+      </a>
+    </div>
+    <div class="gallery-grid">
+      <!-- Gallery cells — will be populated with Instagram photos when connected -->
+      <div class="gallery-cell" style="background:linear-gradient(135deg,var(--navy) 0%,var(--ocean) 100%);">
+        <div class="gallery-overlay"></div>
+        <span style="color:rgba(255,255,255,0.6);font-size:32px;">🎾</span>
+      </div>
+      <div class="gallery-cell" style="background:linear-gradient(135deg,var(--ocean) 0%,#2196f3 100%);">
+        <div class="gallery-overlay"></div>
+        <span style="color:rgba(255,255,255,0.6);font-size:32px;">🏆</span>
+      </div>
+      <div class="gallery-cell" style="background:linear-gradient(135deg,#1a5c38 0%,var(--navy) 100%);">
+        <div class="gallery-overlay"></div>
+        <span style="color:rgba(255,255,255,0.6);font-size:32px;">👶</span>
+      </div>
+      <div class="gallery-cell" style="background:linear-gradient(135deg,#1a3080 0%,var(--ocean) 100%);">
+        <div class="gallery-overlay"></div>
+        <span style="color:rgba(255,255,255,0.6);font-size:32px;">☀️</span>
+      </div>
+      <div class="gallery-cell" style="background:linear-gradient(135deg,var(--navy-dark) 0%,var(--navy) 100%);">
+        <div class="gallery-overlay"></div>
+        <span style="color:rgba(255,255,255,0.6);font-size:32px;">🌊</span>
+      </div>
+      <div class="gallery-cell" style="background:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;text-align:center;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="rgba(255,255,255,0.6)" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="rgba(255,255,255,0.6)" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1" fill="rgba(255,255,255,0.6)"/></svg>
+        <span style="color:rgba(255,255,255,0.8);font-size:13px;font-weight:700;">See all photos</span>
+        <span style="color:rgba(255,255,255,0.45);font-size:12px;">@monkstowntennisclub</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AI Assistant -->
+<section class="section navy-bg">
+  <div class="section-inner" style="max-width:700px;">
+    <div class="ai-box">
+      <div style="font-size:40px;margin-bottom:14px;">🤖</div>
+      <h2 style="font-size:26px;font-weight:900;margin-bottom:10px;">Ask Our Club Assistant</h2>
+      <p style="font-size:15px;opacity:0.8;max-width:460px;margin:0 auto 20px;line-height:1.65;">Instant answers about court booking, membership, coaching, junior programmes and fixtures — any time, day or night.</p>
+      <div style="margin-bottom:24px;">
+        <span class="ai-chip">Book a court</span>
+        <span class="ai-chip">Membership rates</span>
+        <span class="ai-chip">Summer camps</span>
+        <span class="ai-chip">Junior coaching</span>
+        <span class="ai-chip">League fixtures</span>
+      </div>
+      <a href="https://app.sprimal.com/chat/monkstown" style="display:inline-block;background:var(--yellow);color:var(--navy-dark);font-weight:900;padding:14px 30px;border-radius:10px;font-size:15px;">Chat with our assistant →</a>
+    </div>
+  </div>
+</section>
+
+<!-- Social Media -->
+<section class="section white-bg">
+  <div class="section-inner" style="text-align:center;max-width:560px;">
+    <div class="section-label">Follow Us</div>
+    <h2 class="section-title">Stay in the Loop</h2>
+    <p style="color:var(--muted);font-size:15px;line-height:1.65;margin-bottom:28px;">Match reports, fixtures, junior news and social events — follow us across our channels.</p>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+      <a class="social-btn" href="https://www.instagram.com/monkstowntennisclub" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="#E1306C" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="#E1306C" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1" fill="#E1306C"/></svg>
+        Instagram
+      </a>
+      <a class="social-btn" href="https://www.facebook.com/profile.php?id=61557244343454" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+        Facebook
+      </a>
+      <a class="social-btn" href="https://twitter.com/MonkstownLTCC" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#1DA1F2"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/></svg>
+        Twitter / X
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section class="section light-bg" id="contact">
+  <div class="section-inner">
+    <div style="margin-bottom:32px;">
+      <div class="section-label">Find Us</div>
+      <h2 class="section-title">Come Down to the Club</h2>
+    </div>
+    <div class="contact-grid">
+      <div>
+        <div class="contact-item">
+          <div class="contact-icon">📍</div>
+          <div>
+            <div class="contact-label">Address</div>
+            <div class="contact-value">Castle Road, Monkstown<br>Co. Cork, T12 NV38</div>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">✉️</div>
+          <div>
+            <div class="contact-label">Email</div>
+            <div class="contact-value"><a href="mailto:secretary@monkstowntennisclub.com" style="color:var(--ocean);">secretary@monkstowntennisclub.com</a></div>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">🌊</div>
+          <div>
+            <div class="contact-label">Nearby</div>
+            <div class="contact-value">Monkstown Castle · Monkstown Marina<br>Cork Harbour Ferry · Village shops &amp; pubs</div>
+          </div>
+        </div>
+        <a href="https://app.sprimal.com/chat/monkstown" style="display:inline-block;background:var(--navy);color:white;padding:13px 26px;border-radius:10px;font-size:14px;font-weight:800;margin-top:6px;">💬 Ask us anything →</a>
+      </div>
+      <div class="map-frame">
+        <iframe
+          src="https://www.google.com/maps?q=Monkstown+Tennis+Club,+Castle+Road,+Monkstown,+Cork&output=embed"
+          width="100%" height="320" style="border:0;display:block;" allowfullscreen="" loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade" title="Monkstown LTCC location">
+        </iframe>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-logo-wrap">
+    <img src="https://static.wixstatic.com/media/3990b6_96f146bfa3ad4a8f837c04f0b3298c85~mv2.png" alt="Monkstown LTCC" onerror="this.style.display='none'">
+    <div>
+      <div class="footer-club">Monkstown LTCC</div>
+      <div class="footer-est">Est. 1880 · Castle Road, Monkstown, Co. Cork</div>
+    </div>
+  </div>
+  <div class="footer-links">
+    <a class="footer-link" href="https://app.sprimal.com/chat/monkstown">Book a Court</a>
+    <a class="footer-link" href="https://app.sprimal.com/chat/monkstown">Membership</a>
+    <a class="footer-link" href="https://app.sprimal.com/chat/monkstown">Coaching</a>
+    <a class="footer-link" href="https://app.sprimal.com/chat/monkstown">Junior Programme</a>
+    <a class="footer-link" href="mailto:secretary@monkstowntennisclub.com">Contact</a>
+    <a class="footer-link" href="https://www.tennisireland.ie" target="_blank" rel="noopener">Tennis Ireland</a>
+  </div>
+  <div class="footer-bottom">
+    Tennis Ireland Affiliated Club · Child Safeguarding Statement available on request<br>
+    © Monkstown Lawn Tennis &amp; Croquet Club · Powered by <a href="https://sprimal.com" style="color:rgba(255,255,255,0.3);">Sprimal</a>
+  </div>
+</footer>
+
+<script>
+  (function() {
+    window.SprimalConfig = { clubId: "monkstown", position: "bottom-right" };
+    var s = document.createElement("script");
+    s.src = "https://app.sprimal.com/widget.js";
+    s.async = true;
+    document.head.appendChild(s);
+  })();
+</script>
+
+</body>
+</html>

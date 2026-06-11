@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Sprimal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #fff;
+      color: #1f2937;
+      line-height: 1.7;
+    }
+
+    /* ── Nav ── */
+    nav {
+      background: #0f172a;
+      padding: 0 32px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    .nav-links { display: flex; gap: 24px; align-items: center; }
+    .nav-links a {
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: #fff; }
+
+    /* ── Hero ── */
+    .hero {
+      background: #0f172a;
+      padding: 64px 32px 56px;
+      text-align: center;
+    }
+    .hero-tag {
+      display: inline-block;
+      background: rgba(255,255,255,0.08);
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 42px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+    .hero p {
+      color: #94a3b8;
+      font-size: 16px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── Content ── */
+    .content {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 56px 24px 80px;
+    }
+
+    .last-updated {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section h2 .num {
+      background: #0f172a;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .section p {
+      font-size: 15px;
+      color: #374151;
+      line-height: 1.75;
+    }
+
+    .section ul {
+      margin-top: 10px;
+      padding-left: 20px;
+    }
+
+    .section ul li {
+      font-size: 15px;
+      color: #374151;
+      margin-bottom: 6px;
+      line-height: 1.65;
+    }
+
+    .highlight-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-top: 12px;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .highlight-box strong { color: #0f172a; }
+
+    a { color: #2563eb; text-decoration: underline; }
+
+    /* ── Footer ── */
+    footer {
+      background: #0f172a;
+      padding: 32px;
+      text-align: center;
+    }
+    .footer-logo {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.3px;
+      margin-bottom: 10px;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      color: #64748b;
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover { color: #94a3b8; }
+    .footer-copy {
+      font-size: 12px;
+      color: #475569;
+    }
+
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 30px; }
+      nav { padding: 0 16px; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <a href="https://www.sprimal.com" class="nav-logo">Sprimal</a>
+    <div class="nav-links">
+      <a href="https://www.sprimal.com/#services">Services</a>
+      <a href="https://www.sprimal.com/#how">How It Works</a>
+      <a href="https://www.sprimal.com/#about">About</a>
+      <a href="https://www.sprimal.com/#call">Book a Call</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-tag">Legal</div>
+    <h1>Privacy Policy</h1>
+    <p>How we collect, use and protect your information when you interact with a Sprimal-powered assistant.</p>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <p class="last-updated">Last updated: June 2026</p>
+
+    <div class="section">
+      <h2><span class="num">01</span> Who we are</h2>
+      <p>Sprimal is an AI receptionist platform operated by Daniel O'Riordan, based in Cork, Ireland.</p>
+      <div class="highlight-box">
+        <strong>Contact:</strong> hello@sprimal.com<br>
+        <strong>Website:</strong> <a href="https://www.sprimal.com">www.sprimal.com</a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2><span class="num">02</span> What we collect</h2>
+      <p>When you use a Sprimal-powered chat widget on a business website, we may collect:</p>
+      <ul>
+        <li>Your name</li>
+        <li>Your email address</li>
+        <li>Your phone number</li>
+        <li>The content of your chat conversation</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2><span class="num">03</span> Why we collect it</h2>
+      <p>This information is collected solely to help the business you are contacting respond to your enquiry. We do not use it for advertising or sell it to third parties.</p>
+    </div>
+
+    <div class="section">
+      <h2><span class="num">04</span> Who sees your data</h2>
+      <p>Your information is shared only with the business whose website you are chatting on. It is stored securely on servers within the European Union (Supabase EU region).</p>
+    </div>
+
+    <div class="section">
+      <h2><span class="num">05</span> How long we keep it</h2>
+      <p>Chat data is retained for up to 12 months and then deleted.</p>
+    </div>
+
+    <div class="section">
+      <h2><span class="num">06</span> Your rights</h2>
+      <p>Under GDPR you have the right to access, correct or delete your data at any time. To make a request, contact us at <a href="mailto:hello@sprimal.com">hello@sprimal.com</a> and we will respond within 30 days.</p>
+    </div>
+
+    <div class="section">
+      <h2><span class="num">07</span> Cookies &amp; storage</h2>
+      <p>We use <code>sessionStorage</code> and <code>localStorage</code> in your browser to maintain your chat session and remember your privacy consent. No tracking or advertising cookies are used.</p>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-logo">Sprimal</div>
+    <div class="footer-links">
+      <a href="https://www.sprimal.com/#services">Services</a>
+      <a href="https://www.sprimal.com/#how">How It Works</a>
+      <a href="https://www.sprimal.com/#about">About</a>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="mailto:hello@sprimal.com">hello@sprimal.com</a>
+    </div>
+    <div class="footer-copy">© 2026 Sprimal. Based in Monkstown, Cork, Ireland.</div>
+  </footer>
+
+</body>
+</html>

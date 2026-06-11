@@ -7,10 +7,11 @@
 
 ## 🟢 Cosy Café Kinsale — Active Client Onboarding
 
-Deal closed 2026-06-10 with Sebastien Perey. €100 deposit + €200 go-live + €49/month recurring.
+Deal closed 2026-06-10 with Sebastien Perey. ~~€100 deposit +~~ €300 on go-live + €49/month recurring.
+**Note:** Deposit waived on advice of LEO advisor (social welfare situation — collecting payment while on welfare not permitted until business is formally registered). Full €300 invoiced on go-live instead.
 
 ### Immediate (today)
-- [ ] Send €100 Stripe payment link to Sebastian
+- [ ] Inform Sebastian: deposit waived, full €300 due on go-live instead
 - [x] Confirm his WhatsApp / email for ongoing comms
 
 ### Week 1 — Design & Content (Sebastian's actions)
@@ -565,6 +566,66 @@ Needed before Twilio regulatory bundle can be submitted.
 - Test deliverability via mail-tester.com before going wider
 
 **Status:** Not investigated. Priority before wider rollout.
+
+---
+
+## 🚨 URGENT — Disable Cormac/AOM Email Agent
+
+The email-poll loop is processing AOM mortgage emails (Cormac's firm), classifying them, drafting replies, and sending drafts to cormac@aom.ie. This runs on every poll cycle and wastes tokens — Cormac doesn't need or want AI-drafted replies for these.
+
+**Actions needed:**
+- Identify the config/flag that enables the AOM email agent and turn it off
+- Or add a tenant/domain filter so the email poller ignores @aom.ie and @ptsb.ie senders entirely
+- Verify no more `[email-agent] Draft complete` logs after the fix
+
+**Status:** Active — burning tokens on every crawl cycle.
+
+---
+
+## 🏐 Foireann Integration (GAA Official Platform)
+
+**What:** foireann.ie is the GAA's official club and member management system. An `api.foireann.ie` endpoint exists (used internally by their React SPA) but is not publicly documented. If Sprimal could tap into this, the AI could answer live questions like "when's the next match?", "what was the lotto result?", "is registration open?" directly from official GAA data.
+
+**Why it matters:** Passage West and most GAA clubs use Foireann. Real-time fixture and membership data would make Sprimal dramatically more useful than a static knowledge base crawl.
+
+**Options:**
+- Contact GAA/Foireann directly to request API access or a partnership
+- Reverse-engineer the internal `api.foireann.ie` endpoints (unofficial, risky)
+- Scrape club pages on foireann.ie that are publicly accessible
+
+**Status:** No public API exists. Worth pursuing via official GAA partnership channel.
+
+---
+
+## 🤝 Clubforce Partnership — Request API Access
+
+**What:** Clubforce is the dominant membership, lotto, and payments platform for GAA clubs in Ireland. No public REST API exists. Contact Clubforce to explore opening up an API or forming a partnership with Sprimal.
+
+**The pitch to Clubforce:** Sprimal drives member engagement via AI chat — if Sprimal can pull live data from Clubforce (membership status, lotto results, upcoming events), it becomes a powerful front-end layer on top of Clubforce. Good for both products.
+
+**Who to contact:** partnerships@clubforce.com or via their website contact form.
+
+**Status:** Not contacted yet.
+
+---
+
+## 🕷️ Jina Fallback for Full Crawl (Cloudflare-Protected Sites)
+
+**Problem:** Sites like carrigalinegaa.ie and passagewestgaaclub.ie use Cloudflare or similar anti-bot protection. The crawler gets 1 page (or 0) and no images. The generated site has no content, no images, and hardcoded colours.
+
+**What:** Use `r.jina.ai/{url}` as a fallback for the entire crawl when direct fetches fail, not just for individual page timeouts.
+
+**Implications:**
+- ✅ Would allow crawling Cloudflare-blocked sites and getting real content/links
+- ✅ More pages = better KB, better image extraction, better social links
+- ❌ **Jina returns Markdown, not HTML** — link extraction changes, image URLs may be stripped, CSS/brand colours still unextractable
+- ❌ **Speed** — each page goes through Jina's proxy; slower than direct
+- ❌ **Rate limits** — Jina has API limits; concurrent multi-tenant crawls could hit them
+- ❌ **Cost** — Jina Reader API is free up to a rate limit but has paid tiers; at scale this adds up
+
+**Better scoped approach:** Only fall back to Jina for the *homepage* (to get link structure) when the direct homepage fetch fails. Then attempt direct fetches for all child pages, with Jina fallback only on those that also fail. Avoids routing the entire crawl through Jina.
+
+**Status:** Idea only. Jina already used for individual probe page fallback.
 
 ---
 

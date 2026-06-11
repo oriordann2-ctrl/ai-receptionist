@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Sprimal Icons</title>
+  <style>
+    body { font-family: sans-serif; padding: 40px; background: #f8fafc; }
+    canvas { border: 1px solid #e2e8f0; border-radius: 12px; margin: 10px; display: block; }
+    button { background: #1e40af; color: white; border: none; padding: 12px 24px;
+             font-size: 16px; border-radius: 10px; cursor: pointer; margin-top: 20px; }
+    p { color: #64748b; max-width: 560px; }
+    code { background:#e2e8f0; padding:2px 6px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <h1 style="color:#0f1d40;">Sprimal Icon Generator</h1>
+  <p>Triangle nodes sit at ~22% of the canvas radius — well inside Samsung's squircle crop zone.</p>
+  <p>Drop both PNGs into <code>public/</code> replacing the existing ones.</p>
+
+  <canvas id="c512" width="512" height="512"></canvas>
+  <canvas id="c192" width="192" height="192"></canvas>
+  <br>
+  <button onclick="downloadIcons()">⬇ Download both icons</button>
+
+  <script>
+    function drawSprimalIcon(canvas, size) {
+      const ctx = canvas.getContext("2d");
+      const s   = size;
+      const cx  = s / 2;
+      const cy  = s / 2;
+
+      // ── Full-bleed blue gradient ──────────────────────────
+      const grad = ctx.createLinearGradient(0, 0, s, s);
+      grad.addColorStop(0, "#5b8af8");
+      grad.addColorStop(1, "#3a64ef");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, s, s);
+
+      // ── Equilateral triangle, one vertex at top ───────────
+      // circumradius r = 22% of canvas size.
+      // All three vertices sit exactly r from centre,
+      // so outermost edge of node = r + nodeR = 27% — safe even
+      // for Samsung's squircle which crops ~30% from corners.
+      const r     = s * 0.22;
+      const nodeR = s * 0.055;
+
+      const top   = { x: cx,                        y: cy - r               };
+      const right = { x: cx + r * Math.sin(2*Math.PI/3), y: cy - r * Math.cos(2*Math.PI/3) };
+      const left  = { x: cx - r * Math.sin(2*Math.PI/3), y: cy - r * Math.cos(2*Math.PI/3) };
+
+      // Lines
+      const lineW = s * 0.05;
+      ctx.strokeStyle = "white";
+      ctx.lineWidth   = lineW;
+      ctx.lineCap     = "round";
+      ctx.lineJoin    = "round";
+      ctx.beginPath();
+      ctx.moveTo(top.x,   top.y);
+      ctx.lineTo(right.x, right.y);
+      ctx.lineTo(left.x,  left.y);
+      ctx.lineTo(top.x,   top.y);
+      ctx.stroke();
+
+      // Nodes
+      [top, right, left].forEach(pt => {
+        ctx.beginPath();
+        ctx.arc(pt.x + s*0.008, pt.y + s*0.008, nodeR, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, nodeR, 0, Math.PI * 2);
+        ctx.fillStyle = "white";
+        ctx.fill();
+      });
+    }
+
+    const c512 = document.getElementById("c512");
+    const c192 = document.getElementById("c192");
+    drawSprimalIcon(c512, 512);
+    drawSprimalIcon(c192, 192);
+
+    function downloadIcons() {
+      const a = document.createElement("a");
+      a.download = "sprimal_icon_512.png";
+      a.href = c512.toDataURL("image/png");
+      a.click();
+      setTimeout(() => {
+        const b = document.createElement("a");
+        b.download = "sprimal_icon_192.png";
+        b.href = c192.toDataURL("image/png");
+        b.click();
+      }, 300);
+    }
+  </script>
+</body>
+</html>

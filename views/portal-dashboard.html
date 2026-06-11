@@ -755,6 +755,16 @@
 
 <div class="page">
 
+  <!-- ── New signup welcome banner ── -->
+  <div class="new-banner" id="newSignupBanner">
+    <div class="new-banner-title">🎉 Your Sprimal site is being built!</div>
+    <div class="new-banner-sub">
+      We're crawling your website now — this takes about 30 seconds.
+      Your generated website has opened in a new tab.
+      <a id="newSignupSiteLink" href="#" target="_blank" style="color:#1e40af;font-weight:700;text-decoration:underline;">Open it again →</a>
+    </div>
+  </div>
+
   <!-- ── F1 Crawl Progress Widget ── -->
   <div id="crawlRaceWidget" style="display:none;">
     <div class="race-card" id="raceCard">
@@ -1528,6 +1538,23 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="/portal.js"></script>
+<script>
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") {
+      var siteUrl = "https://app.sprimal.com/sites/" + window.tenantId;
+      // Open the generated site in a new tab
+      window.open(siteUrl, "_blank");
+      // Show the welcome banner
+      var banner = document.getElementById("newSignupBanner");
+      if (banner) banner.style.display = "block";
+      var link = document.getElementById("newSignupSiteLink");
+      if (link) link.href = siteUrl;
+      // Clean ?new=1 from the URL without a page reload
+      history.replaceState(null, "", window.location.pathname);
+    }
+  })();
+</script>
 <script>
   // ── Lazy-load Recent Conversations ───────────────────────────────────────────
   // Conversations are fetched from the API only when the section is opened.

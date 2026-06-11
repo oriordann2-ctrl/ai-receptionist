@@ -8490,9 +8490,12 @@ app.delete("/api/admin/tenants/:id", requireAdmin, async (req, res) => {
       supabase.from("approved_answers").delete().eq("tenant_id", id),
       supabase.from("chat_logs").delete().eq("tenant_id", id),
       supabase.from("documents").delete().eq("tenant_id", id),
+      supabase.from("document_chunks").delete().eq("tenant_id", id),
       supabase.from("flagged_answers").delete().eq("tenant_id", id),
       supabase.from("knowledge_chunks").delete().eq("tenant_id", id),
       supabase.from("portal_users").delete().eq("tenant_id", id),
+      supabase.from("tenant_integrations").delete().eq("tenant_id", id),
+      supabase.from("tenant_agents").delete().eq("tenant_id", id),
     ];
     await Promise.all(steps);
     const { error } = await supabase.from("tenants").delete().eq("id", id);

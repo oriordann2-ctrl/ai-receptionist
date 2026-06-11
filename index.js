@@ -1,5 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
+const sizeOf = require("image-size");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -5695,27 +5696,39 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
     if (candidates.length >= maxImages * 4) break;
   }
 
-  const permanent = [];
+  // Download all candidates and rank by resolution before uploading
+  const downloaded = [];
   for (const imgUrl of candidates) {
-    if (permanent.length >= maxImages) break;
+    if (downloaded.length >= maxImages * 3) break;
     try {
       const r = await fetch(imgUrl, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) continue;
       const ct = r.headers.get("content-type") || "";
       if (!ct.startsWith("image/")) continue;
       const buf = Buffer.from(await r.arrayBuffer());
-      if (buf.length < 15000) continue; // skip anything under 15 KB — icons/thumbnails
-      const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
-      const path = `${tenantId}/site_${permanent.length}.${ext}`;
-      const { error } = await supabase.storage.from("social-images").upload(path, buf, { contentType: ct, upsert: true });
-      if (!error) {
-        const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(path);
-        permanent.push(publicUrl);
-      }
+      if (buf.length < 15000) continue;
+      let pixels = buf.length; // file size as resolution proxy
+      try { const d = sizeOf(buf); pixels = (d.width || 0) * (d.height || 0); } catch {}
+      downloaded.push({ buf, ct, pixels });
     } catch {}
   }
 
-  console.log(`[img-extract] Re-hosted ${permanent.length} website images for ${tenantId}`);
+  // Sort highest resolution first
+  downloaded.sort((a, b) => b.pixels - a.pixels);
+
+  const permanent = [];
+  for (let i = 0; i < Math.min(maxImages, downloaded.length); i++) {
+    const { buf, ct } = downloaded[i];
+    const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
+    const storagePath = `${tenantId}/site_${i}.${ext}`;
+    const { error } = await supabase.storage.from("social-images").upload(storagePath, buf, { contentType: ct, upsert: true });
+    if (!error) {
+      const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
+      permanent.push(publicUrl);
+    }
+  }
+
+  console.log(`[img-extract] Re-hosted ${permanent.length} website images for ${tenantId} (sorted by resolution)`);
   return permanent;
 }
 
@@ -5787,27 +5800,36 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
 
     if (cdnUrls.length === 0) return [];
 
-    // Re-host each image in Supabase Storage — CDN URLs expire, Supabase URLs are permanent
-    const permanentUrls = [];
-    for (let i = 0; i < cdnUrls.length; i++) {
+    // Download all CDN images, rank by resolution, upload top N
+    const igDownloaded = [];
+    for (const cdnUrl of cdnUrls) {
       try {
-        const imgRes = await fetch(cdnUrls[i], { signal: AbortSignal.timeout(8000) });
+        const imgRes = await fetch(cdnUrl, { signal: AbortSignal.timeout(8000) });
         if (!imgRes.ok) continue;
         const buffer = Buffer.from(await imgRes.arrayBuffer());
         const ct = imgRes.headers.get("content-type") || "image/jpeg";
-        const ext = ct.includes("webp") ? "webp" : "jpg";
-        const storagePath = `${tenantId}/ig_${i}.${ext}`;
-        const { error: uploadErr } = await supabase.storage
-          .from("social-images")
-          .upload(storagePath, buffer, { contentType: ct, upsert: true });
-        if (uploadErr) { console.log(`[ig-scrape] Upload failed for image ${i}: ${uploadErr.message}`); continue; }
-        const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
-        permanentUrls.push(publicUrl);
+        let pixels = buffer.length;
+        try { const d = sizeOf(buffer); pixels = (d.width || 0) * (d.height || 0); } catch {}
+        igDownloaded.push({ buffer, ct, pixels });
       } catch (e) {
-        console.log(`[ig-scrape] Re-host failed for image ${i}: ${e.message}`);
+        console.log(`[ig-scrape] Download failed: ${e.message}`);
       }
     }
-    console.log(`[ig-scrape] Re-hosted ${permanentUrls.length}/${cdnUrls.length} images for @${handle} (${tenantId})`);
+    igDownloaded.sort((a, b) => b.pixels - a.pixels);
+
+    const permanentUrls = [];
+    for (let i = 0; i < Math.min(maxImages, igDownloaded.length); i++) {
+      const { buffer, ct } = igDownloaded[i];
+      const ext = ct.includes("webp") ? "webp" : "jpg";
+      const storagePath = `${tenantId}/ig_${i}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("social-images")
+        .upload(storagePath, buffer, { contentType: ct, upsert: true });
+      if (uploadErr) { console.log(`[ig-scrape] Upload failed for image ${i}: ${uploadErr.message}`); continue; }
+      const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
+      permanentUrls.push(publicUrl);
+    }
+    console.log(`[ig-scrape] Re-hosted ${permanentUrls.length}/${cdnUrls.length} images for @${handle} (${tenantId}), sorted by resolution`);
     return permanentUrls;
   } catch (err) {
     console.log(`[ig-scrape] Failed for @${handle}: ${err.message}`);

@@ -579,8 +579,9 @@
       + '<div id="photoGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'
       + renderPhotoGrid(d.social_images || [])
       + '</div>'
+      + '<div id="photoUrlPreview" style="margin-bottom:8px;"></div>'
       + '<div style="display:flex;gap:8px;margin-bottom:6px;">'
-      + '<input id="photoUrlInput" type="url" placeholder="Paste image URL to add…" style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '<input id="photoUrlInput" type="url" placeholder="Paste image URL to add…" oninput="previewPhotoUrl(this.value)" style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">'
       + '<button onclick="addPhotoFromUrl()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">Add photo</button>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:10px;">'
@@ -656,6 +657,28 @@
     });
   };
 
+  window.previewPhotoUrl = function(url) {
+    var preview = document.getElementById("photoUrlPreview");
+    if (!preview) return;
+    url = (url || "").trim();
+    if (!url) { preview.innerHTML = ""; return; }
+    preview.innerHTML = '<span style="font-size:12px;color:#9ca3af;">Loading preview…</span>';
+    var img = new Image();
+    img.onload = function() {
+      var w = img.naturalWidth, h = img.naturalHeight;
+      var quality = w >= 1200 ? "High res" : w >= 600 ? "Medium res" : "Low res";
+      var color = w >= 1200 ? "#15803d" : w >= 600 ? "#b45309" : "#dc2626";
+      preview.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:#f9fafb;border-radius:8px;">'
+        + '<img src="' + url + '" style="height:60px;width:80px;object-fit:cover;border-radius:6px;flex-shrink:0;">'
+        + '<div><div style="font-size:13px;font-weight:600;color:#111827;">' + w + ' × ' + h + ' px</div>'
+        + '<div style="font-size:12px;color:' + color + ';font-weight:500;">' + quality + '</div></div></div>';
+    };
+    img.onerror = function() {
+      preview.innerHTML = '<span style="font-size:12px;color:#dc2626;">Could not load image — check the URL</span>';
+    };
+    img.src = url;
+  };
+
   window.addPhotoFromUrl = function() {
     var input = document.getElementById("photoUrlInput");
     var status = document.getElementById("photoStatus");
@@ -671,6 +694,8 @@
     .then(function(d) {
       if (!d.ok) throw new Error(d.error || "failed");
       if (input) input.value = "";
+      var preview = document.getElementById("photoUrlPreview");
+      if (preview) preview.innerHTML = "";
       var grid = document.getElementById("photoGrid");
       if (grid) grid.innerHTML = renderPhotoGrid(d.images);
       if (status) { status.textContent = "Added ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }

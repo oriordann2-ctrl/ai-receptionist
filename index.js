@@ -4984,6 +4984,35 @@ function isGenericFavicon(url) {
   return GENERIC_FAVICON_PATTERNS.some(p => url.includes(p));
 }
 
+async function fetchWikipediaLogo(name) {
+  try {
+    const searchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(name)}&format=json&srlimit=1&utf8=1`,
+      { headers: { "User-Agent": "Sprimal/1.0 (logo lookup)" }, signal: AbortSignal.timeout(6000) }
+    );
+    if (!searchRes.ok) return null;
+    const searchData = await searchRes.json();
+    const hit = searchData?.query?.search?.[0];
+    if (!hit) return null;
+
+    // Confirm result title is plausibly about this club (not a totally unrelated article)
+    const titleLower = hit.title.toLowerCase();
+    const nameLower  = name.toLowerCase().replace(/\s+gaa.*$/i, "").trim();
+    if (!titleLower.includes(nameLower.split(" ")[0].toLowerCase())) return null;
+
+    const imgRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(hit.title)}&prop=pageimages&pithumbsize=500&format=json&utf8=1`,
+      { headers: { "User-Agent": "Sprimal/1.0 (logo lookup)" }, signal: AbortSignal.timeout(6000) }
+    );
+    if (!imgRes.ok) return null;
+    const imgData = await imgRes.json();
+    const page = Object.values(imgData?.query?.pages || {})[0];
+    return page?.thumbnail?.source || null;
+  } catch {
+    return null;
+  }
+}
+
 function extractFaviconUrl(html, baseUrl) {
   // 1. Prefer apple-touch-icon — highest quality (usually 180x180)
   const appleMatch = html.match(/<link[^>]+rel=["']apple-touch-icon(?:-precomposed)?["'][^>]*href=["']([^"']+)["']/i)
@@ -5919,6 +5948,15 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
               console.log(`[crawl] Logo found via Clearbit for ${tenantId}: ${logoUrl}`);
             }
           } catch {}
+        }
+
+        // Wikipedia logo fallback — works for GAA clubs, sports clubs, named organisations
+        if (!logoUrl) {
+          const wikiLogo = await fetchWikipediaLogo(name);
+          if (wikiLogo) {
+            logoUrl = wikiLogo;
+            console.log(`[crawl] Logo found via Wikipedia for ${tenantId}: ${logoUrl}`);
+          }
         }
 
         if (logoUrl && !existingLogoData?.logo_url) {

@@ -5662,18 +5662,35 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
   const candidates = [];
 
   for (const page of pages) {
-    if (!page.html) continue;
-    const srcRe = /<img[^>]+src=["']([^"'>\s]+)["'][^>]*>/gi;
-    let m;
-    while ((m = srcRe.exec(page.html)) !== null) {
-      const src = m[1];
-      if (!src || src.startsWith("data:")) continue;
-      let abs;
-      try { abs = new URL(src, page.url).href; } catch { continue; }
-      if (!/\.(jpe?g|png|webp)(\?|$)/i.test(abs)) continue;
-      if (/icon|logo|favicon|avatar|sprite|placeholder|banner|badge|arrow|bullet/i.test(abs)) continue;
-      if (!seen.has(abs)) { seen.add(abs); candidates.push(abs); }
-      if (candidates.length >= maxImages * 4) break;
+    // 1. Extract from raw HTML <img src="..."> tags (direct fetches)
+    if (page.html) {
+      const srcRe = /<img[^>]+src=["']([^"'>\s]+)["'][^>]*>/gi;
+      let m;
+      while ((m = srcRe.exec(page.html)) !== null) {
+        const src = m[1];
+        if (!src || src.startsWith("data:")) continue;
+        let abs;
+        try { abs = new URL(src, page.url).href; } catch { continue; }
+        if (!/\.(jpe?g|png|webp)(\?|$)/i.test(abs)) continue;
+        if (/icon|logo|favicon|avatar|sprite|placeholder|banner|badge|arrow|bullet/i.test(abs)) continue;
+        if (!seen.has(abs)) { seen.add(abs); candidates.push(abs); }
+        if (candidates.length >= maxImages * 4) break;
+      }
+    }
+    // 2. Extract from Jina markdown text — Jina embeds images as ![alt](url) or bare CDN URLs
+    //    This handles bot-protected pages where page.html is the bot-protection splash, not real HTML
+    if (page.text && candidates.length < maxImages * 4) {
+      const mdImgRe = /!\[[^\]]*\]\((https?:\/\/[^)\s]+\.(?:jpe?g|png|webp)[^)]*)\)/gi;
+      const bareUrlRe = /https?:\/\/[^\s"'<>]+\.(?:jpe?g|png|webp)(?:\?[^\s"'<>]*)?/gi;
+      for (const re of [mdImgRe, bareUrlRe]) {
+        let m2;
+        while ((m2 = re.exec(page.text)) !== null) {
+          const u = m2[1] || m2[0];
+          if (/icon|logo|favicon|avatar|sprite|placeholder/i.test(u)) continue;
+          if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+          if (candidates.length >= maxImages * 4) break;
+        }
+      }
     }
     if (candidates.length >= maxImages * 4) break;
   }
@@ -5741,6 +5758,33 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
       if (!seen.has(imgUrl)) { seen.add(imgUrl); cdnUrls.push(imgUrl); }
     }
     console.log(`[ig-scrape] Found ${cdnUrls.length} CDN thumbnails for @${handle}`);
+
+    // Jina Reader fallback — Instagram often returns a login wall on direct fetch
+    if (cdnUrls.length === 0) {
+      try {
+        console.log(`[ig-scrape] Trying Jina Reader for @${handle}`);
+        const jinaRes = await fetch(`https://r.jina.ai/https://www.instagram.com/${encodeURIComponent(handle)}/`, {
+          headers: { "Accept": "text/plain", "User-Agent": "Mozilla/5.0" },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (jinaRes.ok) {
+          const jinaText = await jinaRes.text();
+          const cdnRe2 = /https:\/\/[a-z0-9_.-]+\.(?:cdninstagram|fbcdn|scontent)\.net\/[^\s"'<>\\]+\.(?:jpe?g|webp)/gi;
+          const mdRe = /!\[[^\]]*\]\((https?:\/\/[^)\s]+\.(?:jpe?g|png|webp)[^)]*)\)/gi;
+          for (const re of [cdnRe2, mdRe]) {
+            let jm;
+            while ((jm = re.exec(jinaText)) !== null && cdnUrls.length < maxImages) {
+              const u = (jm[1] || jm[0]).replace(/\\u0026/g, "&");
+              if (!seen.has(u)) { seen.add(u); cdnUrls.push(u); }
+            }
+          }
+          console.log(`[ig-scrape] Jina found ${cdnUrls.length} URLs for @${handle}`);
+        }
+      } catch (jinaErr) {
+        console.log(`[ig-scrape] Jina also failed for @${handle}: ${jinaErr.message}`);
+      }
+    }
+
     if (cdnUrls.length === 0) return [];
 
     // Re-host each image in Supabase Storage — CDN URLs expire, Supabase URLs are permanent

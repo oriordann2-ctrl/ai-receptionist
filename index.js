@@ -5869,7 +5869,8 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
   const candidates = [];
 
   for (const page of pages) {
-    // 1. Extract from raw HTML <img src="..."> and data-src (Wix/lazy-loaded sites) tags (direct fetches)
+    // 1. Extract from raw HTML — img src/data-src tags AND bare CDN URLs anywhere in the HTML
+    //    (Wix and similar JS-rendered sites embed image URLs in <script> JSON, not <img> tags)
     if (page.html) {
       const srcRe = /<img[^>]+(?:src|data-src|data-lazy-src|data-original)=["']([^"'>\s]+)["'][^>]*/gi;
       let m;
@@ -5878,9 +5879,18 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
         if (!src || src.startsWith("data:")) continue;
         let abs;
         try { abs = new URL(src, page.url).href; } catch { continue; }
-        if (!/\.(jpe?g|png|webp)(\?|$)/i.test(abs)) continue;
+        if (!/\.(jpe?g|png|webp)/i.test(abs)) continue;
         if (/icon|logo|favicon|avatar|sprite|placeholder|banner|badge|arrow|bullet/i.test(abs)) continue;
         if (!seen.has(abs)) { seen.add(abs); candidates.push(abs); }
+        if (candidates.length >= maxImages * 4) break;
+      }
+      // Also scan full HTML source for CDN image URLs embedded in script tags / JSON (Wix, Squarespace, etc.)
+      const cdnRe = /https?:\/\/(?:static\.wixstatic\.com\/media|images\.squarespace-cdn\.com|cdn\.shopify\.com\/s\/files|[a-z0-9-]+\.cloudfront\.net)[^\s"'<>]+\.(?:jpe?g|png|webp)/gi;
+      let m2;
+      while ((m2 = cdnRe.exec(page.html)) !== null) {
+        const u = m2[0];
+        if (/icon|logo|favicon|avatar|sprite|placeholder/i.test(u)) continue;
+        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
         if (candidates.length >= maxImages * 4) break;
       }
     }

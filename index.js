@@ -14745,6 +14745,9 @@ function buildTenantSiteHtml(tenant) {
     socialImages = Array.isArray(raw) ? raw : (typeof raw === "string" ? JSON.parse(raw) : []);
   } catch {}
   socialImages = socialImages.slice(0, 9);
+  const heroImg = socialImages[0] || "";
+  const bgImg1  = socialImages[1] || "";
+  const bgImg2  = socialImages[2] || "";
   const emailBtn = email ? `<a href="mailto:${email}" style="display:inline-flex;align-items:center;gap:6px;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">✉️ ${email}</a>` : "";
   const siteBtn  = site  ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:white;color:#374151;border:2px solid #d1d5db;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">🌐 Visit website</a>` : "";
   const socialBar = (fbUrl || igHandle || twHandle) ? `
@@ -14899,15 +14902,22 @@ function buildTenantSiteHtml(tenant) {
   if (btype === "gaa_club") {
     return baseHead() + stickyBar + `
 
-<section style="background:linear-gradient(160deg,${primary} 0%,#052e16 100%);color:white;padding:70px 24px 56px;text-align:center;">
-  ${logoImg}
-  <div class="badge">GAA</div><div class="badge">Foireann Affiliated</div>
-  <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 6px;">${name}</h1>
-  <p style="font-size:14px;opacity:0.7;margin-bottom:4px;letter-spacing:0.05em;">HURLING · FOOTBALL · CAMOGIE · LADIES FOOTBALL · UNDERAGE</p>
-  ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:14px auto 0;line-height:1.6;">${desc}</p>` : ""}
-  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:28px;">
-    <a href="${chatUrl}" class="cta-primary">Join the club →</a>
-    <a href="${chatUrl}" class="cta-secondary">View fixtures</a>
+<section style="position:relative;color:white;padding:70px 24px 56px;text-align:center;overflow:hidden;min-height:420px;display:flex;align-items:center;justify-content:center;">
+  ${heroImg
+    ? `<div style="position:absolute;inset:0;background-image:url(${heroImg});background-size:cover;background-position:center;"></div>
+       <div style="position:absolute;inset:0;background:linear-gradient(160deg,rgba(5,46,22,0.80) 0%,rgba(2,30,16,0.88) 100%);"></div>`
+    : `<div style="position:absolute;inset:0;background:linear-gradient(160deg,${primary} 0%,#052e16 100%);"></div>`
+  }
+  <div style="position:relative;z-index:1;width:100%;">
+    ${logoImg}
+    <div class="badge">GAA</div><div class="badge">Foireann Affiliated</div>
+    <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 6px;">${name}</h1>
+    <p style="font-size:14px;opacity:0.7;margin-bottom:4px;letter-spacing:0.05em;">HURLING · FOOTBALL · CAMOGIE · LADIES FOOTBALL · UNDERAGE</p>
+    ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:14px auto 0;line-height:1.6;">${desc}</p>` : ""}
+    <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:28px;">
+      <a href="${chatUrl}" class="cta-primary">Join the club →</a>
+      <a href="${chatUrl}" class="cta-secondary">View fixtures</a>
+    </div>
   </div>
 </section>
 
@@ -14924,8 +14934,13 @@ function buildTenantSiteHtml(tenant) {
 
 ${aboutSection}
 
-<section style="background:${light};padding:50px 24px;">
-  <div style="max-width:800px;margin:0 auto;">
+<section style="position:relative;padding:50px 24px;overflow:hidden;">
+  ${bgImg1
+    ? `<div style="position:absolute;inset:0;background-image:url(${bgImg1});background-size:cover;background-position:center;"></div>
+       <div style="position:absolute;inset:0;background:rgba(240,253,244,0.93);"></div>`
+    : `<div style="position:absolute;inset:0;background:${light};"></div>`
+  }
+  <div style="position:relative;z-index:1;max-width:800px;margin:0 auto;">
     <div class="section-label" style="text-align:center;">Our Codes</div>
     <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:28px;">All codes, all abilities</h2>
     <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -14952,11 +14967,18 @@ ${aboutSection}
   </div>
 </section>
 
-<section style="background:${primary};color:white;padding:42px 24px;text-align:center;">
-  <div style="font-size:28px;margin-bottom:10px;">🏕️</div>
-  <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Cúl Camps</h2>
-  <p style="font-size:15px;opacity:0.85;max-width:480px;margin:0 auto 20px;line-height:1.6;">The official GAA Summer Camps for boys and girls aged 6–13. Book through Croke Park — ask our assistant for details.</p>
-  <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;">Find out more →</a>
+<section style="position:relative;color:white;padding:42px 24px;text-align:center;overflow:hidden;">
+  ${bgImg2
+    ? `<div style="position:absolute;inset:0;background-image:url(${bgImg2});background-size:cover;background-position:center;"></div>
+       <div style="position:absolute;inset:0;background:rgba(5,46,22,0.84);"></div>`
+    : `<div style="position:absolute;inset:0;background:${primary};"></div>`
+  }
+  <div style="position:relative;z-index:1;">
+    <div style="font-size:28px;margin-bottom:10px;">🏕️</div>
+    <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Cúl Camps</h2>
+    <p style="font-size:15px;opacity:0.85;max-width:480px;margin:0 auto 20px;line-height:1.6;">The official GAA Summer Camps for boys and girls aged 6–13. Book through Croke Park — ask our assistant for details.</p>
+    <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;">Find out more →</a>
+  </div>
 </section>
 
 ${fbSection}

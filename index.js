@@ -9144,14 +9144,20 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled, business_description")
+    .select("ai_enabled, train_staff_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
+  let socialImages = [];
+  try { socialImages = JSON.parse(data?.social_images) || []; } catch {}
   res.json({
     ai_enabled:            data?.ai_enabled           ?? true,
     train_staff_enabled:   data?.train_staff_enabled  ?? false,
-    business_description:  data?.business_description ?? ""
+    business_description:  data?.business_description ?? "",
+    facebook_url:          data?.facebook_url         ?? "",
+    instagram_handle:      data?.instagram_handle     ?? "",
+    twitter_handle:        data?.twitter_handle       ?? "",
+    social_images:         socialImages
   });
 });
 
@@ -9170,6 +9176,9 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   if (typeof req.body.ai_enabled           === "boolean") updates.ai_enabled           = req.body.ai_enabled;
   if (typeof req.body.train_staff_enabled  === "boolean") updates.train_staff_enabled  = req.body.train_staff_enabled;
   if (typeof req.body.business_description === "string")  updates.business_description = req.body.business_description.slice(0, 300);
+  if (typeof req.body.facebook_url         === "string")  updates.facebook_url         = req.body.facebook_url.slice(0, 500);
+  if (typeof req.body.instagram_handle     === "string")  updates.instagram_handle     = req.body.instagram_handle.replace(/^@/, "").slice(0, 100);
+  if (typeof req.body.twitter_handle       === "string")  updates.twitter_handle       = req.body.twitter_handle.replace(/^@/, "").slice(0, 100);
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 
   const tenantId   = req.tenant.tenantId;
@@ -9234,6 +9243,59 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// ── Portal: social images management ─────────────────────────────────────────
+
+app.post("/api/portal/social-images/add", requireSeniorTenant, async (req, res) => {
+  const { url } = req.body;
+  if (!url || typeof url !== "string") return res.status(400).json({ error: "url required" });
+  const tenantId = req.tenant.tenantId;
+  let buffer, contentType;
+  try {
+    ({ buffer, contentType } = await fetchImageBuffer(url));
+  } catch (err) {
+    return res.status(400).json({ error: "Could not fetch image: " + err.message });
+  }
+  const ext = (contentType || "").includes("png") ? "png" : (contentType || "").includes("webp") ? "webp" : "jpg";
+  const storagePath = `${tenantId}/manual_${Date.now()}.${ext}`;
+  const { error: uploadErr } = await supabase.storage
+    .from("social-images")
+    .upload(storagePath, buffer, { contentType: contentType || "image/jpeg", upsert: true });
+  if (uploadErr) return res.status(500).json({ error: "Upload failed: " + uploadErr.message });
+  const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
+  const { data: tenant } = await supabase.from("tenants").select("social_images").eq("id", tenantId).maybeSingle();
+  let images = [];
+  try { images = JSON.parse(tenant?.social_images) || []; } catch {}
+  images.push(publicUrl);
+  if (images.length > 12) images = images.slice(-12);
+  await supabase.from("tenants").update({ social_images: JSON.stringify(images) }).eq("id", tenantId);
+  res.json({ ok: true, url: publicUrl, images });
+});
+
+app.post("/api/portal/social-images/remove", requireSeniorTenant, async (req, res) => {
+  const { url } = req.body;
+  if (!url || typeof url !== "string") return res.status(400).json({ error: "url required" });
+  const tenantId = req.tenant.tenantId;
+  const { data: tenant } = await supabase.from("tenants").select("social_images").eq("id", tenantId).maybeSingle();
+  let images = [];
+  try { images = JSON.parse(tenant?.social_images) || []; } catch {}
+  images = images.filter(u => u !== url);
+  await supabase.from("tenants").update({ social_images: JSON.stringify(images) }).eq("id", tenantId);
+  res.json({ ok: true, images });
+});
+
+app.post("/api/portal/social-images/refetch", requireSeniorTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { data: tenant } = await supabase.from("tenants").select("instagram_handle").eq("id", tenantId).maybeSingle();
+  if (!tenant?.instagram_handle) return res.status(400).json({ error: "No Instagram handle set. Save it in Social Media settings first." });
+  res.json({ ok: true });
+  fetchInstagramThumbnails(tenant.instagram_handle, tenantId, 9).then(async (thumbnails) => {
+    if (thumbnails.length > 0) {
+      await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
+      console.log(`[ig-refetch] Stored ${thumbnails.length} images for ${tenantId}`);
+    }
+  }).catch(err => console.error("[ig-refetch]", err.message));
 });
 
 // ── Portal: staff management ──────────────────────────────────────────────────

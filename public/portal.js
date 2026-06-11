@@ -557,6 +557,36 @@
       + '</div>'
       + '<div class="staff-status" id="staffStatus"></div>'
       + '</div>'
+      + '</div>'
+      // Social Media
+      + '<div style="margin-top:24px;padding-top:20px;border-top:1px solid #f3f4f6;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
+      + '<div class="toggle-label" style="margin-bottom:4px;">Social Media</div>'
+      + '<div class="toggle-sub" style="margin-bottom:12px;">Shown on your Sprimal website. Handles without the @ symbol.</div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px;">'
+      + '<input id="fbUrl" type="url" placeholder="Facebook Page URL (https://facebook.com/...)" value="' + (d.facebook_url || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '<input id="igHandle" type="text" placeholder="Instagram handle — e.g. passagewestgaaclub" value="' + (d.instagram_handle || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '<input id="twHandle" type="text" placeholder="Twitter / X handle — e.g. passageGAA" value="' + (d.twitter_handle || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-top:10px;">'
+      + '<button onclick="saveSocialHandles()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save</button>'
+      + '<span id="socialStatus" style="font-size:13px;color:#6b7280;"></span>'
+      + '</div>'
+      + '</div>'
+      // Club Photos
+      + '<div style="margin-bottom:20px;">'
+      + '<div class="toggle-label" style="margin-bottom:4px;">Club Photos</div>'
+      + '<div class="toggle-sub" style="margin-bottom:12px;">Photos shown on your club website. Paste any image URL to add, or re-fetch from Instagram.</div>'
+      + '<div id="photoGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'
+      + renderPhotoGrid(d.social_images || [])
+      + '</div>'
+      + '<div style="display:flex;gap:8px;margin-bottom:6px;">'
+      + '<input id="photoUrlInput" type="url" placeholder="Paste image URL to add…" style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '<button onclick="addPhotoFromUrl()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">Add photo</button>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:10px;">'
+      + '<button onclick="refetchInstagram()" style="background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;">↺ Re-fetch from Instagram</button>'
+      + '<span id="photoStatus" style="font-size:13px;color:#6b7280;"></span>'
+      + '</div>'
       + '</div>';
 
     if (d.train_staff_enabled) loadStaff();
@@ -589,6 +619,99 @@
         if (el) el.checked = !value;
         alert("Could not save setting: " + err.message);
       });
+  };
+
+  function renderPhotoGrid(images) {
+    if (!images || !images.length) {
+      return '<div style="grid-column:1/-1;font-size:13px;color:#9ca3af;padding:8px 0;">No photos yet. Paste a URL below or re-fetch from Instagram.</div>';
+    }
+    return images.map(function(url) {
+      var escaped = url.replace(/'/g, "\\'");
+      return '<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f3f4f6;">'
+        + '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.opacity=\'0.2\'">'
+        + '<button onclick="removePhoto(\'' + escaped + '\')" title="Remove" '
+        + 'style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  window.saveSocialHandles = function() {
+    var status = document.getElementById("socialStatus");
+    var fb = ((document.getElementById("fbUrl") || {}).value || "").trim();
+    var ig = ((document.getElementById("igHandle") || {}).value || "").trim().replace(/^@/, "");
+    var tw = ((document.getElementById("twHandle") || {}).value || "").trim().replace(/^@/, "");
+    if (status) status.textContent = "Saving…";
+    fetch("/api/portal/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ facebook_url: fb, instagram_handle: ig, twitter_handle: tw })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success) throw new Error(d.error || "save failed");
+      if (status) { status.textContent = "Saved ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
+  };
+
+  window.addPhotoFromUrl = function() {
+    var input = document.getElementById("photoUrlInput");
+    var status = document.getElementById("photoStatus");
+    var url = (input ? input.value : "").trim();
+    if (!url) return;
+    if (status) status.textContent = "Adding…";
+    fetch("/api/portal/social-images/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) throw new Error(d.error || "failed");
+      if (input) input.value = "";
+      var grid = document.getElementById("photoGrid");
+      if (grid) grid.innerHTML = renderPhotoGrid(d.images);
+      if (status) { status.textContent = "Added ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
+  };
+
+  window.removePhoto = function(url) {
+    var status = document.getElementById("photoStatus");
+    if (status) status.textContent = "Removing…";
+    fetch("/api/portal/social-images/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) throw new Error(d.error || "failed");
+      var grid = document.getElementById("photoGrid");
+      if (grid) grid.innerHTML = renderPhotoGrid(d.images);
+      if (status) { status.textContent = "Removed ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
+  };
+
+  window.refetchInstagram = function() {
+    var status = document.getElementById("photoStatus");
+    if (status) status.textContent = "Fetching from Instagram…";
+    fetch("/api/portal/social-images/refetch", { method: "POST" })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) throw new Error(d.error || "failed");
+      if (status) { status.textContent = "Fetching in background — refresh in ~30 seconds"; setTimeout(function() { status.textContent = ""; }, 30000); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
   };
 
   window.saveBizDesc = function() {

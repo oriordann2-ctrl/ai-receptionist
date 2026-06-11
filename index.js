@@ -15024,6 +15024,9 @@ function buildTenantSiteHtml(tenant) {
 
   // ── GAA CLUB ──────────────────────────────────────────────────────────────
   if (btype === "gaa_club") {
+    // Irish subtitle helper — slightly smaller, italic, softened opacity
+    const ga = (text) => `<span style="display:block;font-size:0.76em;font-style:italic;opacity:0.70;margin-top:3px;font-weight:400;">${text}</span>`;
+
     return baseHead() + stickyBar + `
 
 <section style="position:relative;color:white;padding:70px 24px 56px;text-align:center;overflow:hidden;min-height:420px;display:flex;align-items:center;justify-content:center;">
@@ -15034,13 +15037,14 @@ function buildTenantSiteHtml(tenant) {
   }
   <div style="position:relative;z-index:1;width:100%;">
     ${logoImg}
-    <div class="badge">GAA</div><div class="badge">Foireann Affiliated</div>
+    <div class="badge">GAA · CLG</div><div class="badge">Foireann Affiliated</div>
     <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 6px;">${name}</h1>
-    <p style="font-size:14px;opacity:0.7;margin-bottom:4px;letter-spacing:0.05em;">HURLING · FOOTBALL · CAMOGIE · LADIES FOOTBALL · UNDERAGE</p>
+    <p style="font-size:14px;opacity:0.7;margin-bottom:2px;letter-spacing:0.05em;">HURLING · FOOTBALL · CAMOGIE · LADIES FOOTBALL · UNDERAGE</p>
+    <p style="font-size:12px;opacity:0.5;letter-spacing:0.05em;font-style:italic;margin-bottom:4px;">IOMÁNAÍOCHT · PEIL · CAMÓGAÍOCHT · PEIL NA MBAN · ÓG</p>
     ${desc ? `<p style="font-size:17px;opacity:0.85;max-width:560px;margin:14px auto 0;line-height:1.6;">${desc}</p>` : ""}
     <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:28px;">
-      <a href="${chatUrl}" class="cta-primary">Join the club →</a>
-      <a href="${chatUrl}" class="cta-secondary">View fixtures</a>
+      <a href="${chatUrl}" class="cta-primary">Join the club →${ga("Bí linn")}</a>
+      <a href="${chatUrl}" class="cta-secondary">View fixtures${ga("Féach ar chluichí")}</a>
     </div>
   </div>
 </section>
@@ -15049,10 +15053,10 @@ function buildTenantSiteHtml(tenant) {
   <div style="max-width:800px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">
     <div style="font-size:22px;">🎰</div>
     <div>
-      <div style="font-weight:800;font-size:17px;">Club Lotto — Play this week</div>
+      <div style="font-weight:800;font-size:17px;">Club Lotto — Play this week${ga("Crannchuir an Chlub")}</div>
       <div style="font-size:13px;opacity:0.9;">Support your club · Great prizes every week</div>
     </div>
-    <a href="${chatUrl}" style="background:white;color:${accent};font-weight:800;text-decoration:none;padding:10px 22px;border-radius:8px;font-size:14px;white-space:nowrap;">Buy tickets →</a>
+    <a href="${chatUrl}" style="background:white;color:${accent};font-weight:800;text-decoration:none;padding:10px 22px;border-radius:8px;font-size:14px;white-space:nowrap;">Buy tickets →${ga("Ceannaigh ticéid")}</a>
   </div>
 </section>
 
@@ -15065,29 +15069,29 @@ ${aboutSection}
     : `<div style="position:absolute;inset:0;background:${light};"></div>`
   }
   <div style="position:relative;z-index:1;max-width:800px;margin:0 auto;">
-    <div class="section-label" style="text-align:center;">Our Codes</div>
-    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:28px;">All codes, all abilities</h2>
+    <div class="section-label" style="text-align:center;">Ár gCóid / Our Codes</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:28px;">All codes, all abilities${ga("Gach cód, gach cumas")}</h2>
     <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">⚽ Football</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
-      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🏑 Hurling</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
-      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🏐 Ladies Football</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
-      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🥍 Camogie</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
+      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">⚽ Football${ga("Peil Ghaelach")}</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
+      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🏑 Hurling${ga("Iománaíocht")}</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
+      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🏐 Ladies Football${ga("Peil na mBan")}</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
+      <div class="code-card"><div style="font-weight:800;color:#111827;margin-bottom:4px;">🥍 Camogie${ga("Camógaíocht")}</div><div style="font-size:13px;color:#6b7280;">Senior · Junior · Underage</div></div>
     </div>
   </div>
 </section>
 
 <section style="padding:50px 24px;">
   <div style="max-width:800px;margin:0 auto;">
-    <div class="section-label" style="text-align:center;">Membership</div>
-    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:10px;">Join ${name}</h2>
-    <p style="text-align:center;color:#6b7280;margin-bottom:28px;">New members are always welcome — all ages, all abilities.</p>
+    <div class="section-label" style="text-align:center;">Ballraíocht / Membership</div>
+    <h2 style="font-size:24px;font-weight:800;color:#111827;text-align:center;margin-bottom:10px;">Join ${name}${ga("Glac páirt le ${name}")}</h2>
+    <p style="text-align:center;color:#6b7280;margin-bottom:28px;">New members are always welcome — all ages, all abilities.<br><span style="font-size:0.88em;font-style:italic;">Fáiltítear roimh bhaill nua i gcónaí.</span></p>
     <div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
-      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🧑</div><div style="font-weight:700;font-size:14px;">Adult</div></div>
-      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🎓</div><div style="font-weight:700;font-size:14px;">Student</div></div>
-      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👨‍👩‍👧‍👦</div><div style="font-weight:700;font-size:14px;">Family</div></div>
-      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👶</div><div style="font-weight:700;font-size:14px;">Juvenile</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🧑</div><div style="font-weight:700;font-size:14px;">Adult${ga("Aosach")}</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">🎓</div><div style="font-weight:700;font-size:14px;">Student${ga("Mac Léinn")}</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👨‍👩‍👧‍👦</div><div style="font-weight:700;font-size:14px;">Family${ga("Teaghlach")}</div></div>
+      <div class="tier-card"><div style="font-size:22px;margin-bottom:6px;">👶</div><div style="font-weight:700;font-size:14px;">Juvenile${ga("Ógánach")}</div></div>
     </div>
-    <div style="text-align:center;"><a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 30px;border-radius:9px;font-size:15px;font-weight:700;">Ask about membership →</a></div>
+    <div style="text-align:center;"><a href="${chatUrl}" style="display:inline-block;background:${primary};color:white;text-decoration:none;padding:13px 30px;border-radius:9px;font-size:15px;font-weight:700;">Ask about membership →${ga("Fiafraigh faoi bhallraíocht")}</a></div>
   </div>
 </section>
 
@@ -15101,7 +15105,7 @@ ${aboutSection}
     <div style="font-size:28px;margin-bottom:10px;">🏕️</div>
     <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Cúl Camps</h2>
     <p style="font-size:15px;opacity:0.85;max-width:480px;margin:0 auto 20px;line-height:1.6;">The official GAA Summer Camps for boys and girls aged 6–13. Book through Croke Park — ask our assistant for details.</p>
-    <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;">Find out more →</a>
+    <a href="${chatUrl}" style="display:inline-block;background:${accent};color:white;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:9px;font-size:14px;">Find out more →${ga("Tuilleadh eolais")}</a>
   </div>
 </section>
 
@@ -15111,7 +15115,7 @@ ${aiSection("Ask about membership, fixtures, Club Lotto, Cúl Camps, training ti
 ${contactSection}
 ${socialBar}
 ${footer("Official GAA Member Club · Foireann.ie", "https://www.foireann.ie")}
-<p style="text-align:center;font-size:11px;color:#9ca3af;padding:12px;background:#111827;">Child Safeguarding Statement available on request · <a href="${chatUrl}" style="color:#6b7280;">Contact us</a></p>
+<p style="text-align:center;font-size:11px;color:#9ca3af;padding:12px;background:#111827;">Child Safeguarding Statement available on request · <a href="${chatUrl}" style="color:#6b7280;">Contact us / Déan teagmháil linn</a></p>
 ${widgetScript}</body></html>`;
   }
 

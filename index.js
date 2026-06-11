@@ -342,10 +342,10 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
 
   const membershipUrl = v(info.membership_url)    || websiteUrl;
   const bookingUrl    = v(info.court_booking_url) || websiteUrl;
-  const contactEmail  = v(info.email)             || "[FILL IN: email]";
-  const emailLink     = contactEmail !== "[FILL IN: email]"
+  const contactEmail  = v(info.email) || null;
+  const emailLink     = contactEmail
     ? `[link=mailto:${contactEmail}]${contactEmail}[/link]`
-    : "[FILL IN: email]";
+    : null;
 
   // ── Membership — only state what we know; never assume tiers or prices ──────
   // Parse membership_forms — LLM may return an array or a JSON string
@@ -362,10 +362,10 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
   const pricesBlock = v(info.membership_prices) ? `\n\n💰 Membership Rates\n${info.membership_prices}` : "";
 
   const membMsg = membershipForms.length
-    ? `To join ${name}, complete the appropriate application form:\n\n${membershipForms.map(f => `📋 [link=${f.url}]${f.label}[/link]`).join("\n")}${pricesBlock}\n\nQuestions? Email ${emailLink}`
+    ? `To join ${name}, complete the appropriate application form:\n\n${membershipForms.map(f => `📋 [link=${f.url}]${f.label}[/link]`).join("\n")}${pricesBlock}${emailLink ? `\n\nQuestions? Email ${emailLink}` : ""}`
     : v(info.membership_url)
-      ? `To view membership options and join ${name}, visit:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]${pricesBlock}\n\nOr get in touch:\n📧 ${emailLink}`
-      : `Interested in joining ${name}? Get in touch and we'll send you all the details:${pricesBlock}\n\n📧 ${emailLink}`;
+      ? `To view membership options and join ${name}, visit:\n\n🔗 [link=${membershipUrl}]${membershipUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]${pricesBlock}${emailLink ? `\n\nOr get in touch:\n📧 ${emailLink}` : ""}`
+      : `Interested in joining ${name}? Get in touch and we'll send you all the details:${pricesBlock}${emailLink ? `\n\n📧 ${emailLink}` : ""}`;
 
   // ── Coaching ─────────────────────────────────────────────────────────────────
   // Parse coaches — LLM returns [{name, phone, email}] or a JSON string
@@ -465,7 +465,7 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc, choice_order: 2, label: "← Back to menu",    action_type: "switch_flow", action_value: fMain  },
     // Other — guided sub-flow
     { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[tennis-seed] Choice insert error:", cErr.message); return false; }
@@ -515,14 +515,14 @@ function buildLocLines(info, name, mapsUrl, emailLink) {
   const v = (val) => (val && val !== "null") ? val : null;
   const lines = [
     `📍 ${name}`,
-    v(info.address) || "[FILL IN: address]",
+    v(info.address) || null,
     v(info.eircode) ? `Eircode: ${info.eircode}` : null,
     "",
     `[link=${mapsUrl}]📍 Get directions on Google Maps[/link]`,
     "",
     v(info.opening_hours) ? `🕐 Opening Hours\n${info.opening_hours}` : null,
     v(info.opening_hours) ? "" : null,
-    v(info.email) ? `📧 ${emailLink}` : "📧 [FILL IN: email]",
+    emailLink ? `📧 ${emailLink}` : null,
     v(info.phone) ? `📞 ${info.phone}` : null,
   ];
   return lines.filter(l => l !== null).join("\n");
@@ -633,7 +633,7 @@ async function seedFitnessStudioFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc,   choice_order: 2, label: "← Back to menu",             action_type: "switch_flow",  action_value: fMain   },
     // Other — guided sub-flow
     { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[fitness-seed] Choice insert error:", cErr.message); return false; }
@@ -713,7 +713,7 @@ async function seedGolfClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain   },
     // Other — guided sub-flow
     { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[golf-seed] Choice insert error:", cErr.message); return false; }
@@ -793,7 +793,7 @@ async function seedRacketSportsClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc,   choice_order: 2, label: "← Back to menu",      action_type: "switch_flow",  action_value: fMain   },
     // Other — guided sub-flow
     { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[racket-seed] Choice insert error:", cErr.message); return false; }
@@ -875,7 +875,7 @@ async function seedYogaStudioFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc,   choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain   },
     // Other — guided sub-flow
     { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[yoga-seed] Choice insert error:", cErr.message); return false; }
@@ -955,7 +955,7 @@ async function seedSwimClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc,  choice_order: 2, label: "← Back to menu",          action_type: "switch_flow",  action_value: fMain   },
     // Other — guided sub-flow
     { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[swim-seed] Choice insert error:", cErr.message); return false; }
@@ -1035,7 +1035,7 @@ async function seedTeamSportsClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc,   choice_order: 2, label: "← Back to menu",         action_type: "switch_flow",  action_value: fMain   },
     // Other — guided sub-flow
     { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[team-seed] Choice insert error:", cErr.message); return false; }
@@ -1122,7 +1122,7 @@ async function seedGAAClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc,   choice_order: 1, label: "📍 Get directions",        action_type: "url",          action_value: mapsUrl },
     { step_id: sLoc,   choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain   },
     { step_id: sOther, choice_order: 1, label: "💬 I have a question",     action_type: "ai_fallback",  action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",            action_type: "message",      action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",            action_type: "message",      action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",      action_type: "switch_flow",  action_value: fMain },
   ]);
   if (cErr) { console.error("[gaa-seed] Choice insert error:", cErr.message); return false; }
@@ -1208,7 +1208,7 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
     { step_id: sLoc,   choice_order: 2, label: "← Back to menu",           action_type: "switch_flow",  action_value: fMain   },
     // Other — guided sub-flow
     { step_id: sOther, choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null  },
-    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:\n\n📧 ${emailLink}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
+    { step_id: sOther, choice_order: 2, label: "📞 Contact us",        action_type: "message",     action_value: `Get in touch:${emailLink ? `\n\n📧 ${emailLink}` : ""}${v(info.phone) ? `\n📞 ${info.phone}` : ""}` },
     { step_id: sOther, choice_order: 3, label: "↩ Back to main menu",  action_type: "switch_flow", action_value: fMain },
   ]);
   if (cErr) { console.error("[cafe-seed] Choice insert error:", cErr.message); return false; }
@@ -5512,9 +5512,11 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
   // Always include root
   if (!allUrls.some(u => canonicalUrl(u) === rootCanon)) allUrls.unshift(root);
 
-  // Always probe generic key paths (404s silently skipped)
+  // Probe generic paths only when business type is unknown — if we already know the type,
+  // skip the 56 generic guesses and use only the targeted business-specific list instead.
   const probeSet = new Set(); // track speculative probes — skip Jina fallback for these
-  for (const p of PROBE_PATHS) {
+  const genericProbes = businessType ? [] : PROBE_PATHS;
+  for (const p of genericProbes) {
     const probeUrl = root + p;
     const probeCanon = canonicalUrl(probeUrl);
     if (!allUrls.some(u => canonicalUrl(u) === probeCanon)) allUrls.push(probeUrl);
@@ -5548,6 +5550,11 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
     /\/lost-password/i,
     /\?action=lostpassword/i,
     /\?redirect_to=/i,
+    // Author/user archive pages — never useful for AI receptionist
+    /\/author\//i,
+    // Tag and date archive pages
+    /\/tag\//i,
+    /\/\d{4}\/\d{2}(\/|$)/i,
   ];
   function isBlockedUrl(u) {
     try {
@@ -5581,7 +5588,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
     try {
       console.log(`[crawler] Fetching: ${url}`);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), isProbe ? 3000 : 8000);
       const response = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
         signal: controller.signal
@@ -5657,8 +5664,8 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
     }
   }
 
-  // ── Parallel batch crawl (2 pages at a time — gentle on slow/rate-limited sites) ───────────────────────────────
-  const BATCH_SIZE = 2;
+  // ── Parallel batch crawl ─────────────────────────────────────────────────────
+  const BATCH_SIZE = 5;
 
   while (queue.length > 0 && pages.length < maxPages) {
     // Build next batch — mark URLs visited immediately to prevent batch duplicates
@@ -6171,7 +6178,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         if (igHandle) {
           setCrawlProgress(tenantId, 13, `Fetching photos from Instagram (@${igHandle})…`);
           const thumbnails = await fetchInstagramThumbnails(igHandle, tenantId, 9);
-          if (thumbnails.length > 0) {
+          if (thumbnails.length > 1) {
             await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
             console.log(`[crawl] Stored ${thumbnails.length} IG thumbnails for ${tenantId}`);
           }
@@ -6179,11 +6186,11 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       } catch {}
 
       setCrawlProgress(tenantId, 14, "On the track — scanning your website…");
-      const pages = await crawlWebsite(website, 60, (count) => {
-        const pct = 14 + Math.round((count / 60) * 52);
-        const lap = count <= 20 ? 1 : count <= 40 ? 2 : 3;
-        setCrawlProgress(tenantId, Math.min(pct, 66), `Lap ${lap} — ${count} page${count === 1 ? "" : "s"} scanned so far…`);
-      });
+      const earlyBizType = nameToBusinessType(name);
+      const pages = await crawlWebsite(website, 25, (count) => {
+        const pct = 14 + Math.round((count / 25) * 52);
+        setCrawlProgress(tenantId, Math.min(pct, 66), `${count} page${count === 1 ? "" : "s"} scanned so far…`);
+      }, earlyBizType);
       console.log(`[crawl] Crawled ${pages.length} pages for ${tenantId}`);
 
       // ── Auto-detect Instagram handle from crawled pages + search ────────────────
@@ -6196,7 +6203,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
             console.log(`[ig-detect] Found @${detected.handle} for ${tenantId} (confidence ${detected.confidence.toFixed(2)}, source: ${detected.source})`);
             await supabase.from("tenants").update({ instagram_handle: detected.handle }).eq("id", tenantId);
             const thumbnails = await fetchInstagramThumbnails(detected.handle, tenantId, 9);
-            if (thumbnails.length > 0) {
+            if (thumbnails.length > 1) {
               await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
               console.log(`[ig-detect] Stored ${thumbnails.length} IG photos for ${tenantId} (@${detected.handle})`);
             }
@@ -8438,7 +8445,7 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
             await supabase.from("tenants").update({ instagram_handle: detected.handle }).eq("id", tenantId);
             console.log(`[portal-import] Instagram handle: @${detected.handle} (${detected.confidence.toFixed(2)})`);
             const thumbnails = await fetchInstagramThumbnails(detected.handle, tenantId, 9);
-            if (thumbnails.length > 0) {
+            if (thumbnails.length > 1) {
               await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
             }
           }
@@ -8695,7 +8702,9 @@ app.delete("/api/admin/tenants/:id", requireAdmin, async (req, res) => {
       supabase.from("documents").delete().eq("tenant_id", id),
       supabase.from("flagged_answers").delete().eq("tenant_id", id),
       supabase.from("knowledge_chunks").delete().eq("tenant_id", id),
+      supabase.from("membership_requests").delete().eq("tenant_id", id),
       supabase.from("portal_users").delete().eq("tenant_id", id),
+      supabase.from("skill_leads").delete().eq("tenant_id", id),
       supabase.from("tenant_integrations").delete().eq("tenant_id", id),
       supabase.from("tenant_agents").delete().eq("tenant_id", id),
     ];
@@ -9647,7 +9656,7 @@ app.post("/api/portal/social-images/refetch", requireSeniorTenant, async (req, r
   if (!tenant?.instagram_handle) return res.status(400).json({ error: "No Instagram handle set. Save it in Social Media settings first." });
   res.json({ ok: true });
   fetchInstagramThumbnails(tenant.instagram_handle, tenantId, 9).then(async (thumbnails) => {
-    if (thumbnails.length > 0) {
+    if (thumbnails.length > 1) {
       await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
       console.log(`[ig-refetch] Stored ${thumbnails.length} images for ${tenantId}`);
     }
@@ -15079,10 +15088,15 @@ function buildTenantSiteHtml(tenant) {
     const raw = tenant.social_images;
     socialImages = Array.isArray(raw) ? raw : (typeof raw === "string" ? JSON.parse(raw) : []);
   } catch {}
-  socialImages = socialImages.slice(0, 9);
-  const heroImg = socialImages[0] || "";
-  const bgImg1  = socialImages[1] || "";
-  const bgImg2  = socialImages[2] || "";
+  // Strip Instagram profile pic (ig_0) — it's a small square avatar, not a usable photo
+  socialImages = socialImages.filter(u => !/\/ig_0\./.test(u)).slice(0, 9);
+  // Prefer website photos (site_N) over other Instagram images for backgrounds
+  const siteImgs = socialImages.filter(u => /\/site_\d+\./.test(u));
+  const igImgs   = socialImages.filter(u => /\/ig_\d+\./.test(u));
+  const bgImages = [...siteImgs, ...igImgs];
+  const heroImg = bgImages[0] || "";
+  const bgImg1  = bgImages[1] || "";
+  const bgImg2  = bgImages[2] || "";
   const emailBtn = email ? `<a href="mailto:${email}" style="display:inline-flex;align-items:center;gap:6px;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">✉️ ${email}</a>` : "";
   const siteBtn  = site  ? `<a href="${esc(site)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:white;color:#374151;border:2px solid #d1d5db;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">🌐 Visit website</a>` : "";
   const socialBar = (fbUrl || igHandle || twHandle) ? `

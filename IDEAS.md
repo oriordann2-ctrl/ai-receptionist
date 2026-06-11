@@ -450,6 +450,53 @@ Needed before Twilio regulatory bundle can be submitted.
 
 ---
 
+## 🔗 Portal — Social Media Handles (Facebook, Instagram, Twitter)
+
+**Problem:** Social media handles are often not linked from the website, so the crawl misses them entirely. When the auto-generated website runs, it has no social media to pull images or content from.
+
+**What to build:** A "Social Media" section in the portal settings page with input fields for:
+- Facebook page URL or handle
+- Instagram handle (@handle)
+- Twitter/X handle (@handle)
+- TikTok handle (optional — growing for cafés and fitness studios)
+
+**Why it matters:**
+- Social handles are the source for Phase 2 of auto-generated websites (real photos from Instagram/Facebook)
+- Twitter handle already solves the logo problem for clubs (proven: @passageGAA)
+- Club lotto results, match reports, specials — all posted to social, not the website
+- Without handles, the generated website has no real photos and the social crawl has nothing to pull from
+
+**Flow:**
+- Tenant fills in handles in portal → saved to tenants table
+- Background job scrapes recent posts/images → stored as KB documents (`document_type: "Social Media"`)
+- Re-generate website button → pulls in latest social images for hero/gallery
+
+**Status:** Not built. Handles not stored anywhere. Logo-from-Twitter already proven via `unavatar.io`.
+
+**Next steps:**
+- Add `facebook_url`, `instagram_handle`, `twitter_handle` columns to tenants table
+- Add social handles section to portal settings/profile page
+- Wire into social media crawl (see Social Media Crawl idea)
+- Wire into website generator for Phase 2 photos
+
+---
+
+## 🖼️ Portal — Logo Upload Button
+
+**What:** A button in the client portal (Settings or Branding section) that lets the tenant upload their own logo directly, replacing whatever was auto-detected during the crawl.
+
+**Why:** Auto-detection via Clearbit/favicon scraping is unreliable — clubs with broken websites, Weebly sites, or no favicon end up with the wrong logo or the Sprimal default. Tenants need a self-service way to fix this without us having to do a SQL update manually every time.
+
+**How:**
+- Upload button in portal → stores image in Supabase Storage → saves public URL to `tenants.logo_url`
+- Accept PNG/JPG/SVG, max ~2MB, auto-resize to square (128×128 or 256×256)
+- Preview of current logo shown next to the upload button
+- Once uploaded, the favicon proxy picks it up immediately (cache cleared on update)
+
+**Status:** Not built. Currently requires manual SQL update as a workaround.
+
+---
+
 ## 📱 Social Media Crawl — Enrich KB from Facebook / Instagram / Twitter
 
 **What:** During the crawl (and recrawl), also pull content from the tenant's social media accounts to enrich the knowledge base — not just the website.
@@ -482,6 +529,42 @@ Needed before Twilio regulatory bundle can be submitted.
 - Add `scrapeTwitterPosts(handle)` — via X API v2 free tier or Nitter fallback
 - Facebook: evaluate Graph API (requires app review for some endpoints) vs. scraping
 - Add "Social Media" document type + separate recrawl button in portal
+
+---
+
+## 🌐 Browser Tab Favicon — Sprimal / Club Logo in Tab Title Bar
+
+**What:** The generated tenant websites at `/sites/:tenantId` should show a favicon in the browser tab, just like any professional website. Currently the tab shows a blank page icon.
+
+**What to show:**
+- If the tenant has a `logo_url` set — use that as the favicon (works for PNG/JPG via `<link rel="icon">`)
+- If no logo — fall back to the Sprimal logo
+
+**How:**
+- In `buildTenantSiteHtml`, add to `baseHead()`:
+  ```html
+  <link rel="icon" href="${logo || 'https://app.sprimal.com/sprimal-icon.png'}" type="image/png">
+  <link rel="apple-touch-icon" href="${logo || 'https://app.sprimal.com/sprimal-icon.png'}">
+  ```
+- The favicon proxy already exists at `/favicon-proxy` — could use that as the `href` so it handles format conversion
+
+**Status:** Not built. Simple one-liner addition to `baseHead()`.
+
+---
+
+## 📧 Email Deliverability — Keep Signup Emails Out of Spam
+
+**Problem:** Signup/verification emails sent via Resend may land in spam folders, especially for new domains or free email providers (Gmail, Hotmail).
+
+**What to check / fix:**
+- Verify SPF, DKIM, and DMARC DNS records are set on the sending domain (`sprimal.com`) via Resend dashboard
+- Ensure the `From` address is `hello@sprimal.com` (matching the verified domain) — not a generic no-reply
+- Review email HTML — avoid spammy words, excessive links, all-caps, image-heavy layouts
+- Add plain-text version alongside HTML in Resend payloads
+- Consider adding a short warm-up period (gradually increasing send volume) if the domain is new
+- Test deliverability via mail-tester.com before going wider
+
+**Status:** Not investigated. Priority before wider rollout.
 
 ---
 

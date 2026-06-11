@@ -4984,6 +4984,45 @@ function isGenericFavicon(url) {
   return GENERIC_FAVICON_PATTERNS.some(p => url.includes(p));
 }
 
+// Extract the most prominent non-neutral hex color from a page's CSS/style blocks.
+// Used as a fallback when no <meta name="theme-color"> is present.
+function extractDominantCssColor(html) {
+  try {
+    // Pull text from <style> blocks + inline style attributes
+    const cssBlocks = [];
+    let m;
+    const styleRe = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    while ((m = styleRe.exec(html)) !== null) cssBlocks.push(m[1]);
+    const inlineRe = /style=["']([^"']{0,300})["']/gi;
+    while ((m = inlineRe.exec(html)) !== null) cssBlocks.push(m[1]);
+    const css = cssBlocks.join(" ");
+
+    // Count frequency of each hex color (3 or 6 digit)
+    const freq = {};
+    const hexRe = /#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g;
+    while ((m = hexRe.exec(css)) !== null) {
+      // Expand 3-digit to 6-digit
+      let hex = m[1].length === 3
+        ? m[1].split("").map(c => c + c).join("")
+        : m[1];
+      hex = hex.toLowerCase();
+      // Skip white, near-white, black, near-black, and grays
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      if (max > 230) continue; // too light
+      if (max < 25) continue;  // too dark
+      if (max - min < 30) continue; // too gray (low saturation)
+      freq[hex] = (freq[hex] || 0) + 1;
+    }
+
+    // Return the most common saturated color
+    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+    return sorted.length ? "#" + sorted[0][0] : null;
+  } catch { return null; }
+}
+
 function instagramHandleScore(name, handle) {
   const tokens = name.toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
@@ -5019,31 +5058,37 @@ async function detectInstagramHandle(name, pages) {
   candidates.sort((a, b) => b.confidence - a.confidence);
   if (candidates[0]?.confidence >= 0.60) return candidates[0];
 
-  // 2. DuckDuckGo search fallback
-  try {
-    const q = encodeURIComponent(`"${name}" site:instagram.com`);
-    const res = await fetch(`https://lite.duckduckgo.com/lite/?q=${q}`, {
-      headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
-      signal: AbortSignal.timeout(10000)
-    });
-    if (res.ok) {
-      const html = await res.text();
-      const re2 = /instagram\.com\/([a-zA-Z0-9_.]{2,30})/g;
-      const searchSeen = new Set();
-      let m2;
-      while ((m2 = re2.exec(html)) !== null) {
-        const handle = m2[1].replace(/\/?$/, "");
-        if (SKIP.has(handle.toLowerCase()) || searchSeen.has(handle.toLowerCase())) continue;
-        searchSeen.add(handle.toLowerCase());
-        const score = instagramHandleScore(name, handle);
-        if (score >= 0.4) candidates.push({ handle, confidence: score * 0.82, source: "search" });
+  // 2. DuckDuckGo search fallback — try two queries for better coverage
+  const searchQueries = [
+    `"${name}" site:instagram.com`,
+    `${name} GAA instagram`,
+  ];
+  for (const query of searchQueries) {
+    try {
+      const q = encodeURIComponent(query);
+      const res = await fetch(`https://lite.duckduckgo.com/lite/?q=${q}`, {
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
+        signal: AbortSignal.timeout(10000)
+      });
+      if (res.ok) {
+        const html = await res.text();
+        const re2 = /instagram\.com\/([a-zA-Z0-9_.]{2,30})/g;
+        const searchSeen = new Set();
+        let m2;
+        while ((m2 = re2.exec(html)) !== null) {
+          const handle = m2[1].replace(/\/?$/, "");
+          if (SKIP.has(handle.toLowerCase()) || searchSeen.has(handle.toLowerCase())) continue;
+          searchSeen.add(handle.toLowerCase());
+          const score = instagramHandleScore(name, handle);
+          if (score >= 0.35) candidates.push({ handle, confidence: score * 0.82, source: "search" });
+        }
       }
-      candidates.sort((a, b) => b.confidence - a.confidence);
-      if (candidates[0]?.confidence >= 0.60) return candidates[0];
+    } catch (e) {
+      console.log(`[ig-detect] DuckDuckGo failed: ${e.message}`);
     }
-  } catch (e) {
-    console.log(`[ig-detect] DuckDuckGo failed: ${e.message}`);
   }
+  candidates.sort((a, b) => b.confidence - a.confidence);
+  if (candidates[0]?.confidence >= 0.55) return candidates[0];
 
   return null;
 }
@@ -5820,7 +5865,9 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
     const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
     const storagePath = `${tenantId}/site_${i}.${ext}`;
     const { error } = await supabase.storage.from("social-images").upload(storagePath, buf, { contentType: ct, upsert: true });
-    if (!error) {
+    if (error) {
+      console.error(`[img-extract] Upload failed for ${storagePath}: ${error.message}`);
+    } else {
       const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
       permanent.push(publicUrl);
     }
@@ -5965,13 +6012,14 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
             if (logoUrl) console.log(`[crawl] Logo found in HTML for ${tenantId}: ${logoUrl}`);
             setCrawlProgress(tenantId, 10, "Picking up your logo and brand colours…");
 
-            // Brand colour
+            // Brand colour — prefer theme-color meta, fall back to dominant CSS color
             try {
               const tcMatch = homepageHtml.match(/<meta[^>]+name=["']theme-color["'][^>]+content=["'](#[0-9a-fA-F]{3,8})["']/i)
                            || homepageHtml.match(/<meta[^>]+content=["'](#[0-9a-fA-F]{3,8})["'][^>]+name=["']theme-color["']/i);
-              if (tcMatch) {
-                await supabase.from("tenants").update({ brand_color: tcMatch[1] }).eq("id", tenantId);
-                console.log(`[crawl] Brand colour stored for ${tenantId}: ${tcMatch[1]}`);
+              const brandColor = tcMatch ? tcMatch[1] : extractDominantCssColor(homepageHtml);
+              if (brandColor) {
+                await supabase.from("tenants").update({ brand_color: brandColor }).eq("id", tenantId);
+                console.log(`[crawl] Brand colour stored for ${tenantId}: ${brandColor} (${tcMatch ? "theme-color" : "css-dominant"})`);
               }
             } catch {}
 

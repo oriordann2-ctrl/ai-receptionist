@@ -8331,6 +8331,49 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
         }
       }
       console.log(`[portal-import] Done — imported ${imported} pages for ${tenantId}`);
+
+      // Re-run Instagram detection + image extraction so re-import fully refreshes the site
+      try {
+        const { data: tMeta } = await supabase.from("tenants").select("name, instagram_handle, social_images, business_type").eq("id", tenantId).maybeSingle();
+
+        // Business type — re-detect if still "other" or missing
+        if (!tMeta?.business_type || tMeta.business_type === "other") {
+          const allText = pages.map(p => p.text).join(" ").slice(0, 2000);
+          const bizType = await detectBusinessType(tMeta?.name || "", tMeta?.business_description || "", allText);
+          await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
+          console.log(`[portal-import] Business type set: ${bizType}`);
+        }
+
+        // Instagram handle
+        if (!tMeta?.instagram_handle) {
+          setCrawlProgress(tenantId, 96, "Looking for your Instagram profile…");
+          const detected = await detectInstagramHandle(tMeta?.name || "", pages);
+          if (detected) {
+            await supabase.from("tenants").update({ instagram_handle: detected.handle }).eq("id", tenantId);
+            console.log(`[portal-import] Instagram handle: @${detected.handle} (${detected.confidence.toFixed(2)})`);
+            const thumbnails = await fetchInstagramThumbnails(detected.handle, tenantId, 9);
+            if (thumbnails.length > 0) {
+              await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
+            }
+          }
+        }
+
+        // Website images — fill up to 9 total
+        const currentImages = (() => { try { return JSON.parse(tMeta?.social_images) || []; } catch { return []; } })();
+        const needed = 9 - currentImages.length;
+        if (needed > 0) {
+          setCrawlProgress(tenantId, 97, "Gathering photos from your website…");
+          const siteImages = await extractAndRehostWebsiteImages(pages, tenantId, needed);
+          if (siteImages.length > 0) {
+            const combined = [...currentImages, ...siteImages].slice(0, 9);
+            await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+            console.log(`[portal-import] Stored ${combined.length} total images`);
+          }
+        }
+      } catch (e) {
+        console.error(`[portal-import] Post-import enrichment error:`, e.message);
+      }
+
       setCrawlProgress(tenantId, 100, `✅ Done — ${imported} page${imported === 1 ? "" : "s"} imported`, true);
     } catch (err) {
       console.error(`[portal-import] Crawl failed for ${tenantId}:`, err.message);

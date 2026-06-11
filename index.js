@@ -6091,6 +6091,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
 
         if (logoUrl && !existingLogoData?.logo_url) {
           await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
+          clearFaviconCache(tenantId);
         }
       } catch (err) {
         console.error(`[crawl] Logo extraction error for ${tenantId}:`, err.message);
@@ -6172,6 +6173,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         }
         if (logoUrl) {
           await supabase.from("tenants").update({ logo_url: logoUrl }).eq("id", tenantId);
+          clearFaviconCache(tenantId);
         }
       }
 
@@ -9743,6 +9745,7 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
 // ── Favicon proxy — serves tenant logo through our own domain ─────────────────
 // Avoids hotlinking blocks and CORS issues entirely.
 const faviconCache = new Map(); // tenantId → { buffer, contentType, ts }
+function clearFaviconCache(tenantId) { faviconCache.delete(tenantId); }
 
 // Fetches an image buffer, falling back to SSL-bypass for broken certs
 function fetchImageBuffer(url) {

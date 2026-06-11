@@ -4984,42 +4984,55 @@ function isGenericFavicon(url) {
   return GENERIC_FAVICON_PATTERNS.some(p => url.includes(p));
 }
 
-// Extract the most prominent non-neutral hex color from a page's CSS/style blocks.
-// Used as a fallback when no <meta name="theme-color"> is present.
+// Extract brand color from a page's CSS. Strategy (in order):
+// 1. CSS custom properties named --primary, --brand, --accent, --color-primary etc.
+// 2. Colors on structural selectors: header, nav, .site-header, h1, h2, button
+// 3. Skip known framework defaults (WP blue, Bootstrap blue, etc.)
 function extractDominantCssColor(html) {
   try {
-    // Pull text from <style> blocks + inline style attributes
-    const cssBlocks = [];
-    let m;
-    const styleRe = /<style[^>]*>([\s\S]*?)<\/style>/gi;
-    while ((m = styleRe.exec(html)) !== null) cssBlocks.push(m[1]);
-    const inlineRe = /style=["']([^"']{0,300})["']/gi;
-    while ((m = inlineRe.exec(html)) !== null) cssBlocks.push(m[1]);
-    const css = cssBlocks.join(" ");
+    const SKIP_COLORS = new Set([
+      "0073aa","005177","0085ba","23282d","1e1e1e","2271b1", // WordPress admin/editor
+      "0d6efd","0a58ca","0b5ed7","198754","dc3545","ffc107", // Bootstrap
+      "007bff","6c757d","28a745","17a2b8","343a40",           // Bootstrap legacy
+      "1da1f2","4267b2","e1306c",                             // Social media
+    ]);
 
-    // Count frequency of each hex color (3 or 6 digit)
-    const freq = {};
-    const hexRe = /#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g;
-    while ((m = hexRe.exec(css)) !== null) {
-      // Expand 3-digit to 6-digit
-      let hex = m[1].length === 3
-        ? m[1].split("").map(c => c + c).join("")
-        : m[1];
-      hex = hex.toLowerCase();
-      // Skip white, near-white, black, near-black, and grays
+    const normalise = (raw) => {
+      let h = raw.trim().toLowerCase().replace(/^#/, "");
+      if (h.length === 3) h = h.split("").map(c => c + c).join("");
+      return h.length === 6 ? h : null;
+    };
+
+    const isSaturated = (hex) => {
       const r = parseInt(hex.slice(0, 2), 16);
       const g = parseInt(hex.slice(2, 4), 16);
       const b = parseInt(hex.slice(4, 6), 16);
       const max = Math.max(r, g, b), min = Math.min(r, g, b);
-      if (max > 230) continue; // too light
-      if (max < 25) continue;  // too dark
-      if (max - min < 30) continue; // too gray (low saturation)
-      freq[hex] = (freq[hex] || 0) + 1;
+      return max <= 230 && max >= 25 && (max - min) >= 40;
+    };
+
+    // Collect all <style> block text
+    const css = (html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || [])
+      .map(s => s.replace(/<\/?style[^>]*>/gi, "")).join("\n");
+
+    // 1. CSS custom properties for primary/brand color
+    const varRe = /--(?:primary|brand|accent|main|color-primary|theme|club)[^:]*:\s*(#[0-9a-fA-F]{3,6})/gi;
+    let m;
+    while ((m = varRe.exec(css)) !== null) {
+      const hex = normalise(m[1]);
+      if (hex && isSaturated(hex) && !SKIP_COLORS.has(hex)) return "#" + hex;
     }
 
-    // Return the most common saturated color
-    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
-    return sorted.length ? "#" + sorted[0][0] : null;
+    // 2. Colors on structural selectors (header, nav, h1, h2, button, .site-header)
+    const structRe = /(?:header|nav|\.site-header|\.navbar|h1|h2|button|\.btn-primary|\.wp-block-button)[^{]*\{[^}]*(?:background(?:-color)?|color)\s*:\s*(#[0-9a-fA-F]{3,6})/gi;
+    const structCandidates = [];
+    while ((m = structRe.exec(css)) !== null) {
+      const hex = normalise(m[1]);
+      if (hex && isSaturated(hex) && !SKIP_COLORS.has(hex)) structCandidates.push(hex);
+    }
+    if (structCandidates.length) return "#" + structCandidates[0];
+
+    return null;
   } catch { return null; }
 }
 
@@ -15470,7 +15483,7 @@ app.get("/sites/:tenantId", async (req, res) => {
     if (!tenant) return res.status(404).send(`Not found: ${tenantId}${tenantErr ? " — DB error: " + tenantErr.message : ""}`);
     const html = buildTenantSiteHtml(tenant);
     res.setHeader("Content-Type", "text/html");
-    res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("Cache-Control", "no-store");
     res.send(html);
   } catch (err) {
     console.error("[sites] Error:", err.message);

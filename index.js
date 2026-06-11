@@ -6196,7 +6196,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         if (igHandle) {
           setCrawlProgress(tenantId, 13, `Fetching photos from Instagram (@${igHandle})…`);
           const thumbnails = await fetchInstagramThumbnails(igHandle, tenantId, 9);
-          if (thumbnails.length > 1) {
+          if (thumbnails.length >= 1) {
             await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
             console.log(`[crawl] Stored ${thumbnails.length} IG thumbnails for ${tenantId}`);
           }
@@ -6221,7 +6221,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
             console.log(`[ig-detect] Found @${detected.handle} for ${tenantId} (confidence ${detected.confidence.toFixed(2)}, source: ${detected.source})`);
             await supabase.from("tenants").update({ instagram_handle: detected.handle }).eq("id", tenantId);
             const thumbnails = await fetchInstagramThumbnails(detected.handle, tenantId, 9);
-            if (thumbnails.length > 1) {
+            if (thumbnails.length >= 1) {
               await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
               console.log(`[ig-detect] Stored ${thumbnails.length} IG photos for ${tenantId} (@${detected.handle})`);
             }
@@ -8463,7 +8463,7 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
             await supabase.from("tenants").update({ instagram_handle: detected.handle }).eq("id", tenantId);
             console.log(`[portal-import] Instagram handle: @${detected.handle} (${detected.confidence.toFixed(2)})`);
             const thumbnails = await fetchInstagramThumbnails(detected.handle, tenantId, 9);
-            if (thumbnails.length > 1) {
+            if (thumbnails.length >= 1) {
               await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
             }
           }
@@ -9674,7 +9674,7 @@ app.post("/api/portal/social-images/refetch", requireSeniorTenant, async (req, r
   if (!tenant?.instagram_handle) return res.status(400).json({ error: "No Instagram handle set. Save it in Social Media settings first." });
   res.json({ ok: true });
   fetchInstagramThumbnails(tenant.instagram_handle, tenantId, 9).then(async (thumbnails) => {
-    if (thumbnails.length > 1) {
+    if (thumbnails.length >= 1) {
       await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
       console.log(`[ig-refetch] Stored ${thumbnails.length} images for ${tenantId}`);
     }

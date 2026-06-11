@@ -207,9 +207,8 @@ function setCrawlProgress(tenantId, pct, message, done = false) {
 }
 
 // ── Business type detection ───────────────────────────────────────────────────
-async function detectBusinessType(name, description, pageText) {
-  // Fast name-based heuristic — catches obvious cases without an API call
-  const n = (name + " " + description).toLowerCase();
+function nameToBusinessType(name) {
+  const n = name.toLowerCase();
   if (/\bgaa\b/.test(n) || /cumann lúthchleas gael/i.test(n)) return "gaa_club";
   if (/\btennis club\b/.test(n)) return "tennis_club";
   if (/\bgolf club\b/.test(n)) return "golf_club";
@@ -217,6 +216,15 @@ async function detectBusinessType(name, description, pageText) {
   if (/\byoga\b|\bpilates\b/.test(n)) return "yoga_studio";
   if (/\bfitness\b|\bgym\b/.test(n)) return "fitness_studio";
   if (/\bcafé\b|\bcafe\b|\bcoffee\b|\brestaurant\b/.test(n)) return "cafe";
+  return null;
+}
+
+async function detectBusinessType(name, description, pageText) {
+  // Fast name-based heuristic — catches obvious cases without an API call
+  const n = (name + " " + description).toLowerCase();
+  const nameType = nameToBusinessType(name);
+  if (nameType) return nameType;
+  if (/\bgaa\b/.test(n) || /cumann lúthchleas gael/i.test(n)) return "gaa_club";
 
   try {
     const resp = await openai.chat.completions.create({
@@ -6012,6 +6020,16 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
     if (website) {
       console.log(`[crawl] Starting background crawl for ${tenantId}: ${website}`);
       setCrawlProgress(tenantId, 2, "Warming up the engines…");
+
+      // Set business type immediately from name heuristic so the site renders
+      // the correct template even if the user opens it before the crawl finishes
+      try {
+        const earlyType = nameToBusinessType(name);
+        if (earlyType) {
+          await supabase.from("tenants").update({ business_type: earlyType }).eq("id", tenantId);
+          console.log(`[crawl] Business type (early): ${earlyType} for ${tenantId}`);
+        }
+      } catch {}
 
       // Extract logo + brand colour + description from homepage
       let logoUrl = null;

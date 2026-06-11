@@ -6046,6 +6046,27 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
               }
             } catch {}
 
+            // Extract social media links from homepage (footer usually has them)
+            try {
+              const socialUpdate = {};
+              const igMatch = homepageHtml.match(/https?:\/\/(?:www\.)?instagram\.com\/([a-zA-Z0-9_.]{2,30})\/?/);
+              if (igMatch && !["p","reel","reels","explore","tv"].includes(igMatch[1].toLowerCase())) {
+                socialUpdate.instagram_handle = igMatch[1].replace(/\/$/, "");
+              }
+              const fbMatch = homepageHtml.match(/https?:\/\/(?:www\.)?facebook\.com\/([a-zA-Z0-9_.%-]{2,60})\/?(?:["'\s])/);
+              if (fbMatch && !["sharer","share","login","groups","events","pages"].includes(fbMatch[1].toLowerCase())) {
+                socialUpdate.facebook_url = `https://facebook.com/${fbMatch[1]}`;
+              }
+              const twMatch = homepageHtml.match(/https?:\/\/(?:www\.)?(?:twitter|x)\.com\/([a-zA-Z0-9_]{2,40})\/?(?:["'\s])/);
+              if (twMatch && !["share","intent","home","search"].includes(twMatch[1].toLowerCase())) {
+                socialUpdate.twitter_handle = twMatch[1];
+              }
+              if (Object.keys(socialUpdate).length > 0) {
+                await supabase.from("tenants").update(socialUpdate).eq("id", tenantId);
+                console.log(`[crawl] Social links found for ${tenantId}:`, socialUpdate);
+              }
+            } catch {}
+
             // AI business description
             try {
               const pageText = homepageHtml
@@ -8334,7 +8355,27 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
 
       // Re-run Instagram detection + image extraction so re-import fully refreshes the site
       try {
-        const { data: tMeta } = await supabase.from("tenants").select("name, instagram_handle, social_images, business_type").eq("id", tenantId).maybeSingle();
+        const { data: tMeta } = await supabase.from("tenants").select("name, instagram_handle, facebook_url, twitter_handle, social_images, business_type").eq("id", tenantId).maybeSingle();
+
+        // Extract social links from crawled homepage HTML
+        const homepagePage = pages.find(p => { try { return new URL(p.url).pathname.replace(/\/$/,"") === ""; } catch { return false; } }) || pages[0];
+        if (homepagePage?.html) {
+          const socialUpdate = {};
+          const igM = homepagePage.html.match(/https?:\/\/(?:www\.)?instagram\.com\/([a-zA-Z0-9_.]{2,30})\/?/);
+          if (igM && !tMeta?.instagram_handle && !["p","reel","reels","explore","tv"].includes(igM[1].toLowerCase()))
+            socialUpdate.instagram_handle = igM[1].replace(/\/$/, "");
+          const fbM = homepagePage.html.match(/https?:\/\/(?:www\.)?facebook\.com\/([a-zA-Z0-9_.%-]{2,60})\/?(?:["'\s])/);
+          if (fbM && !tMeta?.facebook_url && !["sharer","share","login","groups","events","pages"].includes(fbM[1].toLowerCase()))
+            socialUpdate.facebook_url = `https://facebook.com/${fbM[1]}`;
+          const twM = homepagePage.html.match(/https?:\/\/(?:www\.)?(?:twitter|x)\.com\/([a-zA-Z0-9_]{2,40})\/?(?:["'\s])/);
+          if (twM && !tMeta?.twitter_handle && !["share","intent","home","search"].includes(twM[1].toLowerCase()))
+            socialUpdate.twitter_handle = twM[1];
+          if (Object.keys(socialUpdate).length > 0) {
+            await supabase.from("tenants").update(socialUpdate).eq("id", tenantId);
+            console.log(`[portal-import] Social links:`, socialUpdate);
+            Object.assign(tMeta, socialUpdate);
+          }
+        }
 
         // Business type — re-detect if still "other" or missing
         if (!tMeta?.business_type || tMeta.business_type === "other") {

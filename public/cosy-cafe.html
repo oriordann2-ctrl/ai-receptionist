@@ -153,14 +153,13 @@
 </nav>
 <script>
   function handleBooking(e) {
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return; // mobile — let tel: link work
     e.preventDefault();
     e.stopPropagation();
     var popup = document.getElementById('book-popup');
     popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
     setTimeout(function() {
       document.addEventListener('click', function close(ev) {
-        if (!document.getElementById('book-btn').contains(ev.target)) {
+        if (!document.getElementById('book-popup').contains(ev.target) && !document.getElementById('book-btn').contains(ev.target)) {
           popup.style.display = 'none';
           document.removeEventListener('click', close);
         }

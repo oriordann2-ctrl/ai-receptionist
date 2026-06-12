@@ -394,7 +394,27 @@
   function addMsg(text, sender) {
     var div = document.createElement("div");
     div.className = "sprimal-msg sprimal-" + sender;
-    div.textContent = stripHtml(text);
+    if (sender === "bot") {
+      // Render markdown links [label](url) as clickable anchors; everything else as plain text
+      var mdLinkRe = /(\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
+      var parts = stripHtml(text).split(mdLinkRe);
+      parts.forEach(function (part) {
+        var m = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+        if (m) {
+          var a = document.createElement("a");
+          a.href = m[2];
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = m[1];
+          a.style.cssText = "color:#2563eb;font-weight:600;text-decoration:underline;";
+          div.appendChild(a);
+        } else {
+          div.appendChild(document.createTextNode(part));
+        }
+      });
+    } else {
+      div.textContent = stripHtml(text);
+    }
     messages.appendChild(div);
     scrollToBottom(100);
     saveHistory();

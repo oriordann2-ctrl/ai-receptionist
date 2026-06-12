@@ -15852,6 +15852,10 @@ ${widgetScript}</body></html>`;
 app.get("/sites/:tenantId", async (req, res) => {
   try {
     const { tenantId } = req.params;
+
+    if (tenantId === "cosy-cafe") {
+      return res.sendFile(path.join(__dirname, "public", "cosy-cafe.html"));
+    }
     const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
       .select("id, name, email, website, logo_url, business_description, business_type, brand_color, facebook_url, instagram_handle, twitter_handle, social_images")

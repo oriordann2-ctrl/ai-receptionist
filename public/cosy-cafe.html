@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cosy Café — Kinsale</title>
+  <link rel="icon" href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/6278fd4ad64756188f608e81_Webp.net-resizeimage.jpg" type="image/jpeg">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+  <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Lato', sans-serif; color: #1C2B20; background: #F5EEE4; }
+
+  /* NAV */
+  .snav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 48px; height: 68px;
+    background: #1C3A2A;
+  }
+  .snav-logo { display: flex; align-items: center; gap: 12px; }
+  .snav-logo img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+  .snav-logo-name { color: #E8D5B7; font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 600; }
+  .snav-links { display: flex; gap: 28px; list-style: none; }
+  .snav-links a { text-decoration: none; font-size: 0.82rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: rgba(232,213,183,0.8); transition: opacity 0.2s; }
+  .snav-links a:hover { opacity: 0.6; }
+  .snav-cta { padding: 10px 24px; border-radius: 3px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; background: #C4622D; color: #fff; transition: all 0.2s; }
+  .snav-cta:hover { background: #a34e24; }
+
+  /* BTN */
+  .sbtn { display: inline-block; padding: 13px 30px; border-radius: 3px; font-weight: 700; font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; transition: all 0.2s; cursor: pointer; border: 2px solid transparent; }
+  .sbtn-p { background: #C4622D; color: #fff; border-color: #C4622D; }
+  .sbtn-p:hover { background: #a34e24; border-color: #a34e24; }
+  .sbtn-o { border-color: rgba(245,238,228,0.6); color: #F5EEE4; }
+  .sbtn-o:hover { border-color: #F5EEE4; }
+  .sbtn-menu { background: #1C3A2A; color: #E8D5B7; border-color: #1C3A2A; font-size: 0.78rem; padding: 10px 22px; }
+
+  /* HERO */
+  .shero {
+    min-height: 92vh; display: flex; flex-direction: column;
+    justify-content: flex-end; padding: 80px 64px;
+    background-image: linear-gradient(to top, rgba(28,58,42,0.85) 0%, rgba(28,58,42,0.3) 60%, rgba(28,58,42,0.1) 100%), url('https://dynamic-media-cdn.tripadvisor.com/media/photo-o/17/74/d3/3b/cosy-cafe.jpg?w=1800&h=900&s=1');
+    background-size: cover; background-position: center;
+    position: relative;
+  }
+  .shero-inner { position: relative; z-index: 2; max-width: 680px; }
+  .shero-badge {
+    display: inline-block; border-radius: 100px; padding: 6px 18px;
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    font-weight: 700; margin-bottom: 24px;
+    background: rgba(232,213,183,0.15); border: 1px solid rgba(232,213,183,0.4); color: #E8D5B7;
+  }
+  .shero h1 { font-family: 'Cormorant Garamond', serif; font-size: clamp(3rem,6vw,5.5rem); color: #F5EEE4; font-weight: 700; line-height: 1.05; margin-bottom: 20px; }
+  .shero h1 em { color: #E8A87C; font-style: italic; }
+  .shero p { font-size: 1.1rem; max-width: 480px; margin-bottom: 36px; font-weight: 300; color: rgba(245,238,228,0.85); }
+  .shero-btns { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* ABOUT SPLIT */
+  .about-split { display: grid; grid-template-columns: 1fr 1fr; min-height: 500px; }
+  .about-split-img { background: url('https://dynamic-media-cdn.tripadvisor.com/media/photo-o/0d/9d/fe/73/cosy-cafe-kinsale.jpg?w=900&h=700&s=1') center/cover; }
+  .about-split-text { background: #1C3A2A; padding: 80px 64px; display: flex; flex-direction: column; justify-content: center; }
+  .slabel { font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; margin-bottom: 14px; display: block; color: #C4622D; }
+  .about-split-text .slabel { color: #E8A87C; }
+  .sh2 { line-height: 1.15; margin-bottom: 18px; }
+  .about-split-text .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.4rem; color: #F5EEE4; font-weight: 600; }
+  .about-split-text p { color: rgba(245,238,228,0.75); font-size: 0.97rem; margin-bottom: 12px; font-weight: 300; }
+
+  /* SECTIONS */
+  .ssect { padding: 96px 64px; }
+  .smuted { font-weight: 300; max-width: 520px; margin-bottom: 48px; }
+
+  /* MENU */
+  .menu-bg { background: #F5EEE4; text-align: center; }
+  .menu-bg .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.8rem; color: #1C3A2A; font-weight: 600; }
+  .smenu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; max-width: 1000px; margin: 0 auto; }
+  .smenu-card { border-radius: 6px; overflow: hidden; background: #EDE2D4; }
+  .smenu-img { height: 240px; background-size: cover; background-position: center; }
+  .smenu-body { padding: 28px 32px 32px; }
+  .smenu-body h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; color: #1C3A2A; font-weight: 600; margin-bottom: 10px; }
+  .smenu-body p { font-size: 0.9rem; color: #6B5744; margin-bottom: 20px; }
+  .smenu-items { list-style: none; margin-bottom: 24px; }
+  .smenu-items li { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(60,40,20,0.1); font-size: 0.88rem; color: #3A2A1E; }
+  .smenu-items li:last-child { border-bottom: none; }
+  .smenu-price { color: #C4622D; font-weight: 700; }
+
+  /* HOURS */
+  .hours-bg { background: #1C3A2A; }
+  .hours-bg .slabel { color: #E8A87C; }
+  .hours-bg .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.4rem; color: #F5EEE4; }
+  .shours-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; max-width: 1000px; }
+  .shours-table { width: 100%; border-collapse: collapse; }
+  .shours-table tr { border-bottom: 1px solid rgba(232,213,183,0.15); }
+  .shours-table td { padding: 12px 0; font-size: 0.95rem; color: rgba(232,213,183,0.85); }
+  .shours-table td:last-child { text-align: right; font-weight: 700; color: #E8A87C; }
+  .hcontact a { color: rgba(232,213,183,0.75); text-decoration: none; display: block; margin-bottom: 10px; font-size: 0.95rem; }
+  .smap { border-radius: 6px; overflow: hidden; height: 280px; }
+  .smap iframe { width: 100%; height: 100%; border: none; }
+
+  /* REVIEWS */
+  .rev-bg { background: #EDE2D4; text-align: center; }
+  .rev-bg .slabel { color: #C4622D; }
+  .rev-bg .sh2 { font-family: 'Cormorant Garamond', serif; font-size: 2.6rem; color: #1C3A2A; font-weight: 600; }
+  .sreviews-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1050px; margin: 0 auto 40px; }
+  .srev-card { border-radius: 6px; padding: 28px; background: #F5EEE4; }
+  .srev-stars { font-size: 0.9rem; margin-bottom: 12px; color: #C4622D; }
+  .srev-text { font-size: 0.9rem; font-style: italic; font-weight: 300; margin-bottom: 14px; line-height: 1.6; color: #4A3428; }
+  .srev-author { font-size: 0.75rem; color: #9A7A68; }
+  .rating-big { font-family: 'Cormorant Garamond', serif; font-size: 4rem; color: #1C3A2A; font-weight: 700; }
+  .stars-big { color: #C4622D; font-size: 1.4rem; }
+
+  /* FOOTER */
+  .sfooter { padding: 48px 64px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; background: #111D15; }
+  .sfooter-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; color: #E8D5B7; font-weight: 600; }
+  .sfooter-links { display: flex; gap: 20px; }
+  .sfooter-links a { font-size: 0.85rem; text-decoration: none; color: rgba(232,213,183,0.5); transition: opacity 0.2s; }
+  .sfooter-links a:hover { opacity: 1; color: #E8D5B7; }
+
+  /* RESPONSIVE */
+  @media(max-width:768px) {
+    .ssect { padding: 56px 20px; }
+    .shero { padding: 60px 24px 56px; }
+    .snav { padding: 0 20px; }
+    .snav-links { display: none; }
+    .smenu-grid, .shours-grid, .sreviews-grid { grid-template-columns: 1fr; }
+    .about-split { grid-template-columns: 1fr; }
+    .about-split-img { min-height: 260px; }
+    .about-split-text { padding: 48px 24px; }
+    .sfooter { flex-direction: column; padding: 32px 20px; text-align: center; }
+  }
+  </style>
+</head>
+<body>
+
+<nav class="snav">
+  <div class="snav-logo">
+    <img src="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/6278fd4ad64756188f608e81_Webp.net-resizeimage.jpg" alt="Cosy Café" />
+    <span class="snav-logo-name">Cosy Café</span>
+  </div>
+  <ul class="snav-links">
+    <li><a href="#menu">Menu</a></li>
+    <li><a href="#hours">Hours</a></li>
+    <li><a href="#find-us">Find Us</a></li>
+    <li><a href="#reviews">Reviews</a></li>
+  </ul>
+  <a href="https://www.tripadvisor.ie/Restaurant_Review-g211878-d11795551-Reviews-Cosy_Cafe-Kinsale_County_Cork.html" target="_blank" class="snav-cta">Book a table</a>
+</nav>
+
+<section class="shero">
+  <div class="shero-inner">
+    <span class="shero-badge">☕ Kinsale · Wild Atlantic Way · Dog Friendly</span>
+    <h1>Kinsale's favourite<br>morning <em>ritual</em></h1>
+    <p>Breakfast, brunch &amp; lunch served fresh in the heart of Kinsale, Co. Cork — made with local ingredients and a lot of heart.</p>
+    <div class="shero-btns">
+      <a href="#menu" class="sbtn sbtn-p">View Our Menus</a>
+      <a href="#hours" class="sbtn sbtn-o">Opening Hours</a>
+    </div>
+  </div>
+</section>
+
+<div class="about-split">
+  <div class="about-split-img"></div>
+  <div class="about-split-text">
+    <span class="slabel">Our Story</span>
+    <h2 class="sh2">A little café with a big heart</h2>
+    <p>Founded in 2016 by Sebastien Perey, Cosy Café has been a Church Square institution ever since — a dog-friendly spot where locals and Wild Atlantic Way visitors return again and again.</p>
+    <p>Everything is made fresh in our open kitchen. Free range eggs from Beechwood Farm, fish from Haven Shellfish, vegetables from Horizon Farm — real ingredients, real cooking.</p>
+    <p>Whether you're a local regular or stopping in from the road, pull up a chair. You're always welcome here.</p>
+  </div>
+</div>
+
+<section id="menu" class="ssect menu-bg">
+  <span class="slabel" style="color:#C4622D">What's On</span>
+  <h2 class="sh2" style="margin-bottom:10px">Our Menus</h2>
+  <p style="color:#6B5744;max-width:480px;margin:0 auto 48px;font-weight:300">Fresh, seasonal food served Tuesday to Saturday. Always something for everyone.</p>
+  <div class="smenu-grid">
+    <div class="smenu-card">
+      <div class="smenu-img" style="background-image:url('https://dynamic-media-cdn.tripadvisor.com/media/photo-o/0f/d0/ba/1f/french-toast.jpg?w=800&h=500&s=1')"></div>
+      <div class="smenu-body">
+        <h3>☀️ Breakfast</h3>
+        <p>Classics, light bites and everything in between — all morning.</p>
+        <ul class="smenu-items">
+          <li><span>Full Irish</span><span class="smenu-price">€8.90</span></li>
+          <li><span>Eggs Benedict</span><span class="smenu-price">€8.10</span></li>
+          <li><span>Eggs Royale</span><span class="smenu-price">€8.60</span></li>
+          <li><span>Homemade Granola (GF)</span><span class="smenu-price">€5.20</span></li>
+          <li><span>American Pancakes</span><span class="smenu-price">€7.90</span></li>
+        </ul>
+        <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/635bf51580fbbd12af99dce4_CC_Breakfast%20Menu_Winter%202022_V3.pdf" target="_blank" class="sbtn sbtn-menu">Full Menu ↗</a>
+      </div>
+    </div>
+    <div class="smenu-card">
+      <div class="smenu-img" style="background-image:url('https://dynamic-media-cdn.tripadvisor.com/media/photo-o/0d/a7/4c/a6/cosy-cafe-kinsale.jpg?w=800&h=500&s=1')"></div>
+      <div class="smenu-body">
+        <h3>🥗 Lunch</h3>
+        <p>Bagels, wraps, burgers &amp; daily specials. Kinsale craft beers &amp; wine too.</p>
+        <ul class="smenu-items">
+          <li><span>Beef Burger</span><span class="smenu-price">€13.50</span></li>
+          <li><span>Fish &amp; Chips</span><span class="smenu-price">€13.90</span></li>
+          <li><span>Classic Bagel (Salmon)</span><span class="smenu-price">€7.80</span></li>
+          <li><span>Chowder</span><span class="smenu-price">€7.80</span></li>
+          <li><span>Kinsale Pale Ale</span><span class="smenu-price">€6.00</span></li>
+        </ul>
+        <a href="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/64902c08fa7af9474d853ff2_CC_Lunch%20Menu_Summer%202023_V5%20(1).pdf" target="_blank" class="sbtn sbtn-menu">Full Menu ↗</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="hours" class="ssect hours-bg">
+  <div class="shours-grid">
+    <div>
+      <span class="slabel">Visit Us</span>
+      <h2 class="sh2">Hours &amp; Location</h2>
+      <table class="shours-table">
+        <tr><td>Tuesday – Friday</td><td>8:00 AM – 4:00 PM</td></tr>
+        <tr><td>Saturday</td><td>8:00 AM – 3:00 PM</td></tr>
+        <tr><td style="color:rgba(232,213,183,0.45)">Sunday &amp; Monday</td><td style="color:rgba(232,213,183,0.45);font-weight:400">Closed</td></tr>
+      </table>
+      <div class="hcontact" style="margin-top:28px">
+        <a href="tel:+35321470685">📞 (021) 470 0685</a>
+        <a href="mailto:cosycafekinsale@outlook.com">📧 cosycafekinsale@outlook.com</a>
+        <a style="color:rgba(232,213,183,0.75)">📍 Church Square, Sleveen, Kinsale, Co. Cork P17 KP21</a>
+      </div>
+    </div>
+    <div id="find-us" class="smap">
+      <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2464!2d-8.5255!3d51.7063!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x484461e48fb15e1b%3A0xa3cafe473748cf47!2sCosy+Cafe!5e0!3m2!1sen!2sie!4v1" allowfullscreen loading="lazy"></iframe>
+    </div>
+  </div>
+</section>
+
+<section id="reviews" class="ssect rev-bg">
+  <div style="margin-bottom:32px">
+    <span class="slabel">What People Say</span>
+    <h2 class="sh2">Loved by locals &amp; visitors</h2>
+    <div style="display:inline-flex;align-items:center;gap:10px;background:#F0FFF8;border:1.5px solid #00AA6C;border-radius:6px;padding:8px 16px;margin:16px 0 20px">
+      <span style="font-size:1.3rem">🏆</span>
+      <div><div style="font-size:0.72rem;font-weight:800;color:#00AA6C;letter-spacing:0.08em;text-transform:uppercase">Best of the Best 2026</div><div style="font-size:0.7rem;color:#5A7A68">#2 of 50 Restaurants in Kinsale · TripAdvisor</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;margin:0 0 40px;justify-content:center">
+      <span class="stars-big">★★★★★</span>
+      <span class="rating-big">4.8</span>
+      <span style="color:#6B5744;font-size:0.9rem">299 TripAdvisor reviews</span>
+    </div>
+  </div>
+  <div class="sreviews-grid">
+    <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"Absolutely fantastic. The eggs benedict were perfectly done, staff couldn't have been friendlier and the coffee was excellent. Best breakfast in Kinsale!"</p><p class="srev-author">— TripAdvisor, June 2025</p></div>
+    <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"We stopped here on the Wild Atlantic Way and it was a highlight of our trip. The seafood chowder at lunch is outstanding. The French toast was incredible too!"</p><p class="srev-author">— TripAdvisor, May 2025</p></div>
+    <div class="srev-card"><p class="srev-stars">★★★★★</p><p class="srev-text">"A genuine gem tucked into Church Square. Dog-friendly, warm atmosphere and everything on the plate is clearly made with love. We've been four times in one holiday."</p><p class="srev-author">— TripAdvisor, April 2025</p></div>
+  </div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;justify-content:center">
+    <a href="https://g.page/r/cosycafekinsale/review" target="_blank" class="sbtn" style="border:2px solid #C4622D;color:#C4622D">Leave a Google Review</a>
+    <a href="https://www.tripadvisor.ie/Restaurant_Review-g211878-d11795551-Reviews-Cosy_Cafe-Kinsale_County_Cork.html" target="_blank" class="sbtn" style="border:2px solid #1C3A2A;color:#1C3A2A">See TripAdvisor</a>
+  </div>
+</section>
+
+<footer class="sfooter">
+  <span class="sfooter-name">Cosy Café · Kinsale</span>
+  <div class="sfooter-links">
+    <a href="https://www.facebook.com/cosycafekinsale/" target="_blank">Facebook</a>
+    <a href="https://www.instagram.com/cosycafekinsale" target="_blank">Instagram</a>
+    <a href="https://www.tiktok.com/@cosycafekinsale" target="_blank">TikTok</a>
+    <a href="mailto:cosycafekinsale@outlook.com">Contact</a>
+  </div>
+</footer>
+
+<script>
+  (function() {
+    var s = document.createElement('script');
+    s.src = 'https://app.sprimal.com/widget.js';
+    s.setAttribute('data-club-id', 'cosy-cafe');
+    s.setAttribute('data-club-name', 'Cosy Café');
+    s.setAttribute('data-bot-name', 'Maeve');
+    s.defer = true;
+    document.head.appendChild(s);
+  })();
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var el = document.createElement('style');
+    el.textContent = [
+      '#sprimal-header{background:#1C3A2A!important;}',
+      '#sprimal-send{background:#C4622D!important;}',
+      '#sprimal-send:hover{background:#C4622D;filter:brightness(0.88)!important;}',
+      '.sprimal-user{background:#C4622D!important;}',
+      '.sprimal-choice{border-color:#C4622D!important;color:#C4622D!important;}',
+      '.sprimal-choice:hover{background:#C4622D!important;color:#fff!important;}',
+      '#sprimal-input:focus{border-color:#C4622D!important;}',
+    ].join('');
+    document.head.appendChild(el);
+  });
+</script>
+</body>
+</html>

@@ -391,36 +391,50 @@
     return "";
   }
 
-  // Render bot reply text: supports **bold**, [label](url) links, and line breaks.
+  // Render bot reply text: supports **bold**, [label](url) links, bullet lines, and line breaks.
   // Input is plain text (HTML already stripped) — no innerHTML, no XSS risk.
   function renderBotText(container, raw) {
     var text = stripHtml(raw);
-    // Split on lines first to handle newlines as <br>
     var lines = text.split(/\n/);
-    lines.forEach(function (line, lineIdx) {
-      if (lineIdx > 0) container.appendChild(document.createElement("br"));
-      // Split line into tokens: **bold**, [label](url), plain text
-      var tokenRe = /(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
-      var tokens = line.split(tokenRe);
-      tokens.forEach(function (token) {
-        var boldM = token.match(/^\*\*([^*]+)\*\*$/);
-        var linkM = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
-        if (boldM) {
-          var strong = document.createElement("strong");
-          strong.textContent = boldM[1];
-          container.appendChild(strong);
-        } else if (linkM) {
-          var a = document.createElement("a");
-          a.href = linkM[2];
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          a.textContent = linkM[1];
-          a.style.cssText = "color:#2563eb;font-weight:600;text-decoration:underline;";
-          container.appendChild(a);
-        } else {
-          container.appendChild(document.createTextNode(token));
-        }
-      });
+    var ul = null; // active <ul> for consecutive bullet lines
+    lines.forEach(function (line) {
+      var isBullet = /^[-•]\s+/.test(line);
+      if (isBullet) {
+        if (!ul) { ul = document.createElement("ul"); ul.style.cssText = "margin:6px 0 6px 16px;padding:0;"; container.appendChild(ul); }
+        var li = document.createElement("li");
+        li.style.cssText = "margin:2px 0;";
+        renderInline(li, line.replace(/^[-•]\s+/, ""));
+        ul.appendChild(li);
+      } else {
+        ul = null;
+        if (container.hasChildNodes()) container.appendChild(document.createElement("br"));
+        renderInline(container, line);
+      }
+    });
+  }
+
+  // Render inline markdown tokens: **bold** and [label](url)
+  function renderInline(container, line) {
+    var tokenRe = /(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
+    var tokens = line.split(tokenRe);
+    tokens.forEach(function (token) {
+      var boldM = token.match(/^\*\*([^*]+)\*\*$/);
+      var linkM = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+      if (boldM) {
+        var strong = document.createElement("strong");
+        strong.textContent = boldM[1];
+        container.appendChild(strong);
+      } else if (linkM) {
+        var a = document.createElement("a");
+        a.href = linkM[2];
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = linkM[1];
+        a.style.cssText = "color:#2563eb;font-weight:600;text-decoration:underline;";
+        container.appendChild(a);
+      } else {
+        container.appendChild(document.createTextNode(token));
+      }
     });
   }
 

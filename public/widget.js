@@ -391,27 +391,44 @@
     return "";
   }
 
+  // Render bot reply text: supports **bold**, [label](url) links, and line breaks.
+  // Input is plain text (HTML already stripped) — no innerHTML, no XSS risk.
+  function renderBotText(container, raw) {
+    var text = stripHtml(raw);
+    // Split on lines first to handle newlines as <br>
+    var lines = text.split(/\n/);
+    lines.forEach(function (line, lineIdx) {
+      if (lineIdx > 0) container.appendChild(document.createElement("br"));
+      // Split line into tokens: **bold**, [label](url), plain text
+      var tokenRe = /(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
+      var tokens = line.split(tokenRe);
+      tokens.forEach(function (token) {
+        var boldM = token.match(/^\*\*([^*]+)\*\*$/);
+        var linkM = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+        if (boldM) {
+          var strong = document.createElement("strong");
+          strong.textContent = boldM[1];
+          container.appendChild(strong);
+        } else if (linkM) {
+          var a = document.createElement("a");
+          a.href = linkM[2];
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = linkM[1];
+          a.style.cssText = "color:#2563eb;font-weight:600;text-decoration:underline;";
+          container.appendChild(a);
+        } else {
+          container.appendChild(document.createTextNode(token));
+        }
+      });
+    });
+  }
+
   function addMsg(text, sender) {
     var div = document.createElement("div");
     div.className = "sprimal-msg sprimal-" + sender;
     if (sender === "bot") {
-      // Render markdown links [label](url) as clickable anchors; everything else as plain text
-      var mdLinkRe = /(\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
-      var parts = stripHtml(text).split(mdLinkRe);
-      parts.forEach(function (part) {
-        var m = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
-        if (m) {
-          var a = document.createElement("a");
-          a.href = m[2];
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          a.textContent = m[1];
-          a.style.cssText = "color:#2563eb;font-weight:600;text-decoration:underline;";
-          div.appendChild(a);
-        } else {
-          div.appendChild(document.createTextNode(part));
-        }
-      });
+      renderBotText(div, text);
     } else {
       div.textContent = stripHtml(text);
     }

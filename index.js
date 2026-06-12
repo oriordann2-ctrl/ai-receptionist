@@ -4765,9 +4765,10 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       return scoreB - scoreA;
     });
 
-    // Combine: top 12 uploaded doc chunks (by vector sim) + top website chunks
+    // Include ALL uploaded doc chunks (sorted best-first) + top website chunks.
+    // Uploaded docs are authoritative and small enough to fit in context without capping.
     const goodChunks = [
-      ...sortedUploadedDocs.slice(0, 12),
+      ...sortedUploadedDocs,
       ...websiteChunks.slice(0, matchCount)
     ];
 

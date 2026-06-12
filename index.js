@@ -14962,6 +14962,10 @@ async function pollGmailInbox() {
 }
 
 function startEmailPolling() {
+  if (process.env.EMAIL_POLLING_ENABLED !== "true") {
+    console.log("[email-poll] Disabled (EMAIL_POLLING_ENABLED != true)");
+    return;
+  }
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     console.log("[email-poll] GMAIL_USER or GMAIL_APP_PASSWORD not set — email polling disabled");
     return;

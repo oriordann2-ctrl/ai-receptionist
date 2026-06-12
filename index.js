@@ -15867,7 +15867,7 @@ app.get("/sites/:tenantId", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT} [${process.env.NODE_ENV || "dev"}]`);
   startEmailPolling();
   scheduleMorningDigest();
 

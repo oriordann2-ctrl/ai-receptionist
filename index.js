@@ -4756,7 +4756,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       .select("document_id, chunk_index, chunk_text, document_type, lender")
       .eq("tenant_id", tenantId)
       .neq("document_type", "Website Content")
-      .limit(30);
+      .limit(60);
 
     // Sort uploaded docs by their vector score where available, otherwise 0
     const sortedUploadedDocs = (uploadedDocRows || []).sort((a, b) => {
@@ -4765,12 +4765,11 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       return scoreB - scoreA;
     });
 
-    // Combine: uploaded docs first (up to 5), then best website chunks
-    const UPLOADED_SLOTS = Math.min(5, sortedUploadedDocs.length);
+    // Combine: top 12 uploaded doc chunks (by vector sim) + top website chunks
     const goodChunks = [
-      ...sortedUploadedDocs.slice(0, UPLOADED_SLOTS),
-      ...websiteChunks.slice(0, matchCount - UPLOADED_SLOTS)
-    ].slice(0, matchCount);
+      ...sortedUploadedDocs.slice(0, 12),
+      ...websiteChunks.slice(0, matchCount)
+    ];
 
     if (!goodChunks.length) return [];
 

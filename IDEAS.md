@@ -660,6 +660,26 @@ The email-poll loop is processing AOM mortgage emails (Cormac's firm), classifyi
 
 ---
 
+## 📋 Portal — Document Upload Dropdowns Should Be Business-Type Specific
+
+**What:** The document upload dropdowns (document type, tags etc.) currently show options like "Coaches", "Prospective Members" — these are sports club specific and make no sense for a café or restaurant tenant.
+
+**How:** Filter dropdown options by `business_type`. Cafés should see options like "Menu", "Opening Hours", "General Information", "Allergen Info". Sports clubs see "Coaches", "Members", "Fixtures" etc.
+
+**Status:** Idea. Currently all tenants see the same generic dropdowns regardless of business type.
+
+---
+
+## 🏐 Portal — Membership Requests (Sports Clubs Only)
+
+**What:** The "Pending Membership Requests" section in the portal should only be visible to sports club tenants (GAA, tennis, etc.) — it has no relevance to cafés, restaurants, or other business types.
+
+**How:** Gate the section by `business_type` on the tenant record. Show it only when `business_type` is `tennis_club`, `gaa_club`, or similar sports type. Hide it entirely for cafés, retail, hospitality etc.
+
+**Status:** Idea. Currently visible to all tenants regardless of business type.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

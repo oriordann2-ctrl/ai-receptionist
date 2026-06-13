@@ -4228,7 +4228,7 @@ async function generateGenericReply(message, tenantName, businessDesc) {
       messages: [
         {
           role: "system",
-          content: `You are Maeve, a helpful AI assistant for ${orgName}${descClause}. The user is already on the ${orgName} website or chat — never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so clearly and suggest they contact ${orgName} directly — never guess, invent details, or use placeholder text like "[insert X here]". Do not mention mortgages, brokers, or financial products unless they are relevant to this business.`
+          content: `You are a helpful AI assistant for ${orgName}${descClause}. The user is already on the ${orgName} website or chat — never ask them which club or organisation they mean, it is always ${orgName}. Answer the user's question in a friendly, concise way (1-3 sentences). If you don't have that specific information, say so honestly in one sentence — do not suggest they check the website or contact anyone, the interface will handle that. Never guess, invent details, or use placeholder text like "[insert X here]". Do not mention mortgages, brokers, or financial products unless they are relevant to this business.`
         },
         {
           role: "user",
@@ -11427,6 +11427,47 @@ app.post("/api/chat/lead", async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/portal/unanswered-questions — questions the chat couldn't answer
+app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const since = new Date(); since.setDate(since.getDate() - 30);
+    const { data: logs, error } = await supabase
+      .from("chat_logs")
+      .select("id, conversation_id, sender, message, answer_source, created_at")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", since.toISOString())
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+
+    // Pair each generic bot response with the preceding customer message
+    const rows = logs || [];
+    const questionMap = {};
+    rows.forEach((row, i) => {
+      if (row.sender === "bot" && row.answer_source === "generic") {
+        const preceding = [...rows].slice(0, i).reverse()
+          .find(r => r.conversation_id === row.conversation_id && r.sender === "customer");
+        if (preceding?.message) {
+          const key = preceding.message.trim().toLowerCase();
+          if (!questionMap[key]) {
+            questionMap[key] = { question: preceding.message.trim(), count: 0, last_asked: preceding.created_at };
+          }
+          questionMap[key].count++;
+          if (preceding.created_at > questionMap[key].last_asked) questionMap[key].last_asked = preceding.created_at;
+        }
+      }
+    });
+
+    const questions = Object.values(questionMap)
+      .sort((a, b) => b.count - a.count || new Date(b.last_asked) - new Date(a.last_asked))
+      .slice(0, 50);
+    res.json(questions);
+  } catch (err) {
+    console.error("[unanswered-questions]", err.message);
+    res.status(500).json({ error: "Failed to fetch unanswered questions." });
+  }
+});
+
 // GET /api/portal/leads — returns captured leads for this tenant
 app.get("/api/portal/leads", requireTenant, async (req, res) => {
   const { data, error } = await supabase
@@ -11449,10 +11490,11 @@ app.post("/chat", chatLimiter, async (req, res) => {
     let tenantDisplayName = null;
     let tenantBusinessDesc = null;
     let tenantPhone = null;
+    let tenantEmail = null;
     try {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name, ai_enabled, business_description, phone")
+        .select("business_mode, name, email, ai_enabled, business_description, phone")
         .eq("id", tenantId)
         .maybeSingle();
       if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
@@ -11460,6 +11502,7 @@ app.post("/chat", chatLimiter, async (req, res) => {
       else tenantDisplayName = tenantId.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
       if (tenantData?.business_description) tenantBusinessDesc = tenantData.business_description;
       tenantPhone = tenantData?.phone || null;
+      tenantEmail = tenantData?.email || null;
       // Respect AI Receptionist on/off toggle (null/undefined = enabled by default)
       if (tenantData?.ai_enabled === false) {
         return res.json({ reply: "The AI assistant is currently unavailable. Please contact us directly." });
@@ -12256,8 +12299,9 @@ Use plain numbers where possible.
 
     const responsePayload = { reply: result.reply };
     if (result.answerSource === "generic") {
-      responsePayload.suggestLeadCapture = true;
+      responsePayload.unanswered = true;
       if (tenantPhone) responsePayload.phone = tenantPhone;
+      if (tenantEmail) responsePayload.email = tenantEmail;
     }
     return res.json(responsePayload);
 

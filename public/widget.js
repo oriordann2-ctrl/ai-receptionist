@@ -591,6 +591,49 @@
     if (el) el.parentNode.removeChild(el);
   }
 
+  // Show contact options after an unanswered question — no lead form, just direct contact
+  function showFallbackContact(phone, email) {
+    var existing = document.getElementById("sprimal-back-menu");
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var container = document.createElement("div");
+    container.id = "sprimal-back-menu";
+    container.style.cssText = "padding:4px 0 6px;align-self:flex-start;display:flex;flex-direction:column;gap:6px;";
+
+    if (phone) {
+      var callBtn = document.createElement("button");
+      callBtn.className = "sprimal-choice sprimal-choice-ai";
+      callBtn.textContent = "📞 " + phone;
+      callBtn.addEventListener("click", function () { window.open("tel:" + phone.replace(/\s/g, "")); });
+      container.appendChild(callBtn);
+    }
+
+    if (email) {
+      var emailBtn = document.createElement("button");
+      emailBtn.className = "sprimal-choice sprimal-choice-ai";
+      emailBtn.textContent = "✉️ " + email;
+      emailBtn.addEventListener("click", function () { window.open("mailto:" + email); });
+      container.appendChild(emailBtn);
+    }
+
+    if (rootFlowId && wfFlowMap[rootFlowId]) {
+      var menuBtn = document.createElement("button");
+      menuBtn.className = "sprimal-choice sprimal-choice-ai";
+      menuBtn.textContent = "↩ Back to main menu";
+      menuBtn.addEventListener("click", function () {
+        messages.innerHTML = "";
+        wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
+        var footer = document.getElementById("sprimal-footer");
+        if (footer) footer.style.display = "none";
+        showWorkflowStep(wfSteps[0]);
+      });
+      container.appendChild(menuBtn);
+    }
+
+    messages.appendChild(container);
+    scrollToBottom(100);
+  }
+
   // Show "Leave a message" + optional "Call us" after a generic fallback reply
   function showLeadCapturePrompt(phone, question) {
     var existing = document.getElementById("sprimal-back-menu");
@@ -1229,8 +1272,8 @@
           showAgentChoices(data.agentChoices, { multiSelect: data.multiSelect, maxSelect: data.maxSelect });
         } else {
           input.focus();
-          if (data.suggestLeadCapture) {
-            showLeadCapturePrompt(data.phone || null, text);
+          if (data.unanswered) {
+            showFallbackContact(data.phone || null, data.email || null);
           } else {
             showBackToMenu();
           }

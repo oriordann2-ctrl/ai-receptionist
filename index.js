@@ -6137,6 +6137,7 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
     }
 
     // Picuki proxy fallback — renders public IG profiles without a login wall
+    console.log(`[ig-scrape] Picuki check: cdnUrls.length=${cdnUrls.length}`);
     if (cdnUrls.length < 3) {
       try {
         console.log(`[ig-scrape] Trying Picuki for @${handle}`);
@@ -6233,16 +6234,22 @@ async function fetchTwitterPhotos(handle, tenantId, maxImages = 6) {
       }
     }
     console.log(`[tw-scrape] Found ${cdnUrls.length} image URLs for @${handle}`);
+    if (cdnUrls.length > 0) console.log(`[tw-scrape] First URL: ${cdnUrls[0].slice(0, 120)}`);
     if (cdnUrls.length === 0) return [];
 
     const downloaded = [];
     for (const cdnUrl of cdnUrls.slice(0, maxImages * 2)) {
       try {
         const imgRes = await fetch(cdnUrl, {
-          headers: { "User-Agent": "Mozilla/5.0" },
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Referer": "https://x.com/",
+            "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+          },
           signal: AbortSignal.timeout(8000),
+          redirect: "follow",
         });
-        if (!imgRes.ok) continue;
+        if (!imgRes.ok) { console.log(`[tw-scrape] Download HTTP ${imgRes.status} for ${cdnUrl.slice(0, 100)}`); continue; }
         const buffer = Buffer.from(await imgRes.arrayBuffer());
         const ct = imgRes.headers.get("content-type") || "image/jpeg";
         let pixels = buffer.length;

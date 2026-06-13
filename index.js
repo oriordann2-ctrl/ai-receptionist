@@ -6137,7 +6137,7 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
     }
 
     // Picuki proxy fallback — renders public IG profiles without a login wall
-    if (cdnUrls.length === 0) {
+    if (cdnUrls.length < 3) {
       try {
         console.log(`[ig-scrape] Trying Picuki for @${handle}`);
         const picRes = await fetch(`https://r.jina.ai/https://www.picuki.com/profile/${encodeURIComponent(handle)}`, {
@@ -6203,6 +6203,9 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
 
 async function fetchTwitterPhotos(handle, tenantId, maxImages = 6) {
   if (!handle) return [];
+  // Strip full URL if someone saved "https://x.com/Handle" instead of just "Handle"
+  const twUrlMatch = handle.match(/(?:twitter|x)\.com\/([A-Za-z0-9_]+)/);
+  if (twUrlMatch) handle = twUrlMatch[1];
   try {
     console.log(`[tw-scrape] Trying Jina Reader for @${handle}`);
     const jinaRes = await fetch(`https://r.jina.ai/https://x.com/${encodeURIComponent(handle)}/media`, {
@@ -9977,7 +9980,12 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
     if (igUrlMatch) igVal = igUrlMatch[1];
     updates.instagram_handle = igVal.replace(/^@/, "").slice(0, 100);
   }
-  if (typeof req.body.twitter_handle       === "string")  updates.twitter_handle       = req.body.twitter_handle.replace(/^@/, "").slice(0, 100);
+  if (typeof req.body.twitter_handle === "string") {
+    let twVal = req.body.twitter_handle.trim();
+    const twUrlMatch = twVal.match(/(?:twitter|x)\.com\/([A-Za-z0-9_]+)/);
+    if (twUrlMatch) twVal = twUrlMatch[1];
+    updates.twitter_handle = twVal.replace(/^@/, "").slice(0, 100);
+  }
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 
   const tenantId   = req.tenant.tenantId;

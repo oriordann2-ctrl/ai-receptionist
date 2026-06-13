@@ -9841,7 +9841,13 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   if (typeof req.body.train_staff_enabled  === "boolean") updates.train_staff_enabled  = req.body.train_staff_enabled;
   if (typeof req.body.business_description === "string")  updates.business_description = req.body.business_description.slice(0, 300);
   if (typeof req.body.facebook_url         === "string")  updates.facebook_url         = req.body.facebook_url.slice(0, 500);
-  if (typeof req.body.instagram_handle     === "string")  updates.instagram_handle     = req.body.instagram_handle.replace(/^@/, "").slice(0, 100);
+  if (typeof req.body.instagram_handle     === "string") {
+    let igVal = req.body.instagram_handle.trim();
+    // Strip full URL down to handle: https://www.instagram.com/handle/ → handle
+    const igUrlMatch = igVal.match(/instagram\.com\/([A-Za-z0-9_.]+)/);
+    if (igUrlMatch) igVal = igUrlMatch[1];
+    updates.instagram_handle = igVal.replace(/^@/, "").slice(0, 100);
+  }
   if (typeof req.body.twitter_handle       === "string")  updates.twitter_handle       = req.body.twitter_handle.replace(/^@/, "").slice(0, 100);
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 

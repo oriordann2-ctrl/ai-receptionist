@@ -576,7 +576,7 @@
       + '<div class="toggle-sub" style="margin-bottom:12px;">Shown on your Sprimal website. Handles without the @ symbol.</div>'
       + '<div style="display:flex;flex-direction:column;gap:8px;">'
       + '<input id="fbUrl" type="url" placeholder="Facebook Page URL (https://facebook.com/...)" value="' + (d.facebook_url || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
-      + '<input id="igHandle" type="text" placeholder="Instagram handle — e.g. passagewestgaaclub" value="' + (d.instagram_handle || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '<input id="igHandle" type="text" placeholder="Instagram handle or URL — e.g. passagewestgaaclub" value="' + (d.instagram_handle || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
       + '<input id="twHandle" type="text" placeholder="Twitter / X handle — e.g. passageGAA" value="' + (d.twitter_handle || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:10px;margin-top:10px;">'

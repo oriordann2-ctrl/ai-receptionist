@@ -6136,30 +6136,36 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
       }
     }
 
-    // Picuki proxy fallback — renders public IG profiles without a login wall
-    console.log(`[ig-scrape] Picuki check: cdnUrls.length=${cdnUrls.length}`);
-    if (cdnUrls.length < 3) {
+    // IG proxy fallbacks — try imginn then dumpor (render static HTML, no login wall)
+    const igProxies = [
+      `https://imginn.com/${encodeURIComponent(handle)}/`,
+      `https://dumpor.com/v/${encodeURIComponent(handle)}`,
+    ];
+    for (const proxyUrl of igProxies) {
+      if (cdnUrls.length >= 3) break;
       try {
-        console.log(`[ig-scrape] Trying Picuki for @${handle}`);
-        const picRes = await fetch(`https://r.jina.ai/https://www.picuki.com/profile/${encodeURIComponent(handle)}`, {
+        console.log(`[ig-scrape] Trying proxy: ${proxyUrl}`);
+        const pRes = await fetch(`https://r.jina.ai/${proxyUrl}`, {
           headers: jinaHeaders(),
           signal: AbortSignal.timeout(15000),
         });
-        if (picRes.ok) {
-          const picText = await picRes.text();
-          const picCdnRe = /https:\/\/[a-z0-9_.-]+\.(?:cdninstagram|fbcdn|scontent)\.net\/[^\s"'<>\\]+\.(?:jpe?g|webp)/gi;
-          const picMdRe  = /!\[[^\]]*\]\((https?:\/\/[^)\s]+\.(?:jpe?g|png|webp)[^)]*)\)/gi;
-          for (const re of [picCdnRe, picMdRe]) {
+        if (pRes.ok) {
+          const pText = await pRes.text();
+          const pCdnRe = /https:\/\/[a-z0-9_.-]+\.(?:cdninstagram|fbcdn|scontent)\.net\/[^\s"'<>\\]+\.(?:jpe?g|webp)/gi;
+          const pMdRe  = /!\[[^\]]*\]\((https?:\/\/[^)\s]+\.(?:jpe?g|png|webp)[^)]*)\)/gi;
+          for (const re of [pCdnRe, pMdRe]) {
             let pm;
-            while ((pm = re.exec(picText)) !== null && cdnUrls.length < maxImages) {
+            while ((pm = re.exec(pText)) !== null && cdnUrls.length < maxImages) {
               const u = (pm[1] || pm[0]).replace(/\\u0026/g, "&");
               if (!seen.has(u)) { seen.add(u); cdnUrls.push(u); }
             }
           }
-          console.log(`[ig-scrape] Picuki found ${cdnUrls.length} URLs for @${handle}`);
+          console.log(`[ig-scrape] Proxy found ${cdnUrls.length} total URLs (${proxyUrl})`);
+        } else {
+          console.log(`[ig-scrape] Proxy HTTP ${pRes.status} (${proxyUrl})`);
         }
-      } catch (picErr) {
-        console.log(`[ig-scrape] Picuki failed for @${handle}: ${picErr.message}`);
+      } catch (pErr) {
+        console.log(`[ig-scrape] Proxy failed (${proxyUrl}): ${pErr.message}`);
       }
     }
 
@@ -6208,39 +6214,86 @@ async function fetchTwitterPhotos(handle, tenantId, maxImages = 6) {
   const twUrlMatch = handle.match(/(?:twitter|x)\.com\/([A-Za-z0-9_]+)/);
   if (twUrlMatch) handle = twUrlMatch[1];
   try {
-    console.log(`[tw-scrape] Trying Jina Reader for @${handle}`);
-    const jinaRes = await fetch(`https://r.jina.ai/https://x.com/${encodeURIComponent(handle)}/media`, {
-      headers: jinaHeaders(),
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!jinaRes.ok) {
-      console.log(`[tw-scrape] Jina HTTP ${jinaRes.status} for @${handle}`);
-      return [];
-    }
-    const text = await jinaRes.text();
-
+    // Try Nitter instances (open-source Twitter frontend, renders static HTML — no JS required)
+    const nitterHosts = [
+      "nitter.poast.org",
+      "nitter.privacydev.net",
+      "nitter.1d4.us",
+    ];
     const seen = new Set();
     const cdnUrls = [];
-    // pbs.twimg.com media URLs (various formats from Jina output)
-    const re1 = /https:\/\/pbs\.twimg\.com\/media\/[A-Za-z0-9_-]+(?:\?format=(?:jpg|png|webp)(?:&(?:amp;)?name=\w+)?)?/gi;
-    const re2 = /!\[[^\]]*\]\((https:\/\/pbs\.twimg\.com\/[^)\s]+)\)/gi;
-    for (const re of [re1, re2]) {
-      let m;
-      while ((m = re.exec(text)) !== null && cdnUrls.length < maxImages * 2) {
-        const raw = (m[1] || m[0]).replace(/&amp;/g, "&");
-        const base = raw.replace(/[?&]name=\w+/, "");
-        const finalUrl = base.includes("?") ? base + "&name=large" : base + "?format=jpg&name=large";
-        if (!seen.has(base)) { seen.add(base); cdnUrls.push(finalUrl); }
+
+    const extractTwImgs = (text) => {
+      // Nitter serves images via its own proxy: /pic/... paths resolving to pbs.twimg.com
+      const re1 = /https?:\/\/[a-z0-9.-]*nitter[a-z0-9.-]*\/pic\/(?:enc\/)?[A-Za-z0-9%_.-]+/gi;
+      // Direct pbs.twimg.com URLs
+      const re2 = /https:\/\/pbs\.twimg\.com\/media\/[A-Za-z0-9_-]+(?:\?format=(?:jpg|png|webp)(?:&(?:amp;)?name=\w+)?)?/gi;
+      // Markdown image links
+      const re3 = /!\[[^\]]*\]\((https?:\/\/[^)\s]+(?:\.(?:jpe?g|png|webp)|twimg\.com\/media\/[^)\s]+))\)/gi;
+      for (const re of [re1, re2, re3]) {
+        let m;
+        while ((m = re.exec(text)) !== null && cdnUrls.length < maxImages * 2) {
+          const raw = (m[1] || m[0]).replace(/&amp;/g, "&");
+          if (!seen.has(raw)) { seen.add(raw); cdnUrls.push(raw); }
+        }
+      }
+    };
+
+    for (const host of nitterHosts) {
+      if (cdnUrls.length >= maxImages) break;
+      try {
+        const nitterUrl = `https://${host}/${encodeURIComponent(handle)}/media`;
+        console.log(`[tw-scrape] Trying Nitter: ${nitterUrl}`);
+        const nRes = await fetch(`https://r.jina.ai/${nitterUrl}`, {
+          headers: jinaHeaders(),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (nRes.ok) {
+          extractTwImgs(await nRes.text());
+          console.log(`[tw-scrape] Nitter (${host}) found ${cdnUrls.length} URLs`);
+          if (cdnUrls.length > 0) break;
+        } else {
+          console.log(`[tw-scrape] Nitter ${host} HTTP ${nRes.status}`);
+        }
+      } catch (e) {
+        console.log(`[tw-scrape] Nitter ${host} failed: ${e.message}`);
       }
     }
-    console.log(`[tw-scrape] Found ${cdnUrls.length} image URLs for @${handle}`);
+
+    // Fallback: x.com profile page via Jina
+    if (cdnUrls.length === 0) {
+      try {
+        console.log(`[tw-scrape] Falling back to x.com profile for @${handle}`);
+        const xRes = await fetch(`https://r.jina.ai/https://x.com/${encodeURIComponent(handle)}`, {
+          headers: jinaHeaders(),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (xRes.ok) {
+          extractTwImgs(await xRes.text());
+          console.log(`[tw-scrape] x.com profile found ${cdnUrls.length} URLs`);
+        }
+      } catch (e) {
+        console.log(`[tw-scrape] x.com fallback failed: ${e.message}`);
+      }
+    }
+
+    console.log(`[tw-scrape] Total: ${cdnUrls.length} image URLs for @${handle}`);
     if (cdnUrls.length > 0) console.log(`[tw-scrape] First URL: ${cdnUrls[0].slice(0, 120)}`);
     if (cdnUrls.length === 0) return [];
 
     const downloaded = [];
-    for (const cdnUrl of cdnUrls.slice(0, maxImages * 2)) {
+    for (let rawUrl of cdnUrls.slice(0, maxImages * 2)) {
       try {
-        const imgRes = await fetch(cdnUrl, {
+        // Convert Nitter /pic/ proxy to direct pbs.twimg.com + upgrade to large
+        if (/nitter.*\/pic\//i.test(rawUrl)) {
+          const picPart = rawUrl.replace(/^https?:\/\/[^/]+\/pic\/(?:enc\/)?/, "");
+          rawUrl = decodeURIComponent(picPart.startsWith("http") ? picPart : `https://pbs.twimg.com/media/${picPart}`);
+        }
+        if (/pbs\.twimg\.com\/media/.test(rawUrl)) {
+          const base = rawUrl.replace(/[?&]name=\w+/, "");
+          rawUrl = base.includes("?") ? base + "&name=large" : base + "?format=jpg&name=large";
+        }
+        const imgRes = await fetch(rawUrl, {
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Referer": "https://x.com/",
@@ -6249,7 +6302,7 @@ async function fetchTwitterPhotos(handle, tenantId, maxImages = 6) {
           signal: AbortSignal.timeout(8000),
           redirect: "follow",
         });
-        if (!imgRes.ok) { console.log(`[tw-scrape] Download HTTP ${imgRes.status} for ${cdnUrl.slice(0, 100)}`); continue; }
+        if (!imgRes.ok) { console.log(`[tw-scrape] Download HTTP ${imgRes.status} for ${rawUrl.slice(0, 100)}`); continue; }
         const buffer = Buffer.from(await imgRes.arrayBuffer());
         const ct = imgRes.headers.get("content-type") || "image/jpeg";
         let pixels = buffer.length;

@@ -933,6 +933,27 @@
     </details>
   </div>
 
+  <!-- Leads -->
+  <div class="card" style="padding:0;">
+    <details id="leadsDetails">
+      <summary class="analytics-summary">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🎯</span>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Leads</div>
+            <div style="font-size:13px;color:#6b7280;">Contact details captured by your AI assistant</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body">
+        <div id="leadsContainer">
+          <div style="text-align:center;padding:28px 0;font-size:14px;color:#9ca3af;">Loading leads…</div>
+        </div>
+      </div>
+    </details>
+  </div>
+
   <!-- ── Chat Flows ── -->
   <div class="card" style="padding:0;">
     <details id="workflowDetails">
@@ -1627,6 +1648,61 @@
         })
         .catch(function () {
           container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#ef4444;">Failed to load conversations. Please refresh and try again.</div>';
+        });
+    });
+  })();
+
+  // ── Lazy-load Leads ──────────────────────────────────────────────────────────
+  (function () {
+    var details   = document.getElementById("leadsDetails");
+    var container = document.getElementById("leadsContainer");
+    var loaded    = false;
+    if (!details) return;
+    details.addEventListener("toggle", function () {
+      if (!details.open || loaded) return;
+      loaded = true;
+      fetch("/api/portal/leads")
+        .then(function (r) { return r.json(); })
+        .then(function (leads) {
+          if (!leads || !leads.length) {
+            container.innerHTML = '<div style="text-align:center;padding:32px 0;font-size:14px;color:#9ca3af;">No leads captured yet — they\'ll appear here once visitors share their contact details.</div>';
+            return;
+          }
+          function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+          function fmtDate(ts) {
+            if (!ts) return "";
+            return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+          }
+          // CSV download
+          var csvRows = [["Name","Email","Source","Date"]].concat(leads.map(function(l) {
+            return [l.name||"", l.email||"", l.source||"", fmtDate(l.created_at)].map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(",");
+          }));
+          var csvBlob = new Blob([csvRows.join("\n")], { type:"text/csv" });
+          var csvUrl  = URL.createObjectURL(csvBlob);
+          var html = '<div style="display:flex;justify-content:flex-end;margin-bottom:12px;">'
+            + '<a href="' + csvUrl + '" download="leads.csv" style="font-size:13px;font-weight:600;color:#1e40af;text-decoration:none;border:1.5px solid #bfdbfe;border-radius:7px;padding:6px 14px;background:#eff6ff;">⬇ Download CSV</a>'
+            + '</div>'
+            + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+            + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
+            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Name</th>'
+            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Email</th>'
+            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Source</th>'
+            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Date</th>'
+            + '</tr></thead><tbody>';
+          leads.forEach(function (l, i) {
+            var bg = i % 2 === 0 ? "#fff" : "#f9fafb";
+            html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;">'
+              + '<td style="padding:8px 10px;font-weight:500;color:#111827;">' + esc(l.name || "—") + '</td>'
+              + '<td style="padding:8px 10px;"><a href="mailto:' + esc(l.email) + '" style="color:#1e40af;text-decoration:none;">' + esc(l.email || "—") + '</a></td>'
+              + '<td style="padding:8px 10px;color:#6b7280;">' + esc(l.source || "—") + '</td>'
+              + '<td style="padding:8px 10px;color:#6b7280;">' + esc(fmtDate(l.created_at)) + '</td>'
+              + '</tr>';
+          });
+          html += '</tbody></table>';
+          container.innerHTML = html;
+        })
+        .catch(function () {
+          container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#ef4444;">Failed to load leads. Please refresh and try again.</div>';
         });
     });
   })();

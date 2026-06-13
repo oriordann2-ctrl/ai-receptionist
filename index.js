@@ -4688,7 +4688,6 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     // Prepend org name to original query so embeddings are anchored to the right entity
     const anchoredQuery = orgName ? `${orgName} — ${message}` : message;
     const allQueries = [anchoredQuery, message, ...alternatives];
-    console.log(`[retrieval] org="${orgName}" queries=`, allQueries);
 
     // 2. Embed all query variants in one batched API call
     const embResp = await openai.embeddings.create({
@@ -4778,8 +4777,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       ...websiteChunks.slice(0, matchCount)
     ];
 
-    if (!goodChunks.length) { console.log(`[retrieval] no chunks found for tenant=${tenantId}`); return []; }
-    console.log(`[retrieval] top chunks:`, goodChunks.slice(0, 3).map(c => c.chunk_text?.slice(0, 80)));
+    if (!goodChunks.length) return [];
 
     return goodChunks.map(chunk => ({
       filename: chunk.lender
@@ -11433,6 +11431,20 @@ app.post("/api/chat/lead", async (req, res) => {
 });
 
 // GET /api/portal/unanswered-questions — questions the chat couldn't answer
+app.get("/api/portal/debug-retrieval", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const question = req.query.question || "";
+    if (!question) return res.status(400).json({ error: "question param required" });
+    const { data: tenantData } = await supabase.from("tenants").select("name").eq("id", tenantId).single();
+    const orgName = tenantData?.name || tenantId;
+    const chunks = await findRelevantKnowledgeChunks(question, 8, tenantId, "", orgName);
+    return res.json({ question, orgName, chunks });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
   try {
     const tenantId = req.tenant.tenantId;

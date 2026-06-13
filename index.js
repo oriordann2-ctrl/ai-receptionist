@@ -5950,6 +5950,15 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
         if (!seen.has(u)) { seen.add(u); candidates.push(u); }
         if (candidates.length >= maxImages * 4) break;
       }
+      // The Club App (theclubapp.com) — popular Irish GAA/sports platform serving images from S3 without file extensions
+      const clubAppRe = /https?:\/\/(?:theclubapp-photos-production\.s3[^"'\s<>]*|s3[^"'\s<>]*amazonaws[^"'\s<>]*\/theclubapp-photos-production\/media[^"'\s<>]*)/gi;
+      let m3;
+      while ((m3 = clubAppRe.exec(page.html)) !== null) {
+        const u = m3[0].replace(/['">\s].*$/, ""); // trim any trailing quote/tag
+        if (/\bicon\b|\blogo\b|favicon|avatar|sprite|placeholder|\bbadge\b/i.test(u)) continue;
+        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+        if (candidates.length >= maxImages * 4) break;
+      }
       // Broad fallback: catch any remaining https image URL in the HTML not caught above
       if (candidates.length < maxImages * 2) {
         const broadRe = /https?:\/\/[^\s"'<>]+\.(?:jpe?g|png|webp)(?:\?[^\s"'<>]*)?/gi;
@@ -6344,6 +6353,33 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       } catch (e) {
         console.error(`[crawl] extractAndRehostWebsiteImages failed for ${tenantId}: ${e.message}`);
       }
+
+      // ── Logo image fallback — if still no images, rehost the logo as a gallery photo ──
+      try {
+        const { data: imgCheck } = await supabase.from("tenants").select("social_images, logo_url").eq("id", tenantId).maybeSingle();
+        let currentImages = [];
+        try { currentImages = JSON.parse(imgCheck?.social_images) || []; } catch {}
+        const fallbackLogo = imgCheck?.logo_url || logoUrl;
+        if (currentImages.length === 0 && fallbackLogo) {
+          const r = await fetch(fallbackLogo, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(10000) });
+          if (r.ok) {
+            const ct = r.headers.get("content-type") || "";
+            if (ct.startsWith("image/")) {
+              const buf = Buffer.from(await r.arrayBuffer());
+              if (buf.length >= 5000) {
+                const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
+                const storagePath = `${tenantId}/logo_fallback.${ext}`;
+                const { error } = await supabase.storage.from("social-images").upload(storagePath, buf, { contentType: ct, upsert: true });
+                if (!error) {
+                  const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
+                  await supabase.from("tenants").update({ social_images: JSON.stringify([publicUrl]) }).eq("id", tenantId);
+                  console.log(`[crawl] No site images found — used logo as image fallback for ${tenantId}`);
+                }
+              }
+            }
+          }
+        }
+      } catch (e) { console.log(`[crawl] Logo fallback failed for ${tenantId}: ${e.message}`); }
 
       // ── Extract logo from crawled HTML (avoids second fetch for sites that block it) ──
       if (!logoUrl) {
@@ -8576,6 +8612,32 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
             console.log(`[portal-import] Stored ${combined.length} total images`);
           }
         }
+
+        // Logo fallback — if still no images, rehost the logo as a gallery photo
+        try {
+          const { data: imgCheck } = await supabase.from("tenants").select("social_images, logo_url").eq("id", tenantId).maybeSingle();
+          let imgs = [];
+          try { imgs = JSON.parse(imgCheck?.social_images) || []; } catch {}
+          if (imgs.length === 0 && imgCheck?.logo_url) {
+            const r = await fetch(imgCheck.logo_url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(10000) });
+            if (r.ok) {
+              const ct = r.headers.get("content-type") || "";
+              if (ct.startsWith("image/")) {
+                const buf = Buffer.from(await r.arrayBuffer());
+                if (buf.length >= 5000) {
+                  const ext = ct.includes("png") ? "png" : ct.includes("webp") ? "webp" : "jpg";
+                  const storagePath = `${tenantId}/logo_fallback.${ext}`;
+                  const { error } = await supabase.storage.from("social-images").upload(storagePath, buf, { contentType: ct, upsert: true });
+                  if (!error) {
+                    const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
+                    await supabase.from("tenants").update({ social_images: JSON.stringify([publicUrl]) }).eq("id", tenantId);
+                    console.log(`[portal-import] No site images found — used logo as image fallback for ${tenantId}`);
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) { console.log(`[portal-import] Logo fallback failed: ${e.message}`); }
       } catch (e) {
         console.error(`[portal-import] Post-import enrichment error:`, e.message);
       }

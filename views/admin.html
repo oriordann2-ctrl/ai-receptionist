@@ -3255,9 +3255,12 @@ async function loadAdminTenants() {
         </div>
         ${kbBadge}
         ${pwBadge}
-        <input type="color" value="${escT(colorVal)}" title="Brand colour — click to change"
-          style="width:32px;height:32px;border:1px solid #e2e8f0;border-radius:6px;padding:2px;cursor:pointer;flex-shrink:0;"
-          onchange="updateBrandColor('${escT(t.id)}', this.value)" />
+        <input type="color" id="color-${escT(t.id)}" value="${escT(colorVal)}" title="Brand colour"
+          style="width:32px;height:32px;border:1px solid #e2e8f0;border-radius:6px;padding:2px;cursor:pointer;flex-shrink:0;" />
+        <button onclick="updateBrandColor('${escT(t.id)}', document.getElementById('color-${escT(t.id)}').value)"
+          style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          💾 Save colour
+        </button>
         <button class="btn-recrawl-tenant" onclick="recrawlTenant('${escT(t.id)}', '${escT(t.name || t.id)}')"
           style="background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
           🕷 Re-crawl

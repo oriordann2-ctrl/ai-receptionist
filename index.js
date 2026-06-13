@@ -6152,10 +6152,19 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       let logoUrl = null;
       try {
         // Don't overwrite a manually-set logo
-        const { data: existingLogoData } = await supabase.from("tenants").select("logo_url").eq("id", tenantId).maybeSingle();
+        const { data: existingLogoData } = await supabase.from("tenants").select("logo_url, brand_color").eq("id", tenantId).maybeSingle();
         if (existingLogoData?.logo_url) {
           logoUrl = existingLogoData.logo_url;
           console.log(`[crawl] Logo already set for ${tenantId}, skipping auto-detection`);
+        }
+
+        // Run Vision colour extraction if logo is known but brand_color not yet set
+        if (logoUrl && !existingLogoData?.brand_color) {
+          const visionColor = await extractBrandColorFromLogo(logoUrl);
+          if (visionColor) {
+            await supabase.from("tenants").update({ brand_color: visionColor }).eq("id", tenantId);
+            console.log(`[crawl] Brand colour stored for ${tenantId}: ${visionColor} (vision from existing logo)`);
+          }
         }
 
         if (!logoUrl) try {

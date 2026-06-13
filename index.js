@@ -15577,8 +15577,15 @@ ${widgetScript}</body></html>`;
 
   // ── TENNIS CLUB ──────────────────────────────────────────────────────────
   if (btype === "tennis_club") {
-    const navy     = "#0d2060";
-    const navyDark = "#060e33";
+    const navy     = primary; // use tenant's brand_color (falls back to default navy if not set)
+    const hexRgb   = (hex) => `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
+    const darkenHex = (hex, f) => {
+      const r = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(1,3),16) * f)));
+      const g = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(3,5),16) * f)));
+      const b = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(5,7),16) * f)));
+      return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+    };
+    const navyDark = darkenHex(primary, 0.55);
     const ball     = "#c8f500";
     const ocean    = "#1e6fba";
 
@@ -15594,7 +15601,7 @@ ${widgetScript}</body></html>`;
   .tn-nav-logo{width:38px;height:38px;border-radius:50%;object-fit:contain;background:white;padding:3px;}
   .tn-nav-name{color:white;font-weight:900;font-size:15px;}
   .tn-nav-book{background:${ball};color:${navyDark};font-weight:900;text-decoration:none;padding:9px 18px;border-radius:8px;font-size:13px;white-space:nowrap;}
-  .tn-hero{position:relative;min-height:88vh;display:flex;align-items:center;justify-content:center;text-align:center;color:white;padding:80px 24px 90px;background:linear-gradient(165deg,rgba(6,14,51,0.90) 0%,rgba(13,32,96,0.75) 55%,rgba(30,111,186,0.65) 100%)${heroImg ? `,url("${heroImg}") center/cover no-repeat` : ""};}
+  .tn-hero{position:relative;min-height:88vh;display:flex;align-items:center;justify-content:center;text-align:center;color:white;padding:80px 24px 90px;background:linear-gradient(165deg,rgba(${hexRgb(navyDark)},0.90) 0%,rgba(${hexRgb(navy)},0.75) 55%,rgba(${hexRgb(ocean)},0.65) 100%)${heroImg ? `,url("${heroImg}") center/cover no-repeat` : ""};}
   .tn-hero-inner{max-width:680px;margin:0 auto;position:relative;z-index:1;}
   .tn-badge{display:inline-block;background:rgba(200,245,0,0.14);border:1px solid rgba(200,245,0,0.45);color:${ball};padding:5px 14px;border-radius:20px;font-size:12px;font-weight:800;letter-spacing:0.1em;margin-bottom:18px;}
   .tn-h1{font-size:42px;font-weight:900;letter-spacing:-0.5px;line-height:1.12;margin-bottom:14px;}
@@ -15623,7 +15630,7 @@ ${widgetScript}</body></html>`;
   .tn-slabel{font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:${ocean};margin-bottom:8px;}
   .tn-h2{font-size:26px;font-weight:900;color:#0d1a3a;margin-bottom:10px;line-height:1.2;}
   .tn-sub{color:#5a6a8a;font-size:15px;line-height:1.7;margin-bottom:28px;max-width:540px;}
-  .tn-ai-box{background:linear-gradient(135deg,${navy} 0%,#1a3080 100%);border-radius:18px;padding:44px 32px;color:white;text-align:center;}
+  .tn-ai-box{background:linear-gradient(135deg,${navyDark} 0%,${navy} 100%);border-radius:18px;padding:44px 32px;color:white;text-align:center;}
   .tn-chip{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;display:inline-block;margin:4px;}
   .tn-social-btn{display:inline-flex;align-items:center;gap:8px;background:white;border:1.5px solid #dde3f0;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:700;color:#0d1a3a;text-decoration:none;margin:5px;}
   @media(max-width:680px){.tn-h1{font-size:28px!important}.tn-grid2,.tn-grid3,.tn-grid4{grid-template-columns:1fr!important}.tn-strip-inner{gap:0}}

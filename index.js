@@ -6394,7 +6394,12 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
           setCrawlProgress(tenantId, 67, "Gathering photos from your website…");
           const siteImages = await extractAndRehostWebsiteImages(pages, tenantId, needed);
           if (siteImages.length > 0) {
-            const combined = [...currentImages, ...siteImages].slice(0, 9);
+            let combined = [...currentImages, ...siteImages].slice(0, 9);
+            // For sports clubs rank all images so the best team photo ends up first
+            const btype = nameToBusinessType(name);
+            if (["gaa_club","tennis_club","team_sports_club","swim_club","golf_club"].includes(btype)) {
+              combined = await rankImagesForHero(combined);
+            }
             await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
             console.log(`[crawl] Stored ${combined.length} total images for ${tenantId} (${currentImages.length} social + ${siteImages.length} website)`);
           }

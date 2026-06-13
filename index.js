@@ -4635,25 +4635,26 @@ function getBestKnowledgeSnippet(text, message) {
 // standalone queries before embedding.
 // Change 2: one specific + one general rephrase (temperature 0.5 for diversity)
 // Change 3: conversation history passed in and included in prompt
-async function expandQuery(message, conversationHistory = "") {
+async function expandQuery(message, conversationHistory = "", orgName = "") {
   try {
     const historyPrefix = conversationHistory
       ? `Recent conversation:\n${conversationHistory}\n\n`
       : "";
+    const orgPrefix = orgName ? `Organisation: ${orgName}\n` : "";
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: 'Rephrase the question twice to improve knowledge base search coverage: (1) a more specific version adding relevant technical terms or context, (2) a more general version with broader phrasing. If given conversation history, rewrite the question as a fully self-contained standalone query first. Return JSON only: {"alternatives": ["specific_phrasing", "general_phrasing"]}'
+          content: 'Rephrase the question three ways to improve knowledge base search coverage: (1) a specific version incorporating the organisation name and any relevant role/context terms (e.g. "club chairman" not just "chairman"), (2) a general version with broader phrasing, (3) a keyword-only version (key nouns only, no question words). If given conversation history, rewrite as a standalone query first. Return JSON only: {"alternatives": ["specific", "general", "keywords"]}'
         },
-        { role: "user", content: `${historyPrefix}Question: ${message}` }
+        { role: "user", content: `${orgPrefix}${historyPrefix}Question: ${message}` }
       ],
-      temperature: 0.5,   // higher than before → more lexical diversity between variants
-      max_tokens: 120
+      temperature: 0.5,
+      max_tokens: 150
     });
     const parsed = JSON.parse(resp.choices[0].message.content);
-    return Array.isArray(parsed.alternatives) ? parsed.alternatives.slice(0, 2) : [];
+    return Array.isArray(parsed.alternatives) ? parsed.alternatives.slice(0, 3) : [];
   } catch {
     return []; // fail gracefully — original query still runs
   }
@@ -4680,10 +4681,10 @@ function reciprocalRankFusion(resultLists, k = 60) {
 // Change 1: MIN_SIMILARITY raised from 0.30 → 0.42
 // Change 3: accepts conversationHistory for context-aware query rewriting
 // Change 4: hybrid BM25 + vector search with RRF fusion
-async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom", conversationHistory = "") {
+async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom", conversationHistory = "", orgName = "") {
   try {
-    // 1. Expand query with diversity + conversation context
-    const alternatives = await expandQuery(message, conversationHistory);
+    // 1. Expand query with diversity + conversation context + org name for grounding
+    const alternatives = await expandQuery(message, conversationHistory, orgName);
     const allQueries = [message, ...alternatives];
 
     // 2. Embed all query variants in one batched API call
@@ -12122,7 +12123,7 @@ Use plain numbers where possible.
     .slice(-4)
     .map(log => `${log.sender === "user" ? "User" : "Assistant"}: ${log.message}`)
     .join("\n");
-  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId, recentHistory);
+  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId, recentHistory, tenantDisplayName || "");
 
   console.log("Relevant knowledge docs:", relevantDocs);
 
@@ -12200,7 +12201,7 @@ Use plain numbers where possible.
         .map(log => `${log.sender === "user" ? "User" : "Assistant"}: ${log.message}`)
         .join("\n");
       const [relevantDocs, eboContext] = await Promise.all([
-        findRelevantKnowledgeChunks(trimmedMessage, 8, tenantId, recentHistoryGeneral),
+        findRelevantKnowledgeChunks(trimmedMessage, 8, tenantId, recentHistoryGeneral, tenantDisplayName || ""),
         maybeGetEboContext(tenantId, trimmedMessage)
       ]);
 

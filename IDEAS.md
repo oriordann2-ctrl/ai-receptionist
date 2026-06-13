@@ -7,42 +7,40 @@
 
 ## 🟢 Cosy Café Kinsale — Active Client Onboarding
 
-Deal closed 2026-06-10 with Sebastien Perey. ~~€100 deposit +~~ €300 on go-live + €49/month recurring.
-**Note:** Deposit waived on advice of LEO advisor (social welfare situation — collecting payment while on welfare not permitted until business is formally registered). Full €300 invoiced on go-live instead.
+Deal closed 2026-06-10 with Sebastien Perey. €300 on go-live + €49/month recurring.
 
-### Immediate (today)
-- [ ] Inform Sebastian: deposit waived, full €300 due on go-live instead
-- [x] Confirm his WhatsApp / email for ongoing comms
+### ✅ Done
+- [x] Design theme chosen — The Local (forest green / terracotta)
+- [x] Tenant created in Sprimal (cosy-cafe)
+- [x] Website built — live at app.sprimal.com/sites/cosy-cafe
+- [x] KB crawled + fact file uploaded + menus uploaded
+- [x] Chat flows seeded (Menu, Hours, Find Us, Events, Reviews, Something Else)
+- [x] Book a Table button — popup on desktop, dials on mobile
+- [x] Google Review link fixed
+- [x] KB retrieval fixed (all chunks in context)
+- [x] Markdown rendering in chat (bold, bullets, links)
+- [x] Maeve hedging fixed
 
-### Week 1 — Design & Content (Sebastian's actions)
-- [ ] Sebastian picks design theme (The Local / Modern Artisan / Dark Roast / Wild Atlantic)
-- [ ] Sebastian registers **cosycafe.ie** on Blacknight.com (€5.99/yr — his cost)
-- [ ] Sebastian sends menu, opening hours, and any photos
-- [ ] Sebastian points cosycafe.ie DNS to Sprimal once registered
+### ⏳ Pending — Sebastian's actions
+- [ ] Register **cosycafe.ie** on Blacknight.com (€5.99/yr)
+- [ ] Send current menu with updated prices
+- [ ] Confirm/send photos for website
+- [ ] Send photo ID + CRO cert (for Wix cosycafe.net domain recovery)
+- [ ] Point cosycafe.ie DNS to Sprimal once registered
 
-### Week 1 — Setup (your actions)
-- [ ] Create Cosy Café tenant in Sprimal
-- [ ] Seed/import their website KB (cosycafe.net crawl)
-- [ ] Build chat flows: Menu · Opening Hours · Find Us · Book a Table · Dog Policy · Leave a Review
-
-### Week 2 — Build & Train
-- [ ] Build website using chosen design theme
-- [ ] Train KB on full menu, hours, story, FAQs
-- [ ] Configure cosycafe.ie DNS and SSL
-- [ ] Send preview link to Sebastian for feedback
-
-### Week 3 — Test & Refine
+### ⏳ Pending — Your actions
+- [ ] Send Wix Sebastian's photo ID + CRO cert once received
+- [ ] Contact Graft Marketing (graftmarketing.ie) re cosycafe.net domain
+- [ ] Update menu on website once Sebastian sends current version
+- [ ] Configure cosycafe.ie DNS and SSL once registered
 - [ ] QA all chat flows on mobile and desktop
-- [ ] Schema markup validation
-- [ ] Sebastian sign-off
 
-### Week 4 — Go Live
-- [ ] Set up 301 redirect: cosycafe.net → cosycafe.ie
-- [ ] Sebastian updates Google Business Profile URL to cosycafe.ie
+### 🚀 Go Live
+- [ ] Sebastian sign-off
 - [ ] Go live on cosycafe.ie
-- [ ] Send €200 completion Stripe invoice to Sebastian
+- [ ] Invoice €300
 - [ ] Set up €49/month Stripe recurring subscription
-- [ ] Portal walkthrough with Sebastian (KB updates, leads, chat logs)
+- [ ] Portal walkthrough with Sebastian
 
 ---
 
@@ -314,40 +312,23 @@ Google + TripAdvisor review buttons with logos, accessible from main menu. Imple
 
 ---
 
-## 🚨 URGENT — Admin Panel Password & Access Control
+## ✅ DONE — Admin Panel Password & Access Control
 
-**Security issue:** The admin panel password is a weak, guessable password and a real user (Cormac) is actively using it. The admin panel has destructive capabilities — deleting tenants, seeding data etc. This is a serious risk.
-
-**Actions needed:**
-1. **Change the admin password immediately** to something long and random — store it in an environment variable, not hardcoded
-2. **Audit what Cormac actually needs** — if he only needs portal access (chat logs, KB, leads), give him a portal login for his tenant only
-3. **Block admin panel access** for anyone who isn't the system owner — consider IP-restricting `/admin` or adding a second factor
-4. **Do not share the admin URL or password** with any tenant going forward
-
-**Risk:** Anyone who knows the password can delete all tenant data, access all accounts, and run seed functions against live clients including Monkstown.
+Password confirmed strong (already set as a secure env var in Render). No action needed.
 
 ---
 
-## 🚨 URGENT — Widget Buttons Missing on First Load (Wix)
+## ✅ DONE — Widget Buttons Missing on First Load (Wix)
 
-**Bug:** On the Monkstown Tennis Club website (Wix), opening the chat widget sometimes shows the greeting message but no choice buttons. A page refresh fixes it. Happens intermittently.
+**Bug:** Race condition — widget opened before workflow fetch returned, showing greeting with no buttons. Closing the panel before the fetch returned meant the race condition handler (which checked `isOpen`) never fired. On re-open, `hasOpened` was true so no fresh-start logic ran.
 
-**Likely cause:** Race condition — the widget initialises and renders the greeting before the API call for workflows/flows has returned. The buttons are data-driven (fetched from the server) so if the response is slow or arrives after the initial render, they never get injected into the DOM.
-
-**Fix options:**
-1. Show a loading spinner in place of buttons while flows are fetching, then replace with buttons on response
-2. Retry rendering buttons if they're empty after a short delay (e.g. 1.5s timeout fallback re-render)
-3. Inline the initial workflow data into the widget script tag so no async fetch is needed on first paint
-
-**Priority:** Urgent — this is a live client (Monkstown) and a real visitor could hit this and see a broken widget.
+**Fix:** Removed `isOpen` guard from the race condition handler. Handler now fires even when the panel is closed, so workflow state is ready when the user re-opens. Added a `.sprimal-user` querySelector guard to avoid wiping a real conversation.
 
 ---
 
-## 🔐 Portal Login: Wrong Credentials Auto-filled by Browser
+## ✅ DONE — Portal Login: Wrong Credentials Auto-filled by Browser
 
-**Bug / Security concern:** Every time the portal login page is opened, the browser auto-fills the eBooking admin username and password into the email and password fields. This is browser autofill picking up saved credentials from a different service and applying them to the Sprimal portal form.
-
-**Fix:** Add `autocomplete="off"` on the form, or more specifically `autocomplete="username"` / `autocomplete="current-password"` on the individual fields so the browser maps them to the correct saved credentials. Alternatively add `autocomplete="new-password"` on the password field to suppress autofill entirely.
+Set `autocomplete="off"` on email field and `autocomplete="new-password"` on password field to suppress the eBooking credentials being auto-filled.
 
 ---
 
@@ -357,11 +338,13 @@ Google + TripAdvisor review buttons with logos, accessible from main menu. Imple
 
 **Fix:** Don't delete the old documents until the new crawl has completed successfully. Swap old for new atomically — insert new docs first, then delete old ones. Or keep old docs visible (read-only / greyed out) during the crawl and replace them when done.
 
+**Also affects:** Admin re-crawl button — same deletion-before-crawl issue, same blank state in portal during the crawl.
+
 ---
 
-## 📊 Portal Leads View UI
+## ✅ DONE — Portal Leads View UI
 
-Backend endpoint exists (`GET /api/portal/leads`) but no UI built. Clients can't see their leads from the portal.
+Collapsible 🎯 Leads card added to portal dashboard. Lazy-loads from `/api/portal/leads`, shows Name / Email / Source / Date table with CSV download. Tested and working.
 
 ---
 
@@ -533,23 +516,9 @@ Needed before Twilio regulatory bundle can be submitted.
 
 ---
 
-## 🌐 Browser Tab Favicon — Sprimal / Club Logo in Tab Title Bar
+## ✅ DONE — Browser Tab Favicon
 
-**What:** The generated tenant websites at `/sites/:tenantId` should show a favicon in the browser tab, just like any professional website. Currently the tab shows a blank page icon.
-
-**What to show:**
-- If the tenant has a `logo_url` set — use that as the favicon (works for PNG/JPG via `<link rel="icon">`)
-- If no logo — fall back to the Sprimal logo
-
-**How:**
-- In `buildTenantSiteHtml`, add to `baseHead()`:
-  ```html
-  <link rel="icon" href="${logo || 'https://app.sprimal.com/sprimal-icon.png'}" type="image/png">
-  <link rel="apple-touch-icon" href="${logo || 'https://app.sprimal.com/sprimal-icon.png'}">
-  ```
-- The favicon proxy already exists at `/favicon-proxy` — could use that as the `href` so it handles format conversion
-
-**Status:** Not built. Simple one-liner addition to `baseHead()`.
+Tenant logo now appears as favicon on generated websites. Falls back to Sprimal icon if no logo set. Tested on Monkstown and Cosy Café.
 
 ---
 
@@ -569,16 +538,9 @@ Needed before Twilio regulatory bundle can be submitted.
 
 ---
 
-## 🚨 URGENT — Disable Cormac/AOM Email Agent
+## ✅ DONE — Disable Cormac/AOM Email Agent
 
-The email-poll loop is processing AOM mortgage emails (Cormac's firm), classifying them, drafting replies, and sending drafts to cormac@aom.ie. This runs on every poll cycle and wastes tokens — Cormac doesn't need or want AI-drafted replies for these.
-
-**Actions needed:**
-- Identify the config/flag that enables the AOM email agent and turn it off
-- Or add a tenant/domain filter so the email poller ignores @aom.ie and @ptsb.ie senders entirely
-- Verify no more `[email-agent] Draft complete` logs after the fix
-
-**Status:** Active — burning tokens on every crawl cycle.
+Disabled via `EMAIL_POLLING_ENABLED` environment variable set to anything other than `"true"`. Verified in both staging and production logs — no more email polling.
 
 ---
 
@@ -677,6 +639,204 @@ The email-poll loop is processing AOM mortgage emails (Cormac's firm), classifyi
 **How:** Gate the section by `business_type` on the tenant record. Show it only when `business_type` is `tennis_club`, `gaa_club`, or similar sports type. Hide it entirely for cafés, retail, hospitality etc.
 
 **Status:** Idea. Currently visible to all tenants regardless of business type.
+
+---
+
+## 📄 Portal — Re-upload Same Document Without Delete/Re-upload
+
+**Problem:** To update an existing document in the KB (e.g. correcting a fact file), the tenant must manually delete the old file and then re-upload the new one. There's no "replace" or "update" option.
+
+**What to build:** A "Replace" button next to each document in the KB uploads list. Clicking it opens the file picker, uploads the new file, re-embeds the chunks, and atomically swaps out the old document — no manual delete step needed.
+
+**Status:** Idea. Currently requires delete + re-upload workaround.
+
+---
+
+## 🍽️ Cosy Café — Menu Update (Frequent Changes)
+
+**Problem:** Sebastian changes his menu regularly. Current flow requires delete + re-upload.
+
+**What to build:** A prominent "Update Menu" button in the portal KB section (for café tenants). Opens file picker → uploads new PDF or text file → automatically deletes old menu chunks and re-embeds new ones in one step.
+
+**Status:** Idea. Blocked on "Replace document" feature being built first.
+
+---
+
+## 🖼️ Cosy Café — Website Photo Management via Portal
+
+**What:** Sebastian wants to swap the photos on his website without touching code. Named image slots: Hero, About, Menu 1, Menu 2. He uploads a photo in the portal, picks the slot, saves — website updates immediately.
+
+**How:** Store image URLs in tenant record columns (`hero_image_url`, `about_image_url` etc.) in Supabase. Website generator reads these dynamically instead of hardcoded URLs. Upload goes to Supabase Storage.
+
+**Status:** Idea. Hardcoded image URLs in cosy-cafe.html currently.
+
+---
+
+## ✅ DONE — Website QR Code in Portal
+
+Added a "Website QR Code" card to the portal dashboard for all tenants, below the existing chat QR. Links to `/sites/{tenant-id}` with Download PNG and View website buttons.
+
+---
+
+## 📸 Portal — Connect Instagram Photos to Website
+
+**What:** A "Connect Instagram" button in the portal that pulls the tenant's Instagram photos and lets them assign them to slots on their website (Hero, About, Gallery etc.) — without touching code.
+
+**How:**
+1. Tenant connects Instagram via OAuth (see Instagram OAuth idea)
+2. Portal shows a grid of their recent Instagram photos
+3. Tenant drags or selects a photo and assigns it to a named slot (Hero, About, Menu image etc.)
+4. Website updates immediately — slot URLs stored in Supabase against the tenant
+
+**Why:** Most small businesses post their best photos to Instagram first. This turns their existing Instagram content into website content with zero extra effort — they're already posting the photos anyway.
+
+**Dependency:** Requires Instagram OAuth to be built first.
+
+**Status:** Idea. Depends on Instagram OAuth + website photo management portal.
+
+---
+
+## ⭐ Google Reviews → Knowledge Base
+
+**What:** Pull Google reviews via the Google Places API and embed them as KB chunks. Maeve can then answer "what do customers say?" with real quotes. Reviews auto-refresh periodically.
+
+**How:** Google Places API returns up to 5 recent reviews per place. Store as `document_type: "Reviews"` chunks. Also use to auto-update the review carousel on the generated website.
+
+**Why:** Reviews are social proof, change over time, and are a natural thing visitors ask about. Maeve citing a real 5-star review is far more convincing than a generic answer.
+
+**Status:** Idea. Needs Google Places API key + place_id for each tenant.
+
+---
+
+## 🖼️ Signup Crawl — Pull Images Into Generated Website
+
+**Problem:** When a new tenant signs up and the crawl runs, images from their existing website are not being extracted and used in the generated Sprimal site. The generated site ends up with placeholder or no images, which looks generic and fails to impress.
+
+**Why this matters:** Organisations respond immediately when they see their own photos in the new site — it feels real and personal rather than a template. This is a key "wow moment" in the signup flow and a major conversion lever.
+
+**What to build:**
+- During the crawl, extract `<img>` src URLs from crawled pages — filter for large/hero-style images (skip icons, logos, tiny thumbnails)
+- Store the best 4–6 image URLs against the tenant (hero, about, gallery slots)
+- Generated website uses these real images instead of placeholders
+- Portal shows a simple image picker so tenant can swap any slot after signup
+
+**Priority:** High — this is the difference between a demo that wows and one that looks unfinished. Should be tackled before scaling signups.
+
+**Status:** Not built. Crawl fetches text content but discards images.
+
+---
+
+## 🔄 Portal — "Import website now" Banner Doesn't Clear After Clicking
+
+**Bug / UX:** On the Knowledge Base page, when the initial crawl fails, a red warning banner appears ("Website import didn't complete") with an "Import website now" button. When the tenant clicks the button to re-trigger the import, the red banner stays visible throughout the crawl — it doesn't clear or update to show progress. This makes it look like nothing is happening.
+
+**Fix:** When the import button is clicked, immediately replace the red banner with a neutral "Import in progress…" state (or redirect to the crawl progress view). Clear the error state on click rather than waiting for the crawl to finish.
+
+**Status:** Not fixed.
+
+---
+
+## 🏎️ Portal — Crawl Icon Sets Wrong Expectation
+
+**Bug / UX:** The crawl progress indicator uses a Formula 1 car icon, implying the crawl is fast. It actually takes 2–3 minutes. This sets the wrong expectation and may make tenants think something is broken.
+
+**Fix:** Replace the F1 car with a slower, more patient icon — e.g. 🕷️ (spider crawling), 🔍 (searching), or a simple animated spinner. Also consider adding a "This takes 2–3 minutes" note so tenants know to wait.
+
+**Status:** Cosmetic. Quick fix.
+
+---
+
+## 🔐 Admin Panel — AOM Data Visible to Admin Login
+
+**Bug / Privacy concern:** When logged in as admin, the AOM tenant's documents, KB uploads, and other data are visible. Admin should either have a clean tenant-switcher view or AOM data should be fully isolated and not surfaced in the admin panel.
+
+**What to fix:** Scope the admin panel so it doesn't expose individual tenant KB content. Admin should see a tenant list and switch into a tenant's context explicitly — not have all data surfaced by default.
+
+**Status:** Not fixed. Low urgency while AOM is the only sensitive tenant, but needs addressing before wider rollout.
+
+---
+
+## 🎨 Brand Colour Extraction from Logo via OpenAI Vision
+
+**Problem:** CSS-based colour detection picks the first saturated colour in the site's stylesheet, which is often the wrong one (e.g. Rushbrooke's navy before their green). The logo is the definitive source of brand colour but requires image processing to read pixels.
+
+**What to build:** After the crawl extracts the logo URL, download the logo and send it to OpenAI Vision with a prompt like: *"What is the primary brand colour in this logo? Return only a hex colour code."* Store the result as `brand_color`.
+
+**Why:** The logo IS the brand — it's what the club designed around. Colours extracted from it will always be more accurate than scraping CSS variables.
+
+**Fallback order:** OpenAI Vision → theme-color meta tag → Wix CSS variables → CSS structural selectors → admin manual override.
+
+**Status:** Idea. Admin manual override already built as workaround. CSS extraction improved for Wix but still imprecise.
+
+---
+
+## 🤖 Portal — Custom Assistant Name (Replace "Maeve")
+
+**What:** Let tenants rename their AI assistant from "Maeve" to something of their choice — e.g. "Fionn" for a GAA club, "Sophie" for a café, or the club's own branded name.
+
+**Why:** Maeve is a good default but some clients will want a name that fits their brand. A named assistant feels more personal and on-brand.
+
+**How:** Add a "Assistant name" field in portal settings. Stored on the tenant record. Used wherever the assistant introduces itself or is referenced in the widget and generated website.
+
+**Status:** Idea. Maeve hardcoded in system prompts and widget copy currently.
+
+---
+
+## 🌐 Primary Website Designation — Multiple Uploaded Websites
+
+**Problem:** When a tenant has uploaded more than one website (e.g. their main club website + a Clubforce membership page), the crawl has no way to know which is the primary business website. It may pick the wrong one as the canonical source for name, address, description, and brand colours.
+
+**What to build:** A way to designate one uploaded website as the "primary" source — the one the crawl prioritises for contact info, description, and brand colour extraction. Secondary websites would still be crawled and their content added to the KB, but they wouldn't override the primary website's data.
+
+**Options:**
+- Simple flag on document upload: "Is this your main website?" checkbox at upload time
+- In-portal document list: a ⭐ "Set as primary website" button next to each uploaded website doc
+- Admin panel: a dropdown on the tenant row to pick the primary website URL from the list of uploaded sites
+
+**Why it matters:**
+- Brand colour extraction reads from the primary website — wrong source = wrong theme
+- Description and name are pulled from the primary site — a Clubforce page gives "Clubforce" not the club name
+- The generated website card/about text would reflect whatever site the crawl happened to index first
+
+**Status:** Idea. Currently undefined behaviour when multiple sites are uploaded.
+
+---
+
+## 🔍 Retrieval — Phrasing Sensitivity (Fixed in Part)
+
+**Problem:** The same fact in the KB can be missed when the user phrases their question slightly differently. E.g. "who is the chairman" fails but "who is the club chairman" succeeds — same chunk, different embedding distance.
+
+**Root cause:** Pure vector search is sensitive to exact phrasing. Query expansion runs but without knowing the org name, it can't generate grounded alternatives like "chairman of Crosshaven GAA Club."
+
+**Fix applied (2026-06-13):** `expandQuery` now receives the org name and generates 3 variants instead of 2 — (1) specific with org name and role context, (2) general/broad, (3) keywords only. `findRelevantKnowledgeChunks` passes `tenantDisplayName` through.
+
+**Further improvements to consider:**
+- HyDE (Hypothetical Document Embeddings) — generate a fake answer, embed it, search for that embedding. Works very well for factual lookups.
+- Retrieval telemetry — log similarity scores per query to find the natural threshold gap (see Retrieval Telemetry idea above)
+- Re-ranking — after retrieval, use a cross-encoder to re-score chunks against the original question
+
+**Status:** Partially fixed. Monitoring needed to confirm improvement.
+
+---
+
+## 🤬 Profanity Handling — Best Practice Research Needed
+
+**Question:** If a visitor uses profanity in the chat, what is best practice for how the AI should respond?
+
+**Options to research:**
+- **Soft warning** — acknowledge the message but gently note the chat is for support queries: *"I'm here to help with questions about the club — let me know what you need."* (ignore the profanity, don't escalate)
+- **Hard block** — refuse to respond and state the chat is for appropriate use only
+- **Flag and continue** — log the conversation for the tenant to review, but still try to answer the underlying question
+- **Escalate to human** — notify the tenant that this conversation needs attention
+
+**Considerations:**
+- A GAA club or café chatbot has a very different risk profile to a bank or health service
+- Over-reacting to mild language could frustrate genuine users
+- Under-reacting could embarrass the tenant if screenshots are shared
+- The tenant should probably be able to configure sensitivity level (strict / balanced / ignore)
+- GDPR note: if flagging conversations for review, the user should be aware
+
+**Status:** Idea. No handling currently — the AI responds as normal regardless of language used.
 
 ---
 

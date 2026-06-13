@@ -604,7 +604,7 @@
       + '<button onclick="addPhotoFromUrl()" style="background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">Add</button>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:10px;">'
-      + '<button onclick="refetchInstagram()" style="background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;">↺ Re-fetch from Instagram</button>'
+      + '<button onclick="refetchInstagram()" style="background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;">↺ Refresh Social Photos</button>'
       + '<span id="photoStatus" style="font-size:13px;color:#6b7280;"></span>'
       + '</div>'
       + '</div>';
@@ -767,12 +767,29 @@
 
   window.refetchInstagram = function() {
     var status = document.getElementById("photoStatus");
-    if (status) status.textContent = "Fetching from Instagram…";
+    var grid   = document.getElementById("photoGrid");
+    if (status) status.textContent = "Fetching photos… (this takes up to 30s)";
     fetch("/api/portal/social-images/refetch", { method: "POST" })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) throw new Error(d.error || "failed");
-      if (status) { status.textContent = "Fetching in background — refresh in ~30 seconds"; setTimeout(function() { status.textContent = ""; }, 30000); }
+      // Poll settings every 5 s until photos update (up to 60 s)
+      var before = grid ? grid.querySelectorAll("img").length : 0;
+      var tries  = 0;
+      var poll   = setInterval(function() {
+        tries++;
+        fetch("/api/portal/settings")
+        .then(function(r) { return r.json(); })
+        .then(function(s) {
+          var imgs = s.social_images || [];
+          if (grid) grid.innerHTML = renderPhotoGrid(imgs);
+          if (imgs.length !== before || tries >= 12) {
+            clearInterval(poll);
+            if (status) { status.textContent = imgs.length > before ? "Photos updated!" : "Done — photos unchanged."; setTimeout(function() { status.textContent = ""; }, 4000); }
+          }
+        })
+        .catch(function() { if (tries >= 12) clearInterval(poll); });
+      }, 5000);
     })
     .catch(function(err) {
       if (status) status.textContent = "Error: " + err.message;

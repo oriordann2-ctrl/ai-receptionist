@@ -15350,8 +15350,10 @@ function buildTenantSiteHtml(tenant) {
   const siteImgs = socialImages.filter(u => /\/site_\d+\./.test(u));
   const igImgs   = socialImages.filter(u => /\/ig_\d+\./.test(u));
   const bgImages = [...siteImgs, ...igImgs];
-  // Prefer JPG/WEBP for hero — PNGs on Wix tend to be graphics/banners, not action photos
-  const heroImg = bgImages.find(u => /\.(jpe?g|webp)(\?|$)/i.test(u)) || bgImages[0] || "";
+  // Prefer JPG/WEBP for hero — PNGs tend to be graphics/logos not action photos
+  // Never use logo_fallback (club crest) as hero background — it's a graphic, not a photo
+  const isHeroCandidate = (u) => /\.(jpe?g|webp)(\?|$)/i.test(u) && !/logo_fallback/i.test(u);
+  const heroImg = bgImages.find(isHeroCandidate) || bgImages.find(u => !/logo_fallback/i.test(u)) || "";
   const bgImg1  = bgImages.find(u => u !== heroImg && /\.(jpe?g|webp)(\?|$)/i.test(u)) || bgImages[1] || "";
   const bgImg2  = bgImages.find(u => u !== heroImg && u !== bgImg1) || bgImages[2] || "";
   const emailBtn = email ? `<a href="mailto:${email}" style="display:inline-flex;align-items:center;gap:6px;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">✉️ ${email}</a>` : "";

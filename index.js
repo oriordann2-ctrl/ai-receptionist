@@ -5138,7 +5138,7 @@ async function extractBrandColorFromLogo(logoUrl) {
         role: "user",
         content: [
           { type: "image_url", image_url: { url: logoUrl, detail: "low" } },
-          { type: "text", text: "What is the single most prominent brand colour in this logo? Ignore white, black, and very dark navy. Return only a hex colour code in the format #RRGGBB — nothing else." }
+          { type: "text", text: "What is the single most suitable background or primary brand colour in this logo — the colour that represents the organisation's identity, typically used on shields, backgrounds, or dominant shapes? Ignore white, black, and incidental colours from sports equipment (e.g. yellow tennis balls, green grass, white sliotars). Prefer deep, rich colours like navy, dark green, maroon, or royal blue if present. Return only a hex colour code in the format #RRGGBB — nothing else." }
         ]
       }],
       max_tokens: 10

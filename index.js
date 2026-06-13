@@ -5880,18 +5880,38 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
         let abs;
         try { abs = new URL(src, page.url).href; } catch { continue; }
         if (!/\.(jpe?g|png|webp)/i.test(abs)) continue;
-        if (/icon|logo|favicon|avatar|sprite|placeholder|banner|badge|arrow|bullet/i.test(abs)) continue;
+        if (/\bicon\b|\blogo\b|favicon|avatar|sprite|placeholder|\bbadge\b|arrow|bullet/i.test(abs)) continue;
         if (!seen.has(abs)) { seen.add(abs); candidates.push(abs); }
         if (candidates.length >= maxImages * 4) break;
       }
-      // Also scan full HTML source for CDN image URLs embedded in script tags / JSON (Wix, Squarespace, etc.)
-      const cdnRe = /https?:\/\/(?:static\.wixstatic\.com\/media|images\.squarespace-cdn\.com|cdn\.shopify\.com\/s\/files|[a-z0-9-]+\.cloudfront\.net)[^\s"'<>]+\.(?:jpe?g|png|webp)/gi;
+      // Scan for CSS background-image: url(...) — many hero sections use this instead of <img> tags
+      const bgRe = /background(?:-image)?\s*:\s*url\(\s*["']?(https?:\/\/[^"')>\s]+\.(?:jpe?g|png|webp)[^"')>\s]*)["']?\s*\)/gi;
+      let mb;
+      while ((mb = bgRe.exec(page.html)) !== null) {
+        const u = mb[1];
+        if (/\bicon\b|\blogo\b|favicon|avatar|sprite|placeholder|\bbadge\b|arrow|bullet/i.test(u)) continue;
+        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+        if (candidates.length >= maxImages * 4) break;
+      }
+      // Also scan full HTML for CDN image URLs in script tags / JSON (Wix, Squarespace, WordPress, Webflow, Cloudinary, imgix, etc.)
+      const cdnRe = /https?:\/\/(?:static\.wixstatic\.com\/media|images\.squarespace-cdn\.com|cdn\.shopify\.com\/s\/files|[a-z0-9-]+\.cloudfront\.net|[a-z0-9-]+\.wp\.com|[^"'\s<>]*\/wp-content\/uploads\/|assets\.website-files\.com|res\.cloudinary\.com|[a-z0-9-]+\.imgix\.net|[a-z0-9-]+\.webflow\.io)[^\s"'<>]+\.(?:jpe?g|png|webp)/gi;
       let m2;
       while ((m2 = cdnRe.exec(page.html)) !== null) {
         const u = m2[0];
-        if (/icon|logo|favicon|avatar|sprite|placeholder/i.test(u)) continue;
+        if (/\bicon\b|\blogo\b|favicon|avatar|sprite|placeholder|\bbadge\b/i.test(u)) continue;
         if (!seen.has(u)) { seen.add(u); candidates.push(u); }
         if (candidates.length >= maxImages * 4) break;
+      }
+      // Broad fallback: catch any remaining https image URL in the HTML not caught above
+      if (candidates.length < maxImages * 2) {
+        const broadRe = /https?:\/\/[^\s"'<>]+\.(?:jpe?g|png|webp)(?:\?[^\s"'<>]*)?/gi;
+        let mb2;
+        while ((mb2 = broadRe.exec(page.html)) !== null) {
+          const u = mb2[0];
+          if (/\bicon\b|\blogo\b|favicon|avatar|sprite|placeholder|\bbadge\b|arrow|bullet/i.test(u)) continue;
+          if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+          if (candidates.length >= maxImages * 4) break;
+        }
       }
     }
     // 2. Extract from Jina markdown text — Jina embeds images as ![alt](url) or bare CDN URLs
@@ -5903,7 +5923,7 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
         let m2;
         while ((m2 = re.exec(page.text)) !== null) {
           const u = m2[1] || m2[0];
-          if (/icon|logo|favicon|avatar|sprite|placeholder/i.test(u)) continue;
+          if (/\bicon\b|\blogo\b|favicon|avatar|sprite|placeholder|\bbadge\b/i.test(u)) continue;
           if (!seen.has(u)) { seen.add(u); candidates.push(u); }
           if (candidates.length >= maxImages * 4) break;
         }
@@ -6258,7 +6278,9 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
             console.log(`[crawl] Stored ${combined.length} total images for ${tenantId} (${currentImages.length} social + ${siteImages.length} website)`);
           }
         }
-      } catch {}
+      } catch (e) {
+        console.error(`[crawl] extractAndRehostWebsiteImages failed for ${tenantId}: ${e.message}`);
+      }
 
       // ── Extract logo from crawled HTML (avoids second fetch for sites that block it) ──
       if (!logoUrl) {

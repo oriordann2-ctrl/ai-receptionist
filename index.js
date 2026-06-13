@@ -15321,6 +15321,15 @@ function buildTenantSiteHtml(tenant) {
   let accent    = pal.accent;
   const light   = pal.light;
 
+  const darkenHex = (hex, f) => {
+    const r = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(1,3),16) * f)));
+    const g = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(3,5),16) * f)));
+    const b = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(5,7),16) * f)));
+    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+  };
+  const hexRgb = (hex) => `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
+  const primaryDark = darkenHex(primary, 0.4);
+
   // ── Shared building blocks ────────────────────────────────────────────────
   const logoImg = logo
     ? `<img src="${logo}" alt="${name}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;background:white;padding:5px;box-shadow:0 2px 16px rgba(0,0,0,0.22);margin-bottom:18px;" onerror="this.outerHTML='<div style=\\'width:88px;height:88px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:18px;\\'>🏆</div>'">`
@@ -15614,7 +15623,7 @@ ${widgetScript}</body></html>`;
   </div>
 </div>
 
-<section style="background:linear-gradient(160deg,${primary} 0%,#451a03 100%);color:white;padding:72px 24px 60px;text-align:center;">
+<section style="background:linear-gradient(160deg,${primary} 0%,${primaryDark} 100%);color:white;padding:72px 24px 60px;text-align:center;">
   ${logoImg}
   <h1 style="font-size:40px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
   <p style="font-size:18px;opacity:0.85;margin-bottom:20px;">${desc || "Great food, great coffee."}</p>
@@ -15868,7 +15877,7 @@ ${widgetScript}</body></html>`;
   if (btype === "golf_club") {
     return baseHead() + stickyBar + `
 
-<section style="background:linear-gradient(160deg,${primary} 0%,#0a1f0a 100%);color:white;padding:70px 24px 56px;text-align:center;">
+<section style="background:linear-gradient(160deg,${primary} 0%,${primaryDark} 100%);color:white;padding:70px 24px 56px;text-align:center;">
   ${logoImg}
   <div class="badge">Golf Ireland Affiliated</div>
   <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 10px;">${name}</h1>
@@ -15939,7 +15948,7 @@ ${widgetScript}</body></html>`;
   if (btype === "yoga_studio") {
     return baseHead() + stickyBar + `
 
-<section style="background:linear-gradient(160deg,${primary} 0%,#1e0a2e 100%);color:white;padding:72px 24px 60px;text-align:center;">
+<section style="background:linear-gradient(160deg,${primary} 0%,${primaryDark} 100%);color:white;padding:72px 24px 60px;text-align:center;">
   ${logoImg}
   <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
   ${desc ? `<p style="font-size:18px;opacity:0.85;max-width:560px;margin:0 auto 20px;line-height:1.7;">${desc}</p>` : ""}
@@ -15970,7 +15979,7 @@ ${widgetScript}</body></html>`;
   if (btype === "swim_club") {
     return baseHead() + stickyBar + `
 
-<section style="background:linear-gradient(160deg,${primary} 0%,#082f49 100%);color:white;padding:70px 24px 56px;text-align:center;">
+<section style="background:linear-gradient(160deg,${primary} 0%,${primaryDark} 100%);color:white;padding:70px 24px 56px;text-align:center;">
   ${logoImg}
   <div class="badge">Swim Ireland Affiliated</div>
   <h1 style="font-size:38px;font-weight:900;letter-spacing:-0.5px;margin:14px 0 10px;">${name}</h1>

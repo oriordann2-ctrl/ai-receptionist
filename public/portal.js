@@ -642,8 +642,10 @@
   };
 
   function renderPhotoGrid(images) {
-    if (!images || !images.length) {
-      return '<div style="grid-column:1/-1;font-size:13px;color:#9ca3af;padding:8px 0;">No photos yet. Paste a URL below or re-fetch from Instagram.</div>';
+    // Strip logo fallback — it's the club crest, not a club photo
+    images = (images || []).filter(function(u) { return !/logo_fallback/i.test(u); });
+    if (!images.length) {
+      return '<div style="grid-column:1/-1;font-size:13px;color:#9ca3af;padding:8px 0;">No photos yet. Upload from your device, paste a URL, or click Refresh Social Photos.</div>';
     }
     return images.map(function(url) {
       var escaped = url.replace(/'/g, "\\'");

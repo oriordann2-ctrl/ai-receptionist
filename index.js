@@ -6151,14 +6151,12 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
         });
         if (pRes.ok) {
           const pText = await pRes.text();
+          // Only accept genuine Instagram CDN URLs — proxy sites also serve their own UI images
           const pCdnRe = /https:\/\/[a-z0-9_.-]+\.(?:cdninstagram|fbcdn|scontent)\.net\/[^\s"'<>\\]+\.(?:jpe?g|webp)/gi;
-          const pMdRe  = /!\[[^\]]*\]\((https?:\/\/[^)\s]+\.(?:jpe?g|png|webp)[^)]*)\)/gi;
-          for (const re of [pCdnRe, pMdRe]) {
-            let pm;
-            while ((pm = re.exec(pText)) !== null && cdnUrls.length < maxImages) {
-              const u = (pm[1] || pm[0]).replace(/\\u0026/g, "&");
-              if (!seen.has(u)) { seen.add(u); cdnUrls.push(u); }
-            }
+          let pm;
+          while ((pm = pCdnRe.exec(pText)) !== null && cdnUrls.length < maxImages) {
+            const u = pm[0].replace(/\\u0026/g, "&");
+            if (!seen.has(u)) { seen.add(u); cdnUrls.push(u); }
           }
           console.log(`[ig-scrape] Proxy found ${cdnUrls.length} total URLs (${proxyUrl})`);
         } else {
@@ -15698,8 +15696,8 @@ function buildTenantSiteHtml(tenant) {
     const raw = tenant.social_images;
     socialImages = Array.isArray(raw) ? raw : (typeof raw === "string" ? JSON.parse(raw) : []);
   } catch {}
-  // Strip Instagram profile pic (ig_0) — it's a small square avatar, not a usable photo
-  socialImages = socialImages.filter(u => !/\/ig_0\./.test(u)).slice(0, 9);
+  // Strip Instagram profile pic (ig_0) and logo fallback from photo pool
+  socialImages = socialImages.filter(u => !/\/ig_0\./.test(u) && !/logo_fallback/i.test(u)).slice(0, 9);
   // For sports clubs prefer social action photos over site graphics; for others prefer site images
   const siteImgs    = socialImages.filter(u => /\/site_\d+\./.test(u));
   const socialImgs  = socialImages.filter(u => /\/(?:ig|tw)_\d+\./.test(u));

@@ -3261,6 +3261,12 @@ async function loadAdminTenants() {
           style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
           💾 Save colour
         </button>
+        <input type="text" id="ig-${escT(t.id)}" value="${escT(t.instagram_handle || '')}" placeholder="instagram_handle"
+          style="width:140px;padding:5px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;color:#374151;" />
+        <button onclick="updateInstagram('${escT(t.id)}', document.getElementById('ig-${escT(t.id)}').value)"
+          style="background:#fdf4ff;color:#7e22ce;border:1px solid #e9d5ff;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          📷 Save IG
+        </button>
         <button class="btn-recrawl-tenant" onclick="recrawlTenant('${escT(t.id)}', '${escT(t.name || t.id)}')"
           style="background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
           🕷 Re-crawl
@@ -3334,6 +3340,20 @@ async function updateBrandColor(tenantId, color) {
   } catch(err) {
     alert("Failed to update brand colour: " + err.message);
   }
+}
+
+async function updateInstagram(tenantId, handle) {
+  const clean = handle.replace(/^@/, "").replace(/https?:\/\/(?:www\.)?instagram\.com\//i, "").replace(/\/$/, "").trim();
+  try {
+    const res = await fetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/instagram`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instagram_handle: clean })
+    });
+    const data = await res.json();
+    if (data.success) { alert(`✅ Instagram handle saved: @${clean}`); document.getElementById(`ig-${tenantId}`).value = clean; }
+    else alert("Error: " + (data.error || "Unknown"));
+  } catch (e) { alert("Request failed: " + e.message); }
 }
 
 async function recrawlTenant(tenantId, tenantName) {

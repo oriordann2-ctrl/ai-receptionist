@@ -6316,7 +6316,15 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       // ── Auto-detect Instagram handle from crawled pages + search ────────────────
       try {
         const { data: igCheck } = await supabase.from("tenants").select("instagram_handle").eq("id", tenantId).maybeSingle();
-        if (!igCheck?.instagram_handle) {
+        if (igCheck?.instagram_handle) {
+          // Handle already known — always refresh IG photos on re-crawl
+          setCrawlProgress(tenantId, 67, "Refreshing Instagram photos…");
+          const thumbnails = await fetchInstagramThumbnails(igCheck.instagram_handle, tenantId, 9);
+          if (thumbnails.length >= 1) {
+            await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
+            console.log(`[ig-scrape] Refreshed ${thumbnails.length} IG photos for ${tenantId} (@${igCheck.instagram_handle})`);
+          }
+        } else {
           setCrawlProgress(tenantId, 67, "Looking for your Instagram profile…");
           const detected = await detectInstagramHandle(name, pages);
           if (detected) {
@@ -8893,6 +8901,22 @@ app.delete("/api/admin/tenants/:id", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[admin-delete-tenant]", err.message);
     res.status(500).json({ error: "Failed to delete tenant: " + err.message });
+  }
+});
+
+// ── Admin: update Instagram handle for any tenant ────────────────────────────
+app.post("/api/admin/tenants/:id/instagram", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { instagram_handle } = req.body;
+  const handle = (instagram_handle || "").replace(/^@/, "").trim();
+  if (!handle) return res.status(400).json({ error: "Handle required" });
+  try {
+    const { error } = await supabase.from("tenants").update({ instagram_handle: handle }).eq("id", id);
+    if (error) throw error;
+    console.log(`[admin] Instagram handle set for ${id}: @${handle}`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

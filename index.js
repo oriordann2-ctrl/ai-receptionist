@@ -5606,7 +5606,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
     try {
       console.log(`[crawler] Fetching: ${url}`);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), isProbe ? 3000 : 8000);
+      const timeout = setTimeout(() => controller.abort(), isProbe ? 3000 : 15000);
       const response = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
         signal: controller.signal
@@ -5658,7 +5658,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
       console.log(`[crawler] ${reason} — trying Jina Reader for ${url}`);
       const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
         headers: jinaHeaders(),
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(30000)
       });
       if (!jinaRes.ok) return null;
       const jinaText = (await jinaRes.text()).trim();

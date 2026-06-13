@@ -15525,7 +15525,7 @@ function buildTenantSiteHtml(tenant) {
 <section style="position:relative;color:white;padding:70px 24px 56px;text-align:center;overflow:hidden;min-height:420px;display:flex;align-items:center;justify-content:center;">
   ${heroImg
     ? `<div style="position:absolute;inset:0;background-image:url(${heroImg});background-size:cover;background-position:center;"></div>
-       <div style="position:absolute;inset:0;background:linear-gradient(160deg,rgba(${hexRgb(primary)},0.80) 0%,rgba(${hexRgb(primaryDark)},0.88) 100%);"></div>`
+       <div style="position:absolute;inset:0;background:linear-gradient(160deg,rgba(${hexRgb(primary)},0.55) 0%,rgba(${hexRgb(primaryDark)},0.72) 100%);"></div>`
     : `<div style="position:absolute;inset:0;background:linear-gradient(160deg,${primary} 0%,#052e16 100%);"></div>`
   }
   <div style="position:relative;z-index:1;width:100%;">

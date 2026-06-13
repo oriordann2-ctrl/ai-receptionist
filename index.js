@@ -5093,6 +5093,36 @@ function extractDominantCssColor(html) {
 
 // Uses OpenAI Vision to identify the primary brand colour from a logo image URL.
 // Returns a hex string like "#2d6a3f" or null on failure.
+// Scores an image 1-10 for use as a sports club hero photo.
+// 10 = large team group in club colours on pitch; 1 = individual/logo/text/food.
+async function scoreImageForHero(imageUrl) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: [
+        { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
+        { type: "text", text: "Rate this image 1-10 as a sports club website hero photo. 10=large group of people or team in sports kit outdoors. 5=small group or training drill. 1=individual portrait, logo, text graphic, food, indoor event, or scenery with no people. Reply with just the number." }
+      ]}],
+      max_tokens: 5
+    });
+    const n = parseInt((resp.choices[0]?.message?.content || "").trim(), 10);
+    return isNaN(n) ? 5 : Math.max(1, Math.min(10, n));
+  } catch { return 5; }
+}
+
+// Re-orders a list of permanent image URLs so the best hero candidates come first.
+// Only scores the first scoreCount images to keep latency low.
+async function rankImagesForHero(urls, scoreCount = 6) {
+  if (urls.length <= 1) return urls;
+  const toScore = urls.slice(0, scoreCount);
+  const rest    = urls.slice(scoreCount);
+  const scores  = await Promise.all(toScore.map(u => scoreImageForHero(u)));
+  const scored  = toScore.map((u, i) => ({ u, s: scores[i] }));
+  scored.sort((a, b) => b.s - a.s);
+  console.log(`[hero-rank] Scores: ${scored.map(x => `${x.s}`).join(", ")}`);
+  return [...scored.map(x => x.u), ...rest];
+}
+
 async function extractBrandColorFromLogo(logoUrl) {
   if (!logoUrl) return null;
   try {
@@ -6297,8 +6327,11 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         const igHandle = tenantMeta?.instagram_handle;
         if (igHandle) {
           setCrawlProgress(tenantId, 13, `Fetching photos from Instagram (@${igHandle})…`);
-          const thumbnails = await fetchInstagramThumbnails(igHandle, tenantId, 9);
+          let thumbnails = await fetchInstagramThumbnails(igHandle, tenantId, 9);
           if (thumbnails.length >= 1) {
+            if (["gaa_club","tennis_club","team_sports_club","swim_club","golf_club"].includes(earlyBizType)) {
+              thumbnails = await rankImagesForHero(thumbnails);
+            }
             await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
             console.log(`[crawl] Stored ${thumbnails.length} IG thumbnails for ${tenantId}`);
           }
@@ -6319,8 +6352,12 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         if (igCheck?.instagram_handle) {
           // Handle already known — always refresh IG photos on re-crawl
           setCrawlProgress(tenantId, 67, "Refreshing Instagram photos…");
-          const thumbnails = await fetchInstagramThumbnails(igCheck.instagram_handle, tenantId, 9);
+          let thumbnails = await fetchInstagramThumbnails(igCheck.instagram_handle, tenantId, 9);
           if (thumbnails.length >= 1) {
+            const btype = nameToBusinessType(name);
+            if (["gaa_club","tennis_club","team_sports_club","swim_club","golf_club"].includes(btype)) {
+              thumbnails = await rankImagesForHero(thumbnails);
+            }
             await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
             console.log(`[ig-scrape] Refreshed ${thumbnails.length} IG photos for ${tenantId} (@${igCheck.instagram_handle})`);
           }
@@ -6330,8 +6367,12 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
           if (detected) {
             console.log(`[ig-detect] Found @${detected.handle} for ${tenantId} (confidence ${detected.confidence.toFixed(2)}, source: ${detected.source})`);
             await supabase.from("tenants").update({ instagram_handle: detected.handle }).eq("id", tenantId);
-            const thumbnails = await fetchInstagramThumbnails(detected.handle, tenantId, 9);
+            let thumbnails = await fetchInstagramThumbnails(detected.handle, tenantId, 9);
             if (thumbnails.length >= 1) {
+              const btype = nameToBusinessType(name);
+              if (["gaa_club","tennis_club","team_sports_club","swim_club","golf_club"].includes(btype)) {
+                thumbnails = await rankImagesForHero(thumbnails);
+              }
               await supabase.from("tenants").update({ social_images: JSON.stringify(thumbnails) }).eq("id", tenantId);
               console.log(`[ig-detect] Stored ${thumbnails.length} IG photos for ${tenantId} (@${detected.handle})`);
             }

@@ -15411,10 +15411,11 @@ function buildTenantSiteHtml(tenant) {
   } catch {}
   // Strip Instagram profile pic (ig_0) — it's a small square avatar, not a usable photo
   socialImages = socialImages.filter(u => !/\/ig_0\./.test(u)).slice(0, 9);
-  // Prefer website photos (site_N) over other Instagram images for backgrounds
-  const siteImgs = socialImages.filter(u => /\/site_\d+\./.test(u));
-  const igImgs   = socialImages.filter(u => /\/ig_\d+\./.test(u));
-  const bgImages = [...siteImgs, ...igImgs];
+  // For sports clubs prefer IG action photos over site graphics; for others prefer site images
+  const siteImgs   = socialImages.filter(u => /\/site_\d+\./.test(u));
+  const igImgs     = socialImages.filter(u => /\/ig_\d+\./.test(u));
+  const sportsTypes = ["gaa_club","tennis_club","team_sports_club","swim_club","golf_club"];
+  const bgImages   = sportsTypes.includes(btype) ? [...igImgs, ...siteImgs] : [...siteImgs, ...igImgs];
   // Prefer JPG/WEBP for hero — PNGs tend to be graphics/logos not action photos
   // Never use logo_fallback (club crest) as hero background — it's a graphic, not a photo
   const isHeroCandidate = (u) => /\.(jpe?g|webp)(\?|$)/i.test(u) && !/logo_fallback/i.test(u);

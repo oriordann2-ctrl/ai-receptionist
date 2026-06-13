@@ -840,6 +840,162 @@ Added a "Website QR Code" card to the portal dashboard for all tenants, below th
 
 ---
 
+## 🛡️ Cloudflare Protection (Vlad — Security)
+
+**Problem:** Current rate limit is 30 msgs/IP/min — easy to bypass with rotating IPs or distributed bots. The chat endpoint is exposed to the open internet with no additional layer.
+
+**What to do:** Put Sprimal behind Cloudflare (free tier covers this). Cloudflare provides:
+- DDoS protection at the network level
+- Bot detection and JS challenge for suspicious IPs
+- Rate limiting at the CDN layer (before requests even hit Render)
+- WAF rules to block malicious payloads
+
+**How:** Point `app.sprimal.com` DNS through Cloudflare. Enable "Under Attack Mode" if spam spikes. Add a rate-limiting rule in the Cloudflare dashboard targeting `/chat`.
+
+**Status:** Not set up. High priority given open API exposure.
+
+---
+
+## 💬 Chat Monthly Limits per Tenant (Vlad — Cost Protection)
+
+**Problem:** No per-tenant message cap. A single tenant with a viral moment or bot attack could generate thousands of OpenAI calls at Sprimal's expense.
+
+**What to build:**
+- `monthly_chat_limit` column on tenants table (default e.g. 500)
+- Counter in `chat_logs` — check count before processing each message
+- If limit reached: friendly message in chat ("This assistant has reached its monthly chat limit — please contact the club directly")
+- Portal shows usage vs limit with a progress bar
+- Admin can override limit per tenant
+
+**Pricing angle:** Tiered plans based on chat volume (e.g. 500/month Starter, 2000/month Pro, unlimited Enterprise).
+
+**Status:** Idea. No limit currently enforced.
+
+---
+
+## 🗃️ Response Caching for Common Questions (Vlad)
+
+**What:** Cache AI responses for frequently asked questions to reduce OpenAI API calls and latency. If "what are your opening hours?" has been asked 50 times and the KB hasn't changed, serve the cached answer.
+
+**How:**
+- Hash the question + tenant_id as a cache key
+- Store in Redis or a `response_cache` Supabase table with TTL (e.g. 24 hours)
+- On cache hit: return immediately, skip embedding + retrieval + GPT
+- Invalidate cache when KB is updated (recrawl or document upload)
+- Cap cache size per tenant to avoid stale answers
+
+**Why:** Top 10 questions for a GAA club are almost always the same (training times, match schedule, how to join). Caching those cuts API cost by potentially 60–70%.
+
+**Status:** Idea. No caching currently.
+
+---
+
+## 🖼️ Replace Emojis with Icons in Chat UI (Vlad)
+
+**What:** Replace emoji characters in chat buttons and responses (🎾, 📞, 📍) with proper SVG icons or an icon library (e.g. Lucide, Heroicons, Font Awesome).
+
+**Why:** Emojis render inconsistently across OS and browser versions — same emoji looks different on Windows vs iOS vs Android. Icons are consistent, scalable, and more professional.
+
+**How:** In `widget.js`, replace emoji strings with inline SVG or `<i class="icon-...">` tags. Load a lightweight icon set (Lucide is ~2KB per icon, tree-shakeable).
+
+**Status:** Idea. Emojis used throughout widget.js currently.
+
+---
+
+## ⚡ React Frontend — Widget & Portal (Vlad)
+
+**What:** Rebuild the chat widget and/or tenant portal using React instead of vanilla JS.
+
+**Why (Vlad's reasoning):** The portal is growing into a complex multi-section admin UI — React's component model, state management, and ecosystem (React Router, React Query) would make it significantly easier to maintain and extend. The widget is simpler but would also benefit from React's reconciliation for complex flows.
+
+**Considerations:**
+- Widget must be embeddable as a single script tag — React can be bundled with Vite/webpack but adds bundle size (~40KB gzipped)
+- Portal already has a lot of working functionality — a full rewrite is expensive
+- Could migrate incrementally: new features built in React, old sections left in vanilla JS
+
+**Vlad's specific suggestions:**
+- iframe integrator for the widget (cleaner isolation from host page styles)
+- Page 1 / Page 2 / Page 3 layout for chat flows as they grow more complex
+- Left-side nav menu for desktop portal instead of long collapsible sections
+
+**Status:** Idea. Current stack is vanilla JS + Express-rendered HTML. Migration would be a major project.
+
+---
+
+## 🗂️ Portal — Left-Side Navigation Menu (Desktop) (Vlad)
+
+**What:** Replace the current long scrollable list of collapsible `<details>` sections in the portal with a fixed left-side navigation menu on desktop.
+
+**Why:** As the portal grows (flows, KB, analytics, leads, unanswered questions, settings, billing), the single-scroll-page layout becomes unwieldy. A left nav with sections — Dashboard, Knowledge Base, Chat Flows, Leads, Analytics, Settings, Billing — matches how SaaS admin tools are structured and is what desktop users expect.
+
+**Vlad's point:** Most tenants will access the portal on desktop. Optimise for that.
+
+**Status:** Idea. Quick win once React migration starts, but could also be done in vanilla JS/CSS with minimal effort.
+
+---
+
+## 🔖 "Powered by Sprimal" Branding on Widget (Vlad)
+
+**What:** A small persistent "Powered by Sprimal" label with the Sprimal logo in the bottom-right of the chat widget — always visible, not dismissable.
+
+**Why:** Free marketing on every tenant's website. Every visitor who uses the chat sees the brand. Standard practice (Intercom, Drift, Tidio all do this on free/lower tiers).
+
+**Options:**
+- Always on (all plans) — maximum exposure
+- Removable on higher tier (white-label add-on for e.g. €X/month)
+
+**Status:** Idea. Not currently shown.
+
+---
+
+## 🎙️ Voice — Local TTS Instead of ElevenLabs (Vlad)
+
+**Vlad's concern:** ElevenLabs is expensive at scale for voice responses. For server-side voice, he recommended Python Flask + a local TTS model instead.
+
+**What this means:**
+- **Client-side (browser):** Use the Web Speech API (`window.speechSynthesis`) — completely free, zero API cost, runs locally in the browser. Quality is lower but acceptable.
+- **Server-side:** Python Flask microservice running a local TTS model (e.g. Coqui TTS, Piper, or Bark) — one-time compute cost, no per-character billing.
+
+**When ElevenLabs still makes sense:** Premium "cloned voice" upsell only — where quality matters and the tenant is paying extra for it.
+
+**Status:** Idea. See existing Voice Cost Analysis section for full breakdown.
+
+---
+
+## 🎯 Market Focus — Stick to Tennis Clubs & GAA Clubs (Vlad)
+
+**Vlad's advice:** Don't chase cafés and restaurants — too many competitors (Tidio, Intercom, Drift, OpenTable integrations). The sports club niche (GAA, tennis) is underserved, has strong community networks, and Sprimal already has real traction there.
+
+**Why this is sound:**
+- Cosy Café is a good reference client but cafés are a commoditised market
+- GAA clubs have no AI receptionist options built for them — Sprimal fits perfectly
+- Word-of-mouth in GAA spreads through county board meetings — one happy club = pipeline to hundreds
+- Tennis clubs are similarly networked (county/national associations)
+
+**Implication for Cosy Café:** Keep as a client (deal is done), but don't actively pursue more café/restaurant clients. Redirect sales energy to sports clubs.
+
+**Status:** Strategic decision. Noted for marketing and product focus.
+
+---
+
+## 💰 Pricing — Pay-As-You-Go & Fixed Plans with Chat Limits (Vlad)
+
+**Vlad's suggestions:**
+- Current flat €49/month may be too low — consider raising price
+- Explore pay-as-you-go (per conversation or per message) as an alternative tier
+- Fixed plans with monthly chat limits + auto-scale overage charging
+- Phone/call features can be spammed robotically — need hard limits or per-call billing rather than unlimited voice
+
+**Proposed structure (rough):**
+- **Starter:** €X/month — 500 chats/month, basic features
+- **Pro:** €Y/month — 2,000 chats/month, voice add-on, priority support
+- **Club:** €Z/month — unlimited chats, white-label, custom domain
+- **Overage:** €0.05/chat above limit (auto-charged)
+
+**Status:** Pricing not reviewed since launch. Worth modelling before next client pitch.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location
@@ -848,3 +1004,8 @@ Added a "Website QR Code" card to the portal dashboard for all tenants, below th
 - **Review aggregation widget** — pull Google + TripAdvisor ratings live into the generated website
 - **Onboarding wizard** — guided setup flow in portal (crawl → choose theme → publish → go live)
 - **Weekly digest emails** — send client a summary of chat volume, common questions, leads captured
+- **Cursor** — Vlad recommends exploring Cursor IDE as a development tool alongside Claude Code
+- **MongoDB Atlas** — Vlad suggested as a Supabase alternative; research security comparison before any migration
+- **Mistral AI** — Vlad uses it and finds it suits his use case; research whether it improves quality/cost vs gpt-4o-mini for Sprimal's retrieval + chat workloads
+- **Manus** — Vlad uses for systems/terminal automation; research what it is and whether it applies to Sprimal's workflow
+- **GitHub skills marketplace** — Vlad recommended searching GitHub to find the best Claude skills to reuse

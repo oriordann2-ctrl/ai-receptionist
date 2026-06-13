@@ -4787,6 +4787,17 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
 
     if (!goodChunks.length) return [];
 
+    // Fire-and-forget telemetry — never awaited, never blocks chat
+    const simScores = goodChunks.map(c => vectorSimMap.get(`${c.document_id}-${c.chunk_index}`) || 0);
+    supabase.from("retrieval_events").insert({
+      tenant_id: tenantId,
+      query: message,
+      expanded_queries: alternatives,
+      chunks_returned: goodChunks.length,
+      similarity_scores: simScores,
+      has_uploaded_docs: sortedUploadedDocs.length > 0
+    }).then(() => {}).catch(() => {});
+
     return goodChunks.map(chunk => ({
       filename: chunk.lender
         ? `${chunk.lender} — ${chunk.document_type}`

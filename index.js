@@ -6239,7 +6239,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
                 const descResp = await openai.chat.completions.create({
                   model: "gpt-4o-mini",
                   messages: [
-                    { role: "system", content: "Write a concise one-sentence description of what this business does in 10-20 words. Start with a lowercase letter, no company name, no full stop. Example: 'a tennis club in Cork offering memberships, coaching sessions, and court bookings'" },
+                    { role: "system", content: "Write a concise one-sentence description of this organisation in 10-25 words. If the text mentions a founding year, lead with it (e.g. 'founded in 1923,'). Start with a lowercase letter, no company name, no full stop. Example: 'founded in 1923, a tennis club in Cork offering memberships, coaching sessions, and court bookings'" },
                     { role: "user", content: `Business name: ${name}\nWebsite text:\n${pageText}` }
                   ],
                   temperature: 0.3,

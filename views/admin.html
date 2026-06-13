@@ -3262,11 +3262,7 @@ async function loadAdminTenants() {
           💾 Save colour
         </button>
         <input type="text" id="ig-${escT(t.id)}" value="${escT(t.instagram_handle || '')}" placeholder="instagram_handle"
-          style="width:140px;padding:5px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;color:#374151;" />
-        <button onclick="updateInstagram('${escT(t.id)}', document.getElementById('ig-${escT(t.id)}').value)"
-          style="background:#fdf4ff;color:#7e22ce;border:1px solid #e9d5ff;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
-          📷 Save IG
-        </button>
+          style="width:140px;padding:5px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;color:#374151;" title="Instagram handle — saved automatically on re-crawl" />
         <button class="btn-recrawl-tenant" onclick="recrawlTenant('${escT(t.id)}', '${escT(t.name || t.id)}')"
           style="background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
           🕷 Re-crawl
@@ -3359,6 +3355,16 @@ async function updateInstagram(tenantId, handle) {
 async function recrawlTenant(tenantId, tenantName) {
   if (!confirm(`Re-crawl "${tenantName}"?\n\nThis will delete existing website KB content and re-run the full crawl in the background. Watch Render logs for progress.`)) return;
   try {
+    // Save IG handle if the field has a value
+    const igInput = document.getElementById(`ig-${tenantId}`);
+    const igHandle = (igInput?.value || "").replace(/^@/, "").trim();
+    if (igHandle) {
+      await fetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/instagram`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instagram_handle: igHandle })
+      });
+    }
     const res  = await fetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/crawl`, {
       method: "POST", credentials: "include"
     });

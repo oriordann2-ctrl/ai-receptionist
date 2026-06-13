@@ -3254,6 +3254,10 @@ async function loadAdminTenants() {
         </div>
         ${kbBadge}
         ${pwBadge}
+        <button class="btn-recrawl-tenant" onclick="recrawlTenant('${escT(t.id)}', '${escT(t.name || t.id)}')"
+          style="background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          🕷 Re-crawl
+        </button>
         <button class="btn-reset-pw" onclick="resetTenantPassword('${escT(t.id)}', '${escT(t.name || t.id)}')">
           🔑 Reset password
         </button>
@@ -3308,6 +3312,20 @@ async function deleteTenant(tenantId, tenantName) {
     alert(`✅ Tenant "${tenantName}" has been deleted.`);
   } catch(err) {
     alert("Failed to delete tenant: " + err.message);
+  }
+}
+
+async function recrawlTenant(tenantId, tenantName) {
+  if (!confirm(`Re-crawl "${tenantName}"?\n\nThis will delete existing website KB content and re-run the full crawl in the background. Watch Render logs for progress.`)) return;
+  try {
+    const res  = await fetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/crawl`, {
+      method: "POST", credentials: "include"
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    alert(`✅ Crawl started for "${tenantName}".\n\nCheck Render logs for [crawler] output — takes 1-3 minutes.`);
+  } catch(err) {
+    alert("Failed to start crawl: " + err.message);
   }
 }
 

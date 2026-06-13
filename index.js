@@ -8769,6 +8769,29 @@ app.delete("/api/admin/tenants/:id", requireAdmin, async (req, res) => {
   }
 });
 
+// ── Admin: trigger a fresh crawl for any tenant ──────────────────────────────
+app.post("/api/admin/tenants/:id/crawl", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { data: tenant } = await supabase.from("tenants").select("id, name, website").eq("id", id).maybeSingle();
+    if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+    if (!tenant.website) return res.status(400).json({ error: "No website URL on file for this tenant" });
+    // Delete existing website-crawled docs so re-crawl starts clean
+    const { data: existingDocs } = await supabase.from("documents").select("id").eq("tenant_id", id).eq("document_type", "Website Content");
+    if (existingDocs && existingDocs.length > 0) {
+      const docIds = existingDocs.map(d => d.id);
+      await supabase.from("knowledge_chunks").delete().in("document_id", docIds);
+      await supabase.from("documents").delete().in("id", docIds);
+    }
+    startBackgroundCrawl({ tenantId: tenant.id, name: tenant.name, website: tenant.website });
+    console.log(`[admin] Crawl triggered for ${id} (${tenant.name}) by admin`);
+    res.json({ ok: true, message: `Crawl started for ${tenant.name} — watch Render logs for [crawler] output` });
+  } catch (err) {
+    console.error("[admin-crawl]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Admin: backfill email context from Gmail inbox ────────────────────────────
 // One-off endpoint to process historical emails through the context pipeline.
 // Responds immediately — processing runs in background. Watch Render logs.

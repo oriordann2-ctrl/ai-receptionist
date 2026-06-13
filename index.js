@@ -81,7 +81,14 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
   res.json({ received: true });
 });
 
-app.set("trust proxy", 1); // Required for rate limiting behind Render's reverse proxy
+// Trust Render's proxy + Cloudflare's proxy layer
+// Cloudflare sets CF-Connecting-IP with the real visitor IP
+app.set("trust proxy", true);
+app.use((req, _res, next) => {
+  const cfIp = req.headers["cf-connecting-ip"];
+  if (cfIp) req.ip = cfIp;
+  next();
+});
 app.use(helmet({
   contentSecurityPolicy: false,                            // CSP disabled — inline scripts used in views
   crossOriginResourcePolicy: { policy: "cross-origin" },  // Allow widget.js to load on external sites

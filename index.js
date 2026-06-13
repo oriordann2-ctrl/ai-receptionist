@@ -1221,10 +1221,12 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
 async function seedFlowsForType(tenantId, name, websiteUrl, bizType, pages) {
   if (bizType === "tennis_club") {
     const info = await extractTennisClubInfo(pages, websiteUrl);
+    if (info.phone) supabase.from("tenants").update({ phone: info.phone }).eq("id", tenantId).then(() => {});
     return seedTennisClubFlows(tenantId, name, websiteUrl, info);
   }
   // All other types use the generic contact/location extractor
   const info = await extractGenericInfo(pages, websiteUrl);
+  if (info.phone) supabase.from("tenants").update({ phone: info.phone }).eq("id", tenantId).then(() => {});
   switch (bizType) {
     case "fitness_studio":     return seedFitnessStudioFlows(tenantId, name, websiteUrl, info);
     case "golf_club":          return seedGolfClubFlows(tenantId, name, websiteUrl, info);

@@ -6136,6 +6136,32 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
       }
     }
 
+    // Picuki proxy fallback — renders public IG profiles without a login wall
+    if (cdnUrls.length === 0) {
+      try {
+        console.log(`[ig-scrape] Trying Picuki for @${handle}`);
+        const picRes = await fetch(`https://r.jina.ai/https://www.picuki.com/profile/${encodeURIComponent(handle)}`, {
+          headers: jinaHeaders(),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (picRes.ok) {
+          const picText = await picRes.text();
+          const picCdnRe = /https:\/\/[a-z0-9_.-]+\.(?:cdninstagram|fbcdn|scontent)\.net\/[^\s"'<>\\]+\.(?:jpe?g|webp)/gi;
+          const picMdRe  = /!\[[^\]]*\]\((https?:\/\/[^)\s]+\.(?:jpe?g|png|webp)[^)]*)\)/gi;
+          for (const re of [picCdnRe, picMdRe]) {
+            let pm;
+            while ((pm = re.exec(picText)) !== null && cdnUrls.length < maxImages) {
+              const u = (pm[1] || pm[0]).replace(/\\u0026/g, "&");
+              if (!seen.has(u)) { seen.add(u); cdnUrls.push(u); }
+            }
+          }
+          console.log(`[ig-scrape] Picuki found ${cdnUrls.length} URLs for @${handle}`);
+        }
+      } catch (picErr) {
+        console.log(`[ig-scrape] Picuki failed for @${handle}: ${picErr.message}`);
+      }
+    }
+
     if (cdnUrls.length === 0) return [];
 
     // Download all CDN images, rank by resolution, upload top N
@@ -6171,6 +6197,76 @@ async function fetchInstagramThumbnails(handle, tenantId, maxImages = 9) {
     return permanentUrls;
   } catch (err) {
     console.log(`[ig-scrape] Failed for @${handle}: ${err.message}`);
+    return [];
+  }
+}
+
+async function fetchTwitterPhotos(handle, tenantId, maxImages = 6) {
+  if (!handle) return [];
+  try {
+    console.log(`[tw-scrape] Trying Jina Reader for @${handle}`);
+    const jinaRes = await fetch(`https://r.jina.ai/https://x.com/${encodeURIComponent(handle)}/media`, {
+      headers: jinaHeaders(),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!jinaRes.ok) {
+      console.log(`[tw-scrape] Jina HTTP ${jinaRes.status} for @${handle}`);
+      return [];
+    }
+    const text = await jinaRes.text();
+
+    const seen = new Set();
+    const cdnUrls = [];
+    // pbs.twimg.com media URLs (various formats from Jina output)
+    const re1 = /https:\/\/pbs\.twimg\.com\/media\/[A-Za-z0-9_-]+(?:\?format=(?:jpg|png|webp)(?:&(?:amp;)?name=\w+)?)?/gi;
+    const re2 = /!\[[^\]]*\]\((https:\/\/pbs\.twimg\.com\/[^)\s]+)\)/gi;
+    for (const re of [re1, re2]) {
+      let m;
+      while ((m = re.exec(text)) !== null && cdnUrls.length < maxImages * 2) {
+        const raw = (m[1] || m[0]).replace(/&amp;/g, "&");
+        const base = raw.replace(/[?&]name=\w+/, "");
+        const finalUrl = base.includes("?") ? base + "&name=large" : base + "?format=jpg&name=large";
+        if (!seen.has(base)) { seen.add(base); cdnUrls.push(finalUrl); }
+      }
+    }
+    console.log(`[tw-scrape] Found ${cdnUrls.length} image URLs for @${handle}`);
+    if (cdnUrls.length === 0) return [];
+
+    const downloaded = [];
+    for (const cdnUrl of cdnUrls.slice(0, maxImages * 2)) {
+      try {
+        const imgRes = await fetch(cdnUrl, {
+          headers: { "User-Agent": "Mozilla/5.0" },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!imgRes.ok) continue;
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        const ct = imgRes.headers.get("content-type") || "image/jpeg";
+        let pixels = buffer.length;
+        try { const d = sizeOf(buffer); pixels = (d.width || 0) * (d.height || 0); } catch {}
+        downloaded.push({ buffer, ct, pixels });
+      } catch (e) {
+        console.log(`[tw-scrape] Download failed: ${e.message}`);
+      }
+    }
+    downloaded.sort((a, b) => b.pixels - a.pixels);
+
+    const permanentUrls = [];
+    for (let i = 0; i < Math.min(maxImages, downloaded.length); i++) {
+      const { buffer, ct } = downloaded[i];
+      const ext = ct.includes("webp") ? "webp" : ct.includes("png") ? "png" : "jpg";
+      const storagePath = `${tenantId}/tw_${i}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("social-images")
+        .upload(storagePath, buffer, { contentType: ct, upsert: true });
+      if (uploadErr) { console.log(`[tw-scrape] Upload failed ${i}: ${uploadErr.message}`); continue; }
+      const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
+      permanentUrls.push(publicUrl);
+    }
+    console.log(`[tw-scrape] Rehosted ${permanentUrls.length} Twitter photos for ${tenantId} (@${handle})`);
+    return permanentUrls;
+  } catch (err) {
+    console.log(`[tw-scrape] Failed for @${handle}: ${err.message}`);
     return [];
   }
 }
@@ -6388,6 +6484,25 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         }
       } catch (e) {
         console.log(`[ig-detect] Error: ${e.message}`);
+      }
+
+      // ── Twitter photo scrape — supplements IG images ───────────────────────────
+      try {
+        const { data: twCheck } = await supabase.from("tenants").select("twitter_handle, social_images").eq("id", tenantId).maybeSingle();
+        if (twCheck?.twitter_handle) {
+          const current = (() => { try { return JSON.parse(twCheck.social_images) || []; } catch { return []; } })();
+          if (current.length < 6) {
+            setCrawlProgress(tenantId, 68, `Fetching photos from Twitter (@${twCheck.twitter_handle})…`);
+            const twPhotos = await fetchTwitterPhotos(twCheck.twitter_handle, tenantId, 6);
+            if (twPhotos.length > 0) {
+              const combined = [...current, ...twPhotos].slice(0, 9);
+              await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+              console.log(`[crawl] Added ${twPhotos.length} Twitter photos for ${tenantId} (@${twCheck.twitter_handle})`);
+            }
+          }
+        }
+      } catch (e) {
+        console.log(`[tw-scrape] Crawl error: ${e.message}`);
       }
 
       // ── Extract photos from crawled HTML — always runs to supplement IG images ─
@@ -8661,6 +8776,22 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
           }
         }
 
+        // Twitter photos — supplement IG images
+        const twHandle = tMeta?.twitter_handle;
+        if (twHandle) {
+          const afterIg = (() => { try { return JSON.parse(tMeta?.social_images) || []; } catch { return []; } })();
+          if (afterIg.length < 6) {
+            setCrawlProgress(tenantId, 97, `Fetching photos from Twitter (@${twHandle})…`);
+            const twPhotos = await fetchTwitterPhotos(twHandle, tenantId, 6);
+            if (twPhotos.length > 0) {
+              const combined = [...afterIg, ...twPhotos].slice(0, 9);
+              await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+              Object.assign(tMeta, { social_images: JSON.stringify(combined) });
+              console.log(`[portal-import] Added ${twPhotos.length} Twitter photos for ${tenantId}`);
+            }
+          }
+        }
+
         // Website images — fill up to 9 total
         const currentImages = (() => { try { return JSON.parse(tMeta?.social_images) || []; } catch { return []; } })();
         const needed = 9 - currentImages.length;
@@ -9980,20 +10111,21 @@ app.post("/api/portal/social-images/remove", requireSeniorTenant, async (req, re
 
 app.post("/api/portal/social-images/refetch", requireSeniorTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
-  const { data: tenant } = await supabase.from("tenants").select("instagram_handle, social_images").eq("id", tenantId).maybeSingle();
-  if (!tenant?.instagram_handle) return res.status(400).json({ error: "No Instagram handle set. Save it in Social Media settings first." });
+  const { data: tenant } = await supabase.from("tenants").select("instagram_handle, twitter_handle, social_images").eq("id", tenantId).maybeSingle();
+  if (!tenant?.instagram_handle && !tenant?.twitter_handle) return res.status(400).json({ error: "No Instagram or Twitter handle set. Save them in Social Media settings first." });
   res.json({ ok: true });
-  fetchInstagramThumbnails(tenant.instagram_handle, tenantId, 9).then(async (thumbnails) => {
-    if (thumbnails.length >= 1) {
-      // Preserve existing site_* images — only replace ig_* images
-      let existing = [];
-      try { existing = JSON.parse(tenant.social_images) || []; } catch {}
-      const siteImgs = existing.filter(u => /\/site_\d+\./.test(u));
-      const combined = [...thumbnails, ...siteImgs].slice(0, 12);
+  const igPromise = tenant.instagram_handle ? fetchInstagramThumbnails(tenant.instagram_handle, tenantId, 9) : Promise.resolve([]);
+  const twPromise = tenant.twitter_handle   ? fetchTwitterPhotos(tenant.twitter_handle, tenantId, 6)         : Promise.resolve([]);
+  Promise.all([igPromise, twPromise]).then(async ([igThumbs, twPhotos]) => {
+    let existing = [];
+    try { existing = JSON.parse(tenant.social_images) || []; } catch {}
+    const siteImgs = existing.filter(u => /\/site_\d+\./.test(u));
+    const combined = [...igThumbs, ...twPhotos, ...siteImgs].slice(0, 12);
+    if (igThumbs.length + twPhotos.length >= 1) {
       await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
-      console.log(`[ig-refetch] Stored ${thumbnails.length} IG + ${siteImgs.length} site images for ${tenantId}`);
+      console.log(`[social-refetch] Stored ${igThumbs.length} IG + ${twPhotos.length} TW + ${siteImgs.length} site images for ${tenantId}`);
     }
-  }).catch(err => console.error("[ig-refetch]", err.message));
+  }).catch(err => console.error("[social-refetch]", err.message));
 });
 
 // ── Portal: staff management ──────────────────────────────────────────────────
@@ -15502,11 +15634,11 @@ function buildTenantSiteHtml(tenant) {
   } catch {}
   // Strip Instagram profile pic (ig_0) — it's a small square avatar, not a usable photo
   socialImages = socialImages.filter(u => !/\/ig_0\./.test(u)).slice(0, 9);
-  // For sports clubs prefer IG action photos over site graphics; for others prefer site images
-  const siteImgs   = socialImages.filter(u => /\/site_\d+\./.test(u));
-  const igImgs     = socialImages.filter(u => /\/ig_\d+\./.test(u));
+  // For sports clubs prefer social action photos over site graphics; for others prefer site images
+  const siteImgs    = socialImages.filter(u => /\/site_\d+\./.test(u));
+  const socialImgs  = socialImages.filter(u => /\/(?:ig|tw)_\d+\./.test(u));
   const sportsTypes = ["gaa_club","tennis_club","team_sports_club","swim_club","golf_club"];
-  const bgImages   = sportsTypes.includes(btype) ? [...igImgs, ...siteImgs] : [...siteImgs, ...igImgs];
+  const bgImages    = sportsTypes.includes(btype) ? [...socialImgs, ...siteImgs] : [...siteImgs, ...socialImgs];
   // Prefer JPG/WEBP for hero — PNGs tend to be graphics/logos not action photos
   // Never use logo_fallback (club crest) as hero background — it's a graphic, not a photo
   const isHeroCandidate = (u) => /\.(jpe?g|webp)(\?|$)/i.test(u) && !/logo_fallback/i.test(u);

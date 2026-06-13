@@ -15213,6 +15213,8 @@ function buildTenantSiteHtml(tenant) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${name}</title>
+  <link rel="icon" href="${logo || 'https://app.sprimal.com/sprimal-icon.png'}" type="image/png">
+  <link rel="apple-touch-icon" href="${logo || 'https://app.sprimal.com/sprimal-icon.png'}">
   ${extraMeta || ""}
   <style>
     *{box-sizing:border-box;margin:0;padding:0}

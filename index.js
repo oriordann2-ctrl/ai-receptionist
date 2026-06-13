@@ -4688,6 +4688,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     // Prepend org name to original query so embeddings are anchored to the right entity
     const anchoredQuery = orgName ? `${orgName} — ${message}` : message;
     const allQueries = [anchoredQuery, message, ...alternatives];
+    console.log(`[retrieval] org="${orgName}" queries=`, allQueries);
 
     // 2. Embed all query variants in one batched API call
     const embResp = await openai.embeddings.create({
@@ -4777,7 +4778,8 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       ...websiteChunks.slice(0, matchCount)
     ];
 
-    if (!goodChunks.length) return [];
+    if (!goodChunks.length) { console.log(`[retrieval] no chunks found for tenant=${tenantId}`); return []; }
+    console.log(`[retrieval] top chunks:`, goodChunks.slice(0, 3).map(c => c.chunk_text?.slice(0, 80)));
 
     return goodChunks.map(chunk => ({
       filename: chunk.lender

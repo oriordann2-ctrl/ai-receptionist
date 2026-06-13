@@ -4762,21 +4762,28 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
         return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
       });
 
-    // 7. Uploaded docs: filter to only relevant chunks using vector scores.
-    //    Lower threshold (0.25) since these are authoritative club documents.
-    //    Keyword match overrides threshold — if BM25 found it, include it.
-    //    Cap at 12 to avoid flooding the context with irrelevant docs.
-    const MIN_UPLOADED_SIMILARITY = 0.25;
-    const MAX_UPLOADED_CHUNKS = 12;
-    const uploadedChunks = fused
-      .filter(c => c.document_type !== "Website Content")
-      .filter(c => {
-        const key = `${c.document_id}-${c.chunk_index}`;
-        return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_UPLOADED_SIMILARITY;
-      })
-      .slice(0, MAX_UPLOADED_CHUNKS);
+    // 7. Uploaded docs: fetch directly from DB (guarantees nothing is missed),
+    //    then sort by vector score and cap at 10 most relevant chunks.
+    //    Direct fetch is necessary because uploaded docs may not rank in the top 30
+    //    of vector search when the query uses different phrasing from the document.
+    const { data: uploadedDocRows } = await supabase
+      .from("knowledge_chunks")
+      .select("document_id, chunk_index, chunk_text, document_type, lender")
+      .eq("tenant_id", tenantId)
+      .neq("document_type", "Website Content")
+      .limit(60);
 
-    const sortedUploadedDocs = uploadedChunks;
+    // Sort by vector score (best first), take top 10.
+    // Keyword-matched chunks are always included in the top 10 even if unscored.
+    const sortedUploadedDocs = (uploadedDocRows || [])
+      .sort((a, b) => {
+        const keyA = `${a.document_id}-${a.chunk_index}`;
+        const keyB = `${b.document_id}-${b.chunk_index}`;
+        const scoreA = keywordKeys.has(keyA) ? 1 : (vectorSimMap.get(keyA) || 0);
+        const scoreB = keywordKeys.has(keyB) ? 1 : (vectorSimMap.get(keyB) || 0);
+        return scoreB - scoreA;
+      })
+      .slice(0, 10);
 
     const goodChunks = [
       ...sortedUploadedDocs,

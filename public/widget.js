@@ -608,14 +608,6 @@
       container.appendChild(callBtn);
     }
 
-    if (email) {
-      var emailBtn = document.createElement("button");
-      emailBtn.className = "sprimal-choice sprimal-choice-ai";
-      emailBtn.textContent = "✉️ " + email;
-      emailBtn.addEventListener("click", function () { window.open("mailto:" + email); });
-      container.appendChild(emailBtn);
-    }
-
     if (rootFlowId && wfFlowMap[rootFlowId]) {
       var menuBtn = document.createElement("button");
       menuBtn.className = "sprimal-choice sprimal-choice-ai";

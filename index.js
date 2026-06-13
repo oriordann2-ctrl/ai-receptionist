@@ -12301,7 +12301,6 @@ Use plain numbers where possible.
     if (result.answerSource === "generic") {
       responsePayload.unanswered = true;
       if (tenantPhone) responsePayload.phone = tenantPhone;
-      if (tenantEmail) responsePayload.email = tenantEmail;
     }
     return res.json(responsePayload);
 

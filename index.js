@@ -5091,6 +5091,36 @@ function extractDominantCssColor(html) {
   } catch { return null; }
 }
 
+// Uses OpenAI Vision to identify the primary brand colour from a logo image URL.
+// Returns a hex string like "#2d6a3f" or null on failure.
+async function extractBrandColorFromLogo(logoUrl) {
+  if (!logoUrl) return null;
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image_url", image_url: { url: logoUrl, detail: "low" } },
+          { type: "text", text: "What is the single most prominent brand colour in this logo? Ignore white, black, and very dark navy. Return only a hex colour code in the format #RRGGBB — nothing else." }
+        ]
+      }],
+      max_tokens: 10
+    });
+    const hex = response.choices[0]?.message?.content?.trim() || "";
+    const match = hex.match(/#[0-9a-fA-F]{6}/);
+    if (match) {
+      console.log(`[brand-color] Vision extracted: ${match[0]} from ${logoUrl}`);
+      return match[0];
+    }
+    console.log(`[brand-color] Vision returned unexpected value: "${hex}"`);
+    return null;
+  } catch (e) {
+    console.log(`[brand-color] Vision failed: ${e.message}`);
+    return null;
+  }
+}
+
 function instagramHandleScore(name, handle) {
   const tokens = name.toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
@@ -6140,14 +6170,20 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
             if (logoUrl) console.log(`[crawl] Logo found in HTML for ${tenantId}: ${logoUrl}`);
             setCrawlProgress(tenantId, 10, "Picking up your logo and brand colours…");
 
-            // Brand colour — prefer theme-color meta, fall back to dominant CSS color
+            // Brand colour — Vision from logo first, then theme-color meta, then CSS
             try {
-              const tcMatch = homepageHtml.match(/<meta[^>]+name=["']theme-color["'][^>]+content=["'](#[0-9a-fA-F]{3,8})["']/i)
-                           || homepageHtml.match(/<meta[^>]+content=["'](#[0-9a-fA-F]{3,8})["'][^>]+name=["']theme-color["']/i);
-              const brandColor = tcMatch ? tcMatch[1] : extractDominantCssColor(homepageHtml);
-              if (brandColor) {
-                await supabase.from("tenants").update({ brand_color: brandColor }).eq("id", tenantId);
-                console.log(`[crawl] Brand colour stored for ${tenantId}: ${brandColor} (${tcMatch ? "theme-color" : "css-dominant"})`);
+              const { data: existingColor } = await supabase.from("tenants").select("brand_color").eq("id", tenantId).maybeSingle();
+              if (!existingColor?.brand_color) {
+                const visionColor = await extractBrandColorFromLogo(logoUrl);
+                const tcMatch = homepageHtml.match(/<meta[^>]+name=["']theme-color["'][^>]+content=["'](#[0-9a-fA-F]{3,8})["']/i)
+                             || homepageHtml.match(/<meta[^>]+content=["'](#[0-9a-fA-F]{3,8})["'][^>]+name=["']theme-color["']/i);
+                const brandColor = visionColor || (tcMatch ? tcMatch[1] : extractDominantCssColor(homepageHtml));
+                if (brandColor) {
+                  await supabase.from("tenants").update({ brand_color: brandColor }).eq("id", tenantId);
+                  console.log(`[crawl] Brand colour stored for ${tenantId}: ${brandColor} (${visionColor ? "vision" : tcMatch ? "theme-color" : "css-dominant"})`);
+                }
+              } else {
+                console.log(`[crawl] Brand colour already set for ${tenantId}, skipping`);
               }
             } catch {}
 

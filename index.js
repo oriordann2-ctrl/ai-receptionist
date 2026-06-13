@@ -4704,14 +4704,16 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     });
     const embeddings = embResp.data.map(d => d.embedding);
 
-    // 3. Run vector searches (all variants) + BM25 keyword search in parallel
-    //    Keyword search uses search_chunks_keyword RPC — graceful fallback if not yet created
+    // 3. Run vector searches (all variants) + BM25 keyword search in parallel.
+    //    Use a large match_count (30) so uploaded docs appear in results with real scores
+    //    rather than being fetched blindly and drowning the context with irrelevant chunks.
+    const VECTOR_FETCH_COUNT = 30;
     const [keywordResult, ...vectorResults] = await Promise.all([
       (async () => {
         try {
           return await supabase.rpc("search_chunks_keyword", {
             query_text: message,
-            match_count: matchCount * 3,
+            match_count: VECTOR_FETCH_COUNT,
             p_tenant_id: tenantId
           });
         } catch { return { data: null }; }
@@ -4719,7 +4721,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       ...embeddings.map(embedding =>
         supabase.rpc("match_chunks", {
           query_embedding: embedding,
-          match_count: matchCount * 2,
+          match_count: VECTOR_FETCH_COUNT,
           filter_lender: null,
           filter_document_type: null,
           p_tenant_id: tenantId
@@ -4760,26 +4762,22 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
         return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_SIMILARITY;
       });
 
-    // 7. Uploaded docs: fetch ALL directly from the database — no vector threshold.
-    //    PDFs, policies, club docs are authoritative. The vector search may rank them
-    //    below the match_count cap entirely when queries contain place names that only
-    //    appear in website content. Direct DB fetch guarantees they're always included.
-    const { data: uploadedDocRows } = await supabase
-      .from("knowledge_chunks")
-      .select("document_id, chunk_index, chunk_text, document_type, lender")
-      .eq("tenant_id", tenantId)
-      .neq("document_type", "Website Content")
-      .limit(60);
+    // 7. Uploaded docs: filter to only relevant chunks using vector scores.
+    //    Lower threshold (0.25) since these are authoritative club documents.
+    //    Keyword match overrides threshold — if BM25 found it, include it.
+    //    Cap at 12 to avoid flooding the context with irrelevant docs.
+    const MIN_UPLOADED_SIMILARITY = 0.25;
+    const MAX_UPLOADED_CHUNKS = 12;
+    const uploadedChunks = fused
+      .filter(c => c.document_type !== "Website Content")
+      .filter(c => {
+        const key = `${c.document_id}-${c.chunk_index}`;
+        return keywordKeys.has(key) || (vectorSimMap.get(key) || 0) >= MIN_UPLOADED_SIMILARITY;
+      })
+      .slice(0, MAX_UPLOADED_CHUNKS);
 
-    // Sort uploaded docs by their vector score where available, otherwise 0
-    const sortedUploadedDocs = (uploadedDocRows || []).sort((a, b) => {
-      const scoreA = vectorSimMap.get(`${a.document_id}-${a.chunk_index}`) || 0;
-      const scoreB = vectorSimMap.get(`${b.document_id}-${b.chunk_index}`) || 0;
-      return scoreB - scoreA;
-    });
+    const sortedUploadedDocs = uploadedChunks;
 
-    // Include ALL uploaded doc chunks (sorted best-first) + top website chunks.
-    // Uploaded docs are authoritative and small enough to fit in context without capping.
     const goodChunks = [
       ...sortedUploadedDocs,
       ...websiteChunks.slice(0, matchCount)

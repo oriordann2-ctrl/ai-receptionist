@@ -5066,7 +5066,19 @@ function extractDominantCssColor(html) {
       if (hex && isSaturated(hex) && !SKIP_COLORS.has(hex)) return "#" + hex;
     }
 
-    // 2. Colors on structural selectors (header, nav, h1, h2, button, .site-header)
+    // 2. Wix colour palette variables — newer Wix uses --color_N (11–35), older uses --color-N (5–15).
+    //    Colours 11–14 / 1–4 are usually neutrals (white, black, greys) — skip them.
+    const wixRe = /--color[_-](\d+)\s*:\s*(#[0-9a-fA-F]{3,6})/gi;
+    const wixCandidates = [];
+    while ((m = wixRe.exec(css)) !== null) {
+      const idx = parseInt(m[1], 10);
+      if (idx < 5 || (idx >= 11 && idx <= 14)) continue; // skip neutrals
+      const hex = normalise(m[2]);
+      if (hex && isSaturated(hex) && !SKIP_COLORS.has(hex)) wixCandidates.push(hex);
+    }
+    if (wixCandidates.length) return "#" + wixCandidates[0];
+
+    // 3. Colors on structural selectors (header, nav, h1, h2, button, .site-header)
     const structRe = /(?:header|nav|\.site-header|\.navbar|h1|h2|button|\.btn-primary|\.wp-block-button)[^{]*\{[^}]*(?:background(?:-color)?|color)\s*:\s*(#[0-9a-fA-F]{3,6})/gi;
     const structCandidates = [];
     while ((m = structRe.exec(css)) !== null) {
@@ -8685,7 +8697,7 @@ app.get("/api/admin/tenants", requireAdmin, async (req, res) => {
     const [{ data: tenants, error }, { data: docCounts }, { data: chunkCounts }] = await Promise.all([
       supabase
         .from("tenants")
-        .select("id, name, email, website, status, portal_password, created_at")
+        .select("id, name, email, website, status, portal_password, brand_color, created_at")
         .order("created_at", { ascending: false }),
       supabase
         .from("documents")
@@ -8772,6 +8784,21 @@ app.delete("/api/admin/tenants/:id", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[admin-delete-tenant]", err.message);
     res.status(500).json({ error: "Failed to delete tenant: " + err.message });
+  }
+});
+
+// ── Admin: update brand colour for any tenant ────────────────────────────────
+app.post("/api/admin/tenants/:id/brand-color", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { color } = req.body;
+  if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) return res.status(400).json({ error: "Invalid hex color" });
+  try {
+    const { error } = await supabase.from("tenants").update({ brand_color: color }).eq("id", id);
+    if (error) throw error;
+    console.log(`[admin] Brand color updated for ${id}: ${color}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

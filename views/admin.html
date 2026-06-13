@@ -3247,6 +3247,7 @@ async function loadAdminTenants() {
         : `<span style="font-size:12px;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:3px 8px;flex-shrink:0;">
             ⚠ No KB data
            </span>`;
+      const colorVal = t.brand_color || "#cccccc";
       return `<div class="tenant-row" id="tenant-row-${escT(t.id)}">
         <div class="tenant-info">
           <div class="tenant-info-name">${escT(t.name || t.id)}</div>
@@ -3254,6 +3255,9 @@ async function loadAdminTenants() {
         </div>
         ${kbBadge}
         ${pwBadge}
+        <input type="color" value="${escT(colorVal)}" title="Brand colour — click to change"
+          style="width:32px;height:32px;border:1px solid #e2e8f0;border-radius:6px;padding:2px;cursor:pointer;flex-shrink:0;"
+          onchange="updateBrandColor('${escT(t.id)}', this.value)" />
         <button class="btn-recrawl-tenant" onclick="recrawlTenant('${escT(t.id)}', '${escT(t.name || t.id)}')"
           style="background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
           🕷 Re-crawl
@@ -3312,6 +3316,20 @@ async function deleteTenant(tenantId, tenantName) {
     alert(`✅ Tenant "${tenantName}" has been deleted.`);
   } catch(err) {
     alert("Failed to delete tenant: " + err.message);
+  }
+}
+
+async function updateBrandColor(tenantId, color) {
+  try {
+    const res = await fetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/brand-color`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+  } catch(err) {
+    alert("Failed to update brand colour: " + err.message);
   }
 }
 

@@ -298,13 +298,18 @@
         wfFetchDone = true;
         // Race condition fix: if the panel was already opened before this fetch returned,
         // it will have shown the plain AI greeting instead of the workflow buttons.
-        // Detect that and switch to workflow mode now.
-        if (openedBeforeWfFetch && isOpen && wfSteps.length && !wfMode) {
-          if (messages) messages.innerHTML = "";
-          wfMode = true;
-          var footer = document.getElementById("sprimal-footer");
-          if (footer) footer.style.display = "none";
-          showWorkflowStep(wfSteps[0]);
+        // Replace with workflow now — even if the panel is currently closed (user may
+        // have opened, seen the greeting, closed it, and will reopen later).
+        // Guard: only replace if no user messages have been sent yet.
+        if (openedBeforeWfFetch && wfSteps.length && !wfMode) {
+          var hasUserMsg = messages && messages.querySelector(".sprimal-user");
+          if (!hasUserMsg) {
+            if (messages) messages.innerHTML = "";
+            wfMode = true;
+            var footer = document.getElementById("sprimal-footer");
+            if (footer) footer.style.display = "none";
+            showWorkflowStep(wfSteps[0]);
+          }
         }
         // Fullscreen mode: auto-open now that wfSteps is ready
         if (fullscreen && !hasOpened) openPanel();

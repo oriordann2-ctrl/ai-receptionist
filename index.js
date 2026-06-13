@@ -6376,8 +6376,8 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       setCrawlProgress(tenantId, 100, "🏁 Your assistant is ready!", true);
     }
 
-    // Send welcome email
-    if (process.env.RESEND_API_KEY) {
+    // Send welcome email — only on first signup crawl (email + portalPassword are passed)
+    if (email && portalPassword && process.env.RESEND_API_KEY) {
       await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {

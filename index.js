@@ -15318,7 +15318,7 @@ function buildTenantSiteHtml(tenant) {
   };
   const pal     = palettes[btype] || { primary: "#1e3a8a", accent: "#3b82f6", light: "#eff6ff" };
   const primary = (tenant.brand_color && /^#[0-9a-f]{6}$/i.test(tenant.brand_color)) ? tenant.brand_color : pal.primary;
-  const accent  = pal.accent;
+  let accent    = pal.accent;
   const light   = pal.light;
 
   // ── Shared building blocks ────────────────────────────────────────────────
@@ -15499,6 +15499,15 @@ function buildTenantSiteHtml(tenant) {
 
   // ── GAA CLUB ──────────────────────────────────────────────────────────────
   if (btype === "gaa_club") {
+    accent = primary; // use brand colour instead of hardcoded palette green
+    const hexRgb   = (hex) => `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
+    const darkenHex = (hex, f) => {
+      const r = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(1,3),16) * f)));
+      const g = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(3,5),16) * f)));
+      const b = Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(5,7),16) * f)));
+      return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+    };
+    const primaryDark = darkenHex(primary, 0.55);
     // Irish subtitle helper — slightly smaller, italic, softened opacity
     const ga = (text) => `<span style="display:block;font-size:0.76em;font-style:italic;opacity:0.70;margin-top:3px;font-weight:400;">${text}</span>`;
 
@@ -15507,7 +15516,7 @@ function buildTenantSiteHtml(tenant) {
 <section style="position:relative;color:white;padding:70px 24px 56px;text-align:center;overflow:hidden;min-height:420px;display:flex;align-items:center;justify-content:center;">
   ${heroImg
     ? `<div style="position:absolute;inset:0;background-image:url(${heroImg});background-size:cover;background-position:center;"></div>
-       <div style="position:absolute;inset:0;background:linear-gradient(160deg,rgba(5,46,22,0.80) 0%,rgba(2,30,16,0.88) 100%);"></div>`
+       <div style="position:absolute;inset:0;background:linear-gradient(160deg,rgba(${hexRgb(primary)},0.80) 0%,rgba(${hexRgb(primaryDark)},0.88) 100%);"></div>`
     : `<div style="position:absolute;inset:0;background:linear-gradient(160deg,${primary} 0%,#052e16 100%);"></div>`
   }
   <div style="position:relative;z-index:1;width:100%;">
@@ -15540,7 +15549,7 @@ ${aboutSection}
 <section style="position:relative;padding:50px 24px;overflow:hidden;">
   ${bgImg1
     ? `<div style="position:absolute;inset:0;background-image:url(${bgImg1});background-size:cover;background-position:center;"></div>
-       <div style="position:absolute;inset:0;background:rgba(240,253,244,0.93);"></div>`
+       <div style="position:absolute;inset:0;background:rgba(255,255,255,0.93);"></div>`
     : `<div style="position:absolute;inset:0;background:${light};"></div>`
   }
   <div style="position:relative;z-index:1;max-width:800px;margin:0 auto;">
@@ -15573,7 +15582,7 @@ ${aboutSection}
 <section style="position:relative;color:white;padding:42px 24px;text-align:center;overflow:hidden;">
   ${bgImg2
     ? `<div style="position:absolute;inset:0;background-image:url(${bgImg2});background-size:cover;background-position:center;"></div>
-       <div style="position:absolute;inset:0;background:rgba(5,46,22,0.84);"></div>`
+       <div style="position:absolute;inset:0;background:rgba(${hexRgb(primaryDark)},0.84);"></div>`
     : `<div style="position:absolute;inset:0;background:${primary};"></div>`
   }
   <div style="position:relative;z-index:1;">

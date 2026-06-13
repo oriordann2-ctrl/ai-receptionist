@@ -4685,7 +4685,9 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
   try {
     // 1. Expand query with diversity + conversation context + org name for grounding
     const alternatives = await expandQuery(message, conversationHistory, orgName);
-    const allQueries = [message, ...alternatives];
+    // Prepend org name to original query so embeddings are anchored to the right entity
+    const anchoredQuery = orgName ? `${orgName} — ${message}` : message;
+    const allQueries = [anchoredQuery, message, ...alternatives];
 
     // 2. Embed all query variants in one batched API call
     const embResp = await openai.embeddings.create({

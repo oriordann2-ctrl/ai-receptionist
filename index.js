@@ -6486,19 +6486,18 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         console.log(`[ig-detect] Error: ${e.message}`);
       }
 
-      // ── Twitter photo scrape — supplements IG images ───────────────────────────
+      // ── Twitter photo scrape — always runs if handle exists, stored alongside IG ─
       try {
         const { data: twCheck } = await supabase.from("tenants").select("twitter_handle, social_images").eq("id", tenantId).maybeSingle();
         if (twCheck?.twitter_handle) {
-          const current = (() => { try { return JSON.parse(twCheck.social_images) || []; } catch { return []; } })();
-          if (current.length < 6) {
-            setCrawlProgress(tenantId, 68, `Fetching photos from Twitter (@${twCheck.twitter_handle})…`);
-            const twPhotos = await fetchTwitterPhotos(twCheck.twitter_handle, tenantId, 6);
-            if (twPhotos.length > 0) {
-              const combined = [...current, ...twPhotos].slice(0, 9);
-              await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
-              console.log(`[crawl] Added ${twPhotos.length} Twitter photos for ${tenantId} (@${twCheck.twitter_handle})`);
-            }
+          setCrawlProgress(tenantId, 68, `Fetching photos from Twitter (@${twCheck.twitter_handle})…`);
+          const twPhotos = await fetchTwitterPhotos(twCheck.twitter_handle, tenantId, 6);
+          if (twPhotos.length > 0) {
+            const current = (() => { try { return JSON.parse(twCheck.social_images) || []; } catch { return []; } })();
+            const nonTw = current.filter(u => !/\/tw_\d+\./.test(u));
+            const combined = [...nonTw, ...twPhotos].slice(0, 15);
+            await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+            console.log(`[crawl] Added ${twPhotos.length} Twitter photos for ${tenantId} (@${twCheck.twitter_handle})`);
           }
         }
       } catch (e) {
@@ -6510,12 +6509,12 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         const { data: existing } = await supabase.from("tenants").select("social_images").eq("id", tenantId).maybeSingle();
         let currentImages = [];
         try { currentImages = JSON.parse(existing?.social_images) || []; } catch {}
-        const needed = 9 - currentImages.length;
+        const needed = 15 - currentImages.length;
         if (needed > 0 && pages.length > 0) {
           setCrawlProgress(tenantId, 67, "Gathering photos from your website…");
           const siteImages = await extractAndRehostWebsiteImages(pages, tenantId, needed);
           if (siteImages.length > 0) {
-            let combined = [...currentImages, ...siteImages].slice(0, 9);
+            let combined = [...currentImages, ...siteImages].slice(0, 15);
             // For sports clubs rank all images so the best team photo ends up first
             const btype = nameToBusinessType(name);
             if (["gaa_club","tennis_club","team_sports_club","swim_club","golf_club"].includes(btype)) {
@@ -8776,30 +8775,29 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
           }
         }
 
-        // Twitter photos — supplement IG images
+        // Twitter photos — always runs alongside IG if handle exists
         const twHandle = tMeta?.twitter_handle;
         if (twHandle) {
-          const afterIg = (() => { try { return JSON.parse(tMeta?.social_images) || []; } catch { return []; } })();
-          if (afterIg.length < 6) {
-            setCrawlProgress(tenantId, 97, `Fetching photos from Twitter (@${twHandle})…`);
-            const twPhotos = await fetchTwitterPhotos(twHandle, tenantId, 6);
-            if (twPhotos.length > 0) {
-              const combined = [...afterIg, ...twPhotos].slice(0, 9);
-              await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
-              Object.assign(tMeta, { social_images: JSON.stringify(combined) });
-              console.log(`[portal-import] Added ${twPhotos.length} Twitter photos for ${tenantId}`);
-            }
+          setCrawlProgress(tenantId, 97, `Fetching photos from Twitter (@${twHandle})…`);
+          const twPhotos = await fetchTwitterPhotos(twHandle, tenantId, 6);
+          if (twPhotos.length > 0) {
+            const afterIg = (() => { try { return JSON.parse(tMeta?.social_images) || []; } catch { return []; } })();
+            const nonTw = afterIg.filter(u => !/\/tw_\d+\./.test(u));
+            const combined = [...nonTw, ...twPhotos].slice(0, 15);
+            await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+            Object.assign(tMeta, { social_images: JSON.stringify(combined) });
+            console.log(`[portal-import] Added ${twPhotos.length} Twitter photos for ${tenantId}`);
           }
         }
 
-        // Website images — fill up to 9 total
+        // Website images — fill up to 15 total (IG up to 9 + Twitter up to 6)
         const currentImages = (() => { try { return JSON.parse(tMeta?.social_images) || []; } catch { return []; } })();
-        const needed = 9 - currentImages.length;
+        const needed = 15 - currentImages.length;
         if (needed > 0) {
           setCrawlProgress(tenantId, 97, "Gathering photos from your website…");
           const siteImages = await extractAndRehostWebsiteImages(pages, tenantId, needed);
           if (siteImages.length > 0) {
-            const combined = [...currentImages, ...siteImages].slice(0, 9);
+            const combined = [...currentImages, ...siteImages].slice(0, 15);
             await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
             console.log(`[portal-import] Stored ${combined.length} total images`);
           }
@@ -10120,7 +10118,7 @@ app.post("/api/portal/social-images/refetch", requireSeniorTenant, async (req, r
     let existing = [];
     try { existing = JSON.parse(tenant.social_images) || []; } catch {}
     const siteImgs = existing.filter(u => /\/site_\d+\./.test(u));
-    const combined = [...igThumbs, ...twPhotos, ...siteImgs].slice(0, 12);
+    const combined = [...igThumbs, ...twPhotos, ...siteImgs].slice(0, 15);
     if (igThumbs.length + twPhotos.length >= 1) {
       await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
       console.log(`[social-refetch] Stored ${igThumbs.length} IG + ${twPhotos.length} TW + ${siteImgs.length} site images for ${tenantId}`);

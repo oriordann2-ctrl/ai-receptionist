@@ -5593,6 +5593,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
   console.log(`[crawler] Queue: ${allUrls.length} total URLs (${priorityUrls.length} priority, ${noiseUrls.length} noise)${bizLabel} — cap: ${maxPages} pages`);
 
   const pages   = [];
+  let siteIsSlow = false; // set true if homepage direct fetch fails — skip direct fetch for subsequent pages
 
   // ── Helper: fetch and process a single page ───────────────────────────────
   const BOT_PROTECTION_PHRASES = [
@@ -5603,6 +5604,10 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
 
   async function fetchOnePage(url) {
     const isProbe = probeSet.has(canonicalUrl(url));
+    // If homepage already proved the site is too slow for direct fetch, skip straight to Jina
+    if (siteIsSlow && !isProbe) {
+      return await jinaFallback(url, "", "site is slow — skipping direct fetch");
+    }
     try {
       console.log(`[crawler] Fetching: ${url}`);
       const controller = new AbortController();
@@ -5646,6 +5651,7 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
     } catch (err) {
       if (err.name === "AbortError" || err.name === "TypeError") {
         if (isProbe) { console.log(`[crawler] Probe skip (${err.name}) ${url}`); return null; }
+        siteIsSlow = true; // direct fetch failed — skip it for all subsequent pages
         return await jinaFallback(url, "", `fetch failed (${err.name})`);
       }
       console.error(`[crawler] Error fetching ${url}:`, err.message);

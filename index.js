@@ -11437,16 +11437,18 @@ app.post("/chat", chatLimiter, async (req, res) => {
     let effectiveMode = businessMode; // global default ('mortgage')
     let tenantDisplayName = null;
     let tenantBusinessDesc = null;
+    let tenantPhone = null;
     try {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name, ai_enabled, business_description")
+        .select("business_mode, name, ai_enabled, business_description, phone")
         .eq("id", tenantId)
         .maybeSingle();
       if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
       if (tenantData?.name) tenantDisplayName = tenantData.name;
       else tenantDisplayName = tenantId.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
       if (tenantData?.business_description) tenantBusinessDesc = tenantData.business_description;
+      tenantPhone = tenantData?.phone || null;
       // Respect AI Receptionist on/off toggle (null/undefined = enabled by default)
       if (tenantData?.ai_enabled === false) {
         return res.json({ reply: "The AI assistant is currently unavailable. Please contact us directly." });
@@ -12241,7 +12243,12 @@ Use plain numbers where possible.
       timestamp:    new Date()
     });
 
-    return res.json({ reply: result.reply });
+    const responsePayload = { reply: result.reply };
+    if (result.answerSource === "generic") {
+      responsePayload.suggestLeadCapture = true;
+      if (tenantPhone) responsePayload.phone = tenantPhone;
+    }
+    return res.json(responsePayload);
 
   } catch (error) {
     console.error("Chat error:", error);

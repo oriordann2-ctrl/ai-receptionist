@@ -591,6 +591,81 @@
     if (el) el.parentNode.removeChild(el);
   }
 
+  // Show "Leave a message" + optional "Call us" after a generic fallback reply
+  function showLeadCapturePrompt(phone) {
+    var existing = document.getElementById("sprimal-back-menu");
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var container = document.createElement("div");
+    container.id = "sprimal-back-menu";
+    container.style.cssText = "padding:4px 0 6px;align-self:flex-start;display:flex;flex-direction:column;gap:6px;";
+
+    var leaveBtn = document.createElement("button");
+    leaveBtn.className = "sprimal-choice";
+    leaveBtn.textContent = "✉️ Leave a message for the team";
+    leaveBtn.addEventListener("click", function () {
+      container.parentNode && container.parentNode.removeChild(container);
+      // Trigger the collect_lead form inline — same UX as workflow collect_lead
+      addMsg("No problem! Just leave your details and the team will get back to you:", "bot");
+      var formEl = document.createElement("div");
+      formEl.id = "sprimal-lead-form";
+      var nameInput = document.createElement("input");
+      nameInput.type = "text"; nameInput.placeholder = "Your name (optional)"; nameInput.className = "sprimal-lead-input";
+      var emailInput = document.createElement("input");
+      emailInput.type = "email"; emailInput.placeholder = "Your email address *"; emailInput.className = "sprimal-lead-input";
+      var submitBtn = document.createElement("button");
+      submitBtn.textContent = "Send my details →"; submitBtn.className = "sprimal-lead-submit";
+      submitBtn.addEventListener("click", function () {
+        var leadName  = nameInput.value.trim();
+        var leadEmail = emailInput.value.trim();
+        if (!leadEmail || !leadEmail.includes("@")) { emailInput.style.borderColor = "#ef4444"; emailInput.focus(); return; }
+        submitBtn.disabled = true; submitBtn.textContent = "Sending…";
+        fetch(BACKEND + "/api/chat/lead", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clubId: clubId, name: leadName, email: leadEmail, source: "fallback" })
+        }).then(function (r) { return r.json(); }).then(function () {
+          if (formEl.parentNode) formEl.parentNode.removeChild(formEl);
+          addMsg("✅ Thanks" + (leadName ? " " + leadName : "") + "! The team will be in touch soon.", "bot");
+          showBackToMenu();
+        }).catch(function () {
+          submitBtn.disabled = false; submitBtn.textContent = "Send my details →";
+          addMsg("Sorry, something went wrong. Please try again.", "bot");
+        });
+      });
+      formEl.appendChild(nameInput); formEl.appendChild(emailInput); formEl.appendChild(submitBtn);
+      messages.appendChild(formEl);
+      scrollToBottom(100);
+      setTimeout(function () { nameInput.focus(); }, 300);
+    });
+    container.appendChild(leaveBtn);
+
+    if (phone) {
+      var callBtn = document.createElement("button");
+      callBtn.className = "sprimal-choice sprimal-choice-ai";
+      callBtn.textContent = "📞 Call us: " + phone;
+      callBtn.addEventListener("click", function () { window.open("tel:" + phone.replace(/\s/g, "")); });
+      container.appendChild(callBtn);
+    }
+
+    if (rootFlowId && wfFlowMap[rootFlowId]) {
+      var menuBtn = document.createElement("button");
+      menuBtn.className = "sprimal-choice sprimal-choice-ai";
+      menuBtn.textContent = "↩ Back to main menu";
+      menuBtn.addEventListener("click", function () {
+        messages.innerHTML = "";
+        wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
+        var footer = document.getElementById("sprimal-footer");
+        if (footer) footer.style.display = "none";
+        showWorkflowStep(wfSteps[0]);
+      });
+      container.appendChild(menuBtn);
+    }
+
+    messages.appendChild(container);
+    scrollToBottom(100);
+  }
+
   // Render a workflow step: bot message + choice buttons
   function showWorkflowStep(step) {
     if (!step) return;
@@ -1151,7 +1226,11 @@
           showAgentChoices(data.agentChoices, { multiSelect: data.multiSelect, maxSelect: data.maxSelect });
         } else {
           input.focus();
-          showBackToMenu();
+          if (data.suggestLeadCapture) {
+            showLeadCapturePrompt(data.phone || null);
+          } else {
+            showBackToMenu();
+          }
         }
       })
       .catch(function () {

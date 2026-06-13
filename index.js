@@ -6360,7 +6360,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
         let currentImages = [];
         try { currentImages = JSON.parse(imgCheck?.social_images) || []; } catch {}
         const fallbackLogo = imgCheck?.logo_url || logoUrl;
-        if (currentImages.length === 0 && fallbackLogo) {
+        if (currentImages.length < 3 && fallbackLogo) {
           const r = await fetch(fallbackLogo, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(10000) });
           if (r.ok) {
             const ct = r.headers.get("content-type") || "";
@@ -6372,8 +6372,9 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
                 const { error } = await supabase.storage.from("social-images").upload(storagePath, buf, { contentType: ct, upsert: true });
                 if (!error) {
                   const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
-                  await supabase.from("tenants").update({ social_images: JSON.stringify([publicUrl]) }).eq("id", tenantId);
-                  console.log(`[crawl] No site images found — used logo as image fallback for ${tenantId}`);
+                  const combined = [...currentImages, publicUrl].slice(0, 9);
+                  await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+                  console.log(`[crawl] Added logo as image fallback for ${tenantId} (now ${combined.length} total)`);
                 }
               }
             }
@@ -8618,7 +8619,7 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
           const { data: imgCheck } = await supabase.from("tenants").select("social_images, logo_url").eq("id", tenantId).maybeSingle();
           let imgs = [];
           try { imgs = JSON.parse(imgCheck?.social_images) || []; } catch {}
-          if (imgs.length === 0 && imgCheck?.logo_url) {
+          if (imgs.length < 3 && imgCheck?.logo_url) {
             const r = await fetch(imgCheck.logo_url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(10000) });
             if (r.ok) {
               const ct = r.headers.get("content-type") || "";
@@ -8630,8 +8631,9 @@ app.post("/api/portal/import-website", requireSeniorTenant, async (req, res) => 
                   const { error } = await supabase.storage.from("social-images").upload(storagePath, buf, { contentType: ct, upsert: true });
                   if (!error) {
                     const { data: { publicUrl } } = supabase.storage.from("social-images").getPublicUrl(storagePath);
-                    await supabase.from("tenants").update({ social_images: JSON.stringify([publicUrl]) }).eq("id", tenantId);
-                    console.log(`[portal-import] No site images found — used logo as image fallback for ${tenantId}`);
+                    const combined = [...imgs, publicUrl].slice(0, 9);
+                    await supabase.from("tenants").update({ social_images: JSON.stringify(combined) }).eq("id", tenantId);
+                    console.log(`[portal-import] Added logo as image fallback for ${tenantId} (now ${combined.length} total)`);
                   }
                 }
               }

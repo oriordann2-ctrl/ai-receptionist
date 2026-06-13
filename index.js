@@ -10136,9 +10136,33 @@ app.post("/api/portal/social-images/upload-file", requireSeniorTenant, memUpload
 });
 
 app.post("/api/portal/social-images/add", requireSeniorTenant, async (req, res) => {
-  const { url } = req.body;
+  let { url } = req.body;
   if (!url || typeof url !== "string") return res.status(400).json({ error: "url required" });
   const tenantId = req.tenant.tenantId;
+
+  // If it's a social post page (not a direct image), use Jina to extract the image URL
+  const isSocialPage = /instagram\.com\/p\/|instagram\.com\/reel\/|x\.com\/[^/]+\/status\/|twitter\.com\/[^/]+\/status\//.test(url);
+  if (isSocialPage) {
+    try {
+      const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
+        headers: { ...jinaHeaders(), "X-Return-Format": "markdown" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!jinaRes.ok) return res.status(400).json({ error: "Could not read that post — try right-clicking the image and copying the image URL directly." });
+      const text = await jinaRes.text();
+      // Extract first CDN image URL
+      const igRe  = /https:\/\/[a-z0-9_.-]+\.(?:cdninstagram|fbcdn|scontent)\.net\/[^\s"'<>\\]+\.(?:jpe?g|webp)/i;
+      const twRe  = /https:\/\/pbs\.twimg\.com\/media\/[A-Za-z0-9_-]+(?:\?[^\s"'<>]*)?/i;
+      const mdRe  = /!\[[^\]]*\]\((https?:\/\/[^)\s]+\.(?:jpe?g|png|webp)[^)]*)\)/i;
+      const match = text.match(igRe) || text.match(twRe) || text.match(mdRe);
+      if (!match) return res.status(400).json({ error: "No image found in that post — try right-clicking the image and copying the image URL directly." });
+      url = (match[1] || match[0]).replace(/&amp;/g, "&");
+      console.log(`[social-add] Extracted image URL from post: ${url.slice(0, 100)}`);
+    } catch (e) {
+      return res.status(400).json({ error: "Could not fetch that post: " + e.message });
+    }
+  }
+
   let buffer, contentType;
   try {
     ({ buffer, contentType } = await fetchImageBuffer(url));

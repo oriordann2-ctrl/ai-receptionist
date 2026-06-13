@@ -112,6 +112,7 @@ const chatLimiter = rateLimit({
 // Redirect root to portal; admin is still accessible at /login or /admin
 app.get("/", (req, res) => res.redirect("/portal"));
 app.use(express.static(path.join(__dirname, "public")));
+app.get("/favicon.ico", (req, res) => res.status(204).end());
 
 const appointmentsFile = path.join(__dirname, "data", "appointments.json");
 const chatLogsFile = path.join(__dirname, "data", "chatLogs.json");

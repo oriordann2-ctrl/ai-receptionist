@@ -4786,7 +4786,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
 
     const goodChunks = [
       ...sortedUploadedDocs,
-      ...websiteChunks.slice(0, matchCount)
+      ...websiteChunks.slice(0, Math.max(matchCount, 10))
     ];
 
     if (!goodChunks.length) return [];

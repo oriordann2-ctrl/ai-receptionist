@@ -423,6 +423,17 @@
             }).join("")
           : '<p style="font-size:13px;color:#9ca3af;">Not enough data yet.</p>';
 
+        var answerRateHtml = d.answerRate !== null
+          ? '<div class="analytics-section" style="margin-bottom:0;padding-bottom:0;">'
+            + '<div class="analytics-section-title">Knowledge base — last 30 days</div>'
+            + '<div class="stat-tiles" style="margin-top:10px;">'
+            + '<div class="stat-tile"><div class="stat-value" style="color:#16a34a;">' + d.answeredCount + '</div><div class="stat-label">Answered by AI</div></div>'
+            + '<div class="stat-tile"><div class="stat-value" style="color:#dc2626;">' + d.fallbackCount + '</div><div class="stat-label">Couldn\'t answer</div></div>'
+            + '<div class="stat-tile"><div class="stat-value">' + d.answerRate + '%</div><div class="stat-label">Answer rate</div></div>'
+            + '</div>'
+            + '</div>'
+          : '';
+
         el.innerHTML = ''
           + '<div class="stat-tiles">'
           + '<div class="stat-tile"><div class="stat-value">' + d.todayCount + '</div><div class="stat-label">Today</div></div>'
@@ -430,7 +441,8 @@
           + '<div class="stat-tile"><div class="stat-value">' + d.avgMessages + '</div><div class="stat-label">Avg messages</div></div>'
           + '</div>'
           + '<div class="analytics-section"><div class="analytics-section-title">Conversations — last 7 days</div>' + sparkHtml + '</div>'
-          + '<div class="analytics-section" style="margin-bottom:0;"><div class="analytics-section-title">Top topics</div>' + topicsHtml + '</div>';
+          + '<div class="analytics-section"><div class="analytics-section-title">Top topics</div>' + topicsHtml + '</div>'
+          + answerRateHtml;
       })
       .catch(function() {
         if (el) el.innerHTML = '<p style="font-size:13px;color:#9ca3af;">Could not load analytics.</p>';

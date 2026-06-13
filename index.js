@@ -8789,7 +8789,15 @@ function buildAnalytics(rows) {
     .slice(0, 5)
     .map(([topic, count]) => ({ topic, count }));
 
-  return { todayCount, totalConversations: convs.length, avgMessages, trend, topTopics };
+  // Answer rate — bot messages only
+  const botMsgs     = (rows || []).filter(r => r.sender === "bot" && r.answer_source);
+  const answeredCount = botMsgs.filter(r => ["kb","approved","ebo"].includes(r.answer_source)).length;
+  const fallbackCount = botMsgs.filter(r => r.answer_source === "generic").length;
+  const answerRate  = (answeredCount + fallbackCount) > 0
+    ? Math.round((answeredCount / (answeredCount + fallbackCount)) * 100)
+    : null;
+
+  return { todayCount, totalConversations: convs.length, avgMessages, trend, topTopics, answeredCount, fallbackCount, answerRate };
 }
 
 // ── Portal: analytics ─────────────────────────────────────────────────────────
@@ -8800,7 +8808,7 @@ app.get("/api/portal/analytics", requireTenant, async (req, res) => {
 
     const { data: rows, error } = await supabase
       .from("chat_logs")
-      .select("id, conversation_id, sender, message, created_at")
+      .select("id, conversation_id, sender, message, answer_source, created_at")
       .eq("tenant_id", tenantId)
       .gte("created_at", since.toISOString());
 

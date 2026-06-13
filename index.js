@@ -4773,8 +4773,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       .neq("document_type", "Website Content")
       .limit(60);
 
-    // Sort by vector score (best first), include all.
-    // Keyword-matched chunks get priority in sort order.
+    // Sort by relevance (keyword matches first, then vector score), cap at 10.
     const sortedUploadedDocs = (uploadedDocRows || [])
       .sort((a, b) => {
         const keyA = `${a.document_id}-${a.chunk_index}`;
@@ -4782,7 +4781,8 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
         const scoreA = keywordKeys.has(keyA) ? 1 : (vectorSimMap.get(keyA) || 0);
         const scoreB = keywordKeys.has(keyB) ? 1 : (vectorSimMap.get(keyB) || 0);
         return scoreB - scoreA;
-      });
+      })
+      .slice(0, 10);
 
     const goodChunks = [
       ...sortedUploadedDocs,

@@ -592,7 +592,7 @@
   }
 
   // Show "Leave a message" + optional "Call us" after a generic fallback reply
-  function showLeadCapturePrompt(phone) {
+  function showLeadCapturePrompt(phone, question) {
     var existing = document.getElementById("sprimal-back-menu");
     if (existing) existing.parentNode.removeChild(existing);
 
@@ -623,7 +623,7 @@
         fetch(BACKEND + "/api/chat/lead", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clubId: clubId, name: leadName, email: leadEmail, source: "fallback", message: lastUserQuestion || null })
+          body: JSON.stringify({ clubId: clubId, name: leadName, email: leadEmail, source: "fallback", message: question || null })
         }).then(function (r) { return r.json(); }).then(function () {
           if (formEl.parentNode) formEl.parentNode.removeChild(formEl);
           addMsg("✅ Thanks" + (leadName ? " " + leadName : "") + "! The team will be in touch soon.", "bot");
@@ -1230,7 +1230,7 @@
         } else {
           input.focus();
           if (data.suggestLeadCapture) {
-            showLeadCapturePrompt(data.phone || null);
+            showLeadCapturePrompt(data.phone || null, text);
           } else {
             showBackToMenu();
           }

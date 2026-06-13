@@ -1702,8 +1702,8 @@
             return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
           }
           // CSV download
-          var csvRows = [["Name","Email","Source","Date"]].concat(leads.map(function(l) {
-            return [l.name||"", l.email||"", l.source||"", fmtDate(l.created_at)].map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(",");
+          var csvRows = [["Name","Email","Question","Source","Date"]].concat(leads.map(function(l) {
+            return [l.name||"", l.email||"", l.message||"", l.source||"", fmtDate(l.created_at)].map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(",");
           }));
           var csvBlob = new Blob([csvRows.join("\n")], { type:"text/csv" });
           var csvUrl  = URL.createObjectURL(csvBlob);
@@ -1714,6 +1714,7 @@
             + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
             + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Name</th>'
             + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Email</th>'
+            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
             + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Source</th>'
             + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Date</th>'
             + '</tr></thead><tbody>';
@@ -1722,6 +1723,7 @@
             html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;">'
               + '<td style="padding:8px 10px;font-weight:500;color:#111827;">' + esc(l.name || "—") + '</td>'
               + '<td style="padding:8px 10px;"><a href="mailto:' + esc(l.email) + '" style="color:#1e40af;text-decoration:none;">' + esc(l.email || "—") + '</a></td>'
+              + '<td style="padding:8px 10px;color:#374151;font-style:' + (l.message ? 'normal' : 'italic') + ';">' + esc(l.message || "—") + '</td>'
               + '<td style="padding:8px 10px;color:#6b7280;">' + esc(l.source || "—") + '</td>'
               + '<td style="padding:8px 10px;color:#6b7280;">' + esc(fmtDate(l.created_at)) + '</td>'
               + '</tr>';

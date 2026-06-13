@@ -623,7 +623,7 @@
         fetch(BACKEND + "/api/chat/lead", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clubId: clubId, name: leadName, email: leadEmail, source: "fallback" })
+          body: JSON.stringify({ clubId: clubId, name: leadName, email: leadEmail, source: "fallback", message: lastUserQuestion || null })
         }).then(function (r) { return r.json(); }).then(function () {
           if (formEl.parentNode) formEl.parentNode.removeChild(formEl);
           addMsg("✅ Thanks" + (leadName ? " " + leadName : "") + "! The team will be in touch soon.", "bot");
@@ -1198,10 +1198,13 @@
   }
 
   // ── Send message ─────────────────────────────────────────────────────────
+  var lastUserQuestion = "";
+
   function send() {
     var text = input.value.trim();
     if (!text) return;
 
+    lastUserQuestion = text;
     clearBackToMenu();
     addMsg(text, "user");
     input.value = "";

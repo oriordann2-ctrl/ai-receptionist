@@ -11405,13 +11405,14 @@ app.use("/chat", (req, res, next) => {
 
 // ── Lead capture — saves a name + email from the chat widget ─────────────────
 app.post("/api/chat/lead", async (req, res) => {
-  const { clubId, name, email, source } = req.body;
+  const { clubId, name, email, source, message } = req.body;
   if (!clubId || !email) return res.status(400).json({ error: "Missing clubId or email" });
   const { error } = await supabase.from("leads").insert({
     tenant_id: clubId,
     name:      (name  || "").trim() || null,
     email:     email.toLowerCase().trim(),
     source:    source || null,
+    message:   (message || "").trim() || null,
   });
   if (error) { console.error("[lead] Insert error:", error.message); return res.status(500).json({ error: "Could not save lead" }); }
   console.log(`[lead] Saved lead for ${clubId}: ${email}`);
@@ -11422,7 +11423,7 @@ app.post("/api/chat/lead", async (req, res) => {
 app.get("/api/portal/leads", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("leads")
-    .select("id, name, email, source, created_at")
+    .select("id, name, email, source, message, created_at")
     .eq("tenant_id", req.tenant.tenantId)
     .order("created_at", { ascending: false })
     .limit(200);

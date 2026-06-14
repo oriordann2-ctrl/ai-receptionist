@@ -1041,36 +1041,20 @@
         if (d.business_type !== "tennis_club") return;
         card.style.display = "block";
 
-        // Render club QR code with logo
+        // Render club QR code
         var tenantId = window.tenantId;
         if (tenantId) {
           var checkinUrl = "https://app.sprimal.com/checkin/" + tenantId;
-          var logoUrl = d.logo_url || "https://app.sprimal.com/sprimal_icon_192.png";
+          var qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=10&data=" + encodeURIComponent(checkinUrl);
           var el = document.getElementById("clubQr");
           if (el) {
-            el.innerHTML = '<div style="display:flex;align-items:center;gap:16px;padding:14px;background:#f9fafb;border-radius:12px;">'
-              + '<div id="qrCanvas" style="flex-shrink:0;"></div>'
+            el.innerHTML = '<div style="display:flex;align-items:center;gap:14px;padding:14px;background:#f9fafb;border-radius:12px;">'
+              + '<img src="' + qrUrl + '" alt="Check-in QR" style="width:80px;height:80px;border-radius:8px;flex-shrink:0;">'
               + '<div>'
               + '<div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:4px;">Club Check-In QR</div>'
-              + '<div style="font-size:12px;color:#6b7280;margin-bottom:10px;">Print and display at your club entrance</div>'
-              + '<button id="qrDownloadBtn" style="font-size:13px;font-weight:600;color:white;background:#1565c0;padding:6px 14px;border-radius:7px;border:none;cursor:pointer;">⬇ Download QR</button>'
+              + '<div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Print and display at your club entrance</div>'
+              + '<a href="' + qrUrl + '" download="checkin-qr.png" style="font-size:13px;font-weight:600;color:white;background:#1565c0;padding:6px 14px;border-radius:7px;text-decoration:none;">⬇ Download QR</a>'
               + '</div></div>';
-
-            if (typeof QRCodeStyling !== "undefined") {
-              var qrCode = new QRCodeStyling({
-                width: 120, height: 120,
-                data: checkinUrl,
-                dotsOptions: { color: "#111827", type: "rounded" },
-                cornersSquareOptions: { type: "extra-rounded" },
-                backgroundOptions: { color: "#ffffff" },
-                image: logoUrl,
-                imageOptions: { crossOrigin: "anonymous", margin: 4, imageSize: 0.35 }
-              });
-              qrCode.append(document.getElementById("qrCanvas"));
-              document.getElementById("qrDownloadBtn").addEventListener("click", function() {
-                qrCode.download({ name: "checkin-qr", extension: "png" });
-              });
-            }
           }
         }
 

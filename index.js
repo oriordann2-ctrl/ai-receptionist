@@ -16602,7 +16602,7 @@ function showNoEbo() {
 function showWelcomeBack() {
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
-    '<button class="btn btn-success" id="wb-send-btn">📧 Send Check-In Code</button>' +
+    '<button class="btn btn-success" id="wb-send-btn">Check In</button>' +
     '<button class="btn btn-secondary" id="wb-switch-btn">Not you? Switch member</button>' +
     '<div id="msg"></div>';
   document.getElementById('wb-send-btn').addEventListener('click', function() {
@@ -16615,7 +16615,7 @@ function showForm() {
   document.getElementById('card').innerHTML = header() +
     '<label for="mnum">Membership Number</label>' +
     '<input type="number" id="mnum" placeholder="e.g. 1234" inputmode="numeric" autocomplete="off">' +
-    '<button class="btn btn-primary" id="send-btn">📧 Send Check-In Code</button>' +
+    '<button class="btn btn-primary" id="send-btn">Check In</button>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';
   document.getElementById('mnum').focus();
@@ -16663,13 +16663,13 @@ async function sendOtpAndShow(membershipNumber) {
     var d = await r.json();
     if (!r.ok) {
       showMsg(d.error || 'Could not send code. Please try again.', 'error');
-      if (btn) { btn.disabled = false; btn.textContent = '📧 Send Check-In Code'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Check In'; }
       return;
     }
     showOtpScreen(membershipNumber, d.name, d.email_hint);
   } catch(e) {
     showMsg('Network error — please try again.', 'error');
-    if (btn) { btn.disabled = false; btn.textContent = '📧 Send Check-In Code'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Check In'; }
   }
 }
 

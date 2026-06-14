@@ -16554,6 +16554,10 @@ app.get("/checkin/:tenantId", (req, res) => {
 <div class="card" id="card">
   <div class="loading">Loading...</div>
 </div>
+<div style="margin-top:20px;display:flex;align-items:center;justify-content:center;gap:6px;opacity:0.55;">
+  <img src="https://app.sprimal.com/sprimal_icon_192.png" alt="Sprimal" style="width:16px;height:16px;border-radius:3px;">
+  <span style="font-size:12px;color:#555;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">Powered by Sprimal</span>
+</div>
 <script>
 const TENANT_ID = ${JSON.stringify(tenantId)};
 const LS_KEY = 'sprimal_member_' + TENANT_ID;

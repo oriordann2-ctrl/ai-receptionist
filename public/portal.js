@@ -1119,7 +1119,10 @@
     var radius = parseInt(document.getElementById("checkinRadius").value) || 150;
     if (!lat || !lng) { alert("Please enter valid coordinates."); return; }
     fetch("/api/portal/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ checkin_lat: lat, checkin_lng: lng, checkin_radius_meters: radius }) })
-      .then(function() { alert("GPS location saved."); });
+      .then(function() {
+        var msg = document.getElementById("gpsSaveMsg");
+        if (msg) { msg.style.display = "inline"; setTimeout(function() { msg.style.display = "none"; }, 3000); }
+      });
   };
 
   // ── JS-escape helper for onclick string attrs ─────────────────────────────

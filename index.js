@@ -16612,7 +16612,7 @@ function showWelcomeBack() {
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
     '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
-    '<a href="' + chatUrl + '" style="display:block;margin-top:10px;padding:14px;background:#f0f4f8;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;">💬 Chat with ' + assistantName + '</a>' +
+    '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f0f4f8;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;">💬 Chat with ' + assistantName + '</a>' +
     '<button class="btn btn-secondary" id="wb-switch-btn">Not you? Switch member</button>' +
     '<div id="msg"></div>';
   document.getElementById('wb-checkin-btn').addEventListener('click', function() {

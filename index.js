@@ -16525,7 +16525,8 @@ app.get("/checkin/:tenantId", (req, res) => {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
   .card { background: white; border-radius: 20px; padding: 32px 24px; max-width: 400px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.1); text-align: center; }
-  .logo { font-size: 48px; margin-bottom: 8px; }
+  .logo { width: 72px; height: 72px; object-fit: contain; border-radius: 12px; margin-bottom: 10px; }
+  .logo-emoji { font-size: 48px; margin-bottom: 8px; }
   .club-name { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 28px; }
   .welcome { background: #e8f5e9; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
   .welcome-name { font-size: 18px; font-weight: 600; color: #2e7d32; }
@@ -16583,7 +16584,10 @@ function saveMember(data) {
 }
 
 function header() {
-  return '<div class="logo">🎾</div><div class="club-name">' + clubInfo.club_name + '</div>';
+  var logoHtml = clubInfo.logo_url
+    ? '<img class="logo" src="' + clubInfo.logo_url + '" alt="' + clubInfo.club_name + '">'
+    : '<div class="logo-emoji">🎾</div>';
+  return logoHtml + '<div class="club-name">' + clubInfo.club_name + '</div>';
 }
 
 function showNoEbo() {
@@ -16711,12 +16715,13 @@ init();
 // GET /api/checkin/club-info/:tenantId — public, returns club info for check-in page
 app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
   const { tenantId } = req.params;
-  const { data: tenant } = await supabase.from("tenants").select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters").eq("id", tenantId).single();
+  const { data: tenant } = await supabase.from("tenants").select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url").eq("id", tenantId).single();
   if (!tenant) return res.status(404).json({ error: "Not found" });
   if (tenant.business_type !== "tennis_club") return res.status(403).json({ error: "Check-in is only available for tennis clubs" });
   await loadEboConfigFromDb(tenantId);
   res.json({
     club_name: tenant.name,
+    logo_url: tenant.logo_url || null,
     has_gps: !!(tenant.checkin_lat && tenant.checkin_lng),
     gps_radius: tenant.checkin_radius_meters || 150,
     ebo_enabled: !!EBO_CONFIG[tenantId]

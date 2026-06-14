@@ -1,7 +1,7 @@
 # Sprimal — Product Ideas & Backlog
 
 > Maintained across sessions. Add ideas here as they come up.
-> Last updated: 2026-06-13
+> Last updated: 2026-06-14
 
 ---
 
@@ -592,6 +592,21 @@ Tenant logo now appears as favicon on generated websites. Falls back to Sprimal 
 - Test deliverability via mail-tester.com before going wider
 
 **Status:** Not investigated. Priority before wider rollout.
+
+---
+
+## ✅ TODO — Check-In Flow End-to-End Testing (Monkstown)
+
+Run these manually on a phone to verify the booking-based check-in is working correctly.
+
+- [ ] **1. Fresh member** — open check-in URL in private/incognito tab. Enter membership number with an active booking (within 15 min before or 30 min into the slot). OTP should arrive by email. Enter code → booking confirmation screen → check in → success screen.
+- [ ] **2. Welcome back** — close incognito, reopen normally. Page should recognise the saved device and skip OTP, going straight to booking confirmation.
+- [ ] **3. No booking** — try a member with no current booking. Should get a clear message explaining when check-in opens (15 mins before their next slot), or "no booking found."
+- [ ] **4. Duplicate check-in** — try checking in a second time for the same booking. Should get "already checked in for Court X at HH:MM" — no duplicate entry in Supabase.
+- [ ] **5. Junior delegate** — from the success screen (or no-booking screen), tap "Check in a junior". Enter a junior's membership number. Club policy prompt should appear. Confirm → junior checked in with `is_delegate: true` and `checked_in_by` set to the adult's membership number.
+- [ ] **6. Chat button** — on welcome-back and success screens, tap "Chat with Maeve". Should open the chat widget in a new tab, leaving the check-in page open.
+
+**Status:** ⏳ Not yet tested end-to-end. Do tomorrow morning with a real booking window.
 
 ---
 

@@ -16677,11 +16677,18 @@ async function submitCheckin(membershipNumber, memberName) {
         })
       });
       const cd = await cr.json();
-      if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
+      if (!cr.ok) {
+        showMsg(cd.error || 'Check-in failed.', 'error');
+        var btn = document.getElementById('checkin-btn');
+        if (btn) { btn.disabled = false; btn.textContent = 'Check In'; }
+        return;
+      }
       saveMember({ membership_number: membershipNumber, name: memberName });
       showSuccess(memberName);
     } catch(e) {
       showMsg('Network error — please try again.', 'error');
+      var btn = document.getElementById('checkin-btn');
+      if (btn) { btn.disabled = false; btn.textContent = 'Check In'; }
     }
   }, () => {
     submitCheckinNoGps(membershipNumber, memberName);

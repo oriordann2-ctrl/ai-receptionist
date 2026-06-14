@@ -1,7 +1,64 @@
 # Sprimal — Product Ideas & Backlog
 
 > Maintained across sessions. Add ideas here as they come up.
-> Last updated: 2026-06-10
+> Last updated: 2026-06-13
+
+---
+
+## 🎯 Court Check-In & No-Show Accountability (High Priority)
+
+**The problem:** Members book courts and don't show up, blocking other players with no consequences. No existing system tracks this.
+
+**The solution:** QR code check-in per court, GPS-verified physical presence, cross-referenced against eBooking bookings.
+
+**How it works:**
+1. **Static QR code per court** — printed and laminated on the court post. Links to `app.sprimal.com/checkin/{tenant}/{court-id}`
+2. **Check-in page** — member scans, enters name + email, browser requests GPS location
+3. **GPS geofence** — if within ~50m of the club, check-in is allowed. If at home, blocked. Solves Nathan's static URL objection — physical presence is enforced by the phone's GPS
+4. **eBooking cross-reference** — we already pull bookings from eBooking API. At check-in time, match the member's name against the booked names for that court + current time slot
+5. **Captain dashboard** — real-time view, one tile per court:
+   - 🟢 Green = all booked members checked in
+   - 🔴 Red = booking exists but nobody checked in after 10 minutes
+   - ⚪ Grey = no booking for this slot
+6. **No-show log** — every missed check-in stored in Supabase with member name, court, date/time. Committee can see repeat offenders and enforce penalties
+
+**Why this is a killer feature:**
+- No other club management system in Ireland does this
+- Zero hardware cost — QR code is a printed piece of paper, GPS is built into every phone
+- No app download for members — just a browser page
+- Creates real accountability — members know their no-shows are recorded
+- Committee has hard data to back up a penalty policy
+- Tangible, visible value that members notice every time they play
+
+**Data stored per check-in:**
+```
+{ tenant_id, court_id, member_name, member_email, 
+  checked_in_at, gps_lat, gps_lng, booking_matched (bool) }
+```
+
+**Nathan / eBooking:** Read-only API access already exists. Pull today's bookings per court per slot. No changes to eBooking needed.
+
+**Status:** Idea. Ready to build — all dependencies already in Sprimal.
+
+---
+
+## 🔴 URGENT — JavaScript-Rendered Pages Not Crawled (Tomorrow)
+
+**Problem:** The crawl uses a basic HTTP fetch which never runs JavaScript. Wix, React, and similar sites return an HTML shell (HTTP 200) with the real content injected by JS after load. The crawler sees the shell and thinks it succeeded — so Jina fallback never triggers. Committee names, officer lists, dynamic content — all missed silently.
+
+**Proven impact:** Monkstown LTCC's "About Us - Committee" page was crawled but only returned 2 chunks of boilerplate. President, chairman, and all officer names are missing from the KB entirely. Maeve cannot answer "who is president?" because the data was never captured.
+
+**Fix:** After fetching a page, check if the content is suspiciously thin (fewer than ~200 words after stripping HTML). If so, automatically retry that URL via Jina Reader, which uses a real headless browser and sees JS-rendered content.
+
+**Workaround for tonight:** Manually upload a fact file in the Monkstown portal with officer names.
+
+**Implementation:**
+- In the crawl loop, after fetching and parsing a page, count words in extracted text
+- If word count < 200 (or < some threshold), re-fetch via `r.jina.ai/{url}`
+- Parse Jina's markdown response and use that content instead
+- Log when Jina fallback fires so we can monitor how often it's needed
+
+**Status:** 🔴 Urgent — affects every Wix/React tenant. Fix tomorrow.
 
 ---
 

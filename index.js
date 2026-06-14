@@ -1426,6 +1426,10 @@ async function fetchEboBookings(tenantId, date, endDate, limit = 200) {
   });
   if (!resp.ok) throw new Error(`EBO getBookings HTTP ${resp.status}`);
   const data = await resp.json();
+  if (Array.isArray(data) && data.length > 0) {
+    console.log("[EBO DEBUG] getBookings sample fields:", JSON.stringify(Object.keys(data[0])));
+    console.log("[EBO DEBUG] getBookings sample record:", JSON.stringify(data[0]));
+  }
   return Array.isArray(data) ? data : [];
 }
 

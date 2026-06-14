@@ -16572,6 +16572,11 @@ async function init() {
     if (!r.ok) throw new Error('Club not found');
     clubInfo = await r.json();
     if (!clubInfo.ebo_enabled) { showNoEbo(); return; }
+    // Magic link auto-verify
+    var params = new URLSearchParams(window.location.search);
+    var autoCode = params.get('c');
+    var autoMember = parseInt(params.get('m'));
+    if (autoCode && autoMember) { autoVerifyFromLink(autoMember, autoCode); return; }
     savedMember = getSavedMember();
     if (savedMember) showWelcomeBack();
     else showForm();
@@ -16755,6 +16760,29 @@ async function verifyAndSubmit(membershipNumber, memberName) {
   }
 }
 
+async function autoVerifyFromLink(membershipNumber, code) {
+  document.getElementById('card').innerHTML = header() + '<div class="status status-info" style="margin-top:16px;">Verifying your code...</div>';
+  try {
+    var r = await fetch('/api/checkin/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: membershipNumber, code: code })
+    });
+    var d = await r.json();
+    if (!r.ok) {
+      document.getElementById('card').innerHTML = header() +
+        '<div class="status status-error" style="margin-top:16px;">' + (d.error || 'Link expired. Please scan the QR code again.') + '</div>' +
+        '<button class="btn btn-primary" id="retry-btn" style="margin-top:16px;">Try again</button>';
+      document.getElementById('retry-btn').addEventListener('click', showForm);
+      return;
+    }
+    saveMember({ membership_number: membershipNumber, name: d.name });
+    submitCheckin(membershipNumber, d.name);
+  } catch(e) {
+    document.getElementById('card').innerHTML = header() + '<div class="status status-error" style="margin-top:16px;">Network error. Please scan the QR code again.</div>';
+  }
+}
+
 async function submitCheckin(membershipNumber, memberName) {
   showMsg('Getting your location...', 'info');
   navigator.geolocation.getCurrentPosition(async function(pos) {
@@ -16845,8 +16873,34 @@ app.post("/api/checkin/send-otp", async (req, res) => {
   const key = `${tenant_id}:${membership_number}`;
   OTP_STORE.set(key, { code, expires: Date.now() + 10 * 60 * 1000, name: member.first_name + " " + member.last_name });
 
-  const { data: tenant } = await supabase.from("tenants").select("name").eq("id", tenant_id).single();
-  await sendEboOtp(member.email, member.first_name, code, tenant?.name || "your club");
+  const { data: tenant } = await supabase.from("tenants").select("name, logo_url").eq("id", tenant_id).single();
+  const clubName = tenant?.name || "your club";
+  const magicLink = `https://app.sprimal.com/checkin/${tenant_id}?c=${code}&m=${membership_number}`;
+  const logoHtml = tenant?.logo_url
+    ? `<img src="${tenant.logo_url}" alt="${clubName}" style="width:64px;height:64px;object-fit:contain;border-radius:12px;margin-bottom:12px;">`
+    : `<div style="font-size:40px;margin-bottom:12px;">🎾</div>`;
+
+  if (process.env.RESEND_API_KEY) {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Maeve <maeve@sprimal.com>",
+        to: [member.email],
+        subject: `Your ${clubName} check-in code`,
+        html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f4f8;margin:0;padding:20px;">
+<div style="max-width:400px;margin:0 auto;background:white;border-radius:16px;padding:32px 24px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.1);">
+  ${logoHtml}
+  <h2 style="margin:0 0 8px;color:#1a1a2e;font-size:20px;">${clubName}</h2>
+  <p style="color:#6b7280;margin:0 0 24px;font-size:15px;">Hi ${member.first_name}, tap below to check in:</p>
+  <a href="${magicLink}" style="display:block;background:#1565c0;color:white;text-decoration:none;padding:18px;border-radius:12px;font-size:18px;font-weight:700;margin-bottom:24px;">✅ Tap to Check In</a>
+  <p style="color:#9ca3af;font-size:13px;margin:0 0 10px;">Or enter this code manually:</p>
+  <div style="font-size:38px;font-weight:900;letter-spacing:10px;color:#1a1a2e;margin-bottom:16px;">${code}</div>
+  <p style="color:#9ca3af;font-size:12px;margin:0;">Expires in 10 minutes &middot; Single use</p>
+</div></body></html>`
+      })
+    }).catch(() => {});
+  }
 
   const [local, domain] = member.email.split("@");
   const emailHint = local[0] + "***@" + domain;

@@ -16607,11 +16607,11 @@ function showNoEbo() {
 function showWelcomeBack() {
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
-    '<button class="btn btn-success" id="wb-send-btn">Check In</button>' +
+    '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
     '<button class="btn btn-secondary" id="wb-switch-btn">Not you? Switch member</button>' +
     '<div id="msg"></div>';
-  document.getElementById('wb-send-btn').addEventListener('click', function() {
-    sendOtpAndShow(savedMember.membership_number);
+  document.getElementById('wb-checkin-btn').addEventListener('click', function() {
+    submitCheckin(savedMember.membership_number, savedMember.name);
   });
   document.getElementById('wb-switch-btn').addEventListener('click', showForm);
 }

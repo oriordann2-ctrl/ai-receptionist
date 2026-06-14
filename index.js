@@ -10071,8 +10071,8 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
     if (twUrlMatch) twVal = twUrlMatch[1];
     updates.twitter_handle = twVal.replace(/^@/, "").slice(0, 100);
   }
-  if (typeof req.body.checkin_lat === "number")            updates.checkin_lat            = req.body.checkin_lat;
-  if (typeof req.body.checkin_lng === "number")            updates.checkin_lng            = req.body.checkin_lng;
+  if (typeof req.body.checkin_lat === "number" || req.body.checkin_lat === null)            updates.checkin_lat            = req.body.checkin_lat;
+  if (typeof req.body.checkin_lng === "number" || req.body.checkin_lng === null)            updates.checkin_lng            = req.body.checkin_lng;
   if (typeof req.body.checkin_radius_meters === "number")  updates.checkin_radius_meters  = req.body.checkin_radius_meters;
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 

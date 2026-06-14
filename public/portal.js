@@ -1114,10 +1114,12 @@
   }
 
   window.saveGps = function() {
-    var lat = parseFloat(document.getElementById("checkinLat").value);
-    var lng = parseFloat(document.getElementById("checkinLng").value);
+    var latVal = document.getElementById("checkinLat").value.trim();
+    var lngVal = document.getElementById("checkinLng").value.trim();
     var radius = parseInt(document.getElementById("checkinRadius").value) || 150;
-    if (!lat || !lng) { alert("Please enter valid coordinates."); return; }
+    var lat = latVal ? parseFloat(latVal) : null;
+    var lng = lngVal ? parseFloat(lngVal) : null;
+    if ((latVal && isNaN(lat)) || (lngVal && isNaN(lng))) { alert("Please enter valid coordinates."); return; }
     fetch("/api/portal/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ checkin_lat: lat, checkin_lng: lng, checkin_radius_meters: radius }) })
       .then(function() {
         var msg = document.getElementById("gpsSaveMsg");

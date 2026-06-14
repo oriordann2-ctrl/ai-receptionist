@@ -16544,6 +16544,11 @@ app.get("/checkin/:tenantId", (req, res) => {
   .success-sub { font-size: 14px; color: #666; }
   .time { font-size: 13px; color: #999; margin-top: 20px; }
   .loading { color: #999; font-size: 15px; }
+  .otp-wrap { display: flex; gap: 8px; justify-content: center; margin: 20px 0 4px; }
+  .otp-box { width: 44px; height: 56px; font-size: 26px; font-weight: 700; text-align: center; border: 2px solid #e0e0e0; border-radius: 12px; outline: none; transition: border-color 0.2s; padding: 0; }
+  .otp-box:focus { border-color: #1565c0; }
+  .email-hint { font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+  .resend-link { font-size: 13px; color: #1565c0; background: none; border: none; cursor: pointer; padding: 4px; text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -16571,7 +16576,7 @@ async function init() {
     if (savedMember) showWelcomeBack();
     else showForm();
   } catch(e) {
-    document.getElementById('card').innerHTML = '<div class="logo">🎾</div><div class="club-name">Check-In Unavailable</div>';
+    document.getElementById('card').innerHTML = '<div class="logo-emoji">🎾</div><div class="club-name">Check-In Unavailable</div>';
   }
 }
 
@@ -16597,11 +16602,11 @@ function showNoEbo() {
 function showWelcomeBack() {
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
-    '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
+    '<button class="btn btn-success" id="wb-send-btn">📧 Send Check-In Code</button>' +
     '<button class="btn btn-secondary" id="wb-switch-btn">Not you? Switch member</button>' +
     '<div id="msg"></div>';
-  document.getElementById('wb-checkin-btn').addEventListener('click', function() {
-    submitCheckin(savedMember.membership_number, savedMember.name);
+  document.getElementById('wb-send-btn').addEventListener('click', function() {
+    sendOtpAndShow(savedMember.membership_number);
   });
   document.getElementById('wb-switch-btn').addEventListener('click', showForm);
 }
@@ -16610,22 +16615,23 @@ function showForm() {
   document.getElementById('card').innerHTML = header() +
     '<label for="mnum">Membership Number</label>' +
     '<input type="number" id="mnum" placeholder="e.g. 1234" inputmode="numeric" autocomplete="off">' +
-    '<button class="btn btn-primary" id="checkin-btn" onclick="handleSubmit()">Check In</button>' +
+    '<button class="btn btn-primary" id="send-btn">📧 Send Check-In Code</button>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';
   document.getElementById('mnum').focus();
-  document.getElementById('mnum').addEventListener('keydown', e => { if (e.key === 'Enter') handleSubmit(); });
+  document.getElementById('mnum').addEventListener('keydown', function(e) { if (e.key === 'Enter') handleSubmit(); });
+  document.getElementById('send-btn').addEventListener('click', handleSubmit);
   updateClock();
   setInterval(updateClock, 1000);
 }
 
 function updateClock() {
-  const el = document.getElementById('clock');
+  var el = document.getElementById('clock');
   if (el) el.textContent = new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' });
 }
 
 function showMsg(text, type) {
-  const el = document.getElementById('msg');
+  var el = document.getElementById('msg');
   if (el) el.innerHTML = '<div class="status status-' + type + '">' + text + '</div>';
 }
 
@@ -16638,34 +16644,123 @@ function showSuccess(name) {
 }
 
 async function handleSubmit() {
-  const input = document.getElementById('mnum');
-  const num = parseInt(input ? input.value : '');
+  var input = document.getElementById('mnum');
+  var num = parseInt(input ? input.value : '');
   if (!num || num < 1) { showMsg('Please enter your membership number.', 'error'); return; }
-  const btn = document.getElementById('checkin-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Validating...'; }
+  sendOtpAndShow(num);
+}
 
-  showMsg('Checking membership...', 'info');
+async function sendOtpAndShow(membershipNumber) {
+  var btn = document.getElementById('send-btn') || document.getElementById('wb-send-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending code...'; }
+  showMsg('Sending code to your email...', 'info');
   try {
-    const vr = await fetch('/api/checkin/validate-member', {
+    var r = await fetch('/api/checkin/send-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: num })
+      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: membershipNumber })
     });
-    const vd = await vr.json();
-    if (!vr.ok || !vd.name) { showMsg(vd.error || 'Membership number not found. Please check and try again.', 'error'); if (btn) { btn.disabled=false; btn.textContent='Check In'; } return; }
-    submitCheckin(num, vd.name);
+    var d = await r.json();
+    if (!r.ok) {
+      showMsg(d.error || 'Could not send code. Please try again.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '📧 Send Check-In Code'; }
+      return;
+    }
+    showOtpScreen(membershipNumber, d.name, d.email_hint);
   } catch(e) {
     showMsg('Network error — please try again.', 'error');
-    if (btn) { btn.disabled=false; btn.textContent='Check In'; }
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Send Check-In Code'; }
+  }
+}
+
+function showOtpScreen(membershipNumber, memberName, emailHint) {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="email-hint">Code sent to ' + emailHint + '</div>' +
+    '<div class="otp-wrap">' +
+    '<input class="otp-box" id="otp0" maxlength="1" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp1" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp2" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp3" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp4" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp5" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '</div>' +
+    '<button class="btn btn-primary" id="verify-btn">Verify & Check In</button>' +
+    '<button class="btn btn-secondary" id="resend-btn">Resend code</button>' +
+    '<button class="btn btn-secondary" id="back-btn" style="margin-top:4px;font-size:13px;color:#6b7280;">← Change membership number</button>' +
+    '<div id="msg"></div>';
+
+  initOtpBoxes(function() { verifyAndSubmit(membershipNumber, memberName); });
+  document.getElementById('verify-btn').addEventListener('click', function() { verifyAndSubmit(membershipNumber, memberName); });
+  document.getElementById('resend-btn').addEventListener('click', function() { sendOtpAndShow(membershipNumber); });
+  document.getElementById('back-btn').addEventListener('click', showForm);
+  document.getElementById('otp0').focus();
+}
+
+function initOtpBoxes(onComplete) {
+  var boxes = Array.from(document.querySelectorAll('.otp-box'));
+  boxes.forEach(function(box, i) {
+    box.addEventListener('keydown', function(e) {
+      if (e.key === 'Backspace' && !this.value && i > 0) { boxes[i-1].focus(); boxes[i-1].value = ''; }
+    });
+    box.addEventListener('input', function() {
+      // Handle paste distributing multiple digits
+      var val = this.value.replace(/\D/g, '');
+      if (val.length > 1) {
+        val.split('').forEach(function(ch, j) { if (boxes[i+j]) boxes[i+j].value = ch; });
+        var last = Math.min(i + val.length, 5);
+        boxes[last].focus();
+        this.value = val[0];
+      } else {
+        this.value = val;
+        if (val && i < 5) boxes[i+1].focus();
+      }
+      if (boxes.every(function(b) { return b.value; })) onComplete();
+    });
+    box.addEventListener('paste', function(e) {
+      e.preventDefault();
+      var text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+      text.split('').forEach(function(ch, j) { if (boxes[j]) boxes[j].value = ch; });
+      boxes[Math.min(text.length, 5)].focus();
+      if (text.length >= 6) onComplete();
+    });
+  });
+}
+
+function getOtpCode() {
+  return Array.from(document.querySelectorAll('.otp-box')).map(function(b) { return b.value; }).join('');
+}
+
+async function verifyAndSubmit(membershipNumber, memberName) {
+  var code = getOtpCode();
+  if (code.length < 6) { showMsg('Please enter the full 6-digit code.', 'error'); return; }
+  var btn = document.getElementById('verify-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+  try {
+    var r = await fetch('/api/checkin/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: membershipNumber, code: code })
+    });
+    var d = await r.json();
+    if (!r.ok) {
+      showMsg(d.error || 'Invalid code. Please try again.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Verify & Check In'; }
+      return;
+    }
+    saveMember({ membership_number: membershipNumber, name: d.name });
+    submitCheckin(membershipNumber, d.name);
+  } catch(e) {
+    showMsg('Network error — please try again.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Verify & Check In'; }
   }
 }
 
 async function submitCheckin(membershipNumber, memberName) {
   showMsg('Getting your location...', 'info');
-  navigator.geolocation.getCurrentPosition(async (pos) => {
+  navigator.geolocation.getCurrentPosition(async function(pos) {
     showMsg('Checking in...', 'info');
     try {
-      const cr = await fetch('/api/checkin/submit', {
+      var cr = await fetch('/api/checkin/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -16676,41 +16771,26 @@ async function submitCheckin(membershipNumber, memberName) {
           gps_lng: pos.coords.longitude
         })
       });
-      const cd = await cr.json();
-      if (!cr.ok) {
-        showMsg(cd.error || 'Check-in failed.', 'error');
-        var btn = document.getElementById('checkin-btn');
-        if (btn) { btn.disabled = false; btn.textContent = 'Check In'; }
-        return;
-      }
-      saveMember({ membership_number: membershipNumber, name: memberName });
+      var cd = await cr.json();
+      if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
       showSuccess(memberName);
     } catch(e) {
       showMsg('Network error — please try again.', 'error');
-      var btn = document.getElementById('checkin-btn');
-      if (btn) { btn.disabled = false; btn.textContent = 'Check In'; }
     }
-  }, () => {
+  }, function() {
     submitCheckinNoGps(membershipNumber, memberName);
   }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
 }
 
 async function submitCheckinNoGps(membershipNumber, memberName) {
   try {
-    const cr = await fetch('/api/checkin/submit', {
+    var cr = await fetch('/api/checkin/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tenant_id: TENANT_ID,
-        membership_number: membershipNumber,
-        member_name: memberName,
-        gps_lat: null,
-        gps_lng: null
-      })
+      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: membershipNumber, member_name: memberName, gps_lat: null, gps_lng: null })
     });
-    const cd = await cr.json();
+    var cd = await cr.json();
     if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
-    saveMember({ membership_number: membershipNumber, name: memberName });
     showSuccess(memberName);
   } catch(e) {
     showMsg('Network error — please try again.', 'error');
@@ -16747,6 +16827,43 @@ app.post("/api/checkin/validate-member", async (req, res) => {
   const member = await fetchEboMemberDetails(tenant_id, membership_number);
   if (!member || !member.active) return res.status(404).json({ error: "Membership number not found or inactive" });
   res.json({ name: member.first_name + " " + member.last_name, membership_number: member.membership_number });
+});
+
+// In-memory OTP store — key: `${tenantId}:${membershipNumber}`
+const OTP_STORE = new Map();
+
+// POST /api/checkin/send-otp — validate member, generate OTP, email it
+app.post("/api/checkin/send-otp", async (req, res) => {
+  const { tenant_id, membership_number } = req.body;
+  if (!tenant_id || !membership_number) return res.status(400).json({ error: "Missing fields" });
+  await loadEboConfigFromDb(tenant_id);
+  const member = await fetchEboMemberDetails(tenant_id, membership_number);
+  if (!member || !member.active) return res.status(404).json({ error: "Membership number not found or inactive" });
+  if (!member.email) return res.status(400).json({ error: "No email address on file for this membership. Please contact the club." });
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const key = `${tenant_id}:${membership_number}`;
+  OTP_STORE.set(key, { code, expires: Date.now() + 10 * 60 * 1000, name: member.first_name + " " + member.last_name });
+
+  const { data: tenant } = await supabase.from("tenants").select("name").eq("id", tenant_id).single();
+  await sendEboOtp(member.email, member.first_name, code, tenant?.name || "your club");
+
+  const [local, domain] = member.email.split("@");
+  const emailHint = local[0] + "***@" + domain;
+  res.json({ email_hint: emailHint, name: member.first_name + " " + member.last_name });
+});
+
+// POST /api/checkin/verify-otp — verify OTP code
+app.post("/api/checkin/verify-otp", async (req, res) => {
+  const { tenant_id, membership_number, code } = req.body;
+  if (!tenant_id || !membership_number || !code) return res.status(400).json({ error: "Missing fields" });
+  const key = `${tenant_id}:${membership_number}`;
+  const stored = OTP_STORE.get(key);
+  if (!stored) return res.status(400).json({ error: "No code was sent. Please request a new one." });
+  if (Date.now() > stored.expires) { OTP_STORE.delete(key); return res.status(400).json({ error: "Code expired. Please request a new one." }); }
+  if (stored.code !== String(code).trim()) return res.status(400).json({ error: "Incorrect code. Please try again." });
+  OTP_STORE.delete(key);
+  res.json({ ok: true, name: stored.name });
 });
 
 // POST /api/checkin/submit — record a check-in

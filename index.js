@@ -16513,6 +16513,7 @@ function gpsDistance(lat1, lng1, lat2, lng2) {
 app.get("/checkin/:tenantId", (req, res) => {
   const { tenantId } = req.params;
   res.setHeader("Content-Type", "text/html");
+  res.setHeader("Cache-Control", "no-store");
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16587,7 +16588,16 @@ async function init() {
     if (savedMember) showWelcomeBack();
     else showForm();
   } catch(e) {
-    document.getElementById('card').innerHTML = '<div class="logo-emoji">🎾</div><div class="club-name">Check-In Unavailable</div>';
+    document.getElementById('card').innerHTML =
+      '<div class="logo-emoji">🎾</div>' +
+      '<div class="club-name">Check-In Unavailable</div>' +
+      '<div class="status status-error" style="margin-top:16px;font-size:13px;">Could not connect. Please check your connection and try again.</div>' +
+      '<button class="btn btn-primary" id="retry-btn" style="margin-top:16px;">Retry</button>';
+    var rb = document.getElementById('retry-btn');
+    if (rb) rb.addEventListener('click', function() {
+      document.getElementById('card').innerHTML = '<div class="loading">Loading...</div>';
+      init();
+    });
   }
 }
 
@@ -16988,21 +16998,18 @@ app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
   try {
     const { tenantId } = req.params;
     console.log("[club-info] request for", tenantId);
-    // Select without assistant_name first; add it if the column exists
-    const { data: tenant, error } = await supabase.from("tenants")
-      .select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
-      .eq("id", tenantId).single();
+    // Run all three operations in parallel to minimise latency
+    const [tenantResult, nameResult] = await Promise.all([
+      supabase.from("tenants")
+        .select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
+        .eq("id", tenantId).single(),
+      supabase.from("tenants").select("assistant_name").eq("id", tenantId).single(),
+      loadEboConfigFromDb(tenantId)
+    ]);
+    const { data: tenant, error } = tenantResult;
     if (error || !tenant) return res.status(404).json({ error: "Not found" });
     if (tenant.business_type !== "tennis_club") return res.status(403).json({ error: "Check-in is only available for tennis clubs" });
-
-    // Try to get assistant_name separately — safe if column doesn't exist yet
-    let assistantName = "Maeve";
-    try {
-      const { data: nameRow } = await supabase.from("tenants").select("assistant_name").eq("id", tenantId).single();
-      if (nameRow?.assistant_name) assistantName = nameRow.assistant_name;
-    } catch {}
-
-    await loadEboConfigFromDb(tenantId);
+    const assistantName = nameResult?.data?.assistant_name || "Maeve";
     res.json({
       club_name: tenant.name,
       logo_url: tenant.logo_url || null,

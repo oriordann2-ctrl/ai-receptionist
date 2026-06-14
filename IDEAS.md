@@ -595,6 +595,14 @@ Tenant logo now appears as favicon on generated websites. Falls back to Sprimal 
 
 ---
 
+## ⏳ TODO — Stop Morning Digest Scheduler for Cormac/AOM
+
+Disable or skip the morning digest scheduler for the AOM tenant. Currently the digest scheduler fires at 07:30 IST on weekdays for all tenants — Cormac's tenant should be excluded or the scheduler turned off entirely for AOM.
+
+**Status:** Not done.
+
+---
+
 ## ✅ DONE — Disable Cormac/AOM Email Agent
 
 Disabled via `EMAIL_POLLING_ENABLED` environment variable set to anything other than `"true"`. Verified in both staging and production logs — no more email polling.

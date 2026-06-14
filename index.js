@@ -16666,7 +16666,7 @@ function showBookingConfirm(membershipNumber, memberName, booking) {
 
 function showAlreadyCheckedIn(memberName, booking) {
   document.getElementById('card').innerHTML = header() +
-    '<div class="status status-error" style="margin-top:16px;">You\'ve already checked in for Court ' + booking.court_id + ' at ' + booking.display_time + '.</div>' +
+    '<div class="status status-error" style="margin-top:16px;">You&#39;ve already checked in for Court ' + booking.court_id + ' at ' + booking.display_time + '.</div>' +
     '<div class="welcome-sub" style="margin-top:12px;text-align:center;">See you on the court, ' + memberName.split(' ')[0] + '!</div>';
 }
 
@@ -16684,7 +16684,7 @@ function showNoBooking(membershipNumber, memberName, message) {
 function showDelegateForm(adultMembershipNumber) {
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Junior Check-In</div>' +
-    '<div class="welcome-sub">Enter the junior\'s membership number</div></div>' +
+    '<div class="welcome-sub">Enter the junior&#39;s membership number</div></div>' +
     '<label for="jnum">Junior Membership Number</label>' +
     '<input type="number" id="jnum" placeholder="e.g. 1234" inputmode="numeric" autocomplete="off">' +
     '<button class="btn btn-primary" id="lookup-junior-btn">Look Up</button>' +

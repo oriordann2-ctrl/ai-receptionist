@@ -16571,8 +16571,11 @@ let currentBooking = null;
 
 async function init() {
   try {
-    const r = await fetch('/api/checkin/club-info/' + TENANT_ID);
-    if (!r.ok) throw new Error('Club not found');
+    const ctrl = new AbortController();
+    const timeout = setTimeout(function() { ctrl.abort(); }, 10000);
+    const r = await fetch('/api/checkin/club-info/' + TENANT_ID, { signal: ctrl.signal });
+    clearTimeout(timeout);
+    if (!r.ok) throw new Error('Club not found (' + r.status + ')');
     clubInfo = await r.json();
     if (!clubInfo.ebo_enabled) { showNoEbo(); return; }
     // Magic link auto-verify
@@ -16984,6 +16987,7 @@ init();
 app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
   try {
     const { tenantId } = req.params;
+    console.log("[club-info] request for", tenantId);
     // Select without assistant_name first; add it if the column exists
     const { data: tenant, error } = await supabase.from("tenants")
       .select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")

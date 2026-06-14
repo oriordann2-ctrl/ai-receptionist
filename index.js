@@ -10024,7 +10024,7 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images")
+    .select("ai_enabled, train_staff_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
@@ -10037,7 +10037,11 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
     facebook_url:          data?.facebook_url         ?? "",
     instagram_handle:      data?.instagram_handle     ?? "",
     twitter_handle:        data?.twitter_handle       ?? "",
-    social_images:         socialImages
+    social_images:         socialImages,
+    business_type:         data?.business_type        ?? "",
+    checkin_lat:           data?.checkin_lat          ?? null,
+    checkin_lng:           data?.checkin_lng          ?? null,
+    checkin_radius_meters: data?.checkin_radius_meters ?? 150
   });
 });
 
@@ -10070,6 +10074,9 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
     if (twUrlMatch) twVal = twUrlMatch[1];
     updates.twitter_handle = twVal.replace(/^@/, "").slice(0, 100);
   }
+  if (typeof req.body.checkin_lat === "number")            updates.checkin_lat            = req.body.checkin_lat;
+  if (typeof req.body.checkin_lng === "number")            updates.checkin_lng            = req.body.checkin_lng;
+  if (typeof req.body.checkin_radius_meters === "number")  updates.checkin_radius_meters  = req.body.checkin_radius_meters;
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 
   const tenantId   = req.tenant.tenantId;
@@ -16490,6 +16497,360 @@ app.get("/sites/:tenantId", async (req, res) => {
     console.error("[sites] Error:", err.message);
     res.status(500).send("Something went wrong");
   }
+});
+
+// ── Court Check-In Feature (Tennis clubs only) ───────────────────────────────
+
+// Helper: haversine distance in metres between two GPS coords
+function gpsDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// GET /checkin/:tenantId/:courtId — mobile check-in page
+app.get("/checkin/:tenantId/:courtId", (req, res) => {
+  const { tenantId, courtId } = req.params;
+  res.setHeader("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Court Check-In</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .card { background: white; border-radius: 20px; padding: 32px 24px; max-width: 400px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.1); text-align: center; }
+  .logo { font-size: 48px; margin-bottom: 8px; }
+  .club-name { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+  .court-name { font-size: 15px; color: #666; margin-bottom: 28px; }
+  .welcome { background: #e8f5e9; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+  .welcome-name { font-size: 18px; font-weight: 600; color: #2e7d32; }
+  .welcome-sub { font-size: 13px; color: #555; margin-top: 4px; }
+  label { display: block; text-align: left; font-size: 14px; font-weight: 600; color: #444; margin-bottom: 6px; }
+  input { width: 100%; padding: 14px 16px; font-size: 18px; border: 2px solid #e0e0e0; border-radius: 12px; outline: none; text-align: center; letter-spacing: 2px; transition: border-color 0.2s; }
+  input:focus { border-color: #1565c0; }
+  .btn { width: 100%; padding: 16px; font-size: 17px; font-weight: 700; border: none; border-radius: 12px; cursor: pointer; margin-top: 16px; transition: background 0.2s, transform 0.1s; }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: #1565c0; color: white; }
+  .btn-primary:disabled { background: #90a4ae; cursor: not-allowed; }
+  .btn-success { background: #2e7d32; color: white; }
+  .btn-secondary { background: #f5f5f5; color: #444; margin-top: 10px; font-size: 14px; padding: 12px; }
+  .status { padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-top: 16px; }
+  .status-error { background: #ffebee; color: #c62828; }
+  .status-info { background: #e3f2fd; color: #1565c0; }
+  .success-icon { font-size: 64px; margin-bottom: 16px; }
+  .success-title { font-size: 22px; font-weight: 700; color: #2e7d32; margin-bottom: 8px; }
+  .success-sub { font-size: 14px; color: #666; }
+  .time { font-size: 13px; color: #999; margin-top: 20px; }
+  .loading { color: #999; font-size: 15px; }
+  #not-ebo { display: none; }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="loading">Loading...</div>
+</div>
+<script>
+const TENANT_ID = ${JSON.stringify(tenantId)};
+const COURT_ID = ${JSON.stringify(courtId)};
+const LS_KEY = 'sprimal_member_' + TENANT_ID;
+
+let courtInfo = null;
+let savedMember = null;
+
+async function init() {
+  try {
+    const r = await fetch('/api/checkin/court-info/' + TENANT_ID + '/' + COURT_ID);
+    if (!r.ok) throw new Error('Court not found');
+    courtInfo = await r.json();
+    if (!courtInfo.ebo_enabled) { showNoEbo(); return; }
+    savedMember = getSavedMember();
+    if (savedMember) showWelcomeBack();
+    else showForm();
+  } catch(e) {
+    document.getElementById('card').innerHTML = '<div class="logo">🎾</div><div class="club-name">Check-In Unavailable</div><div class="court-name">' + e.message + '</div>';
+  }
+}
+
+function getSavedMember() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch { return null; }
+}
+
+function saveMember(data) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {}
+}
+
+function header() {
+  return '<div class="logo">🎾</div><div class="club-name">' + courtInfo.club_name + '</div><div class="court-name">' + courtInfo.court_name + '</div>';
+}
+
+function showNoEbo() {
+  document.getElementById('card').innerHTML = header() + '<div class="status status-error">Court check-in is not configured for this club.</div>';
+}
+
+function showWelcomeBack() {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
+    '<button class="btn btn-success" onclick="submitCheckin(' + savedMember.membership_number + ', ' + JSON.stringify(savedMember.name) + ')">✅ Check In</button>' +
+    '<button class="btn btn-secondary" onclick="showForm()">Not you? Switch member</button>' +
+    '<div id="msg"></div>';
+}
+
+function showForm() {
+  document.getElementById('card').innerHTML = header() +
+    '<label for="mnum">Membership Number</label>' +
+    '<input type="number" id="mnum" placeholder="e.g. 1234" inputmode="numeric" autocomplete="off">' +
+    '<button class="btn btn-primary" id="checkin-btn" onclick="handleSubmit()">Check In</button>' +
+    '<div id="msg"></div>' +
+    '<div class="time" id="clock"></div>';
+  document.getElementById('mnum').focus();
+  document.getElementById('mnum').addEventListener('keydown', e => { if (e.key === 'Enter') handleSubmit(); });
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+
+function updateClock() {
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  if (el) el.innerHTML = '<div class="status status-' + type + '">' + text + '</div>';
+}
+
+function showSuccess(name) {
+  document.getElementById('card').innerHTML =
+    '<div class="success-icon">✅</div>' +
+    '<div class="success-title">Checked In!</div>' +
+    '<div class="success-sub">Welcome, ' + name + '</div>' +
+    '<div class="success-sub" style="margin-top:8px">' + courtInfo.court_name + ' · ' + new Date().toLocaleTimeString('en-IE', {hour:'2-digit',minute:'2-digit'}) + '</div>';
+}
+
+async function handleSubmit() {
+  const input = document.getElementById('mnum');
+  const num = parseInt(input ? input.value : '');
+  if (!num || num < 1) { showMsg('Please enter your membership number.', 'error'); return; }
+  const btn = document.getElementById('checkin-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Validating...'; }
+
+  // Validate membership number first
+  showMsg('Checking membership...', 'info');
+  try {
+    const vr = await fetch('/api/checkin/validate-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: num })
+    });
+    const vd = await vr.json();
+    if (!vr.ok || !vd.name) { showMsg(vd.error || 'Membership number not found. Please check and try again.', 'error'); if (btn) { btn.disabled=false; btn.textContent='Check In'; } return; }
+    submitCheckin(num, vd.name);
+  } catch(e) {
+    showMsg('Network error — please try again.', 'error');
+    if (btn) { btn.disabled=false; btn.textContent='Check In'; }
+  }
+}
+
+async function submitCheckin(membershipNumber, memberName) {
+  showMsg('Getting your location...', 'info');
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    showMsg('Checking in...', 'info');
+    try {
+      const cr = await fetch('/api/checkin/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: TENANT_ID,
+          court_id: COURT_ID,
+          membership_number: membershipNumber,
+          member_name: memberName,
+          gps_lat: pos.coords.latitude,
+          gps_lng: pos.coords.longitude
+        })
+      });
+      const cd = await cr.json();
+      if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
+      saveMember({ membership_number: membershipNumber, name: memberName });
+      showSuccess(memberName);
+    } catch(e) {
+      showMsg('Network error — please try again.', 'error');
+    }
+  }, (err) => {
+    // GPS denied or unavailable — still allow check-in but flag it
+    submitCheckinNoGps(membershipNumber, memberName);
+  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+}
+
+async function submitCheckinNoGps(membershipNumber, memberName) {
+  try {
+    const cr = await fetch('/api/checkin/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: TENANT_ID,
+        court_id: COURT_ID,
+        membership_number: membershipNumber,
+        member_name: memberName,
+        gps_lat: null,
+        gps_lng: null
+      })
+    });
+    const cd = await cr.json();
+    if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
+    saveMember({ membership_number: membershipNumber, name: memberName });
+    showSuccess(memberName);
+  } catch(e) {
+    showMsg('Network error — please try again.', 'error');
+  }
+}
+
+init();
+</script>
+</body>
+</html>`);
+});
+
+// GET /api/checkin/court-info/:tenantId/:courtId — public, returns club + court info
+app.get("/api/checkin/court-info/:tenantId/:courtId", async (req, res) => {
+  const { tenantId, courtId } = req.params;
+  const [{ data: tenant }, { data: court }] = await Promise.all([
+    supabase.from("tenants").select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters").eq("id", tenantId).single(),
+    supabase.from("courts").select("*").eq("id", courtId).eq("tenant_id", tenantId).single()
+  ]);
+  if (!tenant || !court) return res.status(404).json({ error: "Not found" });
+  if (tenant.business_type !== "tennis_club") return res.status(403).json({ error: "Check-in is only available for tennis clubs" });
+  await loadEboConfigFromDb(tenantId);
+  res.json({
+    club_name: tenant.name,
+    court_name: court.name,
+    ebo_court_id: court.ebo_court_id,
+    has_gps: !!(tenant.checkin_lat && tenant.checkin_lng),
+    gps_radius: tenant.checkin_radius_meters || 150,
+    ebo_enabled: !!EBO_CONFIG[tenantId]
+  });
+});
+
+// POST /api/checkin/validate-member — validate membership number against EBO
+app.post("/api/checkin/validate-member", async (req, res) => {
+  const { tenant_id, membership_number } = req.body;
+  if (!tenant_id || !membership_number) return res.status(400).json({ error: "Missing fields" });
+  await loadEboConfigFromDb(tenant_id);
+  const member = await fetchEboMemberDetails(tenant_id, membership_number);
+  if (!member || !member.active) return res.status(404).json({ error: "Membership number not found or inactive" });
+  res.json({ name: member.first_name + " " + member.last_name, membership_number: member.membership_number });
+});
+
+// POST /api/checkin/submit — record a check-in
+app.post("/api/checkin/submit", async (req, res) => {
+  const { tenant_id, court_id, membership_number, member_name, gps_lat, gps_lng } = req.body;
+  if (!tenant_id || !court_id || !membership_number || !member_name) return res.status(400).json({ error: "Missing fields" });
+
+  const { data: court } = await supabase.from("courts").select("id, name, tenant_id").eq("id", court_id).single();
+  if (!court || court.tenant_id !== tenant_id) return res.status(404).json({ error: "Court not found" });
+
+  // GPS validation — if tenant has GPS set and member provided location, check distance
+  let gps_verified = false;
+  let gps_distance_meters = null;
+  if (gps_lat && gps_lng) {
+    const { data: tenant } = await supabase.from("tenants").select("checkin_lat, checkin_lng, checkin_radius_meters").eq("id", tenant_id).single();
+    if (tenant?.checkin_lat && tenant?.checkin_lng) {
+      gps_distance_meters = Math.round(gpsDistance(gps_lat, gps_lng, tenant.checkin_lat, tenant.checkin_lng));
+      const radius = tenant.checkin_radius_meters || 150;
+      if (gps_distance_meters > radius) {
+        return res.status(403).json({ error: `You must be at the club to check in (you appear to be ${gps_distance_meters}m away).` });
+      }
+      gps_verified = true;
+    }
+  }
+
+  const { error } = await supabase.from("court_checkins").insert({
+    tenant_id, court_id, court_name: court.name,
+    membership_number, member_name,
+    gps_lat, gps_lng, gps_distance_meters, gps_verified
+  });
+  if (error) return res.status(500).json({ error: "Failed to record check-in" });
+  console.log(`[checkin] ${member_name} (#${membership_number}) checked into ${court.name} at ${tenant_id} — GPS ${gps_verified ? gps_distance_meters + "m" : "not verified"}`);
+  res.json({ ok: true });
+});
+
+// GET /api/portal/courts — list courts for this tenant
+app.get("/api/portal/courts", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { data, error } = await supabase.from("courts").select("*").eq("tenant_id", tenantId).order("display_order").order("created_at");
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+// POST /api/portal/courts — add a court
+app.post("/api/portal/courts", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { name, ebo_court_id } = req.body;
+  if (!name) return res.status(400).json({ error: "Court name required" });
+  const { data, error } = await supabase.from("courts").insert({ tenant_id: tenantId, name: name.trim(), ebo_court_id: ebo_court_id || null }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// DELETE /api/portal/courts/:courtId — delete a court
+app.delete("/api/portal/courts/:courtId", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { error } = await supabase.from("courts").delete().eq("id", req.params.courtId).eq("tenant_id", tenantId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// GET /api/portal/checkins/dashboard — captain dashboard: today's courts + check-ins vs bookings
+app.get("/api/portal/checkins/dashboard", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const today = new Date().toISOString().slice(0, 10);
+  const todayStart = today + "T00:00:00.000Z";
+  const todayEnd   = today + "T23:59:59.000Z";
+
+  const [{ data: courts }, { data: checkins }, bookings] = await Promise.all([
+    supabase.from("courts").select("*").eq("tenant_id", tenantId).order("display_order").order("created_at"),
+    supabase.from("court_checkins").select("*").eq("tenant_id", tenantId).gte("checked_in_at", todayStart).lte("checked_in_at", todayEnd).order("checked_in_at", { ascending: false }),
+    (async () => { try { await loadEboConfigFromDb(tenantId); return fetchEboBookings(tenantId, today, today, 500); } catch { return []; } })()
+  ]);
+
+  const cfg = EBO_CONFIG[tenantId];
+  const slotMins = cfg?.slotMinutes || 60;
+  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+
+  const courtData = (courts || []).map(court => {
+    const courtCheckins = (checkins || []).filter(c => c.court_id === court.id);
+    const courtBookings = bookings.filter(b => String(b.court_id) === String(court.ebo_court_id));
+
+    // Current slot booking: booking that started within the last slotMins
+    const currentBookings = courtBookings.filter(b => {
+      const hhmm = String(b.time || "").slice(11, 16);
+      if (!hhmm) return false;
+      const [h, m] = hhmm.split(":").map(Number);
+      const slotStart = h * 60 + m;
+      return nowMins >= slotStart && nowMins < slotStart + slotMins;
+    });
+
+    // Check-ins in the current slot window
+    const slotStartTs = new Date(); slotStartTs.setMinutes(slotStartTs.getMinutes() - (nowMins % slotMins)); slotStartTs.setSeconds(0);
+    const currentCheckins = courtCheckins.filter(c => new Date(c.checked_in_at) >= slotStartTs);
+
+    const status = currentBookings.length === 0 ? "free" : currentCheckins.length > 0 ? "checked-in" : "no-show-risk";
+
+    return { court, current_bookings: currentBookings, current_checkins: currentCheckins, all_checkins_today: courtCheckins, status };
+  });
+
+  res.json({ date: today, courts: courtData });
+});
+
+// GET /api/portal/checkins/log — check-in history for this tenant
+app.get("/api/portal/checkins/log", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { data, error } = await supabase.from("court_checkins").select("*").eq("tenant_id", tenantId).order("checked_in_at", { ascending: false }).limit(200);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
 });
 
 const PORT = process.env.PORT || 3000;

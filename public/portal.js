@@ -17,6 +17,7 @@
 
     loadPortalAnalytics();
     loadSettings();
+    loadCourts();
   }
 
   // ── Polling (for new signups while crawl runs) ────────────────────────────
@@ -1027,6 +1028,126 @@
     if (!confirm("Delete this approved answer?")) return;
     fetch("/api/portal/approved-answers/" + id, { method: "DELETE" })
       .then(function() { loadApprovedAnswers(); });
+  };
+
+  // ── Court Check-In ────────────────────────────────────────────────────────
+  function loadCourts() {
+    var card = document.getElementById("courtsCard");
+    if (!card) return;
+
+    // Only show for tennis clubs
+    fetch("/api/portal/settings")
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.business_type !== "tennis_club") return;
+        card.style.display = "block";
+
+        // Pre-fill GPS fields if already set
+        if (d.checkin_lat) document.getElementById("checkinLat").value = d.checkin_lat;
+        if (d.checkin_lng) document.getElementById("checkinLng").value = d.checkin_lng;
+        if (d.checkin_radius_meters) document.getElementById("checkinRadius").value = d.checkin_radius_meters;
+
+        renderCourts();
+        renderCaptainDashboard();
+        renderCheckinLog();
+      });
+  }
+
+  function renderCourts() {
+    fetch("/api/portal/courts")
+      .then(function(r) { return r.json(); })
+      .then(function(courts) {
+        var el = document.getElementById("courtsList");
+        if (!el) return;
+        if (!courts.length) {
+          el.innerHTML = '<div style="font-size:13px;color:#9ca3af;">No courts added yet.</div>';
+          return;
+        }
+        el.innerHTML = courts.map(function(c) {
+          var qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=10&data=" + encodeURIComponent("https://app.sprimal.com/checkin/" + c.tenant_id + "/" + c.id);
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f9fafb;border-radius:10px;margin-bottom:8px;flex-wrap:wrap;">'
+            + '<span style="flex:1;font-size:14px;font-weight:600;color:#111827;">' + c.name + '</span>'
+            + (c.ebo_court_id ? '<span style="font-size:12px;color:#6b7280;">EBO ID: ' + c.ebo_court_id + '</span>' : '')
+            + '<a href="' + qrUrl + '" download="' + escJs(c.name) + '-qr.png" style="font-size:13px;font-weight:600;color:white;background:#1565c0;padding:6px 14px;border-radius:7px;text-decoration:none;">⬇ QR</a>'
+            + '<button onclick="window.deleteCourt(\'' + c.id + '\')" style="font-size:13px;color:#dc2626;background:none;border:none;cursor:pointer;padding:4px 8px;">✕</button>'
+            + '</div>';
+        }).join("");
+      });
+  }
+
+  function renderCaptainDashboard() {
+    fetch("/api/portal/checkins/dashboard")
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var el = document.getElementById("captainDashboard");
+        if (!el || !d.courts || !d.courts.length) return;
+        var html = '<div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;">Live Court Status — Today</div>'
+          + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
+        d.courts.forEach(function(c) {
+          var color = c.status === "checked-in" ? "#dcfce7" : c.status === "no-show-risk" ? "#fee2e2" : "#f9fafb";
+          var border = c.status === "checked-in" ? "#86efac" : c.status === "no-show-risk" ? "#fca5a5" : "#e5e7eb";
+          var icon = c.status === "checked-in" ? "🟢" : c.status === "no-show-risk" ? "🔴" : "⚪";
+          var label = c.status === "checked-in" ? "Checked in" : c.status === "no-show-risk" ? "No-show risk" : "Free";
+          html += '<div style="background:' + color + ';border:1.5px solid ' + border + ';border-radius:12px;padding:14px;text-align:center;">'
+            + '<div style="font-size:22px;">' + icon + '</div>'
+            + '<div style="font-size:13px;font-weight:700;color:#111827;margin-top:4px;">' + c.court.name + '</div>'
+            + '<div style="font-size:12px;color:#6b7280;">' + label + '</div>'
+            + (c.current_checkins.length ? '<div style="font-size:11px;color:#374151;margin-top:4px;">' + c.current_checkins.map(function(x){return x.member_name.split(" ")[0];}).join(", ") + '</div>' : '')
+            + '</div>';
+        });
+        html += '</div>';
+        el.innerHTML = html;
+      })
+      .catch(function() {});
+  }
+
+  function renderCheckinLog() {
+    fetch("/api/portal/checkins/log")
+      .then(function(r) { return r.json(); })
+      .then(function(log) {
+        var el = document.getElementById("checkinLog");
+        if (!el) return;
+        var today = new Date().toISOString().slice(0, 10);
+        var todayLog = log.filter(function(c) { return c.checked_in_at.slice(0, 10) === today; });
+        if (!todayLog.length) { el.innerHTML = '<div style="font-size:13px;color:#9ca3af;">No check-ins today yet.</div>'; return; }
+        el.innerHTML = '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
+          + '<thead><tr style="color:#6b7280;text-align:left;border-bottom:1px solid #f3f4f6;">'
+          + '<th style="padding:6px 8px;">Member</th><th style="padding:6px 8px;">Court</th><th style="padding:6px 8px;">Time</th><th style="padding:6px 8px;">GPS</th></tr></thead>'
+          + '<tbody>' + todayLog.map(function(c) {
+            var t = new Date(c.checked_in_at).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
+            return '<tr style="border-bottom:1px solid #f9fafb;">'
+              + '<td style="padding:6px 8px;font-weight:600;">' + c.member_name + ' <span style="color:#9ca3af;font-weight:400;">#' + c.membership_number + '</span></td>'
+              + '<td style="padding:6px 8px;color:#374151;">' + (c.court_name || "—") + '</td>'
+              + '<td style="padding:6px 8px;color:#374151;">' + t + '</td>'
+              + '<td style="padding:6px 8px;">' + (c.gps_verified ? '✅ ' + c.gps_distance_meters + 'm' : c.gps_lat ? '⚠️ unverified' : '—') + '</td>'
+              + '</tr>';
+          }).join("") + '</tbody></table>';
+      })
+      .catch(function() {});
+  }
+
+  window.addCourt = function() {
+    var name = (document.getElementById("newCourtName").value || "").trim();
+    var eboId = document.getElementById("newCourtEboId").value || null;
+    if (!name) { alert("Please enter a court name."); return; }
+    fetch("/api/portal/courts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name, ebo_court_id: eboId ? parseInt(eboId) : null }) })
+      .then(function(r) { return r.json(); })
+      .then(function() { document.getElementById("newCourtName").value = ""; document.getElementById("newCourtEboId").value = ""; renderCourts(); renderCaptainDashboard(); });
+  };
+
+  window.deleteCourt = function(id) {
+    if (!confirm("Delete this court?")) return;
+    fetch("/api/portal/courts/" + id, { method: "DELETE" })
+      .then(function() { renderCourts(); renderCaptainDashboard(); });
+  };
+
+  window.saveGps = function() {
+    var lat = parseFloat(document.getElementById("checkinLat").value);
+    var lng = parseFloat(document.getElementById("checkinLng").value);
+    var radius = parseInt(document.getElementById("checkinRadius").value) || 150;
+    if (!lat || !lng) { alert("Please enter valid coordinates."); return; }
+    fetch("/api/portal/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ checkin_lat: lat, checkin_lng: lng, checkin_radius_meters: radius }) })
+      .then(function() { alert("GPS location saved."); });
   };
 
   // ── JS-escape helper for onclick string attrs ─────────────────────────────

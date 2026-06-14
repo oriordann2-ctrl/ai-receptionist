@@ -900,6 +900,42 @@
     </div>
   </div>
 
+  <!-- Court Check-In (tennis clubs only) -->
+  <div class="card" id="courtsCard" style="display:none;">
+    <div class="card-title">🎾 Court Check-In</div>
+    <div class="card-sub" style="margin-bottom:16px;">Members scan a QR code at the court to check in. GPS confirms they're on-site. Track no-shows in real time.</div>
+
+    <!-- Captain Dashboard -->
+    <div id="captainDashboard" style="margin-bottom:20px;"></div>
+
+    <!-- Courts list + add -->
+    <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;">Your Courts</div>
+    <div id="courtsList" style="margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <input id="newCourtName" type="text" placeholder="Court name e.g. Court 1" style="flex:1;min-width:140px;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
+      <input id="newCourtEboId" type="number" placeholder="EBO Court ID (optional)" style="width:180px;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
+      <button onclick="window.addCourt()" style="padding:9px 18px;background:#1565c0;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">+ Add Court</button>
+    </div>
+
+    <!-- GPS Settings -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f3f4f6;">
+      <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;">Club GPS Location <span style="font-size:12px;font-weight:400;color:#9ca3af;">(used to verify members are on-site)</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input id="checkinLat" type="number" step="any" placeholder="Latitude e.g. 51.8469" style="width:180px;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
+        <input id="checkinLng" type="number" step="any" placeholder="Longitude e.g. -8.3179" style="width:180px;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
+        <input id="checkinRadius" type="number" placeholder="Radius (m)" value="150" style="width:130px;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
+        <button onclick="window.saveGps()" style="padding:9px 18px;background:#374151;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Save GPS</button>
+      </div>
+      <div style="font-size:12px;color:#9ca3af;margin-top:6px;">Find your coordinates at <a href="https://www.latlong.net" target="_blank" style="color:#1565c0;">latlong.net</a> — search your club address.</div>
+    </div>
+
+    <!-- Check-in log -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f3f4f6;">
+      <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;">Today's Check-Ins</div>
+      <div id="checkinLog"></div>
+    </div>
+  </div>
+
   <!-- Your Website -->
   <div class="card" style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">

@@ -16982,19 +16982,35 @@ init();
 
 // GET /api/checkin/club-info/:tenantId — public, returns club info for check-in page
 app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
-  const { tenantId } = req.params;
-  const { data: tenant } = await supabase.from("tenants").select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name").eq("id", tenantId).single();
-  if (!tenant) return res.status(404).json({ error: "Not found" });
-  if (tenant.business_type !== "tennis_club") return res.status(403).json({ error: "Check-in is only available for tennis clubs" });
-  await loadEboConfigFromDb(tenantId);
-  res.json({
-    club_name: tenant.name,
-    logo_url: tenant.logo_url || null,
-    assistant_name: tenant.assistant_name || "Maeve",
-    has_gps: !!(tenant.checkin_lat && tenant.checkin_lng),
-    gps_radius: tenant.checkin_radius_meters || 150,
-    ebo_enabled: !!EBO_CONFIG[tenantId]
-  });
+  try {
+    const { tenantId } = req.params;
+    // Select without assistant_name first; add it if the column exists
+    const { data: tenant, error } = await supabase.from("tenants")
+      .select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
+      .eq("id", tenantId).single();
+    if (error || !tenant) return res.status(404).json({ error: "Not found" });
+    if (tenant.business_type !== "tennis_club") return res.status(403).json({ error: "Check-in is only available for tennis clubs" });
+
+    // Try to get assistant_name separately — safe if column doesn't exist yet
+    let assistantName = "Maeve";
+    try {
+      const { data: nameRow } = await supabase.from("tenants").select("assistant_name").eq("id", tenantId).single();
+      if (nameRow?.assistant_name) assistantName = nameRow.assistant_name;
+    } catch {}
+
+    await loadEboConfigFromDb(tenantId);
+    res.json({
+      club_name: tenant.name,
+      logo_url: tenant.logo_url || null,
+      assistant_name: assistantName,
+      has_gps: !!(tenant.checkin_lat && tenant.checkin_lng),
+      gps_radius: tenant.checkin_radius_meters || 150,
+      ebo_enabled: !!EBO_CONFIG[tenantId]
+    });
+  } catch(err) {
+    console.error("[club-info]", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // POST /api/checkin/validate-member — validate membership number against EBO

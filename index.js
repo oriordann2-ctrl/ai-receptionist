@@ -10024,7 +10024,7 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters")
+    .select("ai_enabled, train_staff_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
@@ -10041,7 +10041,8 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
     business_type:         data?.business_type        ?? "",
     checkin_lat:           data?.checkin_lat          ?? null,
     checkin_lng:           data?.checkin_lng          ?? null,
-    checkin_radius_meters: data?.checkin_radius_meters ?? 150
+    checkin_radius_meters: data?.checkin_radius_meters ?? 150,
+    logo_url:              data?.logo_url             ?? null
   });
 });
 

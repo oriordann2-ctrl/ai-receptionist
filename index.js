@@ -83,7 +83,7 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
 // Trust Render's proxy + Cloudflare's proxy layer
 // Cloudflare sets CF-Connecting-IP with the real visitor IP
-app.set("trust proxy", true);
+app.set("trust proxy", 1); // Render uses a single proxy hop
 app.use((req, _res, next) => {
   const cfIp = req.headers["cf-connecting-ip"];
   if (cfIp) req.ip = cfIp;
@@ -1426,10 +1426,6 @@ async function fetchEboBookings(tenantId, date, endDate, limit = 200) {
   });
   if (!resp.ok) throw new Error(`EBO getBookings HTTP ${resp.status}`);
   const data = await resp.json();
-  if (Array.isArray(data) && data.length > 0) {
-    console.log("[EBO DEBUG] getBookings sample fields:", JSON.stringify(Object.keys(data[0])));
-    console.log("[EBO DEBUG] getBookings sample record:", JSON.stringify(data[0]));
-  }
   return Array.isArray(data) ? data : [];
 }
 

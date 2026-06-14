@@ -530,10 +530,20 @@
     var body = document.getElementById("settingsBody");
     if (!body) return;
     body.innerHTML = ''
+      // Assistant Name
+      + '<div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
+      + '<div class="toggle-label" style="margin-bottom:4px;">Assistant Name</div>'
+      + '<div class="toggle-sub" style="margin-bottom:10px;">The name shown on the chat widget and check-in page. Defaults to Maeve.</div>'
+      + '<input id="assistantNameInput" type="text" placeholder="e.g. Maeve" value="' + (d.assistant_name || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
+      + '<button onclick="saveAssistantName()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save name</button>'
+      + '<span id="assistantNameStatus" style="font-size:13px;color:#6b7280;"></span>'
+      + '</div>'
+      + '</div>'
       // AI Assistant Description
       + '<div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
       + '<div class="toggle-label" style="margin-bottom:4px;">AI Assistant Description</div>'
-      + '<div class="toggle-sub" style="margin-bottom:10px;">Tells Maeve what your business does — makes her responses more accurate and relevant to your customers.</div>'
+      + '<div class="toggle-sub" style="margin-bottom:10px;">Tells the assistant what your business does — makes responses more accurate and relevant to your customers.</div>'
       + '<textarea id="bizDesc" rows="2" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;" placeholder="e.g. a claims solutions provider covering motor, property, and liability insurance">' + (d.business_description || '') + '</textarea>'
       + '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
       + '<button onclick="saveBizDesc()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save description</button>'
@@ -807,6 +817,25 @@
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ business_description: val })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success) throw new Error(d.error || "save failed");
+      if (status) { status.textContent = "Saved ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
+  };
+
+  window.saveAssistantName = function() {
+    var val    = ((document.getElementById("assistantNameInput") || {}).value || "").trim();
+    var status = document.getElementById("assistantNameStatus");
+    if (status) status.textContent = "Saving…";
+    fetch("/api/portal/settings", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ assistant_name: val })
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {

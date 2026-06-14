@@ -10020,7 +10020,7 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
+    .select("ai_enabled, train_staff_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
@@ -10038,7 +10038,8 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
     checkin_lat:           data?.checkin_lat          ?? null,
     checkin_lng:           data?.checkin_lng          ?? null,
     checkin_radius_meters: data?.checkin_radius_meters ?? 150,
-    logo_url:              data?.logo_url             ?? null
+    logo_url:              data?.logo_url             ?? null,
+    assistant_name:        data?.assistant_name       ?? "Maeve"
   });
 });
 
@@ -10074,6 +10075,7 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   if (typeof req.body.checkin_lat === "number" || req.body.checkin_lat === null)            updates.checkin_lat            = req.body.checkin_lat;
   if (typeof req.body.checkin_lng === "number" || req.body.checkin_lng === null)            updates.checkin_lng            = req.body.checkin_lng;
   if (typeof req.body.checkin_radius_meters === "number")  updates.checkin_radius_meters  = req.body.checkin_radius_meters;
+  if (typeof req.body.assistant_name === "string" && req.body.assistant_name.trim()) updates.assistant_name = req.body.assistant_name.trim();
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 
   const tenantId   = req.tenant.tenantId;
@@ -16605,9 +16607,12 @@ function showNoEbo() {
 }
 
 function showWelcomeBack() {
+  var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
+  var assistantName = clubInfo.assistant_name || 'Maeve';
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
     '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
+    '<a href="' + chatUrl + '" style="display:block;margin-top:10px;padding:14px;background:#f0f4f8;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;">💬 Chat with ' + assistantName + '</a>' +
     '<button class="btn btn-secondary" id="wb-switch-btn">Not you? Switch member</button>' +
     '<div id="msg"></div>';
   document.getElementById('wb-checkin-btn').addEventListener('click', function() {
@@ -16641,11 +16646,14 @@ function showMsg(text, type) {
 }
 
 function showSuccess(name) {
+  var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
+  var assistantName = clubInfo.assistant_name || 'Maeve';
   document.getElementById('card').innerHTML =
     '<div class="success-icon">✅</div>' +
     '<div class="success-title">Checked In!</div>' +
     '<div class="success-sub">Welcome, ' + name + '</div>' +
-    '<div class="success-sub" style="margin-top:8px">' + clubInfo.club_name + ' · ' + new Date().toLocaleTimeString('en-IE', {hour:'2-digit',minute:'2-digit'}) + '</div>';
+    '<div class="success-sub" style="margin-top:8px">' + clubInfo.club_name + ' · ' + new Date().toLocaleTimeString('en-IE', {hour:'2-digit',minute:'2-digit'}) + '</div>' +
+    '<a href="' + chatUrl + '" style="display:block;margin-top:20px;padding:14px;background:#f0f4f8;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;">💬 Chat with ' + assistantName + '</a>';
 }
 
 async function handleSubmit() {
@@ -16834,13 +16842,14 @@ init();
 // GET /api/checkin/club-info/:tenantId — public, returns club info for check-in page
 app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
   const { tenantId } = req.params;
-  const { data: tenant } = await supabase.from("tenants").select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url").eq("id", tenantId).single();
+  const { data: tenant } = await supabase.from("tenants").select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name").eq("id", tenantId).single();
   if (!tenant) return res.status(404).json({ error: "Not found" });
   if (tenant.business_type !== "tennis_club") return res.status(403).json({ error: "Check-in is only available for tennis clubs" });
   await loadEboConfigFromDb(tenantId);
   res.json({
     club_name: tenant.name,
     logo_url: tenant.logo_url || null,
+    assistant_name: tenant.assistant_name || "Maeve",
     has_gps: !!(tenant.checkin_lat && tenant.checkin_lng),
     gps_radius: tenant.checkin_radius_meters || 150,
     ebo_enabled: !!EBO_CONFIG[tenantId]

@@ -16567,6 +16567,7 @@ const LS_KEY = 'sprimal_member_' + TENANT_ID;
 
 let clubInfo = null;
 let savedMember = null;
+let currentBooking = null;
 
 async function init() {
   try {
@@ -16616,9 +16617,152 @@ function showWelcomeBack() {
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div id="msg"></div>';
   document.getElementById('wb-checkin-btn').addEventListener('click', function() {
-    submitCheckin(savedMember.membership_number, savedMember.name);
+    validateBookingThenCheckin(savedMember.membership_number, savedMember.name);
   });
   document.getElementById('wb-switch-btn').addEventListener('click', showForm);
+}
+
+async function validateBookingThenCheckin(membershipNumber, memberName) {
+  document.getElementById('card').innerHTML = header() + '<div class="status status-info" style="margin-top:16px;">Checking your booking...</div>';
+  try {
+    var r = await fetch('/api/checkin/validate-booking/' + TENANT_ID + '/' + membershipNumber);
+    var d = await r.json();
+    if (d.ebo_error) { currentBooking = null; submitCheckin(membershipNumber, memberName); return; }
+    if (d.already_checked_in) { showAlreadyCheckedIn(memberName, d.valid_booking); return; }
+    if (!d.valid_booking) { showNoBooking(membershipNumber, memberName, d.message); return; }
+    currentBooking = d.valid_booking;
+    showBookingConfirm(membershipNumber, memberName, d.valid_booking);
+  } catch(e) {
+    currentBooking = null;
+    submitCheckin(membershipNumber, memberName);
+  }
+}
+
+function showBookingConfirm(membershipNumber, memberName, booking) {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="welcome"><div class="welcome-name">Ready to check in!</div>' +
+    '<div class="welcome-sub">Court ' + booking.court_id + ' · ' + booking.display_time + '</div></div>' +
+    '<button class="btn btn-success" id="booking-checkin-btn">✅ Check In</button>' +
+    '<div id="msg"></div>';
+  document.getElementById('booking-checkin-btn').addEventListener('click', function() {
+    document.getElementById('booking-checkin-btn').disabled = true;
+    document.getElementById('booking-checkin-btn').textContent = 'Checking in...';
+    submitCheckin(membershipNumber, memberName);
+  });
+}
+
+function showAlreadyCheckedIn(memberName, booking) {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="status status-error" style="margin-top:16px;">You\'ve already checked in for Court ' + booking.court_id + ' at ' + booking.display_time + '.</div>' +
+    '<div class="welcome-sub" style="margin-top:12px;text-align:center;">See you on the court, ' + memberName.split(' ')[0] + '!</div>';
+}
+
+function showNoBooking(membershipNumber, memberName, message) {
+  var msg = message || 'No booking found for the current time slot.';
+  document.getElementById('card').innerHTML = header() +
+    '<div class="status status-error" style="margin-top:16px;">' + msg + '</div>' +
+    '<button class="btn btn-secondary" id="delegate-btn" style="margin-top:16px;">Check in a junior as delegate</button>' +
+    '<div id="msg"></div>';
+  document.getElementById('delegate-btn').addEventListener('click', function() {
+    showDelegateForm(membershipNumber);
+  });
+}
+
+function showDelegateForm(adultMembershipNumber) {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="welcome"><div class="welcome-name">Junior Check-In</div>' +
+    '<div class="welcome-sub">Enter the junior\'s membership number</div></div>' +
+    '<label for="jnum">Junior Membership Number</label>' +
+    '<input type="number" id="jnum" placeholder="e.g. 1234" inputmode="numeric" autocomplete="off">' +
+    '<button class="btn btn-primary" id="lookup-junior-btn">Look Up</button>' +
+    '<div id="msg"></div>';
+  document.getElementById('jnum').focus();
+  document.getElementById('lookup-junior-btn').addEventListener('click', function() { lookupJunior(adultMembershipNumber); });
+  document.getElementById('jnum').addEventListener('keydown', function(e) { if (e.key === 'Enter') lookupJunior(adultMembershipNumber); });
+}
+
+async function lookupJunior(adultMembershipNumber) {
+  var juniorNumber = parseInt((document.getElementById('jnum') || {}).value || '');
+  if (!juniorNumber) { showMsg('Please enter a membership number.', 'error'); return; }
+  var btn = document.getElementById('lookup-junior-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Looking up...'; }
+  try {
+    var r = await fetch('/api/checkin/validate-booking/' + TENANT_ID + '/' + juniorNumber);
+    var d = await r.json();
+    if (d.already_checked_in) {
+      showMsg('Member #' + juniorNumber + ' has already checked in for their ' + d.valid_booking.display_time + ' booking.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Look Up'; }
+      return;
+    }
+    if (!d.valid_booking) {
+      showMsg(d.message || ('No active booking found for member #' + juniorNumber + '.'), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Look Up'; }
+      return;
+    }
+    showDelegateConfirm(adultMembershipNumber, juniorNumber, d.member_name, d.valid_booking);
+  } catch(e) {
+    showMsg('Network error — please try again.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Look Up'; }
+  }
+}
+
+function showDelegateConfirm(adultMembershipNumber, juniorNumber, juniorName, booking) {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="welcome"><div class="welcome-name">' + juniorName + '</div>' +
+    '<div class="welcome-sub">Court ' + booking.court_id + ' · ' + booking.display_time + '</div></div>' +
+    '<div class="status status-info" style="margin:16px 0;font-size:14px;text-align:left;">⚠️ Club policy: Under-18 players must have an adult present. By confirming, you agree to remain present for this game.</div>' +
+    '<button class="btn btn-success" id="confirm-delegate-btn">✅ Confirm & Check In</button>' +
+    '<button class="btn btn-secondary" id="back-delegate-btn">Check in a different junior</button>' +
+    '<div id="msg"></div>';
+  document.getElementById('confirm-delegate-btn').addEventListener('click', function() {
+    document.getElementById('confirm-delegate-btn').disabled = true;
+    document.getElementById('confirm-delegate-btn').textContent = 'Checking in...';
+    submitDelegateCheckin(adultMembershipNumber, juniorNumber, juniorName, booking);
+  });
+  document.getElementById('back-delegate-btn').addEventListener('click', function() { showDelegateForm(adultMembershipNumber); });
+}
+
+async function submitDelegateCheckin(adultMembershipNumber, juniorNumber, juniorName, booking) {
+  navigator.geolocation.getCurrentPosition(
+    async function(pos) { await doSubmitDelegate(adultMembershipNumber, juniorNumber, juniorName, booking, pos.coords.latitude, pos.coords.longitude); },
+    async function()    { await doSubmitDelegate(adultMembershipNumber, juniorNumber, juniorName, booking, null, null); },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+  );
+}
+
+async function doSubmitDelegate(adultMembershipNumber, juniorNumber, juniorName, booking, lat, lng) {
+  try {
+    var cr = await fetch('/api/checkin/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: TENANT_ID, membership_number: juniorNumber, member_name: juniorName,
+        gps_lat: lat, gps_lng: lng,
+        booking_time: booking.time, booking_court_id: String(booking.court_id),
+        checked_in_by: adultMembershipNumber, is_delegate: true
+      })
+    });
+    var cd = await cr.json();
+    if (!cr.ok) {
+      showMsg(cd.error || 'Check-in failed.', 'error');
+      var btn = document.getElementById('confirm-delegate-btn');
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
+      return;
+    }
+    showDelegateSuccess(adultMembershipNumber, juniorName, booking);
+  } catch(e) {
+    showMsg('Network error — please try again.', 'error');
+  }
+}
+
+function showDelegateSuccess(adultMembershipNumber, juniorName, booking) {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="success-icon">✅</div>' +
+    '<div class="success-title">Checked In!</div>' +
+    '<div class="success-sub">' + juniorName + '</div>' +
+    '<div class="success-sub" style="margin-top:4px;">Court ' + booking.court_id + ' · ' + booking.display_time + '</div>' +
+    '<button class="btn btn-secondary" id="another-junior-btn" style="margin-top:20px;">Check in another junior</button>';
+  document.getElementById('another-junior-btn').addEventListener('click', function() { showDelegateForm(adultMembershipNumber); });
 }
 
 function showForm() {
@@ -16648,12 +16792,19 @@ function showMsg(text, type) {
 function showSuccess(name) {
   var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
   var assistantName = clubInfo.assistant_name || 'Maeve';
+  var memberNum = savedMember ? savedMember.membership_number : null;
   document.getElementById('card').innerHTML =
     '<div class="success-icon">✅</div>' +
     '<div class="success-title">Checked In!</div>' +
     '<div class="success-sub">Welcome, ' + name + '</div>' +
     '<div class="success-sub" style="margin-top:8px">' + clubInfo.club_name + ' · ' + new Date().toLocaleTimeString('en-IE', {hour:'2-digit',minute:'2-digit'}) + '</div>' +
-    '<a href="' + chatUrl + '" style="display:block;margin-top:20px;padding:14px;background:#f0f4f8;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;">💬 Chat with ' + assistantName + '</a>';
+    (memberNum ? '<button class="btn btn-secondary" id="junior-delegate-btn" style="margin-top:20px;">Check in a junior</button>' : '') +
+    '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>';
+  if (memberNum) {
+    document.getElementById('junior-delegate-btn').addEventListener('click', function() {
+      showDelegateForm(memberNum);
+    });
+  }
 }
 
 async function handleSubmit() {
@@ -16761,7 +16912,7 @@ async function verifyAndSubmit(membershipNumber, memberName) {
       return;
     }
     saveMember({ membership_number: membershipNumber, name: d.name });
-    submitCheckin(membershipNumber, d.name);
+    validateBookingThenCheckin(membershipNumber, d.name);
   } catch(e) {
     showMsg('Network error — please try again.', 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Verify & Check In'; }
@@ -16785,7 +16936,7 @@ async function autoVerifyFromLink(membershipNumber, code) {
       return;
     }
     saveMember({ membership_number: membershipNumber, name: d.name });
-    submitCheckin(membershipNumber, d.name);
+    validateBookingThenCheckin(membershipNumber, d.name);
   } catch(e) {
     document.getElementById('card').innerHTML = header() + '<div class="status status-error" style="margin-top:16px;">Network error. Please scan the QR code again.</div>';
   }
@@ -16796,17 +16947,9 @@ async function submitCheckin(membershipNumber, memberName) {
   navigator.geolocation.getCurrentPosition(async function(pos) {
     showMsg('Checking in...', 'info');
     try {
-      var cr = await fetch('/api/checkin/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenant_id: TENANT_ID,
-          membership_number: membershipNumber,
-          member_name: memberName,
-          gps_lat: pos.coords.latitude,
-          gps_lng: pos.coords.longitude
-        })
-      });
+      var body = { tenant_id: TENANT_ID, membership_number: membershipNumber, member_name: memberName, gps_lat: pos.coords.latitude, gps_lng: pos.coords.longitude };
+      if (currentBooking) { body.booking_time = currentBooking.time; body.booking_court_id = String(currentBooking.court_id); }
+      var cr = await fetch('/api/checkin/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       var cd = await cr.json();
       if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
       showSuccess(memberName);
@@ -16820,11 +16963,9 @@ async function submitCheckin(membershipNumber, memberName) {
 
 async function submitCheckinNoGps(membershipNumber, memberName) {
   try {
-    var cr = await fetch('/api/checkin/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: membershipNumber, member_name: memberName, gps_lat: null, gps_lng: null })
-    });
+    var body = { tenant_id: TENANT_ID, membership_number: membershipNumber, member_name: memberName, gps_lat: null, gps_lng: null };
+    if (currentBooking) { body.booking_time = currentBooking.time; body.booking_court_id = String(currentBooking.court_id); }
+    var cr = await fetch('/api/checkin/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var cd = await cr.json();
     if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
     showSuccess(memberName);
@@ -16929,10 +17070,79 @@ app.post("/api/checkin/verify-otp", async (req, res) => {
   res.json({ ok: true, name: stored.name });
 });
 
+// GET /api/checkin/validate-booking/:tenantId/:membershipNumber
+app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req, res) => {
+  const { tenantId, membershipNumber } = req.params;
+  const memberNum = parseInt(membershipNumber);
+  if (!memberNum) return res.status(400).json({ error: "Invalid membership number" });
+  try {
+    await loadEboConfigFromDb(tenantId);
+    const cfg = EBO_CONFIG[tenantId];
+    if (!cfg) return res.json({ valid_booking: null, already_checked_in: false, member_name: null, message: "Check-in is not configured for this club." });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const bookings = await fetchEboBookings(tenantId, today, today, 500);
+    const mine = bookings.filter(b =>
+      Array.isArray(b.bookedMembers) && b.bookedMembers.some(m => Number(m.membership_number) === memberNum)
+    );
+
+    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+    const validBooking = mine.find(b => {
+      const hhmm = String(b.time || "").slice(11, 16);
+      if (!hhmm || !hhmm.includes(":")) return false;
+      const [bh, bm] = hhmm.split(":").map(Number);
+      const bMins = bh * 60 + bm;
+      return nowMins >= bMins - 15 && nowMins <= bMins + 30;
+    });
+
+    if (!validBooking) {
+      const next = mine.find(b => {
+        const hhmm = String(b.time || "").slice(11, 16);
+        if (!hhmm || !hhmm.includes(":")) return false;
+        const [bh, bm] = hhmm.split(":").map(Number);
+        return bh * 60 + bm > nowMins + 30;
+      });
+      const msg = next
+        ? `Check-in opens at ${String(next.time || "").slice(11, 16)} (15 minutes before your booking).`
+        : "No booking found for the current time slot.";
+      return res.json({ valid_booking: null, already_checked_in: false, member_name: null, message: msg });
+    }
+
+    const member = (validBooking.bookedMembers || []).find(m => Number(m.membership_number) === memberNum);
+    const memberName = member ? `${member.first_name} ${member.last_name}`.trim() : `Member #${memberNum}`;
+    const displayTime = String(validBooking.time || "").slice(11, 16);
+    const booking = { court_id: validBooking.court_id, time: validBooking.time, display_time: displayTime };
+
+    const { data: existing } = await supabase.from("court_checkins")
+      .select("id").eq("tenant_id", tenantId).eq("membership_number", memberNum)
+      .eq("booking_time", validBooking.time).eq("booking_court_id", String(validBooking.court_id))
+      .maybeSingle();
+
+    if (existing) return res.json({ valid_booking: booking, already_checked_in: true, member_name: memberName, message: `Already checked in for Court ${validBooking.court_id} at ${displayTime}.` });
+
+    return res.json({ valid_booking: booking, already_checked_in: false, member_name: memberName, message: null });
+  } catch(err) {
+    console.error("[validate-booking]", err.message);
+    return res.json({ valid_booking: null, already_checked_in: false, member_name: null, message: null, ebo_error: true });
+  }
+});
+
 // POST /api/checkin/submit — record a check-in
 app.post("/api/checkin/submit", async (req, res) => {
-  const { tenant_id, membership_number, member_name, gps_lat, gps_lng } = req.body;
+  const { tenant_id, membership_number, member_name, gps_lat, gps_lng, booking_time, booking_court_id, checked_in_by, is_delegate } = req.body;
   if (!tenant_id || !membership_number || !member_name) return res.status(400).json({ error: "Missing fields" });
+
+  // Duplicate booking check
+  if (booking_time && booking_court_id) {
+    const { data: existing } = await supabase.from("court_checkins")
+      .select("id").eq("tenant_id", tenant_id).eq("membership_number", membership_number)
+      .eq("booking_time", booking_time).eq("booking_court_id", String(booking_court_id))
+      .maybeSingle();
+    if (existing) {
+      const t = String(booking_time).slice(11, 16);
+      return res.status(409).json({ error: `Already checked in for Court ${booking_court_id} at ${t}.` });
+    }
+  }
 
   // GPS validation — if tenant has GPS set and member provided location, check distance
   let gps_verified = false;
@@ -16951,10 +17161,15 @@ app.post("/api/checkin/submit", async (req, res) => {
 
   const { error } = await supabase.from("court_checkins").insert({
     tenant_id, membership_number, member_name,
-    gps_lat, gps_lng, gps_distance_meters, gps_verified
+    gps_lat, gps_lng, gps_distance_meters, gps_verified,
+    booking_time: booking_time || null,
+    booking_court_id: booking_court_id ? String(booking_court_id) : null,
+    checked_in_by: checked_in_by || null,
+    is_delegate: is_delegate || false
   });
   if (error) return res.status(500).json({ error: "Failed to record check-in" });
-  console.log(`[checkin] ${member_name} (#${membership_number}) checked in at ${tenant_id} — GPS ${gps_verified ? gps_distance_meters + "m" : "not verified"}`);
+  const note = checked_in_by ? ` (delegated by #${checked_in_by})` : "";
+  console.log(`[checkin] ${member_name} (#${membership_number}) checked in at ${tenant_id} — GPS ${gps_verified ? gps_distance_meters + "m" : "not verified"}${note}`);
   res.json({ ok: true });
 });
 

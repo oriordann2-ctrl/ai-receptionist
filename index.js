@@ -17113,18 +17113,43 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
       Array.isArray(b.bookedMembers) && b.bookedMembers.some(m => Number(m.membership_number) === memberNum)
     );
 
+    const slotMins = cfg.slotMinutes || 60;
     const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
     const [nowH, nowM] = irishTime.split(":").map(Number);
     const nowMins = nowH * 60 + nowM;
+
+    // Window: opens 15 mins before booking, closes at end of slot duration.
+    // This ensures a member who checked in at 7:51 for an 8:00 booking still sees
+    // "already checked in" at 8:31 rather than "window closed".
     const validBooking = mine.find(b => {
       const hhmm = String(b.time || "").slice(11, 16);
       if (!hhmm || !hhmm.includes(":")) return false;
       const [bh, bm] = hhmm.split(":").map(Number);
       const bMins = bh * 60 + bm;
-      return nowMins >= bMins - 15 && nowMins <= bMins + 30;
+      return nowMins >= bMins - 15 && nowMins <= bMins + slotMins;
     });
 
     if (!validBooking) {
+      // No active window — but check if they already have a check-in for any of their
+      // bookings today whose slot is still reasonably recent (within the last slotMins).
+      // Prevents "window closed" when the member already checked in earlier in the same slot.
+      const recentSlot = mine.find(b => {
+        const hhmm = String(b.time || "").slice(11, 16);
+        if (!hhmm || !hhmm.includes(":")) return false;
+        const [bh, bm] = hhmm.split(":").map(Number);
+        const bMins = bh * 60 + bm;
+        return nowMins > bMins + slotMins && nowMins <= bMins + slotMins * 2;
+      });
+      if (recentSlot) {
+        const { data: recentExisting } = await supabase.from("court_checkins")
+          .select("id, booking_court_id, booking_time").eq("tenant_id", tenantId).eq("membership_number", memberNum)
+          .eq("booking_time", recentSlot.time).maybeSingle();
+        if (recentExisting) {
+          const displayTime = String(recentExisting.booking_time || "").slice(11, 16);
+          return res.json({ valid_booking: { court_id: recentExisting.booking_court_id, time: recentExisting.booking_time, display_time: displayTime }, already_checked_in: true, member_name: null, message: `Already checked in for Court ${recentExisting.booking_court_id} at ${displayTime}.` });
+        }
+      }
+
       let msg;
       if (mine.length === 0) {
         msg = "You have no bookings at the club today.";
@@ -17156,8 +17181,7 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
     // Block if already checked in for ANY court at this timeslot — one slot, one check-in
     const { data: existing } = await supabase.from("court_checkins")
       .select("id, booking_court_id").eq("tenant_id", tenantId).eq("membership_number", memberNum)
-      .eq("booking_time", validBooking.time)
-      .maybeSingle();
+      .eq("booking_time", validBooking.time).maybeSingle();
 
     if (existing) return res.json({ valid_booking: booking, already_checked_in: true, member_name: memberName, message: `Already checked in for Court ${existing.booking_court_id || validBooking.court_id} at ${displayTime}.` });
 

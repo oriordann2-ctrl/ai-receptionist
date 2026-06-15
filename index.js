@@ -10520,15 +10520,15 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
 
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name, logo_url, website, brand_color")
+    .select("id, name, logo_url, website, brand_color, assistant_name")
     .eq("id", tenantId)
     .maybeSingle();
 
   if (error || !data) {
-    return res.json({ id: tenantId, name: null, logo_url: null, brand_color: null });
+    return res.json({ id: tenantId, name: null, logo_url: null, brand_color: null, assistant_name: null });
   }
 
-  res.json({ id: data.id, name: data.name, logo_url: data.logo_url || null, brand_color: data.brand_color || null });
+  res.json({ id: data.id, name: data.name, logo_url: data.logo_url || null, brand_color: data.brand_color || null, assistant_name: data.assistant_name || null });
 });
 
 // ── Favicon proxy — serves tenant logo through our own domain ─────────────────

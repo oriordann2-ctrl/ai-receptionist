@@ -331,6 +331,11 @@
     fetch(BACKEND + "/api/tenant-config/" + clubId)
       .then(function (r) { return r.json(); })
       .then(function (config) {
+        if (config.assistant_name) {
+          botName = config.assistant_name;
+          var nameEl = document.getElementById("sprimal-header-name");
+          if (nameEl) nameEl.textContent = config.assistant_name;
+        }
         if (config.name) {
           clubName = config.name;
           var sub = document.getElementById("sprimal-header-sub");

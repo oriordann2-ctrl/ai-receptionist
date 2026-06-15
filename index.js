@@ -6810,8 +6810,8 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       setCrawlProgress(tenantId, 100, "🏁 Your assistant is ready!", true);
     }
 
-    // Send welcome email — only on first signup crawl (email + portalPassword are passed)
-    if (email && portalPassword && process.env.RESEND_API_KEY) {
+    // Send welcome email — only on first signup crawl (email is passed)
+    if (email && process.env.RESEND_API_KEY) {
       await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -6823,7 +6823,7 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
           to: email,
           bcc: ["hello@sprimal.com"],
           subject: `Your Sprimal assistant is ready 🎉`,
-          html: buildWelcomeEmailHtml({ name, email, portalPassword, website, imported, tenantId })
+          html: buildWelcomeEmailHtml({ name, email, website, imported, tenantId })
         })
       }).catch(err => console.error("[crawl] Welcome email error:", err.message));
 
@@ -6978,12 +6978,41 @@ app.get("/verify-email/:token", async (req, res) => {
     ));
   }
 
-  // Generate portal password + mark verified
-  const portalPassword = crypto.randomBytes(5).toString("hex");
+  // Serve the "create your password" page — crawl and login happen after they submit
+  res.send(buildSetPasswordPage(token, tenant.name, tenant.email));
+});
+
+// ── POST /verify-email/:token — set password, login, start crawl ──────────────
+app.post("/verify-email/:token", async (req, res) => {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("*")
+    .eq("email_verification_token", token)
+    .maybeSingle();
+
+  if (!tenant) return res.status(400).send("Link expired or already used. Please sign up again.");
+
+  if (tenant.email_verification_expires_at && new Date(tenant.email_verification_expires_at) < new Date()) {
+    await supabase.from("tenants").delete().eq("id", tenant.id);
+    return res.status(400).send("This link expired after 24 hours. Please sign up again.");
+  }
+
+  // Server-side password validation
+  const COMMON_PASSWORDS = ["password","password1","password12","password123","123456789","12345678","qwerty123","iloveyou","admin1234","letmein1","welcome1","monkey123","dragon123","sunshine1","princess1","football1","abc123456","passw0rd1","master123","shadow123"];
+  const pwError = (msg) => res.send(buildSetPasswordPage(token, tenant.name, tenant.email, msg));
+
+  if (!password || password.length < 12) return pwError("Password must be at least 12 characters.");
+  if (password !== confirmPassword) return pwError("Passwords don't match.");
+  if (COMMON_PASSWORDS.includes(password.toLowerCase())) return pwError("That password is too common — please choose something more unique.");
+
+  // Mark verified, store password
   await supabase.from("tenants").update({
     email_verified: true,
     email_verification_token: null,
-    portal_password: portalPassword
+    portal_password: password
   }).eq("id", tenant.id);
 
   // Auto-login cookie
@@ -7000,19 +7029,101 @@ app.get("/verify-email/:token", async (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
 
-  console.log(`[verify] Email verified for ${tenant.id} — starting background crawl`);
+  console.log(`[verify] Password set for ${tenant.id} — starting background crawl`);
 
-  // Fire-and-forget crawl
   startBackgroundCrawl({
     tenantId: tenant.id,
     name: tenant.name,
     website: tenant.website,
-    email: tenant.email,
-    portalPassword
+    email: tenant.email
   });
 
   res.redirect("/portal/dashboard?new=1");
 });
+
+function buildSetPasswordPage(token, name, email, errorMsg = "") {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprimal — Create your password</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; }
+    .brand-panel { flex: 1; background: #0f172a; display: flex; flex-direction: column; justify-content: center; padding: 64px 56px; color: white; }
+    .brand-logo { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 32px; }
+    .brand-logo span { color: #4f76f6; }
+    .brand-tagline { font-size: 22px; font-weight: 700; line-height: 1.35; margin-bottom: 16px; }
+    .brand-sub { font-size: 15px; color: #94a3b8; line-height: 1.6; }
+    .form-panel { width: 480px; display: flex; flex-direction: column; justify-content: center; padding: 64px 56px; background: white; }
+    @media (max-width: 768px) { .brand-panel { display: none; } .form-panel { width: 100%; padding: 40px 28px; } }
+    .form-title { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+    .form-sub { font-size: 14px; color: #64748b; margin-bottom: 28px; line-height: 1.5; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    input[type=password] { width: 100%; padding: 11px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.15s; margin-bottom: 18px; }
+    input[type=password]:focus { border-color: #4f76f6; }
+    .strength-bar-wrap { height: 4px; background: #f1f5f9; border-radius: 2px; margin-top: -14px; margin-bottom: 18px; }
+    .strength-bar { height: 4px; border-radius: 2px; width: 0; transition: width 0.2s, background 0.2s; }
+    .strength-label { font-size: 12px; margin-top: 4px; margin-bottom: 14px; min-height: 16px; }
+    .btn { width: 100%; padding: 13px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+    .btn:hover { background: #1d4ed8; }
+    .error { background: #fef2f2; border: 1px solid #fca5a5; color: #dc2626; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; }
+    .rule { font-size: 12px; color: #94a3b8; margin-top: 14px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="brand-panel">
+    <div class="brand-logo">Sprim<span>al</span></div>
+    <div class="brand-tagline">Almost there, ${name}.</div>
+    <div class="brand-sub">Create a password to secure your portal. You'll use it every time you log in to manage your AI assistant.</div>
+  </div>
+  <div class="form-panel">
+    <div class="form-title">Create your password</div>
+    <div class="form-sub">Setting up your Sprimal account for <strong>${email}</strong></div>
+    ${errorMsg ? `<div class="error">${errorMsg}</div>` : ""}
+    <form method="POST" action="/verify-email/${token}" id="pwForm">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="At least 12 characters" autocomplete="new-password" required />
+      <div class="strength-bar-wrap"><div class="strength-bar" id="strengthBar"></div></div>
+      <div class="strength-label" id="strengthLabel"></div>
+      <label for="confirmPassword">Confirm password</label>
+      <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Repeat your password" autocomplete="new-password" required />
+      <button type="submit" class="btn">Create password &amp; open portal &rarr;</button>
+      <div class="rule">Minimum 12 characters. No complexity rules — just make it something you'll remember and wouldn't share.</div>
+    </form>
+  </div>
+  <script>
+    var COMMON = ["password","password1","password12","password123","123456789","12345678","qwerty123","iloveyou","admin1234","letmein1","welcome1","monkey123"];
+    var bar = document.getElementById("strengthBar");
+    var label = document.getElementById("strengthLabel");
+    document.getElementById("password").addEventListener("input", function() {
+      var v = this.value;
+      var score = 0;
+      if (v.length >= 12) score++;
+      if (v.length >= 16) score++;
+      if (/[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
+      if (/[0-9]/.test(v)) score++;
+      if (/[^A-Za-z0-9]/.test(v)) score++;
+      if (COMMON.includes(v.toLowerCase())) score = 0;
+      var colors = ["#ef4444","#f59e0b","#f59e0b","#22c55e","#16a34a","#15803d"];
+      var labels = ["","Too weak","Weak","Good","Strong","Very strong"];
+      var labelColors = ["","#ef4444","#f59e0b","#16a34a","#15803d","#15803d"];
+      bar.style.width = (v.length ? Math.min(score * 20 + 5, 100) : 0) + "%";
+      bar.style.background = colors[score] || colors[0];
+      label.textContent = v.length ? (labels[score] || "") : "";
+      label.style.color = labelColors[score] || "";
+    });
+    document.getElementById("pwForm").addEventListener("submit", function(e) {
+      var p = document.getElementById("password").value;
+      var c = document.getElementById("confirmPassword").value;
+      if (p.length < 12) { e.preventDefault(); alert("Password must be at least 12 characters."); return; }
+      if (p !== c) { e.preventDefault(); alert("Passwords don't match."); return; }
+    });
+  </script>
+</body>
+</html>`;
+}
 
 // ── Verification email builder ────────────────────────────────────────────────
 
@@ -7152,7 +7263,7 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:12px;">
           <tr>
             <td width="28" valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#2563eb" style="background-color:#2563eb;border-radius:50%;width:24px;height:24px;"><span style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;color:#fff;display:block;width:24px;height:24px;line-height:24px;text-align:center;">1</span></td></tr></table></td>
-            <td style="padding-left:12px;"><p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;margin:0;line-height:1.5;"><strong>Log in</strong> at <a href="https://app.sprimal.com/portal" style="color:#1e40af;">app.sprimal.com/portal</a> using the credentials below.</p></td>
+            <td style="padding-left:12px;"><p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;margin:0;line-height:1.5;"><strong>Log in</strong> at <a href="https://app.sprimal.com/portal" style="color:#1e40af;">app.sprimal.com/portal</a> with your email and the password you just created.</p></td>
           </tr>
         </table>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:12px;">
@@ -7188,8 +7299,8 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
             <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#0f1f3d;margin:0 0 12px 0;">&#128274; Your login details</p>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
               <tr><td style="padding-bottom:7px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;"><strong>URL:</strong>&nbsp;&nbsp;<a href="https://app.sprimal.com/portal" style="color:#1e40af;text-decoration:none;">https://app.sprimal.com/portal</a></td></tr>
-              <tr><td style="padding-bottom:7px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;"><strong>Email:</strong>&nbsp;&nbsp;${email}</td></tr>
-              <tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;"><strong>Password:</strong>&nbsp;&nbsp;${portalPassword}</td></tr>
+              <tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;"><strong>Email:</strong>&nbsp;&nbsp;${email}</td></tr>
+              <tr><td style="padding-top:7px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;"><strong>Password:</strong>&nbsp;&nbsp;The password you created when you verified your email.</td></tr>
             </table>
           </td></tr>
         </table>

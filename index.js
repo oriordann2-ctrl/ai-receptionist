@@ -17332,6 +17332,9 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
     // Build a set of booking_times that have at least one check-in.
     // If anyone on the booking checked in, all members on that booking are credited.
     const checkedInTimes = new Set((checkins || []).map(c => String(c.booking_time || "").replace(" ", "T").slice(0, 16)));
+    console.log("[noshow-debug] raw checkins sample:", (checkins || []).slice(0, 3).map(c => c.booking_time));
+    console.log("[noshow-debug] checkedInTimes:", [...checkedInTimes].slice(0, 5));
+    console.log("[noshow-debug] first EBO booking time raw:", bookings[0]?.time, "→ normalised:", String(bookings[0]?.time || "").replace(" ", "T").slice(0, 16));
 
     // For "today" only count slots that have already started — future bookings can't be no-shows yet
     const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());

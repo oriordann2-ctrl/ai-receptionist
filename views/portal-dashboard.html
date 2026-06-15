@@ -994,11 +994,29 @@
     </div>
   </div>
 
-  <!-- Welcome card -->
+  <!-- Home shortcut tiles -->
   <div id="homeOverview" style="margin-top:8px;">
-    <div class="card" style="background:linear-gradient(135deg,#eff6ff,#fff);border:1.5px solid #bfdbfe;">
-      <div style="font-size:15px;font-weight:700;color:#1e3a8a;margin-bottom:6px;">Welcome to your Sprimal portal</div>
-      <div style="font-size:14px;color:#3b4a6b;line-height:1.6;">Use the navigation on the left to manage your AI receptionist — embed it on your site, review conversations, update your knowledge base, and track performance. Need help? Head to <a href="#help" onclick="location.hash='help'" style="color:#1d4ed8;font-weight:600;">Help &amp; Tutorials</a>.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
+      <a href="#conversations" onclick="location.hash='conversations'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
+        <span style="font-size:28px;">💬</span>
+        <div><div style="font-size:14px;font-weight:700;color:#111827;">Conversations</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Recent chats &amp; leads</div></div>
+      </a>
+      <a href="#receptionist" onclick="location.hash='receptionist'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
+        <span style="font-size:28px;">🤖</span>
+        <div><div style="font-size:14px;font-weight:700;color:#111827;">Receptionist</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Widget, QR codes &amp; embed</div></div>
+      </a>
+      <a href="#knowledge" onclick="location.hash='knowledge'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
+        <span style="font-size:28px;">📚</span>
+        <div><div style="font-size:14px;font-weight:700;color:#111827;">Knowledge</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Documents &amp; agents</div></div>
+      </a>
+      <a href="#analytics" onclick="location.hash='analytics'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
+        <span style="font-size:28px;">📊</span>
+        <div><div style="font-size:14px;font-weight:700;color:#111827;">Analytics</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Trends &amp; top topics</div></div>
+      </a>
+      <a href="#help" onclick="location.hash='help'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
+        <span style="font-size:28px;">❓</span>
+        <div><div style="font-size:14px;font-weight:700;color:#111827;">Help</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Tutorials &amp; guides</div></div>
+      </a>
     </div>
   </div>
 

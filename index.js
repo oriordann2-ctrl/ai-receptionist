@@ -17352,11 +17352,8 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
       const wasCheckedIn = checkedInTimes.has(bookingTime);
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
-        if (!key || !/^\d+$/.test(String(key)) || Number(key) <= 0) continue;
-        if (!memberMap[key]) {
-          console.log("[noshow-debug] member:", key, JSON.stringify(m.name), Object.keys(m).join(","));
-          memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0 };
-        }
+        if (!key || m.player === 1) continue;
+        if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0 };
         memberMap[key].booked++;
         if (!wasCheckedIn) memberMap[key].noshows++;
       }

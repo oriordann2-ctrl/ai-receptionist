@@ -900,6 +900,9 @@
     <a href="#settings" data-nav="settings" class="nav-item" title="Settings &amp; Billing">
       <span class="nav-icon">⚙️</span><span class="nav-label">Settings</span>
     </a>
+    <a href="#help" data-nav="help" class="nav-item" title="Help &amp; Tutorials">
+      <span class="nav-icon">❓</span><span class="nav-label">Help</span>
+    </a>
   </nav>
   <div class="sidebar-footer">
     <div class="sidebar-tenant" id="navClub">TENANT_NAME_PLACEHOLDER</div>
@@ -991,25 +994,11 @@
     </div>
   </div>
 
-  <!-- Home overview placeholder (Stage 2 will replace with KPI tiles) -->
+  <!-- Welcome card -->
   <div id="homeOverview" style="margin-top:8px;">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
-      <a href="#conversations" onclick="location.hash='conversations'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
-        <span style="font-size:28px;">💬</span>
-        <div><div style="font-size:14px;font-weight:700;color:#111827;">Conversations</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Recent chats &amp; leads</div></div>
-      </a>
-      <a href="#receptionist" onclick="location.hash='receptionist'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
-        <span style="font-size:28px;">🤖</span>
-        <div><div style="font-size:14px;font-weight:700;color:#111827;">Receptionist</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Widget, QR codes &amp; embed</div></div>
-      </a>
-      <a href="#knowledge" onclick="location.hash='knowledge'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
-        <span style="font-size:28px;">📚</span>
-        <div><div style="font-size:14px;font-weight:700;color:#111827;">Knowledge</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Documents &amp; agents</div></div>
-      </a>
-      <a href="#analytics" onclick="location.hash='analytics'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
-        <span style="font-size:28px;">📊</span>
-        <div><div style="font-size:14px;font-weight:700;color:#111827;">Analytics</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Trends &amp; top topics</div></div>
-      </a>
+    <div class="card" style="background:linear-gradient(135deg,#eff6ff,#fff);border:1.5px solid #bfdbfe;">
+      <div style="font-size:15px;font-weight:700;color:#1e3a8a;margin-bottom:6px;">Welcome to your Sprimal portal</div>
+      <div style="font-size:14px;color:#3b4a6b;line-height:1.6;">Use the navigation on the left to manage your AI receptionist — embed it on your site, review conversations, update your knowledge base, and track performance. Need help? Head to <a href="#help" onclick="location.hash='help'" style="color:#1d4ed8;font-weight:600;">Help &amp; Tutorials</a>.</div>
     </div>
   </div>
 
@@ -1125,41 +1114,6 @@
       <div id="checkinLog"></div>
     </div>
 
-    <!-- No-show report -->
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f3f4f6;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-        <div style="font-size:14px;font-weight:600;color:#374151;">No-Show Report</div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;" id="noshow-period-btns">
-          <button class="noshow-period-btn active" onclick="setNoshowPeriod('day',this)">Today</button>
-          <button class="noshow-period-btn" onclick="setNoshowPeriod('week',this)">7 days</button>
-          <button class="noshow-period-btn" onclick="setNoshowPeriod('month',this)">Month</button>
-          <button class="noshow-period-btn" onclick="setNoshowPeriod('3m',this)">3 months</button>
-        </div>
-      </div>
-      <div id="noshow-metrics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;"></div>
-      <div id="noshow-table"></div>
-    </div>
-  </div>
-
-  <!-- Your Website -->
-  <div class="card" style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-      <div>
-        <div class="card-title" style="color:#14532d;">🌐 Your Sprimal Website</div>
-        <div style="font-size:13px;color:#166534;margin-bottom:14px;line-height:1.5;">A free website for your business — built from your knowledge base, with your AI assistant built in.</div>
-        <code style="font-size:13px;background:#dcfce7;color:#14532d;padding:6px 12px;border-radius:6px;display:inline-block;margin-bottom:14px;">app.sprimal.com/sites/TENANT_ID_PLACEHOLDER</code>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <a href="https://app.sprimal.com/sites/TENANT_ID_PLACEHOLDER" target="_blank"
-        style="display:inline-block;background:#14532d;color:white;text-decoration:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:700;">
-        View website →
-      </a>
-      <button onclick="navigator.clipboard.writeText('https://app.sprimal.com/sites/TENANT_ID_PLACEHOLDER').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy link',1500)})"
-        style="background:white;border:1.5px solid #bbf7d0;color:#14532d;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">
-        Copy link
-      </button>
-    </div>
   </div>
 
 </section><!-- /receptionist -->
@@ -1169,6 +1123,21 @@
   <div class="view-header">
     <h1 class="view-title">📊 Analytics</h1>
     <p class="view-sub">Conversations, trends and top topics — last 30 days.</p>
+  </div>
+
+  <!-- No-Show Report (tennis clubs only — shown by portal.js loadCourts) -->
+  <div class="card" id="noshowCard" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+      <div class="card-title" style="margin-bottom:0;">No-Show Report</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;" id="noshow-period-btns">
+        <button class="noshow-period-btn active" onclick="setNoshowPeriod('day',this)">Today</button>
+        <button class="noshow-period-btn" onclick="setNoshowPeriod('week',this)">7 days</button>
+        <button class="noshow-period-btn" onclick="setNoshowPeriod('month',this)">Month</button>
+        <button class="noshow-period-btn" onclick="setNoshowPeriod('3m',this)">3 months</button>
+      </div>
+    </div>
+    <div id="noshow-metrics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;"></div>
+    <div id="noshow-table"></div>
   </div>
 
   <!-- Analytics -->
@@ -1879,6 +1848,85 @@
 
 </section><!-- /settings -->
 
+<!-- ── View: Help & Tutorials ── -->
+<section data-view="help" hidden>
+  <div class="view-header">
+    <h1 class="view-title">❓ Help &amp; Tutorials</h1>
+    <p class="view-sub">Learn how to get the most from your Sprimal AI receptionist.</p>
+  </div>
+
+  <!-- Getting started -->
+  <div class="card">
+    <div class="card-title">🚀 Getting Started</div>
+    <div class="card-sub" style="margin-bottom:20px;">The essentials to get your AI receptionist live.</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="background:#f8fafc;border-radius:10px;padding:16px 20px;">
+        <div style="font-size:14px;font-weight:700;color:#111827;margin-bottom:4px;">1. Embed the chat widget on your website</div>
+        <div style="font-size:13px;color:#6b7280;line-height:1.6;">Go to <a href="#receptionist" onclick="location.hash='receptionist'" style="color:#1d4ed8;font-weight:600;">Receptionist</a> → copy the one-line embed code → paste it just before the <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">&lt;/body&gt;</code> tag on every page of your site. Works with Wix, WordPress, Squarespace, and custom sites.</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:16px 20px;">
+        <div style="font-size:14px;font-weight:700;color:#111827;margin-bottom:4px;">2. Add your knowledge</div>
+        <div style="font-size:13px;color:#6b7280;line-height:1.6;">Go to <a href="#knowledge" onclick="location.hash='knowledge'" style="color:#1d4ed8;font-weight:600;">Knowledge</a> → upload documents (PDFs, Word files) or let Sprimal crawl your website automatically. The more you add, the better your assistant answers.</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:16px 20px;">
+        <div style="font-size:14px;font-weight:700;color:#111827;margin-bottom:4px;">3. Share the QR code</div>
+        <div style="font-size:13px;color:#6b7280;line-height:1.6;">Download the QR code from <a href="#receptionist" onclick="location.hash='receptionist'" style="color:#1d4ed8;font-weight:600;">Receptionist</a> and print it for your noticeboard, reception desk, or window. Members scan it to chat instantly — no app needed.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Knowledge base -->
+  <div class="card">
+    <div class="card-title">📚 Managing Your Knowledge Base</div>
+    <div class="card-sub" style="margin-bottom:16px;">Keep your assistant accurate and up-to-date.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:#374151;line-height:1.6;">
+      <div><span style="font-weight:700;">Uploading documents</span> — Go to Knowledge → Knowledge Base → drag and drop PDFs or Word documents. Each document is processed and made searchable within a few seconds.</div>
+      <div><span style="font-weight:700;">Website crawl</span> — If you have a website, Sprimal can automatically import its content. Use the crawl option in Knowledge Base and enter your URL.</div>
+      <div><span style="font-weight:700;">Chat Flows</span> — Create scripted conversation paths for common queries (e.g. "Book a class", "Get directions"). Go to Knowledge → Chat Flows → New Flow.</div>
+      <div><span style="font-weight:700;">Flagged answers</span> — Review answers your assistant got wrong in Knowledge → Flagged. Add correct answers to improve future responses.</div>
+    </div>
+  </div>
+
+  <!-- Conversations & leads -->
+  <div class="card">
+    <div class="card-title">💬 Conversations &amp; Leads</div>
+    <div class="card-sub" style="margin-bottom:16px;">Stay on top of who's talking to your assistant.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:#374151;line-height:1.6;">
+      <div><span style="font-weight:700;">Recent Conversations</span> — See every chat your assistant has had. Click any row to read the full exchange. Use this to spot gaps in your knowledge base.</div>
+      <div><span style="font-weight:700;">Leads</span> — When a visitor shares their contact details, they appear here as a lead. Export or follow up directly.</div>
+      <div><span style="font-weight:700;">Unanswered Questions</span> — Questions your assistant couldn't answer confidently. Add answers to your knowledge base so it does better next time.</div>
+    </div>
+  </div>
+
+  <!-- Analytics -->
+  <div class="card">
+    <div class="card-title">📊 Reading Your Analytics</div>
+    <div class="card-sub" style="margin-bottom:16px;">Understand what your visitors are asking.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:#374151;line-height:1.6;">
+      <div><span style="font-weight:700;">Conversation trends</span> — See how many chats happen each day over the last 30 days. Spikes often correspond to promotions or events.</div>
+      <div><span style="font-weight:700;">Top topics</span> — The most common subjects visitors ask about. Use these to prioritise what knowledge to add next.</div>
+      <div><span style="font-weight:700;">No-Show Report</span> (tennis clubs) — Track court booking no-shows by day, week, month or quarter. Appears in Analytics once court check-in is enabled.</div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="card">
+    <div class="card-title">⚙️ Settings &amp; Billing</div>
+    <div class="card-sub" style="margin-bottom:16px;">Customise your assistant and manage your subscription.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:#374151;line-height:1.6;">
+      <div><span style="font-weight:700;">Assistant name &amp; persona</span> — Change what your assistant calls itself and how it greets visitors under Settings → Feature Settings.</div>
+      <div><span style="font-weight:700;">Billing</span> — View your current plan, next invoice date, and update your payment method under Settings → Billing.</div>
+    </div>
+  </div>
+
+  <!-- Support -->
+  <div class="card" style="background:linear-gradient(135deg,#eff6ff,#fff);border:1.5px solid #bfdbfe;">
+    <div class="card-title" style="color:#1e3a8a;">Still stuck? Get in touch.</div>
+    <div style="font-size:13px;color:#3b4a6b;line-height:1.6;margin-top:6px;">Email us at <a href="mailto:hello@sprimal.com" style="color:#1d4ed8;font-weight:600;">hello@sprimal.com</a> and we'll get back to you within one business day.</div>
+  </div>
+
+</section><!-- /help -->
+
 </div><!-- /main-content -->
 
 <!-- Mobile bottom tab bar -->
@@ -1914,11 +1962,11 @@
 <script>
   // ── Hash router & sidebar collapse ───────────────────────────────────────────
   (function () {
-    var VIEWS  = ['home','receptionist','analytics','conversations','knowledge','requests','settings'];
+    var VIEWS  = ['home','receptionist','analytics','conversations','knowledge','requests','settings','help'];
     var TITLES = {
       home: 'Home', receptionist: 'Receptionist', analytics: 'Analytics',
       conversations: 'Conversations', knowledge: 'Knowledge',
-      requests: 'Member Requests', settings: 'Settings'
+      requests: 'Member Requests', settings: 'Settings', help: 'Help & Tutorials'
     };
     var _inited = {};
 

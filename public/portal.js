@@ -1100,6 +1100,8 @@
       .then(function(d) {
         if (d.business_type !== "tennis_club") return;
         card.style.display = "block";
+        var noshowCard = document.getElementById("noshowCard");
+        if (noshowCard) noshowCard.style.display = "block";
 
         // Render club QR code
         var tenantId = window.tenantId;

@@ -46,6 +46,72 @@
   }
 
   // ── Load & render documents (called after upload/delete) ──────────────────
+  var _kbWebsiteData  = [];
+  var _kbUploadedData = [];
+  var _kbUploadedPage = 0;
+  var KB_DOC_PAGE_SIZE = 6;
+
+  function renderKbDocs() {
+    var el = document.getElementById("docList");
+    if (!el) return;
+    var domains  = _kbWebsiteData;
+    var uploaded = _kbUploadedData;
+    var html = "";
+
+    if (domains.length) {
+      html += '<div class="section-label">Imported Websites</div>';
+      domains.forEach(function(site) {
+        var date = site.date ? new Date(site.date).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
+        html += '<div class="website-row">'
+          + '<div class="website-row-left"><div class="globe-icon">&#127760;</div><div>'
+          + '<div class="website-domain">' + esc(site.domain) + '</div>'
+          + '<div class="website-meta">' + site.pages + " page" + (site.pages !== 1 ? "s" : "") + " · Imported " + date + "</div>"
+          + '</div></div>'
+          + '<button class="btn-reimport-website" onclick="portalReimportWebsite(\'' + esc(site.domain) + '\',\'' + esc(site.sampleUrl || ("https://" + site.domain)) + '\')">🔄 Re-import</button>'
+          + '<button class="btn-remove-website" onclick="portalRemoveWebsite(\'' + esc(site.domain) + '\')">Remove</button>'
+          + '</div>';
+      });
+    }
+
+    if (uploaded.length) {
+      var start      = _kbUploadedPage * KB_DOC_PAGE_SIZE;
+      var pageItems  = uploaded.slice(start, start + KB_DOC_PAGE_SIZE);
+      var totalPages = Math.ceil(uploaded.length / KB_DOC_PAGE_SIZE);
+      html += '<div class="section-label" style="margin-top:' + (domains.length ? "24px" : "0") + '">Uploaded Documents</div>';
+      pageItems.forEach(function(doc) {
+        var ext   = (doc.original_filename || "").split(".").pop().toLowerCase();
+        var badge = ext === "pdf"  ? '<span class="doc-type-badge badge-pdf">PDF</span>'
+                  : ext === "docx" ? '<span class="doc-type-badge badge-docx">DOCX</span>'
+                  : '<span class="doc-type-badge badge-txt">TXT</span>';
+        var date  = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
+        html += '<div class="doc-row" id="doc-' + esc(doc.id) + '">'
+          + badge
+          + '<div class="doc-info"><div class="doc-name">' + esc(doc.original_filename || "Untitled") + '</div>'
+          + '<div class="doc-meta">Uploaded ' + date + '</div></div>'
+          + '<button class="btn-delete" onclick="portalDeleteDoc(\'' + esc(doc.id) + '\',\'' + esc(doc.original_filename || "") + '\')">Delete</button>'
+          + '</div>';
+      });
+      if (totalPages > 1) {
+        var prevDis = _kbUploadedPage === 0;
+        var nextDis = _kbUploadedPage >= totalPages - 1;
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;">'
+          + '<button onclick="kbDocPrev()" ' + (prevDis ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (prevDis ? '0.4' : '1') + ';">← Prev</button>'
+          + '<span style="font-size:13px;color:#6b7280;">' + (_kbUploadedPage + 1) + ' / ' + totalPages + '</span>'
+          + '<button onclick="kbDocNext()" ' + (nextDis ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nextDis ? '0.4' : '1') + ';">Next →</button>'
+          + '</div>';
+      }
+    }
+
+    if (!domains.length && !uploaded.length) {
+      html = '<div class="empty-state" style="margin-top:24px;">No documents yet — your website content will appear here after import.</div>';
+    }
+
+    el.innerHTML = html;
+  }
+
+  window.kbDocPrev = function() { if (_kbUploadedPage > 0) { _kbUploadedPage--; renderKbDocs(); } };
+  window.kbDocNext = function() { if ((_kbUploadedPage + 1) * KB_DOC_PAGE_SIZE < _kbUploadedData.length) { _kbUploadedPage++; renderKbDocs(); } };
+
   function loadDocuments() {
     var el = document.getElementById("docList");
     if (!el) return;
@@ -67,46 +133,10 @@
           } catch(e) {}
         });
 
-        var html = "";
-        var domains = Object.values(domainMap);
-
-        if (domains.length) {
-          html += '<div class="section-label">Imported Websites</div>';
-          domains.forEach(function(site) {
-            var date = site.date ? new Date(site.date).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
-            html += '<div class="website-row">'
-              + '<div class="website-row-left"><div class="globe-icon">&#127760;</div><div>'
-              + '<div class="website-domain">' + esc(site.domain) + '</div>'
-              + '<div class="website-meta">' + site.pages + " page" + (site.pages !== 1 ? "s" : "") + " · Imported " + date + "</div>"
-              + '</div></div>'
-              + '<button class="btn-reimport-website" onclick="portalReimportWebsite(\'' + esc(site.domain) + '\',\'' + esc(site.sampleUrl || ("https://" + site.domain)) + '\')">🔄 Re-import</button>'
-              + '<button class="btn-remove-website" onclick="portalRemoveWebsite(\'' + esc(site.domain) + '\')">Remove</button>'
-              + '</div>';
-          });
-        }
-
-        if (uploaded.length) {
-          html += '<div class="section-label" style="margin-top:' + (domains.length ? "24px" : "0") + '">Uploaded Documents</div>';
-          uploaded.forEach(function(doc) {
-            var ext = (doc.original_filename || "").split(".").pop().toLowerCase();
-            var badge = ext === "pdf"  ? '<span class="doc-type-badge badge-pdf">PDF</span>'
-                      : ext === "docx" ? '<span class="doc-type-badge badge-docx">DOCX</span>'
-                      : '<span class="doc-type-badge badge-txt">TXT</span>';
-            var date = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
-            html += '<div class="doc-row" id="doc-' + esc(doc.id) + '">'
-              + badge
-              + '<div class="doc-info"><div class="doc-name">' + esc(doc.original_filename || "Untitled") + '</div>'
-              + '<div class="doc-meta">Uploaded ' + date + '</div></div>'
-              + '<button class="btn-delete" onclick="portalDeleteDoc(\'' + esc(doc.id) + '\',\'' + esc(doc.original_filename || "") + '\')">Delete</button>'
-              + '</div>';
-          });
-        }
-
-        if (!domains.length && !uploaded.length) {
-          html = '<div class="empty-state" style="margin-top:24px;">No documents yet — your website content will appear here after import.</div>';
-        }
-
-        el.innerHTML = html;
+        _kbWebsiteData  = Object.values(domainMap);
+        _kbUploadedData = uploaded;
+        _kbUploadedPage = 0;
+        renderKbDocs();
       })
       .catch(function() {
         if (el) el.innerHTML = '<div class="empty-state" style="margin-top:24px;">Could not load documents.</div>';

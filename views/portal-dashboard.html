@@ -2711,9 +2711,91 @@
     var body      = document.getElementById("agentsBody");
     var activeTenantAgentId = null; // for config panel
 
+    var _agentAllDefs  = [];
+    var _agentActiveMap = {};
+    var _agentAvailPage = 0;
+    var AGENT_PAGE_SIZE = 6;
+
     function esc(s) {
       return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
+
+    function renderAgents() {
+      var active    = _agentAllDefs.filter(function(d) { return  _agentActiveMap[d.id]; });
+      var available = _agentAllDefs.filter(function(d) { return !_agentActiveMap[d.id]; });
+      var html = "";
+
+      // ── Active agents (show all — usually just a handful) ─────────────────
+      if (active.length) {
+        html += '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px;">Active Agents</div>';
+        active.forEach(function(def) {
+          var ta = _agentActiveMap[def.id];
+          html += '<div style="border:1.5px solid #d1fae5;border-radius:12px;padding:16px 18px;margin-bottom:14px;background:#f0fdf4;">'
+            + '<div style="display:flex;align-items:flex-start;gap:14px;">'
+            + '<div style="flex:1;">'
+            + '<div style="font-weight:700;color:#111827;font-size:14px;margin-bottom:3px;">' + esc(def.name) + '</div>'
+            + '<div style="font-size:13px;color:#6b7280;line-height:1.5;">' + esc(def.description) + '</div>'
+            + '</div>'
+            + '<div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">'
+            + '<button onclick="openAgentConfig(\'' + esc(ta.id) + '\',\'' + esc(def.id) + '\')" style="padding:6px 14px;border-radius:8px;border:1.5px solid #2563eb;background:#fff;color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;">Configure</button>'
+            + '<button onclick="openAgentLeads(\'' + esc(ta.id) + '\',\'' + esc(def.name) + '\')" style="padding:6px 14px;border-radius:8px;border:1.5px solid #7c3aed;background:#fff;color:#7c3aed;font-size:13px;font-weight:600;cursor:pointer;">Leads</button>'
+            + '<label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">'
+            + '<input type="checkbox" ' + (ta.is_active ? "checked" : "") + ' onchange="toggleAgent(\'' + esc(ta.id) + '\',this.checked)" style="opacity:0;width:0;height:0;position:absolute;">'
+            + '<span style="position:absolute;inset:0;border-radius:34px;background:' + (ta.is_active ? "#2563eb" : "#d1d5db") + ';transition:background 0.2s;" id="toggle-' + esc(ta.id) + '"></span>'
+            + '<span style="position:absolute;left:' + (ta.is_active ? "20px" : "2px") + ';top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s;" id="thumb-' + esc(ta.id) + '"></span>'
+            + '</label>'
+            + '</div>'
+            + '</div>'
+            + '</div>';
+        });
+        html += '<div style="height:20px;"></div>';
+      }
+
+      // ── Available agents (paginated) ──────────────────────────────────────
+      if (available.length) {
+        var start      = _agentAvailPage * AGENT_PAGE_SIZE;
+        var pageItems  = available.slice(start, start + AGENT_PAGE_SIZE);
+        var totalPages = Math.ceil(available.length / AGENT_PAGE_SIZE);
+        html += '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px;">Available Agents</div>';
+        pageItems.forEach(function(def) {
+          html += '<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:16px 18px;margin-bottom:14px;background:#fafafa;">'
+            + '<div style="display:flex;align-items:flex-start;gap:14px;">'
+            + '<div style="flex:1;">'
+            + '<div style="font-weight:700;color:#111827;font-size:14px;margin-bottom:3px;">' + esc(def.name) + '</div>'
+            + '<div style="font-size:13px;color:#6b7280;line-height:1.5;">' + esc(def.description) + '</div>'
+            + '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">'
+            + (def.skill_ids || []).map(function(s) {
+                return '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;">' + esc(s.replace(/_/g," ")) + '</span>';
+              }).join("")
+            + '</div>'
+            + '</div>'
+            + '<button onclick="activateAgent(\'' + esc(def.id) + '\')" style="flex-shrink:0;padding:8px 18px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Activate</button>'
+            + '</div>'
+            + '</div>';
+        });
+        if (totalPages > 1) {
+          var prevDis = _agentAvailPage === 0;
+          var nextDis = _agentAvailPage >= totalPages - 1;
+          html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;">'
+            + '<button onclick="agentAvailPrev()" ' + (prevDis ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (prevDis ? '0.4' : '1') + ';">← Prev</button>'
+            + '<span style="font-size:13px;color:#6b7280;">' + (_agentAvailPage + 1) + ' / ' + totalPages + '</span>'
+            + '<button onclick="agentAvailNext()" ' + (nextDis ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nextDis ? '0.4' : '1') + ';">Next →</button>'
+            + '</div>';
+        }
+      }
+
+      if (!available.length && !active.length) {
+        html = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No agents in the library yet.</div>';
+      }
+
+      body.innerHTML = html;
+    }
+
+    window.agentAvailPrev = function() { if (_agentAvailPage > 0) { _agentAvailPage--; renderAgents(); } };
+    window.agentAvailNext = function() {
+      var available = _agentAllDefs.filter(function(d) { return !_agentActiveMap[d.id]; });
+      if ((_agentAvailPage + 1) * AGENT_PAGE_SIZE < available.length) { _agentAvailPage++; renderAgents(); }
+    };
 
     function loadAgents() {
       body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>';
@@ -2721,70 +2803,12 @@
         fetch("/api/portal/agent-definitions").then(function(r){ return r.json(); }),
         fetch("/api/portal/agents").then(function(r){ return r.json(); })
       ]).then(function(results) {
-        var allDefs   = results[0] || [];
+        _agentAllDefs = results[0] || [];
         var myAgents  = results[1] || [];
-
-        // Map active by agent_id
-        var activeMap = {};
-        myAgents.forEach(function(ta) { activeMap[ta.agent_id] = ta; });
-
-        var available = allDefs.filter(function(d) { return !activeMap[d.id]; });
-        var active    = allDefs.filter(function(d) { return  activeMap[d.id]; });
-
-        var html = "";
-
-        // ── Active agents ─────────────────────────────────────────────────────
-        if (active.length) {
-          html += '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px;">Active Agents</div>';
-          active.forEach(function(def) {
-            var ta = activeMap[def.id];
-            html += '<div style="border:1.5px solid #d1fae5;border-radius:12px;padding:16px 18px;margin-bottom:14px;background:#f0fdf4;">'
-              + '<div style="display:flex;align-items:flex-start;gap:14px;">'
-              + '<div style="flex:1;">'
-              + '<div style="font-weight:700;color:#111827;font-size:14px;margin-bottom:3px;">' + esc(def.name) + '</div>'
-              + '<div style="font-size:13px;color:#6b7280;line-height:1.5;">' + esc(def.description) + '</div>'
-              + '</div>'
-              + '<div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">'
-              + '<button onclick="openAgentConfig(\'' + esc(ta.id) + '\',\'' + esc(def.id) + '\')" style="padding:6px 14px;border-radius:8px;border:1.5px solid #2563eb;background:#fff;color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;">Configure</button>'
-              + '<button onclick="openAgentLeads(\'' + esc(ta.id) + '\',\'' + esc(def.name) + '\')" style="padding:6px 14px;border-radius:8px;border:1.5px solid #7c3aed;background:#fff;color:#7c3aed;font-size:13px;font-weight:600;cursor:pointer;">Leads</button>'
-              + '<label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">'
-              + '<input type="checkbox" ' + (ta.is_active ? "checked" : "") + ' onchange="toggleAgent(\'' + esc(ta.id) + '\',this.checked)" style="opacity:0;width:0;height:0;position:absolute;">'
-              + '<span style="position:absolute;inset:0;border-radius:34px;background:' + (ta.is_active ? "#2563eb" : "#d1d5db") + ';transition:background 0.2s;" id="toggle-' + esc(ta.id) + '"></span>'
-              + '<span style="position:absolute;left:' + (ta.is_active ? "20px" : "2px") + ';top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s;" id="thumb-' + esc(ta.id) + '"></span>'
-              + '</label>'
-              + '</div>'
-              + '</div>'
-              + '</div>';
-          });
-          html += '<div style="height:20px;"></div>';
-        }
-
-        // ── Available agents ──────────────────────────────────────────────────
-        if (available.length) {
-          html += '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px;">Available Agents</div>';
-          available.forEach(function(def) {
-            html += '<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:16px 18px;margin-bottom:14px;background:#fafafa;">'
-              + '<div style="display:flex;align-items:flex-start;gap:14px;">'
-              + '<div style="flex:1;">'
-              + '<div style="font-weight:700;color:#111827;font-size:14px;margin-bottom:3px;">' + esc(def.name) + '</div>'
-              + '<div style="font-size:13px;color:#6b7280;line-height:1.5;">' + esc(def.description) + '</div>'
-              + '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">'
-              + (def.skill_ids || []).map(function(s) {
-                  return '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;">' + esc(s.replace(/_/g," ")) + '</span>';
-                }).join("")
-              + '</div>'
-              + '</div>'
-              + '<button onclick="activateAgent(\'' + esc(def.id) + '\')" style="flex-shrink:0;padding:8px 18px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Activate</button>'
-              + '</div>'
-              + '</div>';
-          });
-        }
-
-        if (!available.length && !active.length) {
-          html = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No agents in the library yet.</div>';
-        }
-
-        body.innerHTML = html;
+        _agentActiveMap = {};
+        myAgents.forEach(function(ta) { _agentActiveMap[ta.agent_id] = ta; });
+        _agentAvailPage = 0;
+        renderAgents();
       }).catch(function() {
         body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#dc2626;">Failed to load agents.</div>';
       });

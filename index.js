@@ -11820,18 +11820,20 @@ app.post("/chat", chatLimiter, async (req, res) => {
     let effectiveMode = businessMode; // global default ('mortgage')
     let tenantDisplayName = null;
     let tenantBusinessDesc = null;
+    let tenantAssistantName = "Maeve";
     let tenantPhone = null;
     let tenantEmail = null;
     try {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name, email, ai_enabled, business_description, phone")
+        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name")
         .eq("id", tenantId)
         .maybeSingle();
       if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
       if (tenantData?.name) tenantDisplayName = tenantData.name;
       else tenantDisplayName = tenantId.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
       if (tenantData?.business_description) tenantBusinessDesc = tenantData.business_description;
+      if (tenantData?.assistant_name) tenantAssistantName = tenantData.assistant_name;
       tenantPhone = tenantData?.phone || null;
       tenantEmail = tenantData?.email || null;
       // Respect AI Receptionist on/off toggle (null/undefined = enabled by default)
@@ -12556,9 +12558,10 @@ Use plain numbers where possible.
           const _org     = tenantDisplayName || "this organisation";
           const _descBit = tenantBusinessDesc ? ", " + tenantBusinessDesc : "";
           const _offTopic = "Every question should be assumed to be about " + _org + " and its people, activities, services, or events — even short questions like ‘who is the president?’ or ‘how many courts?’ are implicitly about " + _org + ". Only treat a question as off-topic if it is clearly about an entirely unrelated subject (e.g. world news, another organisation). If off-topic, respond: ‘I’m only able to help with questions about " + _org + ". Is there something about us I can help you with?’";
+          const _name = tenantAssistantName;
           const sysPrompt = eboContext
-            ? "You are Maeve, a helpful AI assistant for " + _org + _descBit + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE or WHAT THE ASSISTANT JUST SHOWED THE USER. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly. " + _offTopic
-            : "You are Maeve, a helpful AI assistant for " + _org + _descBit + ". Answer using the provided context — prioritise WHAT THE ASSISTANT JUST SHOWED THE USER for follow-up questions, then the KNOWLEDGE BASE. When the context contains the answer, state it directly and confidently — do not open with phrases like 'I don't have specific information' or 'I'm not sure, but'. Only say you don't have information when it is genuinely absent from the context. If truly absent, say: 'I don't have that information — please check the website or contact " + _org + " directly.' Never invent, guess, or use placeholder text. Critical rule: never invent specific facts such as a person's name, phone number, date, price, or address — if it is not explicitly stated in the context, say you don't have it. Keep answers friendly and concise. " + _offTopic;
+            ? "You are " + _name + ", a helpful AI assistant for " + _org + _descBit + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE or WHAT THE ASSISTANT JUST SHOWED THE USER. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly. " + _offTopic
+            : "You are " + _name + ", a helpful AI assistant for " + _org + _descBit + ". Answer using the provided context — prioritise WHAT THE ASSISTANT JUST SHOWED THE USER for follow-up questions, then the KNOWLEDGE BASE. When the context contains the answer, state it directly and confidently — do not open with phrases like 'I don't have specific information' or 'I'm not sure, but'. Only say you don't have information when it is genuinely absent from the context. If truly absent, say: 'I don't have that information — please check the website or contact " + _org + " directly.' Never invent, guess, or use placeholder text. Critical rule: never invent specific facts such as a person's name, phone number, date, price, or address — if it is not explicitly stated in the context, say you don't have it. Keep answers friendly and concise. " + _offTopic;
 
           const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -12593,7 +12596,7 @@ Use plain numbers where possible.
           const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
-              { role: "system", content: "You are Maeve, a helpful AI assistant for " + _org + ". Answer the user's follow-up question using only WHAT THE ASSISTANT JUST SHOWED THE USER. Keep the answer friendly and concise." },
+              { role: "system", content: "You are " + tenantAssistantName + ", a helpful AI assistant for " + _org + ". Answer the user's follow-up question using only WHAT THE ASSISTANT JUST SHOWED THE USER. Keep the answer friendly and concise." },
               { role: "user",   content: "WHAT THE ASSISTANT JUST SHOWED THE USER:\n" + workflowContext + "\n\nUser question:\n" + trimmedMessage }
             ],
             temperature: 0.2

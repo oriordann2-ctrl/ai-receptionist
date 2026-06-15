@@ -17334,15 +17334,21 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
     const checkedInTimes = new Set((checkins || []).map(c => String(c.booking_time || "").slice(0, 16)));
 
     // For "today" only count slots that have already started — future bookings can't be no-shows yet
-    const irishNow = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
-    const nowPrefix = period === "day" ? (toDate + "T" + irishNow) : null;
+    const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+    const [nowH, nowM] = irishTime.split(":").map(Number);
+    const nowMinsOfDay = nowH * 60 + nowM;
 
     // Aggregate per member
     const memberMap = {};
     for (const b of bookings) {
       const bookingTime = String(b.time || "").slice(0, 16);
       if (!bookingTime) continue;
-      if (nowPrefix && bookingTime > nowPrefix) continue;
+      if (period === "day") {
+        const hhmm = String(b.time || "").slice(11, 16);
+        if (!hhmm.includes(":")) continue;
+        const [bh, bm] = hhmm.split(":").map(Number);
+        if (bh * 60 + bm > nowMinsOfDay) continue;
+      }
       const wasCheckedIn = checkedInTimes.has(bookingTime);
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;

@@ -17353,7 +17353,10 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || !/^\d+$/.test(String(key)) || Number(key) <= 0) continue;
-        if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0 };
+        if (!memberMap[key]) {
+          if (["Junior Coaching","Club Night"].some(e => (m.name||"").includes(e))) console.log("[noshow-debug] event entry:", JSON.stringify(m));
+          memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0 };
+        }
         memberMap[key].booked++;
         if (!wasCheckedIn) memberMap[key].noshows++;
       }

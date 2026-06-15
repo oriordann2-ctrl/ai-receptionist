@@ -17362,9 +17362,9 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || Number(key) === 1 || m.colour) continue;
-        if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0 };
+        if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0, noshow_times: [] };
         memberMap[key].booked++;
-        if (!wasCheckedIn) memberMap[key].noshows++;
+        if (!wasCheckedIn) { memberMap[key].noshows++; memberMap[key].noshow_times.push(bookingTime); }
       }
     }
 

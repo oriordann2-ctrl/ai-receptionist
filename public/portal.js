@@ -1228,20 +1228,44 @@
           var start = currentPage * PAGE_SIZE;
           var pageMembers = members.slice(start, start + PAGE_SIZE);
           var totalPages = Math.ceil(members.length / PAGE_SIZE);
+          window.toggleNoshowDetail = function(id) {
+            var r = document.getElementById(id);
+            if (r) r.style.display = r.style.display === "none" ? "table-row" : "none";
+          };
           var rows = pageMembers.map(function(m, i) {
             var rank = start + i + 1;
             var badgeClass = m.rate >= 60 ? "noshow-badge-red" : m.rate >= 30 ? "noshow-badge-amber" : "noshow-badge-green";
             var barColor = m.rate >= 60 ? "#ef4444" : m.rate >= 30 ? "#f59e0b" : "#22c55e";
+            var detailId = "ns-detail-" + rank;
+            var hasNoshows = m.noshows > 0;
+            var times = (m.noshow_times || []).map(function(t) {
+              var d = new Date(t);
+              if (isNaN(d)) return t;
+              return d.toLocaleDateString("en-IE", { weekday:"short", day:"numeric", month:"short" }) + " at " +
+                     d.toLocaleTimeString("en-IE", { hour:"2-digit", minute:"2-digit", hour12:false });
+            });
+            var detailRow = hasNoshows
+              ? '<tr id="' + detailId + '" style="display:none;background:#fafafa;">' +
+                  '<td></td><td colspan="4" style="padding:4px 8px 10px;">' +
+                  '<div style="font-size:11px;color:#9ca3af;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">No-show dates</div>' +
+                  '<div style="display:flex;flex-wrap:wrap;gap:5px;">' +
+                  times.map(function(t) { return '<span style="font-size:12px;background:#fee2e2;color:#991b1b;padding:3px 9px;border-radius:20px;">' + t + '</span>'; }).join("") +
+                  '</div></td></tr>'
+              : '';
+            var nameStyle = hasNoshows
+              ? 'font-size:13px;font-weight:600;color:#1d4ed8;cursor:pointer;'
+              : 'font-size:13px;font-weight:600;color:#111827;';
+            var nameOnClick = hasNoshows ? ' onclick="toggleNoshowDetail(\'' + detailId + '\')"' : '';
             return '<tr style="border-bottom:1px solid #f3f4f6;">' +
               '<td style="padding:7px 6px;font-size:12px;color:#9ca3af;width:24px;">' + rank + '</td>' +
               '<td style="padding:7px 6px;">' +
-                '<div style="font-size:13px;font-weight:600;color:#111827;">' + m.name + '</div>' +
+                '<div style="' + nameStyle + '"' + nameOnClick + '>' + m.name + (hasNoshows ? ' <span style="font-size:10px;">▾</span>' : '') + '</div>' +
                 '<div style="height:4px;background:#f3f4f6;border-radius:2px;margin-top:4px;"><div style="height:4px;width:' + m.rate + '%;background:' + barColor + ';border-radius:2px;"></div></div>' +
               '</td>' +
               '<td style="padding:7px 6px;font-size:13px;color:#6b7280;text-align:right;">' + m.booked + '</td>' +
               '<td style="padding:7px 6px;font-size:13px;font-weight:600;color:#111827;text-align:right;">' + m.noshows + '</td>' +
               '<td style="padding:7px 6px;text-align:right;"><span class="noshow-badge ' + badgeClass + '">' + m.rate + '%</span></td>' +
-              '</tr>';
+              '</tr>' + detailRow;
           }).join("");
           var pagination = totalPages > 1
             ? '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 4px 2px;">' +

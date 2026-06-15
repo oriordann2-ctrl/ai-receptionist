@@ -17328,6 +17328,7 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         .gte("booking_time", fromDate + " 00:00:00")
         .lte("booking_time", toDate + " 23:59:59")
     ]);
+    console.log(`[noshow-debug] period=${period} fromDate=${fromDate} toDate=${toDate} bookings=${bookings.length} checkins=${(checkins||[]).length}`);
 
     // Build a set of booking_times that have at least one check-in.
     // If anyone on the booking checked in, all members on that booking are credited.

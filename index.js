@@ -17149,6 +17149,7 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
     }
 
     const member = (validBooking.bookedMembers || []).find(m => Number(m.membership_number) === memberNum);
+    console.log("[validate-booking] member record:", JSON.stringify(member));
     const memberName = member ? (`${member.first_name || ""} ${member.last_name || ""}`.trim() || `Member #${memberNum}`) : `Member #${memberNum}`;
     const displayTime = String(validBooking.time || "").slice(11, 16);
     const booking = { court_id: validBooking.court_id, time: validBooking.time, display_time: displayTime };

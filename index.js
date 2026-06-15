@@ -17133,9 +17133,15 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
           const [bh, bm] = hhmm.split(":").map(Number);
           return bh * 60 + bm > nowMins + 30;
         });
-        msg = next
-          ? `Check-in opens at ${String(next.time || "").slice(11, 16)} — 15 minutes before your booking.`
-          : "Your check-in window has closed for today’s bookings.";
+        if (next) {
+          const hhmm = String(next.time || "").slice(11, 16);
+          const [bh, bm] = hhmm.split(":").map(Number);
+          const openMins = bh * 60 + bm - 15;
+          const openStr = String(Math.floor(openMins / 60)).padStart(2, "0") + ":" + String(openMins % 60).padStart(2, "0");
+          msg = `Check-in opens at ${openStr} — 15 minutes before your ${hhmm} booking.`;
+        } else {
+          msg = "Your check-in window has closed for today’s bookings.";
+        }
       }
       return res.json({ valid_booking: null, already_checked_in: false, member_name: null, message: msg });
     }

@@ -17333,11 +17333,16 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
     // If anyone on the booking checked in, all members on that booking are credited.
     const checkedInTimes = new Set((checkins || []).map(c => String(c.booking_time || "").slice(0, 16)));
 
+    // For "today" only count slots that have already started — future bookings can't be no-shows yet
+    const irishNow = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+    const nowPrefix = period === "day" ? (toDate + "T" + irishNow) : null;
+
     // Aggregate per member
     const memberMap = {};
     for (const b of bookings) {
       const bookingTime = String(b.time || "").slice(0, 16);
       if (!bookingTime) continue;
+      if (nowPrefix && bookingTime > nowPrefix) continue;
       const wasCheckedIn = checkedInTimes.has(bookingTime);
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;

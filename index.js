@@ -5795,9 +5795,23 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
 
       const isBotProtected = BOT_PROTECTION_PHRASES.some(p => text.toLowerCase().includes(p));
 
-      if (text.length < 80 || isBotProtected) {
-        if (isProbe) { console.log(`[crawler] Probe skip (thin/bot) ${url}`); return null; }
-        return await jinaFallback(url, html, isBotProtected ? "bot-protection page detected" : "text too short");
+      // Detect JS-rendered page shells (Wix, Next.js, Nuxt, React SPA).
+      // These sites return an HTML skeleton — real content is injected by JS at runtime.
+      // The direct fetch sees nav + footer boilerplate but none of the actual page body.
+      const JS_SHELL_SIGNALS = [
+        'content="wix.com"', 'data-mesh-id=', '_wix_', 'wixui.',
+        '__NEXT_DATA__', '__NUXT__', 'data-reactroot', 'ng-version='
+      ];
+      const isJsShell = JS_SHELL_SIGNALS.some(s => html.includes(s));
+      const wordCount = rawText.split(/\s+/).filter(w => w.length > 2).length;
+      const isThinContent = wordCount < 150;
+
+      if (text.length < 80 || isBotProtected || (isJsShell && isThinContent)) {
+        if (isProbe) { console.log(`[crawler] Probe skip (thin/bot/js-shell) ${url}`); return null; }
+        const reason = isBotProtected ? "bot-protection page detected"
+          : (isJsShell && isThinContent) ? `JS-rendered shell detected (${wordCount} words) — page is likely Wix/React/Next.js`
+          : "text too short";
+        return await jinaFallback(url, html, reason);
       }
 
       return { page: { url, title, text, html }, links: extractInternalLinks(html, url) };

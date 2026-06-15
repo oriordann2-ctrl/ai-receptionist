@@ -606,7 +606,12 @@ Run these manually on a phone to verify the booking-based check-in is working co
 - [ ] **5. Junior delegate** — from the success screen (or no-booking screen), tap "Check in a junior". Enter a junior's membership number. Club policy prompt should appear. Confirm → junior checked in with `is_delegate: true` and `checked_in_by` set to the adult's membership number.
 - [ ] **6. Chat button** — on welcome-back and success screens, tap "Chat with Maeve". Should open the chat widget in a new tab, leaving the check-in page open.
 
-**Status:** ⏳ Not yet tested end-to-end. Do tomorrow morning with a real booking window.
+**Status:** ⏳ Partially tested. 4 of 6 tests passed. Remaining tests need a booking window tomorrow morning.
+
+### 🔄 Additional tests to run tomorrow
+
+- [ ] **7. Same timeslot, different courts** — book court 1 and court 2 at the same time. Check in for court 1. Try to check in again → should be blocked: "Already checked in for Court 1 at HH:MM". Then try as a different member on court 2 → should succeed.
+- [ ] **8. Consecutive slots, fresh check-in** — book court 1 for slot A (e.g. 9:15am) and slot B (e.g. 10:30am). Check in during slot A's window. Wait until slot B's window opens (15 mins before 10:30). Check in again → should succeed as a fresh check-in, not blocked.
 
 ---
 
@@ -665,6 +670,8 @@ Questions like "who is the president?" or "who is the club president?" return no
 1. Manually upload a fact file in the Monkstown portal with officer names (quick workaround — do this first)
 2. Re-crawl via Jina Reader (`r.jina.ai/{url}`) for the committee page specifically — Jina uses a headless browser and will see the JS-rendered content
 3. When the JS-rendered crawl fix is built (see URGENT JS-rendered pages idea), re-crawl Monkstown and it'll pick up automatically
+
+**Known example:** "Who is the Junior Secretary?" — Julie Kenneally is listed in the uploaded Committee 2026 document but Maeve does not return her name. Document is uploaded but retrieval is failing for this query.
 
 **Status:** ⏳ TODO. Upload a fact file as immediate fix, then re-crawl properly once Jina fallback is built.
 

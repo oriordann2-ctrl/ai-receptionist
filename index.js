@@ -2231,6 +2231,37 @@ function generateStoredFilename(lender, documentType, effectiveDate, description
 // Paragraph-aware chunker: splits on blank lines first to keep Q&A pairs and
 // topic sections together, then merges short paragraphs and caps at maxWords.
 // Falls back to word-window chunking only when a single paragraph is huge.
+async function rewriteForRetrieval(text, documentType) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content: `You are a knowledge base formatter. Rewrite the provided document as clear, natural declarative sentences optimised for AI retrieval.
+
+Rules:
+- Preserve every fact, name, date, price, role, and figure exactly as given — do not invent or omit anything
+- Convert lists and tables into full sentences (e.g. "Julie Kenneally Junior Secretary" → "The Junior Secretary is Julie Kenneally.")
+- Remove redundant preamble and formatting artefacts
+- Use plain prose — no markdown, no bullet points, no headers
+- Keep each sentence self-contained so it makes sense out of context
+- Do not summarise or shorten — include everything`
+        },
+        {
+          role: "user",
+          content: `Document type: ${documentType}\n\n${text}`
+        }
+      ]
+    });
+    return response.choices[0].message.content.trim() || text;
+  } catch (err) {
+    console.error("[rewriteForRetrieval] GPT rewrite failed, using original:", err.message);
+    return text;
+  }
+}
+
 function chunkText(text, maxWords = 450, overlapWords = 50) {
   // Split on one or more blank lines (handles \r\n and \n)
   const paragraphs = text
@@ -8615,7 +8646,8 @@ app.post(
         return res.status(500).json({ error: "Failed to save document record." });
       }
 
-      await generateAndStoreChunks(doc.id, extractedText, null, document_type, null, tenantId, { title: description || structuredName });
+      const textToEmbed = await rewriteForRetrieval(extractedText, document_type);
+      await generateAndStoreChunks(doc.id, textToEmbed, null, document_type, null, tenantId, { title: description || structuredName });
 
       res.json({ success: true, document: { id: doc.id, name: structuredName } });
     } catch (err) {

@@ -1429,6 +1429,28 @@ async function fetchEboBookings(tenantId, date, endDate, limit = 200) {
   return Array.isArray(data) ? data : [];
 }
 
+// EBO caps results at 200 regardless of limit param. Fetch in 7-day chunks to avoid the cap.
+async function fetchEboBookingsPaged(tenantId, fromDate, toDate) {
+  function addDays(dateStr, n) {
+    const d = new Date(dateStr + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  const allBookings = [];
+  const seen = new Set();
+  let cursor = fromDate;
+  while (cursor <= toDate) {
+    const chunkEnd = addDays(cursor, 6) > toDate ? toDate : addDays(cursor, 6);
+    const chunk = await fetchEboBookings(tenantId, cursor, chunkEnd, 200).catch(() => []);
+    for (const b of chunk) {
+      const key = (b.time || "") + "|" + (b.court_id || "");
+      if (!seen.has(key)) { seen.add(key); allBookings.push(b); }
+    }
+    cursor = addDays(cursor, 7);
+  }
+  return allBookings;
+}
+
 function buildEboAvailabilitySummary(bookings, dateLabel, cfg) {
   const openTime    = (cfg && cfg.openTime)    || "07:00";
   const closeTime   = (cfg && cfg.closeTime)   || "22:00";
@@ -17322,13 +17344,12 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
   try {
     await loadEboConfigFromDb(tenantId);
     const [bookings, { data: checkins }] = await Promise.all([
-      fetchEboBookings(tenantId, fromDate, toDate, 5000).catch(() => []),
+      fetchEboBookingsPaged(tenantId, fromDate, toDate),
       supabase.from("court_checkins").select("booking_time")
         .eq("tenant_id", tenantId)
         .gte("booking_time", fromDate + " 00:00:00")
         .lte("booking_time", toDate + " 23:59:59")
     ]);
-    console.log(`[noshow-debug] period=${period} fromDate=${fromDate} toDate=${toDate} bookings=${bookings.length} checkins=${(checkins||[]).length}`);
 
     // Build a set of booking_times that have at least one check-in.
     // If anyone on the booking checked in, all members on that booking are credited.

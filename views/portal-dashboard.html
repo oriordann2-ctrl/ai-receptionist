@@ -1694,67 +1694,81 @@
   // This prevents embedding potentially large HTML into the page at load time,
   // which was causing the browser tab to freeze.
   (function () {
-    var details  = document.getElementById("chatLogsDetails");
+    var details   = document.getElementById("chatLogsDetails");
     var container = document.getElementById("chatLogs");
-    var loaded   = false;
+    var loaded    = false;
+    var _convData = [];
+    var _convPage = 0;
+    var CONV_PAGE_SIZE = 6;
 
     if (!details) return;
+
+    function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+    function fmtDate(ts) {
+      if (!ts) return "";
+      return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    }
+
+    function renderConvs() {
+      var start      = _convPage * CONV_PAGE_SIZE;
+      var pageItems  = _convData.slice(start, start + CONV_PAGE_SIZE);
+      var totalPages = Math.ceil(_convData.length / CONV_PAGE_SIZE);
+      var html = pageItems.map(function (conv) {
+        var firstCustomer = (conv.messages || []).find(function (m) { return m.sender === "customer"; });
+        var preview = firstCustomer ? firstCustomer.message : ((conv.messages[0] || {}).message || "");
+        var previewText = esc(preview.length > 90 ? preview.slice(0, 90) + "…" : preview);
+        var date  = esc(fmtDate(conv.startedAt));
+        var count = conv.messageCount;
+        var msgHtml = (conv.messages || []).map(function (m) {
+          var cls   = m.sender === "bot" ? "conv-msg-bot" : m.sender === "system" ? "conv-msg-system" : "conv-msg-user";
+          var label = m.sender === "bot" ? "Assistant" : m.sender === "system" ? "System" : "Visitor";
+          var sourceBadge = "";
+          if (m.sender === "bot" && m.answer_source) {
+            var srcMap = { kb: ["📚 KB", "#1e40af", "#dbeafe"], approved: ["✅ Approved", "#166534", "#dcfce7"], workflow: ["🔀 Flow", "#7c3aed", "#ede9fe"], ebo: ["🎾 Live Data", "#b45309", "#fef3c7"], generic: ["💬 Generic", "#6b7280", "#f3f4f6"] };
+            var s = srcMap[m.answer_source];
+            if (s) sourceBadge = '<span style="font-size:10px;font-weight:600;color:' + s[1] + ';background:' + s[2] + ';border-radius:4px;padding:1px 6px;margin-left:6px;">' + s[0] + '</span>';
+          }
+          return '<div class="conv-msg ' + cls + '">'
+            + '<span class="conv-msg-label">' + label + sourceBadge + '</span>'
+            + '<div class="conv-msg-text">' + esc(m.message) + '</div>'
+            + '</div>';
+        }).join("");
+        return '<details class="conv-details">'
+          + '<summary class="conv-summary">'
+          + '<div class="conv-header"><span class="conv-date">' + date + '</span>'
+          + '<span class="conv-count">' + count + ' message' + (count !== 1 ? 's' : '') + '</span></div>'
+          + '<div class="conv-preview">' + (previewText || '<em style="color:#d1d5db;">—</em>') + '</div>'
+          + '</summary>'
+          + '<div class="conv-messages">' + msgHtml + '</div>'
+          + '</details>';
+      }).join("");
+      if (totalPages > 1) {
+        var pd = _convPage === 0, nd = _convPage >= totalPages - 1;
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;">'
+          + '<button onclick="convPrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+          + '<span style="font-size:13px;color:#6b7280;">' + (_convPage + 1) + ' / ' + totalPages + '</span>'
+          + '<button onclick="convNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+          + '</div>';
+      }
+      container.innerHTML = html;
+    }
+
+    window.convPrev = function() { if (_convPage > 0) { _convPage--; renderConvs(); } };
+    window.convNext = function() { if ((_convPage + 1) * CONV_PAGE_SIZE < _convData.length) { _convPage++; renderConvs(); } };
 
     details.addEventListener("toggle", function () {
       if (!details.open || loaded) return;
       loaded = true;
-
       fetch("/api/portal/chat-logs")
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          var convs = (data && data.conversations) || [];
-          if (convs.length === 0) {
+          _convData = (data && data.conversations) || [];
+          _convPage = 0;
+          if (_convData.length === 0) {
             container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#9ca3af;">No conversations yet — they\'ll appear here once visitors start chatting.</div>';
             return;
           }
-
-          function esc(s) {
-            return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-          }
-          function fmtDate(ts) {
-            if (!ts) return "";
-            return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
-          }
-
-          var html = convs.map(function (conv) {
-            var firstCustomer = (conv.messages || []).find(function (m) { return m.sender === "customer"; });
-            var preview = firstCustomer ? firstCustomer.message : ((conv.messages[0] || {}).message || "");
-            var previewText = esc(preview.length > 90 ? preview.slice(0, 90) + "…" : preview);
-            var date  = esc(fmtDate(conv.startedAt));
-            var count = conv.messageCount;
-
-            var msgHtml = (conv.messages || []).map(function (m) {
-              var cls   = m.sender === "bot" ? "conv-msg-bot" : m.sender === "system" ? "conv-msg-system" : "conv-msg-user";
-              var label = m.sender === "bot" ? "Assistant" : m.sender === "system" ? "System" : "Visitor";
-              // Source badge for bot messages
-              var sourceBadge = "";
-              if (m.sender === "bot" && m.answer_source) {
-                var srcMap = { kb: ["📚 KB", "#1e40af", "#dbeafe"], approved: ["✅ Approved", "#166534", "#dcfce7"], workflow: ["🔀 Flow", "#7c3aed", "#ede9fe"], ebo: ["🎾 Live Data", "#b45309", "#fef3c7"], generic: ["💬 Generic", "#6b7280", "#f3f4f6"] };
-                var s = srcMap[m.answer_source];
-                if (s) sourceBadge = '<span style="font-size:10px;font-weight:600;color:' + s[1] + ';background:' + s[2] + ';border-radius:4px;padding:1px 6px;margin-left:6px;">' + s[0] + '</span>';
-              }
-              return '<div class="conv-msg ' + cls + '">'
-                + '<span class="conv-msg-label">' + label + sourceBadge + '</span>'
-                + '<div class="conv-msg-text">' + esc(m.message) + '</div>'
-                + '</div>';
-            }).join("");
-
-            return '<details class="conv-details">'
-              + '<summary class="conv-summary">'
-              + '<div class="conv-header"><span class="conv-date">' + date + '</span>'
-              + '<span class="conv-count">' + count + ' message' + (count !== 1 ? 's' : '') + '</span></div>'
-              + '<div class="conv-preview">' + (previewText || '<em style="color:#d1d5db;">—</em>') + '</div>'
-              + '</summary>'
-              + '<div class="conv-messages">' + msgHtml + '</div>'
-              + '</details>';
-          }).join("");
-
-          container.innerHTML = html;
+          renderConvs();
         })
         .catch(function () {
           container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#ef4444;">Failed to load conversations. Please refresh and try again.</div>';
@@ -1764,54 +1778,79 @@
 
   // ── Lazy-load Leads ──────────────────────────────────────────────────────────
   (function () {
-    var details   = document.getElementById("leadsDetails");
-    var container = document.getElementById("leadsContainer");
-    var loaded    = false;
+    var details    = document.getElementById("leadsDetails");
+    var container  = document.getElementById("leadsContainer");
+    var loaded     = false;
+    var _leadsData = [];
+    var _leadsPage = 0;
+    var LEADS_PAGE_SIZE = 6;
     if (!details) return;
+
+    function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+    function fmtDate(ts) {
+      if (!ts) return "";
+      return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    }
+
+    function renderLeads() {
+      var start      = _leadsPage * LEADS_PAGE_SIZE;
+      var pageItems  = _leadsData.slice(start, start + LEADS_PAGE_SIZE);
+      var totalPages = Math.ceil(_leadsData.length / LEADS_PAGE_SIZE);
+      // CSV always exports all leads
+      var csvRows = [["Name","Email","Question","Source","Date"]].concat(_leadsData.map(function(l) {
+        return [l.name||"", l.email||"", l.message||"", l.source||"", fmtDate(l.created_at)].map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(",");
+      }));
+      var csvBlob = new Blob([csvRows.join("\n")], { type:"text/csv" });
+      var csvUrl  = URL.createObjectURL(csvBlob);
+      var html = '<div style="display:flex;justify-content:flex-end;margin-bottom:12px;">'
+        + '<a href="' + csvUrl + '" download="leads.csv" style="font-size:13px;font-weight:600;color:#1e40af;text-decoration:none;border:1.5px solid #bfdbfe;border-radius:7px;padding:6px 14px;background:#eff6ff;">⬇ Download CSV</a>'
+        + '</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+        + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Name</th>'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Email</th>'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Source</th>'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Date</th>'
+        + '</tr></thead><tbody>';
+      pageItems.forEach(function (l, i) {
+        var bg = i % 2 === 0 ? "#fff" : "#f9fafb";
+        html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;">'
+          + '<td style="padding:8px 10px;font-weight:500;color:#111827;">' + esc(l.name || "—") + '</td>'
+          + '<td style="padding:8px 10px;"><a href="mailto:' + esc(l.email) + '" style="color:#1e40af;text-decoration:none;">' + esc(l.email || "—") + '</a></td>'
+          + '<td style="padding:8px 10px;color:#374151;font-style:' + (l.message ? 'normal' : 'italic') + ';">' + esc(l.message || "—") + '</td>'
+          + '<td style="padding:8px 10px;color:#6b7280;">' + esc(l.source || "—") + '</td>'
+          + '<td style="padding:8px 10px;color:#6b7280;">' + esc(fmtDate(l.created_at)) + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table>';
+      if (totalPages > 1) {
+        var pd = _leadsPage === 0, nd = _leadsPage >= totalPages - 1;
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;">'
+          + '<button onclick="leadsPrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+          + '<span style="font-size:13px;color:#6b7280;">' + (_leadsPage + 1) + ' / ' + totalPages + '</span>'
+          + '<button onclick="leadsNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+          + '</div>';
+      }
+      container.innerHTML = html;
+    }
+
+    window.leadsPrev = function() { if (_leadsPage > 0) { _leadsPage--; renderLeads(); } };
+    window.leadsNext = function() { if ((_leadsPage + 1) * LEADS_PAGE_SIZE < _leadsData.length) { _leadsPage++; renderLeads(); } };
+
     details.addEventListener("toggle", function () {
       if (!details.open || loaded) return;
       loaded = true;
       fetch("/api/portal/leads")
         .then(function (r) { return r.json(); })
         .then(function (leads) {
-          if (!leads || !leads.length) {
+          _leadsData = leads || [];
+          _leadsPage = 0;
+          if (!_leadsData.length) {
             container.innerHTML = '<div style="text-align:center;padding:32px 0;font-size:14px;color:#9ca3af;">No leads captured yet — they\'ll appear here once visitors share their contact details.</div>';
             return;
           }
-          function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-          function fmtDate(ts) {
-            if (!ts) return "";
-            return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
-          }
-          // CSV download
-          var csvRows = [["Name","Email","Question","Source","Date"]].concat(leads.map(function(l) {
-            return [l.name||"", l.email||"", l.message||"", l.source||"", fmtDate(l.created_at)].map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(",");
-          }));
-          var csvBlob = new Blob([csvRows.join("\n")], { type:"text/csv" });
-          var csvUrl  = URL.createObjectURL(csvBlob);
-          var html = '<div style="display:flex;justify-content:flex-end;margin-bottom:12px;">'
-            + '<a href="' + csvUrl + '" download="leads.csv" style="font-size:13px;font-weight:600;color:#1e40af;text-decoration:none;border:1.5px solid #bfdbfe;border-radius:7px;padding:6px 14px;background:#eff6ff;">⬇ Download CSV</a>'
-            + '</div>'
-            + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
-            + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
-            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Name</th>'
-            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Email</th>'
-            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
-            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Source</th>'
-            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Date</th>'
-            + '</tr></thead><tbody>';
-          leads.forEach(function (l, i) {
-            var bg = i % 2 === 0 ? "#fff" : "#f9fafb";
-            html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;">'
-              + '<td style="padding:8px 10px;font-weight:500;color:#111827;">' + esc(l.name || "—") + '</td>'
-              + '<td style="padding:8px 10px;"><a href="mailto:' + esc(l.email) + '" style="color:#1e40af;text-decoration:none;">' + esc(l.email || "—") + '</a></td>'
-              + '<td style="padding:8px 10px;color:#374151;font-style:' + (l.message ? 'normal' : 'italic') + ';">' + esc(l.message || "—") + '</td>'
-              + '<td style="padding:8px 10px;color:#6b7280;">' + esc(l.source || "—") + '</td>'
-              + '<td style="padding:8px 10px;color:#6b7280;">' + esc(fmtDate(l.created_at)) + '</td>'
-              + '</tr>';
-          });
-          html += '</tbody></table>';
-          container.innerHTML = html;
+          renderLeads();
         })
         .catch(function () {
           container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#ef4444;">Failed to load leads. Please refresh and try again.</div>';
@@ -1821,42 +1860,67 @@
 
   // ── Lazy-load Unanswered Questions ───────────────────────────────────────────
   (function () {
-    var details   = document.getElementById("unansweredDetails");
-    var container = document.getElementById("unansweredContainer");
-    var loaded    = false;
+    var details     = document.getElementById("unansweredDetails");
+    var container   = document.getElementById("unansweredContainer");
+    var loaded      = false;
+    var _unanswData = [];
+    var _unanswPage = 0;
+    var UNANSW_PAGE_SIZE = 6;
     if (!details) return;
+
+    function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+    function fmtDate(ts) {
+      if (!ts) return "";
+      return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+    }
+
+    function renderUnansw() {
+      var start      = _unanswPage * UNANSW_PAGE_SIZE;
+      var pageItems  = _unanswData.slice(start, start + UNANSW_PAGE_SIZE);
+      var totalPages = Math.ceil(_unanswData.length / UNANSW_PAGE_SIZE);
+      var html = '<p style="font-size:13px;color:#6b7280;margin-bottom:14px;">Add answers to these questions to your knowledge base so the chat can handle them automatically next time.</p>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+        + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Asked</th>'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Last seen</th>'
+        + '</tr></thead><tbody>';
+      pageItems.forEach(function (q, i) {
+        var bg = i % 2 === 0 ? "#fff" : "#f9fafb";
+        html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;">'
+          + '<td style="padding:8px 10px;color:#111827;font-weight:500;">' + esc(q.question) + '</td>'
+          + '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap;">' + (q.count > 1 ? q.count + '×' : '1×') + '</td>'
+          + '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap;">' + esc(fmtDate(q.last_asked)) + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table>';
+      if (totalPages > 1) {
+        var pd = _unanswPage === 0, nd = _unanswPage >= totalPages - 1;
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;">'
+          + '<button onclick="unanswPrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+          + '<span style="font-size:13px;color:#6b7280;">' + (_unanswPage + 1) + ' / ' + totalPages + '</span>'
+          + '<button onclick="unanswNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+          + '</div>';
+      }
+      container.innerHTML = html;
+    }
+
+    window.unanswPrev = function() { if (_unanswPage > 0) { _unanswPage--; renderUnansw(); } };
+    window.unanswNext = function() { if ((_unanswPage + 1) * UNANSW_PAGE_SIZE < _unanswData.length) { _unanswPage++; renderUnansw(); } };
+
     details.addEventListener("toggle", function () {
       if (!details.open || loaded) return;
       loaded = true;
       fetch("/api/portal/unanswered-questions")
         .then(function (r) { return r.json(); })
         .then(function (questions) {
-          if (!questions || !questions.length) {
+          _unanswData = questions || [];
+          _unanswPage = 0;
+          if (!_unanswData.length) {
             container.innerHTML = '<div style="text-align:center;padding:32px 0;font-size:14px;color:#9ca3af;">No unanswered questions in the last 30 days — great knowledge base coverage!</div>';
             return;
           }
-          function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-          function fmtDate(ts) {
-            if (!ts) return "";
-            return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
-          }
-          var html = '<p style="font-size:13px;color:#6b7280;margin-bottom:14px;">Add answers to these questions to your knowledge base so the chat can handle them automatically next time.</p>'
-            + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
-            + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
-            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
-            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Asked</th>'
-            + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Last seen</th>'
-            + '</tr></thead><tbody>';
-          questions.forEach(function (q, i) {
-            var bg = i % 2 === 0 ? "#fff" : "#f9fafb";
-            html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;">'
-              + '<td style="padding:8px 10px;color:#111827;font-weight:500;">' + esc(q.question) + '</td>'
-              + '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap;">' + (q.count > 1 ? q.count + '×' : '1×') + '</td>'
-              + '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap;">' + esc(fmtDate(q.last_asked)) + '</td>'
-              + '</tr>';
-          });
-          html += '</tbody></table>';
-          container.innerHTML = html;
+          renderUnansw();
         })
         .catch(function () {
           container.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#ef4444;">Failed to load. Please refresh and try again.</div>';
@@ -2239,6 +2303,8 @@
     var editingId    = null; // workflow id being edited, or null
     var editingSteps = [];   // [{bot_message, choices:[{label,action_type,action_value}]}]
     var wfAgentDefs  = [];   // agent definitions for the agent choice dropdown
+    var _wfPage      = 0;
+    var WF_PAGE_SIZE = 6;
 
     function esc(s) {
       return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -2284,6 +2350,7 @@
       ]).then(function(results) {
         workflows    = results[0].workflows || [];
         wfAgentDefs  = Array.isArray(results[1]) ? results[1] : [];
+        _wfPage      = 0;
         renderList();
       }).catch(function () { body.innerHTML = '<div style="color:#dc2626;padding:16px 20px;">Failed to load chat flows.</div>'; });
     }
@@ -2299,8 +2366,11 @@
         html += '<div style="font-size:12px;color:#9ca3af;margin-top:6px;">We\'ll crawl your website and build ready-to-edit flows automatically</div>';
         html += '</div>';
       } else {
+        var start      = _wfPage * WF_PAGE_SIZE;
+        var pageItems  = workflows.slice(start, start + WF_PAGE_SIZE);
+        var totalPages = Math.ceil(workflows.length / WF_PAGE_SIZE);
         html += '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">';
-        workflows.forEach(function (wf) {
+        pageItems.forEach(function (wf) {
           var stepCount = (wf.workflow_steps || []).length;
           var active    = wf.is_active;
           html += '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid '
@@ -2323,12 +2393,23 @@
           html += '</div>';
         });
         html += '</div>';
+        if (totalPages > 1) {
+          var pd = _wfPage === 0, nd = _wfPage >= totalPages - 1;
+          html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f3f4f6;">'
+            + '<button onclick="wfListPrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+            + '<span style="font-size:13px;color:#6b7280;">' + (_wfPage + 1) + ' / ' + totalPages + '</span>'
+            + '<button onclick="wfListNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+            + '</div>';
+        }
       }
 
       html += '<button onclick="wfNew()" style="background:#0f172a;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">+ New Chat Flow</button>';
       html += '</div>';
       body.innerHTML = html;
     }
+
+    window.wfListPrev = function() { if (_wfPage > 0) { _wfPage--; renderList(); } };
+    window.wfListNext = function() { if ((_wfPage + 1) * WF_PAGE_SIZE < workflows.length) { _wfPage++; renderList(); } };
 
     // ── Render: step editor ──────────────────────────────────────────────────
     function renderEditor() {
@@ -3084,8 +3165,50 @@
     var currentFields    = [];
     var currentConnected = false;
     var allIntegrations  = []; // cache so cards can look up by provider
+    var _intgPage        = 0;
+    var INTG_PAGE_SIZE   = 6;
 
     function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+    function renderIntgList() {
+      var start      = _intgPage * INTG_PAGE_SIZE;
+      var pageItems  = allIntegrations.slice(start, start + INTG_PAGE_SIZE);
+      var totalPages = Math.ceil(allIntegrations.length / INTG_PAGE_SIZE);
+      var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;padding:4px;">';
+      pageItems.forEach(function(intg) {
+        var border    = intg.connected ? '#bbf7d0' : '#e5e7eb';
+        var bg        = intg.connected ? '#f0fdf4' : '#fafafa';
+        var cursor    = intg.coming_soon ? 'default' : 'pointer';
+        var opacity   = intg.coming_soon ? '0.55' : '1';
+        var clickAttr = intg.coming_soon ? '' : 'onclick="openIntegrationConfig(\'' + esc(intg.provider) + '\')"';
+        var hoverAttr = intg.coming_soon ? '' : 'onmouseover="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.10)\'" onmouseout="this.style.boxShadow=\'none\'"';
+        html += '<div ' + clickAttr + ' ' + hoverAttr + ' style="border-radius:14px;padding:20px 16px;text-align:center;cursor:' + cursor + ';border:2px solid ' + border + ';background:' + bg + ';opacity:' + opacity + ';transition:box-shadow 0.15s;">'
+          + intg.logo_html
+          + '<div style="font-weight:700;font-size:13px;margin-top:10px;color:#111827;">' + esc(intg.name) + '</div>'
+          + '<div style="font-size:11px;color:#6b7280;margin-top:4px;line-height:1.4;">' + esc(intg.description) + '</div>'
+          + '<div style="margin-top:12px;">'
+          + (intg.coming_soon
+              ? '<span style="font-size:11px;color:#9ca3af;font-weight:600;">🔒 Coming Soon</span>'
+              : intg.connected
+                ? '<span style="font-size:11px;color:#16a34a;font-weight:700;">● Connected</span>'
+                : '<span style="font-size:11px;color:#9ca3af;font-weight:600;">Not connected</span>')
+          + '</div>'
+          + '</div>';
+      });
+      html += '</div>';
+      if (totalPages > 1) {
+        var pd = _intgPage === 0, nd = _intgPage >= totalPages - 1;
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;">'
+          + '<button onclick="intgPrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+          + '<span style="font-size:13px;color:#6b7280;">' + (_intgPage + 1) + ' / ' + totalPages + '</span>'
+          + '<button onclick="intgNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+          + '</div>';
+      }
+      body.innerHTML = html;
+    }
+
+    window.intgPrev = function() { if (_intgPage > 0) { _intgPage--; renderIntgList(); } };
+    window.intgNext = function() { if ((_intgPage + 1) * INTG_PAGE_SIZE < allIntegrations.length) { _intgPage++; renderIntgList(); } };
 
     function loadIntegrations() {
       body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>';
@@ -3093,33 +3216,12 @@
         .then(function(r){ return r.json(); })
         .then(function(list) {
           allIntegrations = list || [];
+          _intgPage = 0;
           if (!allIntegrations.length) {
             body.innerHTML = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No integrations available for your account type.</div>';
             return;
           }
-          var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;padding:4px;">';
-          allIntegrations.forEach(function(intg) {
-            var border  = intg.connected ? '#bbf7d0' : '#e5e7eb';
-            var bg      = intg.connected ? '#f0fdf4' : '#fafafa';
-            var cursor  = intg.coming_soon ? 'default' : 'pointer';
-            var opacity = intg.coming_soon ? '0.55' : '1';
-            var clickAttr = intg.coming_soon ? '' : 'onclick="openIntegrationConfig(\'' + esc(intg.provider) + '\')"';
-            var hoverAttr = intg.coming_soon ? '' : 'onmouseover="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.10)\'" onmouseout="this.style.boxShadow=\'none\'"';
-            html += '<div ' + clickAttr + ' ' + hoverAttr + ' style="border-radius:14px;padding:20px 16px;text-align:center;cursor:' + cursor + ';border:2px solid ' + border + ';background:' + bg + ';opacity:' + opacity + ';transition:box-shadow 0.15s;">'
-              + intg.logo_html
-              + '<div style="font-weight:700;font-size:13px;margin-top:10px;color:#111827;">' + esc(intg.name) + '</div>'
-              + '<div style="font-size:11px;color:#6b7280;margin-top:4px;line-height:1.4;">' + esc(intg.description) + '</div>'
-              + '<div style="margin-top:12px;">'
-              + (intg.coming_soon
-                  ? '<span style="font-size:11px;color:#9ca3af;font-weight:600;">🔒 Coming Soon</span>'
-                  : intg.connected
-                    ? '<span style="font-size:11px;color:#16a34a;font-weight:700;">● Connected</span>'
-                    : '<span style="font-size:11px;color:#9ca3af;font-weight:600;">Not connected</span>')
-              + '</div>'
-              + '</div>';
-          });
-          html += '</div>';
-          body.innerHTML = html;
+          renderIntgList();
         })
         .catch(function() {
           body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#dc2626;">Failed to load integrations.</div>';
@@ -3558,11 +3660,122 @@
     var details = document.getElementById("memberRequestsDetails");
     if (!details) return;
 
+    var _donePage    = 0;
+    var DONE_PAGE_SIZE = 6;
+    var _pendingData = [];
+    var _doneData    = [];
+
     function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
     function fmtDate(d) {
       if (!d) return "—";
       return new Date(d).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" });
     }
+
+    function renderMemberRequests() {
+      var body = document.getElementById("memberRequestsBody");
+      var pending = _pendingData;
+      var done    = _doneData;
+      var badge   = document.getElementById("memberRequestsBadge");
+      badge.style.display = pending.length ? "inline" : "none";
+      if (pending.length) badge.textContent = pending.length;
+
+      if (!pending.length && !done.length) {
+        body.innerHTML = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No membership requests yet — they appear here when members request changes via chat.</div>';
+        return;
+      }
+
+      var html = "";
+      // Show ALL pending requests (they need action — don't hide behind pagination)
+      pending.forEach(function(r) {
+        var familyList = (r.family_members_leaving || []).map(function(n) { return "<li>" + esc(n) + "</li>"; }).join("");
+        var familySection = familyList
+          ? '<div style="margin-top:12px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">'
+            + '<div style="font-size:11px;font-weight:700;color:#c2410c;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">EBO — Manual action after approving</div>'
+            + '<div style="font-size:13px;color:#92400e;margin-bottom:4px;">Deactivate EBO accounts for:</div>'
+            + '<ul style="margin:0 0 0 18px;font-size:13px;color:#92400e;line-height:1.9;">' + familyList + '</ul></div>'
+          : "";
+        var proRataSection = r.pro_rata_amount
+          ? '<div style="margin-top:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">'
+            + '<div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Pro-rata refund owed</div>'
+            + '<div style="font-size:14px;font-weight:700;color:#166534;">' + esc(r.pro_rata_note || "€" + r.pro_rata_amount) + '</div></div>'
+          : "";
+        var isCancel     = /cancel/i.test(r.requested_type || "");
+        var isPlanChange = !isCancel && !!r.target_membership_type;
+        var stripeActions = "";
+        if (isCancel) {
+          stripeActions += "<li>Cancel subscription" + (r.effective_date ? " on " + fmtDate(r.effective_date) : " at period end") + "</li>";
+        } else if (isPlanChange) {
+          var fromLabel = r.current_type ? "<strong>" + esc(r.current_type) + "</strong> → " : "";
+          stripeActions += "<li>Switch subscription from " + fromLabel + "<strong>" + esc(r.target_membership_type) + "</strong></li>";
+          stripeActions += "<li>Pro-rata adjustment — you will choose refund or credit on approval</li>";
+        } else {
+          stripeActions += "<li>" + esc(r.requested_type || "Update") + "</li>";
+        }
+        var stripeSection = '<div style="margin-top:12px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">'
+          + '<div style="font-size:11px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Stripe Actions</div>'
+          + '<ul style="margin:0 0 0 18px;font-size:13px;color:#1e3a8a;line-height:1.9;">'
+          + stripeActions
+          + "</ul></div>";
+        html += '<div style="border:1.5px solid #e2e8f0;border-radius:12px;padding:18px 20px;margin-bottom:16px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
+          + '<div><div style="font-size:15px;font-weight:700;color:#111827;">' + esc(r.member_name)
+          + (r.membership_number ? ' <span style="font-size:13px;font-weight:400;color:#6b7280;">(#' + esc(r.membership_number) + ')</span>' : '')
+          + '</div>'
+          + '<div style="font-size:13px;color:#374151;margin-top:3px;">' + esc(r.requested_type || "—") + (r.current_type ? ' · <span style="color:#6b7280;">' + esc(r.current_type) + '</span>' : '') + (r.target_membership_type ? ' → <strong>' + esc(r.target_membership_type) + '</strong>' : '') + '</div>'
+          + (r.reason ? '<div style="font-size:12px;color:#9ca3af;margin-top:2px;font-style:italic;">"' + esc(r.reason) + '"</div>' : '')
+          + '</div>'
+          + '<div style="text-align:right;flex-shrink:0;">'
+          + '<div style="font-size:12px;color:#9ca3af;">' + fmtDate(r.created_at) + '</div>'
+          + (r.effective_date ? '<div style="font-size:12px;color:#6b7280;margin-top:2px;">Effective: ' + fmtDate(r.effective_date) + '</div>' : '')
+          + '<span style="display:inline-block;margin-top:5px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;">Pending</span>'
+          + '</div></div>'
+          + stripeSection + familySection + proRataSection
+          + '<div style="margin-top:14px;display:flex;gap:10px;">'
+          + '<button onclick="approveMemberRequest(\'' + r.id + '\')" style="flex:1;background:#16a34a;color:white;border:none;border-radius:9px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve &amp; Execute</button>'
+          + '<button onclick="rejectMemberRequest(\'' + r.id + '\')" style="flex:1;background:white;color:#dc2626;border:1.5px solid #fca5a5;border-radius:9px;padding:10px 0;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">✕ Reject</button>'
+          + '</div></div>';
+      });
+
+      // Paginated completed requests
+      if (done.length) {
+        var start      = _donePage * DONE_PAGE_SIZE;
+        var pageItems  = done.slice(start, start + DONE_PAGE_SIZE);
+        var totalPages = Math.ceil(done.length / DONE_PAGE_SIZE);
+        html += '<div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 10px;">Completed</div>';
+        pageItems.forEach(function(r) {
+          var ok = r.status === "approved";
+          var sr = r.stripe_result;
+          var stripeNote = "";
+          if (ok && sr) {
+            var srIcon = sr.ok ? "✅" : "⚠️";
+            stripeNote = '<div style="font-size:11px;color:' + (sr.ok ? "#166534" : "#92400e") + ';margin-top:4px;background:' + (sr.ok ? "#f0fdf4" : "#fffbeb") + ';border-radius:6px;padding:4px 8px;">'
+              + srIcon + " " + esc(sr.message || "")
+              + (sr.ok && sr.stripeDashboardUrl ? ' <a href="' + esc(sr.stripeDashboardUrl) + '" target="_blank" style="color:#2563eb;text-decoration:none;margin-left:6px;">Open in Stripe ↗</a>' : '')
+              + '</div>';
+          }
+          html += '<div style="border:1px solid #f3f4f6;border-radius:10px;padding:14px 16px;margin-bottom:8px;opacity:0.85;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
+            + '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:#374151;">' + esc(r.member_name) + " — " + esc(r.current_type || "—") + " → " + esc(r.requested_type || "—") + '</div>'
+            + '<div style="font-size:12px;color:#9ca3af;margin-top:2px;">' + fmtDate(r.created_at) + '</div>'
+            + stripeNote + '</div>'
+            + '<span style="flex-shrink:0;background:' + (ok ? "#dcfce7" : "#fee2e2") + ";color:" + (ok ? "#166534" : "#991b1b") + ';font-size:11px;font-weight:700;padding:3px 10px;border-radius:10px;">'
+            + (ok ? "✓ Approved" : "✕ Rejected") + '</span></div></div>';
+        });
+        if (totalPages > 1) {
+          var pd = _donePage === 0, nd = _donePage >= totalPages - 1;
+          html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid #f3f4f6;">'
+            + '<button onclick="donePrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+            + '<span style="font-size:13px;color:#6b7280;">' + (_donePage + 1) + ' / ' + totalPages + '</span>'
+            + '<button onclick="doneNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+            + '</div>';
+        }
+      }
+
+      body.innerHTML = html;
+    }
+
+    window.donePrev = function() { if (_donePage > 0) { _donePage--; renderMemberRequests(); } };
+    window.doneNext = function() { if ((_donePage + 1) * DONE_PAGE_SIZE < _doneData.length) { _donePage++; renderMemberRequests(); } };
 
     function loadMemberRequests() {
       var body = document.getElementById("memberRequestsBody");
@@ -3570,97 +3783,10 @@
       fetch("/api/portal/membership-requests")
         .then(function(r) { return r.json(); })
         .then(function(requests) {
-          var badge   = document.getElementById("memberRequestsBadge");
-          var pending = requests.filter(function(r) { return r.status === "pending"; });
-          var done    = requests.filter(function(r) { return r.status !== "pending"; });
-
-          badge.style.display = pending.length ? "inline" : "none";
-          if (pending.length) badge.textContent = pending.length;
-
-          if (!requests.length) {
-            body.innerHTML = '<div style="text-align:center;padding:32px;font-size:14px;color:#9ca3af;">No membership requests yet — they appear here when members request changes via chat.</div>';
-            return;
-          }
-
-          var html = "";
-
-          pending.forEach(function(r) {
-            var familyList = (r.family_members_leaving || []).map(function(n) { return "<li>" + esc(n) + "</li>"; }).join("");
-            var familySection = familyList
-              ? '<div style="margin-top:12px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">'
-                + '<div style="font-size:11px;font-weight:700;color:#c2410c;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">EBO — Manual action after approving</div>'
-                + '<div style="font-size:13px;color:#92400e;margin-bottom:4px;">Deactivate EBO accounts for:</div>'
-                + '<ul style="margin:0 0 0 18px;font-size:13px;color:#92400e;line-height:1.9;">' + familyList + '</ul></div>'
-              : "";
-
-            var proRataSection = r.pro_rata_amount
-              ? '<div style="margin-top:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">'
-                + '<div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Pro-rata refund owed</div>'
-                + '<div style="font-size:14px;font-weight:700;color:#166534;">' + esc(r.pro_rata_note || "€" + r.pro_rata_amount) + '</div></div>'
-              : "";
-
-            var isCancel     = /cancel/i.test(r.requested_type || "");
-            var isPlanChange = !isCancel && !!r.target_membership_type;
-            var stripeActions = "";
-            if (isCancel) {
-              stripeActions += "<li>Cancel subscription" + (r.effective_date ? " on " + fmtDate(r.effective_date) : " at period end") + "</li>";
-            } else if (isPlanChange) {
-              var fromLabel = r.current_type ? "<strong>" + esc(r.current_type) + "</strong> → " : "";
-              stripeActions += "<li>Switch subscription from " + fromLabel + "<strong>" + esc(r.target_membership_type) + "</strong></li>";
-              stripeActions += "<li>Pro-rata adjustment — you will choose refund or credit on approval</li>";
-            } else {
-              stripeActions += "<li>" + esc(r.requested_type || "Update") + "</li>";
-            }
-            var stripeSection = '<div style="margin-top:12px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">'
-              + '<div style="font-size:11px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Stripe Actions</div>'
-              + '<ul style="margin:0 0 0 18px;font-size:13px;color:#1e3a8a;line-height:1.9;">'
-              + stripeActions
-              + "</ul></div>";
-
-            html += '<div style="border:1.5px solid #e2e8f0;border-radius:12px;padding:18px 20px;margin-bottom:16px;">'
-              + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
-              + '<div><div style="font-size:15px;font-weight:700;color:#111827;">' + esc(r.member_name)
-              + (r.membership_number ? ' <span style="font-size:13px;font-weight:400;color:#6b7280;">(#' + esc(r.membership_number) + ')</span>' : '')
-              + '</div>'
-              + '<div style="font-size:13px;color:#374151;margin-top:3px;">' + esc(r.requested_type || "—") + (r.current_type ? ' · <span style="color:#6b7280;">' + esc(r.current_type) + '</span>' : '') + (r.target_membership_type ? ' → <strong>' + esc(r.target_membership_type) + '</strong>' : '') + '</div>'
-              + (r.reason ? '<div style="font-size:12px;color:#9ca3af;margin-top:2px;font-style:italic;">"' + esc(r.reason) + '"</div>' : '')
-              + '</div>'
-              + '<div style="text-align:right;flex-shrink:0;">'
-              + '<div style="font-size:12px;color:#9ca3af;">' + fmtDate(r.created_at) + '</div>'
-              + (r.effective_date ? '<div style="font-size:12px;color:#6b7280;margin-top:2px;">Effective: ' + fmtDate(r.effective_date) + '</div>' : '')
-              + '<span style="display:inline-block;margin-top:5px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;">Pending</span>'
-              + '</div></div>'
-              + stripeSection + familySection + proRataSection
-              + '<div style="margin-top:14px;display:flex;gap:10px;">'
-              + '<button onclick="approveMemberRequest(\'' + r.id + '\')" style="flex:1;background:#16a34a;color:white;border:none;border-radius:9px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve &amp; Execute</button>'
-              + '<button onclick="rejectMemberRequest(\'' + r.id + '\')" style="flex:1;background:white;color:#dc2626;border:1.5px solid #fca5a5;border-radius:9px;padding:10px 0;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">✕ Reject</button>'
-              + '</div></div>';
-          });
-
-          if (done.length) {
-            html += '<div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 10px;">Completed</div>';
-            done.forEach(function(r) {
-              var ok = r.status === "approved";
-              var sr = r.stripe_result;
-              var stripeNote = "";
-              if (ok && sr) {
-                var srIcon = sr.ok ? "✅" : "⚠️";
-                stripeNote = '<div style="font-size:11px;color:' + (sr.ok ? "#166534" : "#92400e") + ';margin-top:4px;background:' + (sr.ok ? "#f0fdf4" : "#fffbeb") + ';border-radius:6px;padding:4px 8px;">'
-                  + srIcon + " " + esc(sr.message || "")
-                  + (sr.ok && sr.stripeDashboardUrl ? ' <a href="' + esc(sr.stripeDashboardUrl) + '" target="_blank" style="color:#2563eb;text-decoration:none;margin-left:6px;">Open in Stripe ↗</a>' : '')
-                  + '</div>';
-              }
-              html += '<div style="border:1px solid #f3f4f6;border-radius:10px;padding:14px 16px;margin-bottom:8px;opacity:0.85;">'
-                + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
-                + '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:#374151;">' + esc(r.member_name) + " — " + esc(r.current_type || "—") + " → " + esc(r.requested_type || "—") + '</div>'
-                + '<div style="font-size:12px;color:#9ca3af;margin-top:2px;">' + fmtDate(r.created_at) + '</div>'
-                + stripeNote + '</div>'
-                + '<span style="flex-shrink:0;background:' + (ok ? "#dcfce7" : "#fee2e2") + ";color:" + (ok ? "#166534" : "#991b1b") + ';font-size:11px;font-weight:700;padding:3px 10px;border-radius:10px;">'
-                + (ok ? "✓ Approved" : "✕ Rejected") + '</span></div></div>';
-            });
-          }
-
-          body.innerHTML = html;
+          _pendingData = requests.filter(function(r) { return r.status === "pending"; });
+          _doneData    = requests.filter(function(r) { return r.status !== "pending"; });
+          _donePage    = 0;
+          renderMemberRequests();
         })
         .catch(function() {
           document.getElementById("memberRequestsBody").innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#dc2626;">Failed to load requests.</div>';

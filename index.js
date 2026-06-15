@@ -17123,15 +17123,20 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
     });
 
     if (!validBooking) {
-      const next = mine.find(b => {
-        const hhmm = String(b.time || "").slice(11, 16);
-        if (!hhmm || !hhmm.includes(":")) return false;
-        const [bh, bm] = hhmm.split(":").map(Number);
-        return bh * 60 + bm > nowMins + 30;
-      });
-      const msg = next
-        ? `Check-in opens at ${String(next.time || "").slice(11, 16)} (15 minutes before your booking).`
-        : "No booking found for the current time slot.";
+      let msg;
+      if (mine.length === 0) {
+        msg = "You have no bookings at the club today.";
+      } else {
+        const next = mine.find(b => {
+          const hhmm = String(b.time || "").slice(11, 16);
+          if (!hhmm || !hhmm.includes(":")) return false;
+          const [bh, bm] = hhmm.split(":").map(Number);
+          return bh * 60 + bm > nowMins + 30;
+        });
+        msg = next
+          ? `Check-in opens at ${String(next.time || "").slice(11, 16)} — 15 minutes before your booking.`
+          : "Your check-in window has closed for today’s bookings.";
+      }
       return res.json({ valid_booking: null, already_checked_in: false, member_name: null, message: msg });
     }
 

@@ -610,6 +610,66 @@ Run these manually on a phone to verify the booking-based check-in is working co
 
 ---
 
+## 📡 Self-Calibrating GPS — Refine Club Location from Real Check-ins
+
+**What:** Every successful check-in records a GPS coordinate. Over time, the cluster of real check-in points is a far more accurate picture of where the club actually is than a geocoded address. Use this data to automatically refine the club's stored lat/lng and check-in radius.
+
+**How it could work:**
+- After N check-ins (e.g. 20+), calculate the centroid (average lat/lng) of all verified check-ins
+- Compare centroid to current stored coordinates — if meaningfully different, update or flag for review
+- Calculate the spread (standard deviation) of check-in points to suggest an optimal radius — tight cluster = tighter radius, wide spread = larger radius
+- Run as a background job weekly, or trigger after every 50 check-ins
+- Portal shows: "Your GPS centre has been refined based on X check-ins" with a map preview
+
+**Why this is clever:**
+- Geocoding an address gives you the front gate or the road outside — not the court itself
+- Real check-ins show exactly where members are when they play (on the courts, not the car park)
+- The radius self-tunes too — stops false rejections for members on the far court
+- Completely passive — gets more accurate the more the club uses it
+
+**Edge cases to handle:**
+- Exclude outliers (members who somehow checked in from 500m away — GPS error or spoofing)
+- Don't auto-update if the centroid shifts dramatically (could indicate bad data)
+- Admin can always override manually in portal
+
+**Status:** ⏳ Idea. GPS data is already being stored per check-in — the raw material is there.
+
+---
+
+## 📍 Auto-populate GPS Coordinates from Address at Signup
+
+**What:** When a new tennis club signs up and enters their address/postcode, automatically geocode it and pre-fill the GPS coordinates (lat/lng) and check-in radius in the portal — no manual coordinate lookup needed.
+
+**Why:** Currently, setting up GPS check-in requires the admin to manually find and paste lat/lng coordinates. This is a friction point. The club's address is already captured at signup, so geocoding it is a natural step.
+
+**How:**
+- On signup (or when address is saved in portal settings), call a geocoding API with the address + postcode
+- Google Maps Geocoding API or free alternative (Nominatim/OpenStreetMap — no API key needed)
+- Store returned lat/lng as `checkin_lat` / `checkin_lng` on the tenant record
+- Default radius to 150m (current default) — admin can adjust in portal
+- Show a map preview in portal settings so the club can confirm the pin is correct
+
+**Geocoding options:**
+- **Nominatim (OpenStreetMap)** — free, no key, rate-limited to 1 req/sec. Fine for signup flow.
+- **Google Maps Geocoding API** — more accurate, especially for Irish addresses. Costs ~€0.005/request. Worth it for the UX.
+
+**Status:** ⏳ Idea. GPS coordinates currently require manual entry.
+
+---
+
+## 🔴 Fix Monkstown KB — Officer Names Not Retrievable
+
+Questions like "who is the president?" or "who is the club president?" return nothing or a generic answer. The committee/officer names are on the Monkstown website but it's a Wix site — the "About Us - Committee" page is JS-rendered so the crawler only got a blank shell, and the officer names were never embedded into the KB.
+
+**Fix options:**
+1. Manually upload a fact file in the Monkstown portal with officer names (quick workaround — do this first)
+2. Re-crawl via Jina Reader (`r.jina.ai/{url}`) for the committee page specifically — Jina uses a headless browser and will see the JS-rendered content
+3. When the JS-rendered crawl fix is built (see URGENT JS-rendered pages idea), re-crawl Monkstown and it'll pick up automatically
+
+**Status:** ⏳ TODO. Upload a fact file as immediate fix, then re-crawl properly once Jina fallback is built.
+
+---
+
 ## ⏳ TODO — Stop Morning Digest Scheduler for Cormac/AOM
 
 Disable or skip the morning digest scheduler for the AOM tenant. Currently the digest scheduler fires at 07:30 IST on weekdays for all tenants — Cormac's tenant should be excluded or the scheduler turned off entirely for AOM.
@@ -920,6 +980,46 @@ Added a "Website QR Code" card to the portal dashboard for all tenants, below th
 
 ---
 
+## ⏱️ Portal Session Timeout
+
+**What:** The portal login session never expires. Once logged in, a tenant stays logged in indefinitely — even on a shared or public computer.
+
+**Why it's a problem:** If a tenant leaves their laptop unlocked in a café or shared office, anyone can access their full portal — KB, leads, flows, settings. Standard security practice is to expire sessions after a period of inactivity.
+
+**What to build:**
+- Session expiry after X hours of inactivity (e.g. 8 hours — enough for a full working day)
+- "Remember me for 30 days" checkbox on login for trusted devices
+- Auto-logout with a "Your session has expired, please log in again" message
+- Secure, HttpOnly cookie with `SameSite=Strict` and short max-age
+
+**Status:** ⏳ TODO. Sessions currently never expire.
+
+---
+
+## 🔐 Security Audit — Priority Fixes
+
+Full security review done 2026-06-14. Current state: protected but not production-hardened. Fix in this order before scaling past ~10 clients.
+
+### 🔴 Do immediately
+- **Verify all Render env vars are strong and unique** — admin password, Supabase keys, OpenAI key, Stripe key. Not reused anywhere else.
+
+### 🟠 Do soon
+- **Monthly chat spend cap per tenant** — `monthly_chat_limit` column on tenants, check count before each OpenAI call, show friendly "limit reached" message. Prevents runaway bills from bots or viral moments. (See also: Chat Monthly Limits idea below)
+- **Portal 2FA — TOTP** — Google Authenticator / Authy via `speakeasy` library. After email/password, prompt for 6-digit code. Encrypted secret stored per tenant in Supabase. (See also: Portal Login Security idea below)
+
+### 🟡 Before wider rollout
+- **Password reset flow** — "Forgot password?" on login → time-limited token emailed → set new password. No self-service recovery currently exists.
+- **OAuth / Sign in with Google** — delegates auth to Google who handles 2FA, breach detection, session management. Eliminates password risk entirely. Bigger lift but the cleanest long-term fix.
+
+### 🔵 Defence in depth (later)
+- **Supabase Row Level Security (RLS)** — currently the app service key is the only gate. If it leaked, all tenant data is readable. RLS adds a DB-level permission layer so even a leaked key can't cross tenant boundaries.
+- **Magic link URL hardening** — check-in magic links expose `?m=membershipNumber` in the URL (browser history, server logs, Cloudflare logs). Consider hashing or removing the membership number from the URL param.
+
+### What's already in place ✅
+Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP for check-in, EBO credentials encrypted in DB, API keys in Render env vars, Supabase managed Postgres.
+
+---
+
 ## 🛡️ Cloudflare Protection (Vlad — Security)
 
 **Problem:** Current rate limit is 30 msgs/IP/min — easy to bypass with rotating IPs or distributed bots. The chat endpoint is exposed to the open internet with no additional layer.
@@ -1014,9 +1114,9 @@ Added a "Website QR Code" card to the portal dashboard for all tenants, below th
 
 ---
 
-## 🔖 "Powered by Sprimal" Branding on Widget (Vlad)
+## 🔖 "Powered by Sprimal" Branding on Widget (Vlad + Dan)
 
-**What:** A small persistent "Powered by Sprimal" label with the Sprimal logo in the bottom-right of the chat widget — always visible, not dismissable.
+**What:** A small persistent "Powered by Sprimal" label with the Sprimal logo in the bottom of the chat widget — always visible, not dismissable. Small text, unobtrusive.
 
 **Why:** Free marketing on every tenant's website. Every visitor who uses the chat sees the brand. Standard practice (Intercom, Drift, Tidio all do this on free/lower tiers).
 
@@ -1024,7 +1124,7 @@ Added a "Website QR Code" card to the portal dashboard for all tenants, below th
 - Always on (all plans) — maximum exposure
 - Removable on higher tier (white-label add-on for e.g. €X/month)
 
-**Status:** Idea. Not currently shown.
+**Status:** ⏳ TODO — add to widget.js footer area, same style as the check-in page footer already has.
 
 ---
 

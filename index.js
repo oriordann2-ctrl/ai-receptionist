@@ -8449,23 +8449,7 @@ function buildDocListHtml(docs, tid, tenantWebsite, tenantCreatedAt, lastCrawlAt
     }).join("");
   }
 
-  // Uploaded documents
-  if (uploaded.length) {
-    html += '<div class="section-label" style="margin-top:' + (domains.length ? "24px" : "0") + '">Uploaded Documents</div>';
-    html += uploaded.map(doc => {
-      const ext = (doc.original_filename || "").split(".").pop().toLowerCase();
-      const badge = ext === "pdf"  ? '<span class="doc-type-badge badge-pdf">PDF</span>'
-                  : ext === "docx" ? '<span class="doc-type-badge badge-docx">DOCX</span>'
-                  : '<span class="doc-type-badge badge-txt">TXT</span>';
-      const date = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
-      return '<div class="doc-row" id="doc-' + esc(doc.id) + '">'
-        + badge
-        + '<div class="doc-info"><div class="doc-name">' + esc(doc.original_filename || "Untitled") + '</div>'
-        + '<div class="doc-meta">Uploaded ' + date + '</div></div>'
-        + '<button class="btn-delete" onclick="portalDeleteDoc(\'' + esc(doc.id) + '\',\'' + esc(doc.original_filename||"") + '\')">Delete</button>'
-        + '</div>';
-    }).join("");
-  }
+  // Uploaded documents are rendered client-side with pagination via loadDocuments()
 
   return html;
 }

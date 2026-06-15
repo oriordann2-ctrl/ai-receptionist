@@ -18,6 +18,7 @@
     loadPortalAnalytics();
     loadSettings();
     loadCourts();
+    loadDocuments();
   }
 
   // ── Polling (for new signups while crawl runs) ────────────────────────────

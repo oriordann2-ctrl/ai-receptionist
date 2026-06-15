@@ -1129,18 +1129,34 @@
         if (!todayLog.length) { el.innerHTML = '<div style="font-size:13px;color:#9ca3af;">No check-ins today yet.</div>'; return; }
         el.innerHTML = '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
           + '<thead><tr style="color:#6b7280;text-align:left;border-bottom:1px solid #f3f4f6;">'
-          + '<th style="padding:6px 8px;">Member</th><th style="padding:6px 8px;">Time</th><th style="padding:6px 8px;">GPS</th></tr></thead>'
+          + '<th style="padding:6px 8px;">Member</th><th style="padding:6px 8px;">Time</th><th style="padding:6px 8px;">GPS</th><th style="padding:6px 8px;"></th></tr></thead>'
           + '<tbody>' + todayLog.map(function(c) {
             var t = new Date(c.checked_in_at).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
-            return '<tr style="border-bottom:1px solid #f9fafb;">'
+            return '<tr style="border-bottom:1px solid #f9fafb;" id="checkin-row-' + c.id + '">'
               + '<td style="padding:6px 8px;font-weight:600;">' + c.member_name + ' <span style="color:#9ca3af;font-weight:400;">#' + c.membership_number + '</span></td>'
               + '<td style="padding:6px 8px;color:#374151;">' + t + '</td>'
               + '<td style="padding:6px 8px;">' + (c.gps_verified ? '✅ ' + c.gps_distance_meters + 'm' : c.gps_lat ? '⚠️ unverified' : '—') + '</td>'
+              + '<td style="padding:6px 8px;"><button onclick="deleteCheckin(\'' + c.id + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px 6px;" title="Remove check-in">✕</button></td>'
               + '</tr>';
           }).join("") + '</tbody></table>';
       })
       .catch(function() {});
   }
+
+  window.deleteCheckin = function(id) {
+    if (!confirm("Remove this check-in record?")) return;
+    fetch("/api/portal/checkins/" + id, { method: "DELETE" })
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (res.ok) {
+          var row = document.getElementById("checkin-row-" + id);
+          if (row) row.remove();
+        } else {
+          alert("Failed to delete: " + (res.error || "unknown error"));
+        }
+      })
+      .catch(function() { alert("Network error — could not delete check-in."); });
+  };
 
   window.saveGps = function() {
     var latVal = document.getElementById("checkinLat").value.trim();

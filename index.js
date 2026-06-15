@@ -17153,12 +17153,13 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
     const displayTime = String(validBooking.time || "").slice(11, 16);
     const booking = { court_id: validBooking.court_id, time: validBooking.time, display_time: displayTime };
 
+    // Block if already checked in for ANY court at this timeslot — one slot, one check-in
     const { data: existing } = await supabase.from("court_checkins")
-      .select("id").eq("tenant_id", tenantId).eq("membership_number", memberNum)
-      .eq("booking_time", validBooking.time).eq("booking_court_id", String(validBooking.court_id))
+      .select("id, booking_court_id").eq("tenant_id", tenantId).eq("membership_number", memberNum)
+      .eq("booking_time", validBooking.time)
       .maybeSingle();
 
-    if (existing) return res.json({ valid_booking: booking, already_checked_in: true, member_name: memberName, message: `Already checked in for Court ${validBooking.court_id} at ${displayTime}.` });
+    if (existing) return res.json({ valid_booking: booking, already_checked_in: true, member_name: memberName, message: `Already checked in for Court ${existing.booking_court_id || validBooking.court_id} at ${displayTime}.` });
 
     return res.json({ valid_booking: booking, already_checked_in: false, member_name: memberName, message: null });
   } catch(err) {
@@ -17258,6 +17259,15 @@ app.get("/api/portal/checkins/log", requireTenant, async (req, res) => {
   const { data, error } = await supabase.from("court_checkins").select("*").eq("tenant_id", tenantId).order("checked_in_at", { ascending: false }).limit(200);
   if (error) return res.status(500).json({ error: error.message });
   res.json(data || []);
+});
+
+// DELETE /api/portal/checkins/:id — remove a specific check-in record (admin only)
+app.delete("/api/portal/checkins/:id", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { id } = req.params;
+  const { error } = await supabase.from("court_checkins").delete().eq("id", id).eq("tenant_id", tenantId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
 });
 
 const PORT = process.env.PORT || 3000;

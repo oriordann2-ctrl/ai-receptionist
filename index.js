@@ -17113,7 +17113,9 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
       Array.isArray(b.bookedMembers) && b.bookedMembers.some(m => Number(m.membership_number) === memberNum)
     );
 
-    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+    const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+    const [nowH, nowM] = irishTime.split(":").map(Number);
+    const nowMins = nowH * 60 + nowM;
     const validBooking = mine.find(b => {
       const hhmm = String(b.time || "").slice(11, 16);
       if (!hhmm || !hhmm.includes(":")) return false;

@@ -7413,8 +7413,8 @@ function requireSeniorTenant(req, res, next) {
 // ── Password reset helpers ────────────────────────────────────────────────────
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
-function createResetToken(email) {
-  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + RESET_TOKEN_EXPIRY_MS })).toString("base64url");
+function createResetToken(tenantId, email) {
+  const payload = Buffer.from(JSON.stringify({ tenantId, email, exp: Date.now() + RESET_TOKEN_EXPIRY_MS })).toString("base64url");
   const sig = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
   return payload + "." + sig;
 }
@@ -7428,7 +7428,7 @@ function verifyResetToken(token) {
     const expected = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
     if (sig !== expected) return null;
     const data = JSON.parse(Buffer.from(payload, "base64url").toString());
-    if (!data.email || !data.exp || Date.now() > data.exp) return null;
+    if (!data.tenantId || !data.email || !data.exp || Date.now() > data.exp) return null;
     return data;
   } catch { return null; }
 }
@@ -7568,42 +7568,45 @@ app.get("/portal/forgot-password", (req, res) => {
 // ── POST /portal/forgot-password ──────────────────────────────────────────────
 app.post("/portal/forgot-password", async (req, res) => {
   const email = (req.body.email || "").toLowerCase().trim();
-  // Always redirect to ?sent=1 regardless — prevents email enumeration
   if (!email) return res.redirect("/portal/forgot-password?sent=1");
 
-  const { data: tenant } = await supabase
+  const { data: tenants } = await supabase
     .from("tenants")
     .select("id, name, email")
-    .eq("email", email)
-    .maybeSingle();
+    .eq("email", email);
 
-  if (tenant && process.env.RESEND_API_KEY) {
-    const resetToken = createResetToken(email);
-    const resetUrl = `https://app.sprimal.com/portal/reset-password/${resetToken}`;
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.RESEND_API_KEY}` },
-      body: JSON.stringify({
-        from: "Sprimal <hello@sprimal.com>",
-        to: email,
-        subject: "Reset your Sprimal password",
-        html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:32px 16px;">
+  if (tenants?.length && process.env.RESEND_API_KEY) {
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Dublin" });
+    for (const tenant of tenants) {
+      const resetToken = createResetToken(tenant.id, email);
+      const resetUrl = `https://app.sprimal.com/portal/reset-password/${resetToken}`;
+      const multiAccount = tenants.length > 1;
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.RESEND_API_KEY}` },
+        body: JSON.stringify({
+          from: "Sprimal <hello@sprimal.com>",
+          to: email,
+          subject: `Reset your Sprimal password${multiAccount ? ` — ${tenant.name}` : ""}`,
+          html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:32px 16px;">
 <table style="max-width:520px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;">
   <tr><td style="background:#0f1f3d;padding:22px 32px;text-align:center;">
     <span style="font-size:22px;font-weight:bold;color:white;">Sprimal</span>
   </td></tr>
   <tr><td style="padding:36px 40px;">
     <h2 style="color:#0f172a;margin:0 0 12px;">Reset your password</h2>
-    <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">Hi ${tenant.name}, click the button below to choose a new password. This link expires in <strong>1 hour</strong>.</p>
+    ${multiAccount ? `<p style="color:#6b7280;font-size:13px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin:0 0 16px;">Account: <strong>${tenant.name}</strong></p>` : ""}
+    <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">Click the button below to choose a new password. This link expires in <strong>1 hour</strong>.</p>
     <table style="width:100%;margin-bottom:24px;"><tr><td style="text-align:center;">
       <a href="${resetUrl}" style="background:#2563eb;color:white;text-decoration:none;padding:13px 32px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">Set new password &rarr;</a>
     </td></tr></table>
-    <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.5;">If you didn't request this, you can ignore this email — your password won't change. Link expires at ${new Date(Date.now() + RESET_TOKEN_EXPIRY_MS).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Dublin" })} IST.</p>
+    <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.5;">If you didn't request this, ignore this email — your password won't change. Link expires at ${expiresAt} IST.</p>
   </td></tr>
 </table>
 </body></html>`
-      })
-    }).catch(() => {});
+        })
+      }).catch(() => {});
+    }
   }
 
   res.redirect("/portal/forgot-password?sent=1");
@@ -7630,7 +7633,7 @@ app.post("/portal/reset-password/:token", async (req, res) => {
   const { data: tenant } = await supabase
     .from("tenants")
     .select("id, name, email, website")
-    .eq("email", data.email)
+    .eq("id", data.tenantId)
     .maybeSingle();
 
   if (!tenant) return res.send(resetPageHtml("", "Account not found. Please <a href='/portal/forgot-password'>try again</a>."));

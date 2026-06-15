@@ -1078,7 +1078,7 @@
           var el = document.getElementById("clubQr");
           if (el) {
             el.innerHTML = '<div style="display:flex;align-items:center;gap:14px;padding:14px;background:#f9fafb;border-radius:12px;">'
-              + '<img src="' + qrUrl + '" alt="Check-in QR" style="width:80px;height:80px;border-radius:8px;flex-shrink:0;">'
+              + '<img src="' + qrUrl + '" alt="Check-in QR" style="width:160px;height:160px;border-radius:8px;flex-shrink:0;">'
               + '<div>'
               + '<div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:4px;">Club Check-In QR</div>'
               + '<div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Print and display at your club entrance</div>'

@@ -161,6 +161,16 @@
       cursor: pointer; font-family: inherit; transition: background 0.15s;
     }
     .btn-delete:hover { background: #b91c1c; }
+    .noshow-period-btn { padding:5px 11px;font-size:12px;font-family:inherit;border:1.5px solid #e5e7eb;border-radius:6px;background:white;color:#6b7280;cursor:pointer;transition:all 0.15s; }
+    .noshow-period-btn:hover { background:#f9fafb;color:#374151; }
+    .noshow-period-btn.active { background:#374151;color:white;border-color:#374151; }
+    .noshow-metric { background:#f9fafb;border-radius:8px;padding:10px 12px; }
+    .noshow-metric-label { font-size:11px;color:#9ca3af;margin:0 0 3px; }
+    .noshow-metric-value { font-size:20px;font-weight:700;margin:0;color:#111827; }
+    .noshow-badge { font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;display:inline-block; }
+    .noshow-badge-red { background:#fee2e2;color:#991b1b; }
+    .noshow-badge-amber { background:#fef3c7;color:#92400e; }
+    .noshow-badge-green { background:#dcfce7;color:#166534; }
 
     .empty-state { text-align: center; padding: 24px 0; font-size: 14px; color: #9ca3af; }
 
@@ -929,6 +939,23 @@
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f3f4f6;">
       <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;">Today's Check-Ins</div>
       <div id="checkinLog"></div>
+    </div>
+
+    <!-- No-show report -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f3f4f6;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <div style="font-size:14px;font-weight:600;color:#374151;">No-Show Report</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;" id="noshow-period-btns">
+          <button class="noshow-period-btn active" onclick="setNoshowPeriod('day',this)">Today</button>
+          <button class="noshow-period-btn" onclick="setNoshowPeriod('week',this)">7 days</button>
+          <button class="noshow-period-btn" onclick="setNoshowPeriod('month',this)">Month</button>
+          <button class="noshow-period-btn" onclick="setNoshowPeriod('3m',this)">3 months</button>
+          <button class="noshow-period-btn" onclick="setNoshowPeriod('6m',this)">6 months</button>
+          <button class="noshow-period-btn" onclick="setNoshowPeriod('year',this)">Year</button>
+        </div>
+      </div>
+      <div id="noshow-metrics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;"></div>
+      <div id="noshow-table"></div>
     </div>
   </div>
 

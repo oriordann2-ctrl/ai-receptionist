@@ -1158,6 +1158,63 @@
       .catch(function() { alert("Network error — could not delete check-in."); });
   };
 
+  window.setNoshowPeriod = function(period, btn) {
+    document.querySelectorAll(".noshow-period-btn").forEach(function(b) { b.classList.remove("active"); });
+    btn.classList.add("active");
+    loadNoshowReport(period);
+  };
+
+  function loadNoshowReport(period) {
+    var metrics = document.getElementById("noshow-metrics");
+    var table = document.getElementById("noshow-table");
+    if (!metrics || !table) return;
+    metrics.innerHTML = '<div style="font-size:13px;color:#9ca3af;">Loading...</div>';
+    table.innerHTML = "";
+    fetch("/api/portal/checkins/noshow-report?period=" + period)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.error) { metrics.innerHTML = '<div style="font-size:13px;color:#ef4444;">' + d.error + '</div>'; return; }
+        var checkins = d.total_bookings - d.total_noshows;
+        var rate = d.total_bookings > 0 ? Math.round(d.total_noshows / d.total_bookings * 100) : 0;
+        var rateColor = rate >= 60 ? "#991b1b" : rate >= 30 ? "#92400e" : "#166534";
+        metrics.innerHTML =
+          '<div class="noshow-metric"><p class="noshow-metric-label">Total bookings</p><p class="noshow-metric-value">' + d.total_bookings + '</p></div>' +
+          '<div class="noshow-metric"><p class="noshow-metric-label">Checked in</p><p class="noshow-metric-value" style="color:#166534;">' + checkins + '</p></div>' +
+          '<div class="noshow-metric"><p class="noshow-metric-label">No-shows</p><p class="noshow-metric-value" style="color:#991b1b;">' + d.total_noshows + '</p></div>' +
+          '<div class="noshow-metric"><p class="noshow-metric-label">No-show rate</p><p class="noshow-metric-value" style="color:' + rateColor + ';">' + rate + '%</p></div>';
+
+        if (!d.members || !d.members.length) {
+          table.innerHTML = '<div style="font-size:13px;color:#9ca3af;">No booking data for this period.</div>';
+          return;
+        }
+        var rows = d.members.map(function(m, i) {
+          var badgeClass = m.rate >= 60 ? "noshow-badge-red" : m.rate >= 30 ? "noshow-badge-amber" : "noshow-badge-green";
+          var barColor = m.rate >= 60 ? "#ef4444" : m.rate >= 30 ? "#f59e0b" : "#22c55e";
+          return '<tr style="border-bottom:1px solid #f3f4f6;">' +
+            '<td style="padding:7px 6px;font-size:12px;color:#9ca3af;width:24px;">' + (i + 1) + '</td>' +
+            '<td style="padding:7px 6px;">' +
+              '<div style="font-size:13px;font-weight:600;color:#111827;">' + m.name + '</div>' +
+              '<div style="height:4px;background:#f3f4f6;border-radius:2px;margin-top:4px;"><div style="height:4px;width:' + m.rate + '%;background:' + barColor + ';border-radius:2px;"></div></div>' +
+            '</td>' +
+            '<td style="padding:7px 6px;font-size:13px;color:#6b7280;text-align:right;">' + m.booked + '</td>' +
+            '<td style="padding:7px 6px;font-size:13px;font-weight:600;color:#111827;text-align:right;">' + m.noshows + '</td>' +
+            '<td style="padding:7px 6px;text-align:right;"><span class="noshow-badge ' + badgeClass + '">' + m.rate + '%</span></td>' +
+            '</tr>';
+        }).join("");
+        table.innerHTML = '<table style="width:100%;border-collapse:collapse;">' +
+          '<thead><tr style="border-bottom:1.5px solid #e5e7eb;">' +
+          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;width:24px;"></th>' +
+          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;">Member</th>' +
+          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Booked</th>' +
+          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">No-shows</th>' +
+          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Rate</th>' +
+          '</tr></thead><tbody>' + rows + '</tbody></table>';
+      })
+      .catch(function() { metrics.innerHTML = '<div style="font-size:13px;color:#ef4444;">Could not load report.</div>'; });
+  }
+
+  loadNoshowReport("day");
+
   window.saveGps = function() {
     var latVal = document.getElementById("checkinLat").value.trim();
     var lngVal = document.getElementById("checkinLng").value.trim();

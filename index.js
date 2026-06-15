@@ -17307,6 +17307,60 @@ app.get("/api/portal/checkins/dashboard", requireTenant, async (req, res) => {
   });
 });
 
+// GET /api/portal/checkins/noshow-report?period=day|week|month|3m|6m|year
+app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const period = req.query.period || "week";
+
+  const periodDays = { day: 1, week: 7, month: 30, "3m": 90, "6m": 180, year: 365 };
+  const days = periodDays[period] || 7;
+
+  const toDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(new Date());
+  const fromDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" })
+    .format(new Date(Date.now() - (days - 1) * 86400000));
+
+  try {
+    await loadEboConfigFromDb(tenantId);
+    const [bookings, { data: checkins }] = await Promise.all([
+      fetchEboBookings(tenantId, fromDate, toDate, 5000).catch(() => []),
+      supabase.from("court_checkins").select("booking_time")
+        .eq("tenant_id", tenantId)
+        .gte("booking_time", fromDate + "T00:00:00")
+        .lte("booking_time", toDate + "T23:59:59")
+    ]);
+
+    // Build a set of booking_times that have at least one check-in
+    const checkedInTimes = new Set((checkins || []).map(c => String(c.booking_time || "").slice(0, 16)));
+
+    // Aggregate per member
+    const memberMap = {};
+    for (const b of bookings) {
+      const bookingTime = String(b.time || "").slice(0, 16);
+      if (!bookingTime) continue;
+      const wasCheckedIn = checkedInTimes.has(bookingTime);
+      for (const m of (b.bookedMembers || [])) {
+        const key = m.membership_number;
+        if (!key) continue;
+        if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0 };
+        memberMap[key].booked++;
+        if (!wasCheckedIn) memberMap[key].noshows++;
+      }
+    }
+
+    const members = Object.values(memberMap)
+      .map(m => ({ ...m, rate: m.booked > 0 ? Math.round(m.noshows / m.booked * 100) : 0 }))
+      .sort((a, b) => b.noshows - a.noshows);
+
+    const totalBookings = members.reduce((s, m) => s + m.booked, 0);
+    const totalNoshows = members.reduce((s, m) => s + m.noshows, 0);
+
+    res.json({ period, from: fromDate, to: toDate, total_bookings: totalBookings, total_noshows: totalNoshows, members });
+  } catch (err) {
+    console.error("[noshow-report]", err.message);
+    res.status(500).json({ error: "Failed to generate report" });
+  }
+});
+
 // GET /api/portal/checkins/log — check-in history for this tenant
 app.get("/api/portal/checkins/log", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;

@@ -17325,8 +17325,8 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
       fetchEboBookings(tenantId, fromDate, toDate, 5000).catch(() => []),
       supabase.from("court_checkins").select("booking_time")
         .eq("tenant_id", tenantId)
-        .gte("booking_time", fromDate + "T00:00:00")
-        .lte("booking_time", toDate + "T23:59:59")
+        .gte("booking_time", fromDate + " 00:00:00")
+        .lte("booking_time", toDate + " 23:59:59")
     ]);
 
     // Build a set of booking_times that have at least one check-in.

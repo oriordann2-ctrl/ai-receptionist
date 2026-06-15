@@ -8068,6 +8068,67 @@ app.get("/chat/:tenantId", async (req, res) => {
   res.send(html);
 });
 
+// ── Chat monthly limit helpers ────────────────────────────────────────────────
+const chatUsageCache = new Map(); // tenantId → { count, month, ts }
+const warned80pct    = new Set(); // `${tenantId}-YYYY-MM` — prevents repeat warning emails per month
+const CHAT_CACHE_TTL = 5 * 60 * 1000; // 5-minute cache
+
+async function getChatUsageThisMonth(tenantId) {
+  const now   = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const entry = chatUsageCache.get(tenantId);
+  if (entry && entry.month === month && Date.now() - entry.ts < CHAT_CACHE_TTL) {
+    return { count: entry.count, month };
+  }
+  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const { data } = await supabase
+    .from("chat_logs")
+    .select("conversation_id")
+    .eq("tenant_id", tenantId)
+    .gte("timestamp", start)
+    .not("conversation_id", "is", null);
+  const count = new Set((data || []).map(r => r.conversation_id)).size;
+  chatUsageCache.set(tenantId, { count, month, ts: Date.now() });
+  return { count, month };
+}
+
+async function sendChatLimitWarning(email, displayName, count, limit) {
+  if (!email || !process.env.RESEND_API_KEY) return;
+  const pct = Math.round((count / limit) * 100);
+  const nextReset = new Date();
+  nextReset.setMonth(nextReset.getMonth() + 1);
+  nextReset.setDate(1);
+  const resetDate = nextReset.toLocaleDateString("en-IE", { day: "numeric", month: "long" });
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.RESEND_API_KEY}` },
+    body: JSON.stringify({
+      from: "Sprimal <noreply@sprimal.com>",
+      to:   email,
+      subject: `${displayName} — you've used ${pct}% of your monthly chat allowance`,
+      html: `<p style="font-family:sans-serif;">Hi,</p>
+<p style="font-family:sans-serif;">Your Sprimal AI assistant (<strong>${displayName}</strong>) has used <strong>${count} of ${limit} conversations</strong> this month (${pct}%).</p>
+<p style="font-family:sans-serif;">If you reach 100%, visitors will see a friendly message directing them to contact you directly. Your allowance resets on <strong>${resetDate}</strong>.</p>
+<p style="font-family:sans-serif;">Need a higher limit? Reply to this email and we'll sort it out.</p>
+<p style="font-family:sans-serif;">— The Sprimal Team</p>`
+    })
+  });
+}
+
+// ── GET /api/portal/chat-usage ────────────────────────────────────────────────
+app.get("/api/portal/chat-usage", requireTenant, async (req, res) => {
+  const { tenantId } = req.tenant;
+  try {
+    const { data: t } = await supabase.from("tenants").select("monthly_chat_limit").eq("id", tenantId).maybeSingle();
+    const limit = t?.monthly_chat_limit ?? null;
+    if (limit === null) return res.json({ used: null, limit: null });
+    const { count, month } = await getChatUsageThisMonth(tenantId);
+    res.json({ used: count, limit, month });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/portal/crawl-status ─────────────────────────────────────────────
 // Returns live crawl progress for the authenticated tenant.
 app.get("/api/portal/crawl-status", requireTenant, (req, res) => {
@@ -12187,7 +12248,7 @@ app.post("/chat", chatLimiter, async (req, res) => {
     try {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name")
+        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name, monthly_chat_limit")
         .eq("id", tenantId)
         .maybeSingle();
       if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
@@ -12202,6 +12263,35 @@ app.post("/chat", chatLimiter, async (req, res) => {
         return res.json({ reply: "The AI assistant is currently unavailable. Please contact us directly." });
       }
     } catch {}
+
+    // ── Monthly chat limit check ──────────────────────────────────────────────
+    // Only checked for new conversations (conversationId present). null limit = unlimited.
+    const chatMonthlyLimit = tenantData?.monthly_chat_limit ?? null;
+    if (chatMonthlyLimit !== null && conversationId) {
+      try {
+        const { count: usedThisMonth, month: usageMonth } = await getChatUsageThisMonth(tenantId);
+        if (usedThisMonth >= chatMonthlyLimit) {
+          const contactParts = [];
+          if (tenantPhone) contactParts.push(`📞 ${tenantPhone}`);
+          if (tenantEmail) contactParts.push(`📧 ${tenantEmail}`);
+          const contactLine = contactParts.length ? "\n\n" + contactParts.join("\n") : "";
+          const nextReset = new Date();
+          nextReset.setMonth(nextReset.getMonth() + 1);
+          nextReset.setDate(1);
+          const resetDate = nextReset.toLocaleDateString("en-IE", { day: "numeric", month: "long" });
+          return res.json({
+            reply: `Our AI assistant has reached its monthly conversation limit. Please contact us directly:${contactLine}\n\nFull service resumes on ${resetDate}.`
+          });
+        }
+        const warnKey = `${tenantId}-${usageMonth}`;
+        if (!warned80pct.has(warnKey) && usedThisMonth >= Math.floor(chatMonthlyLimit * 0.8)) {
+          warned80pct.add(warnKey);
+          sendChatLimitWarning(tenantEmail, tenantDisplayName, usedThisMonth, chatMonthlyLimit).catch(() => {});
+        }
+      } catch (limitErr) {
+        console.error("[chat-limit]", limitErr.message);
+      }
+    }
 
     // General mode tenants don't collect personal data — skip consent gate
     if (effectiveMode === "general") {

@@ -19,6 +19,7 @@
     loadSettings();
     loadCourts();
     loadDocuments();
+    loadChatUsage();
   }
 
   // ── Polling (for new signups while crawl runs) ────────────────────────────
@@ -555,6 +556,33 @@
       .catch(function() {
         if (body) body.innerHTML = '<p style="font-size:13px;color:#dc2626;">Could not load settings.</p>';
       });
+  }
+
+  function loadChatUsage() {
+    fetch("/api/portal/chat-usage")
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var card  = document.getElementById("chatUsageCard");
+        var meter = document.getElementById("chatUsageMeter");
+        if (!card || !meter) return;
+        if (d.limit === null || d.used === null) return; // unlimited — hide card
+        card.style.display = "block";
+        var pct     = Math.min(100, Math.round((d.used / d.limit) * 100));
+        var barColor = pct >= 100 ? "#dc2626" : pct >= 80 ? "#f59e0b" : "#2563eb";
+        var now     = new Date();
+        var nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        var resetStr  = nextReset.toLocaleDateString("en-IE", { day: "numeric", month: "long" });
+        meter.innerHTML =
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
+          + '<span style="font-size:22px;font-weight:700;color:#111827;">' + d.used + ' <span style="font-size:14px;font-weight:400;color:#6b7280;">/ ' + d.limit + ' conversations</span></span>'
+          + '<span style="font-size:13px;color:#6b7280;">' + pct + '%</span>'
+          + '</div>'
+          + '<div style="height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-bottom:10px;">'
+          + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:99px;transition:width 0.4s;"></div>'
+          + '</div>'
+          + '<div style="font-size:12px;color:#9ca3af;">Resets on ' + resetStr + '.</div>';
+      })
+      .catch(function() {}); // silently ignore — non-critical
   }
 
   function renderSettings(d) {

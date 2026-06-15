@@ -17118,42 +17118,32 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
     const [nowH, nowM] = irishTime.split(":").map(Number);
     const nowMins = nowH * 60 + nowM;
 
-    // Window: opens 15 mins before booking, closes at end of slot duration.
-    // When two slots overlap (e.g. 9:00am is in both the 8:00 window and the 9:15 window),
-    // prefer the earliest upcoming booking so the member checks into the right slot.
-    const inWindow = mine
-      .map(b => {
-        const hhmm = String(b.time || "").slice(11, 16);
-        if (!hhmm || !hhmm.includes(":")) return null;
-        const [bh, bm] = hhmm.split(":").map(Number);
-        const bMins = bh * 60 + bm;
-        if (nowMins < bMins - 15 || nowMins > bMins + slotMins) return null;
-        return { b, bMins };
-      })
-      .filter(Boolean);
-    const upcoming = inWindow.filter(x => x.bMins > nowMins);
-    const validBooking = upcoming.length
-      ? upcoming.sort((a, x) => a.bMins - x.bMins)[0].b
-      : inWindow.sort((a, x) => x.bMins - a.bMins)[0]?.b || null;
+    // Window: 15 mins before booking to 30 mins after. Encourages on-time arrival.
+    const validBooking = mine.find(b => {
+      const hhmm = String(b.time || "").slice(11, 16);
+      if (!hhmm || !hhmm.includes(":")) return false;
+      const [bh, bm] = hhmm.split(":").map(Number);
+      const bMins = bh * 60 + bm;
+      return nowMins >= bMins - 15 && nowMins <= bMins + 30;
+    });
 
     if (!validBooking) {
-      // No active window — but check if they already have a check-in for any of their
-      // bookings today whose slot is still reasonably recent (within the last slotMins).
-      // Prevents "window closed" when the member already checked in earlier in the same slot.
-      const recentSlot = mine.find(b => {
+      // Check if they already checked in for a slot that's still running (window has closed
+      // but slot hasn't ended) — show "already checked in" rather than "window closed".
+      const activeSlot = mine.find(b => {
         const hhmm = String(b.time || "").slice(11, 16);
         if (!hhmm || !hhmm.includes(":")) return false;
         const [bh, bm] = hhmm.split(":").map(Number);
         const bMins = bh * 60 + bm;
-        return nowMins > bMins + slotMins && nowMins <= bMins + slotMins * 2;
+        return nowMins > bMins + 30 && nowMins <= bMins + slotMins;
       });
-      if (recentSlot) {
-        const { data: recentExisting } = await supabase.from("court_checkins")
+      if (activeSlot) {
+        const { data: activeExisting } = await supabase.from("court_checkins")
           .select("id, booking_court_id, booking_time").eq("tenant_id", tenantId).eq("membership_number", memberNum)
-          .eq("booking_time", recentSlot.time).maybeSingle();
-        if (recentExisting) {
-          const displayTime = String(recentExisting.booking_time || "").slice(11, 16);
-          return res.json({ valid_booking: { court_id: recentExisting.booking_court_id, time: recentExisting.booking_time, display_time: displayTime }, already_checked_in: true, member_name: null, message: `Already checked in for Court ${recentExisting.booking_court_id} at ${displayTime}.` });
+          .eq("booking_time", activeSlot.time).maybeSingle();
+        if (activeExisting) {
+          const displayTime = String(activeExisting.booking_time || "").slice(11, 16);
+          return res.json({ valid_booking: { court_id: activeExisting.booking_court_id, time: activeExisting.booking_time, display_time: displayTime }, already_checked_in: true, member_name: null, message: `Already checked in for Court ${activeExisting.booking_court_id} at ${displayTime}.` });
         }
       }
 

@@ -17329,7 +17329,8 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         .lte("booking_time", toDate + "T23:59:59")
     ]);
 
-    // Build a set of booking_times that have at least one check-in
+    // Build a set of booking_times that have at least one check-in.
+    // If anyone on the booking checked in, all members on that booking are credited.
     const checkedInTimes = new Set((checkins || []).map(c => String(c.booking_time || "").slice(0, 16)));
 
     // Aggregate per member

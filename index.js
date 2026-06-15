@@ -17354,7 +17354,7 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         const key = m.membership_number;
         if (!key || !/^\d+$/.test(String(key)) || Number(key) <= 0) continue;
         if (!memberMap[key]) {
-          if (["Junior Coaching","Club Night"].some(e => (m.name||"").includes(e))) console.log("[noshow-debug] event entry:", JSON.stringify(m));
+          console.log("[noshow-debug] member:", key, JSON.stringify(m.name), Object.keys(m).join(","));
           memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0 };
         }
         memberMap[key].booked++;

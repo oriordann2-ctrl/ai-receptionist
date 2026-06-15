@@ -7410,6 +7410,239 @@ function requireSeniorTenant(req, res, next) {
   next();
 }
 
+// ── Password reset helpers ────────────────────────────────────────────────────
+const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
+function createResetToken(email) {
+  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + RESET_TOKEN_EXPIRY_MS })).toString("base64url");
+  const sig = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+  return payload + "." + sig;
+}
+
+function verifyResetToken(token) {
+  try {
+    const dot = token.lastIndexOf(".");
+    if (dot < 1) return null;
+    const payload = token.slice(0, dot);
+    const sig     = token.slice(dot + 1);
+    const expected = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+    if (sig !== expected) return null;
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (!data.email || !data.exp || Date.now() > data.exp) return null;
+    return data;
+  } catch { return null; }
+}
+
+function resetPageHtml(token, errorMsg = "", successMsg = "") {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprimal — Reset password</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; }
+    .brand-panel { flex: 1; background: #0f172a; display: flex; flex-direction: column; justify-content: center; padding: 64px 56px; color: white; }
+    .brand-logo { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 32px; }
+    .brand-logo span { color: #4f76f6; }
+    .brand-tagline { font-size: 22px; font-weight: 700; line-height: 1.35; margin-bottom: 16px; }
+    .brand-sub { font-size: 15px; color: #94a3b8; line-height: 1.6; }
+    .form-panel { width: 480px; display: flex; flex-direction: column; justify-content: center; padding: 64px 56px; background: white; }
+    @media (max-width: 768px) { .brand-panel { display: none; } .form-panel { width: 100%; padding: 40px 28px; } }
+    .form-title { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+    .form-sub { font-size: 14px; color: #64748b; margin-bottom: 28px; line-height: 1.5; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    input[type=password] { width: 100%; padding: 11px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.15s; margin-bottom: 18px; }
+    input[type=password]:focus { border-color: #4f76f6; }
+    .strength-bar-wrap { height: 4px; background: #f1f5f9; border-radius: 2px; margin-top: -14px; margin-bottom: 18px; }
+    .strength-bar { height: 4px; border-radius: 2px; width: 0; transition: width 0.2s, background 0.2s; }
+    .strength-label { font-size: 12px; margin-top: 4px; margin-bottom: 14px; min-height: 16px; }
+    .btn { width: 100%; padding: 13px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+    .btn:hover { background: #1d4ed8; }
+    .error { background: #fef2f2; border: 1px solid #fca5a5; color: #dc2626; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; }
+    .success { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; }
+    .back { display: inline-block; margin-top: 16px; font-size: 13px; color: #64748b; text-decoration: none; border-bottom: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="brand-panel">
+    <div class="brand-logo">Sprim<span>al</span></div>
+    <div class="brand-tagline">Reset your password</div>
+    <div class="brand-sub">Enter your new password below. You'll be logged in automatically once it's set.</div>
+  </div>
+  <div class="form-panel">
+    <div class="form-title">Choose a new password</div>
+    <div class="form-sub">Must be at least 12 characters.</div>
+    ${errorMsg ? `<div class="error">${errorMsg}</div>` : ""}
+    ${successMsg ? `<div class="success">${successMsg}</div>` : ""}
+    <form method="POST" action="/portal/reset-password/${token}" id="pwForm">
+      <label for="password">New password</label>
+      <input type="password" id="password" name="password" placeholder="At least 12 characters" autocomplete="new-password" required />
+      <div class="strength-bar-wrap"><div class="strength-bar" id="strengthBar"></div></div>
+      <div class="strength-label" id="strengthLabel"></div>
+      <label for="confirmPassword">Confirm new password</label>
+      <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Repeat your password" autocomplete="new-password" required />
+      <button type="submit" class="btn">Set new password &rarr;</button>
+    </form>
+    <a href="/portal" class="back">← Back to login</a>
+  </div>
+  <script>
+    var COMMON = ["password","password1","password12","password123","123456789","12345678","qwerty123","iloveyou","admin1234","letmein1"];
+    var bar = document.getElementById("strengthBar");
+    var label = document.getElementById("strengthLabel");
+    document.getElementById("password").addEventListener("input", function() {
+      var v = this.value, score = 0;
+      if (v.length >= 12) score++; if (v.length >= 16) score++;
+      if (/[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
+      if (/[0-9]/.test(v)) score++; if (/[^A-Za-z0-9]/.test(v)) score++;
+      if (COMMON.includes(v.toLowerCase())) score = 0;
+      var colors = ["#ef4444","#f59e0b","#f59e0b","#22c55e","#16a34a","#15803d"];
+      var labels = ["","Too weak","Weak","Good","Strong","Very strong"];
+      var labelColors = ["","#ef4444","#f59e0b","#16a34a","#15803d","#15803d"];
+      bar.style.width = (v.length ? Math.min(score * 20 + 5, 100) : 0) + "%";
+      bar.style.background = colors[score] || colors[0];
+      label.textContent = v.length ? (labels[score] || "") : "";
+      label.style.color = labelColors[score] || "";
+    });
+    document.getElementById("pwForm").addEventListener("submit", function(e) {
+      var p = document.getElementById("password").value;
+      var c = document.getElementById("confirmPassword").value;
+      if (p.length < 12) { e.preventDefault(); alert("Password must be at least 12 characters."); return; }
+      if (p !== c) { e.preventDefault(); alert("Passwords don't match."); return; }
+    });
+  </script>
+</body>
+</html>`;
+}
+
+// ── GET /portal/forgot-password ───────────────────────────────────────────────
+app.get("/portal/forgot-password", (req, res) => {
+  const sent = req.query.sent === "1";
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprimal — Forgot password</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; }
+    .brand-panel { flex: 1; background: #0f172a; display: flex; flex-direction: column; justify-content: center; padding: 64px 56px; color: white; }
+    .brand-logo { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 32px; }
+    .brand-logo span { color: #4f76f6; }
+    .brand-tagline { font-size: 22px; font-weight: 700; line-height: 1.35; margin-bottom: 16px; }
+    .brand-sub { font-size: 15px; color: #94a3b8; line-height: 1.6; }
+    .form-panel { width: 480px; display: flex; flex-direction: column; justify-content: center; padding: 64px 56px; background: white; }
+    @media (max-width: 768px) { .brand-panel { display: none; } .form-panel { width: 100%; padding: 40px 28px; } }
+    .form-title { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+    .form-sub { font-size: 14px; color: #64748b; margin-bottom: 28px; line-height: 1.5; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    input[type=email] { width: 100%; padding: 11px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.15s; margin-bottom: 18px; }
+    input[type=email]:focus { border-color: #4f76f6; }
+    .btn { width: 100%; padding: 13px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .btn:hover { background: #1d4ed8; }
+    .success { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; padding: 14px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
+    .back { display: inline-block; margin-top: 16px; font-size: 13px; color: #64748b; text-decoration: none; border-bottom: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="brand-panel">
+    <div class="brand-logo">Sprim<span>al</span></div>
+    <div class="brand-tagline">Forgot your password?</div>
+    <div class="brand-sub">Enter your email and we'll send you a link to set a new one. The link expires after 1 hour.</div>
+  </div>
+  <div class="form-panel">
+    <div class="form-title">Reset your password</div>
+    <div class="form-sub">We'll email you a secure link to choose a new password.</div>
+    ${sent ? `<div class="success">If that email is registered, a reset link is on its way. Check your inbox — it expires in 1 hour.</div>` : ""}
+    <form method="POST" action="/portal/forgot-password">
+      <label for="email">Email address</label>
+      <input type="email" id="email" name="email" placeholder="you@yourclub.com" autocomplete="email" autofocus required />
+      <button type="submit" class="btn">Send reset link &rarr;</button>
+    </form>
+    <a href="/portal" class="back">← Back to login</a>
+  </div>
+</body>
+</html>`);
+});
+
+// ── POST /portal/forgot-password ──────────────────────────────────────────────
+app.post("/portal/forgot-password", async (req, res) => {
+  const email = (req.body.email || "").toLowerCase().trim();
+  // Always redirect to ?sent=1 regardless — prevents email enumeration
+  if (!email) return res.redirect("/portal/forgot-password?sent=1");
+
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("id, name, email")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (tenant && process.env.RESEND_API_KEY) {
+    const resetToken = createResetToken(email);
+    const resetUrl = `https://app.sprimal.com/portal/reset-password/${resetToken}`;
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.RESEND_API_KEY}` },
+      body: JSON.stringify({
+        from: "Sprimal <hello@sprimal.com>",
+        to: email,
+        subject: "Reset your Sprimal password",
+        html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:32px 16px;">
+<table style="max-width:520px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;">
+  <tr><td style="background:#0f1f3d;padding:22px 32px;text-align:center;">
+    <span style="font-size:22px;font-weight:bold;color:white;">Sprimal</span>
+  </td></tr>
+  <tr><td style="padding:36px 40px;">
+    <h2 style="color:#0f172a;margin:0 0 12px;">Reset your password</h2>
+    <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">Hi ${tenant.name}, click the button below to choose a new password. This link expires in <strong>1 hour</strong>.</p>
+    <table style="width:100%;margin-bottom:24px;"><tr><td style="text-align:center;">
+      <a href="${resetUrl}" style="background:#2563eb;color:white;text-decoration:none;padding:13px 32px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">Set new password &rarr;</a>
+    </td></tr></table>
+    <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.5;">If you didn't request this, you can ignore this email — your password won't change. Link expires at ${new Date(Date.now() + RESET_TOKEN_EXPIRY_MS).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Dublin" })} IST.</p>
+  </td></tr>
+</table>
+</body></html>`
+      })
+    }).catch(() => {});
+  }
+
+  res.redirect("/portal/forgot-password?sent=1");
+});
+
+// ── GET /portal/reset-password/:token ────────────────────────────────────────
+app.get("/portal/reset-password/:token", (req, res) => {
+  const data = verifyResetToken(req.params.token);
+  if (!data) return res.send(resetPageHtml("", "This reset link has expired or is invalid. Please <a href='/portal/forgot-password'>request a new one</a>."));
+  res.send(resetPageHtml(req.params.token));
+});
+
+// ── POST /portal/reset-password/:token ───────────────────────────────────────
+app.post("/portal/reset-password/:token", async (req, res) => {
+  const data = verifyResetToken(req.params.token);
+  if (!data) return res.send(resetPageHtml("", "This reset link has expired. Please <a href='/portal/forgot-password'>request a new one</a>."));
+
+  const { password, confirmPassword } = req.body;
+  const COMMON_PASSWORDS = ["password","password1","password12","password123","123456789","12345678","qwerty123","iloveyou","admin1234","letmein1","welcome1","monkey123"];
+  if (!password || password.length < 12) return res.send(resetPageHtml(req.params.token, "Password must be at least 12 characters."));
+  if (password !== confirmPassword) return res.send(resetPageHtml(req.params.token, "Passwords don't match."));
+  if (COMMON_PASSWORDS.includes(password.toLowerCase())) return res.send(resetPageHtml(req.params.token, "That password is too common — please choose something more unique."));
+
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("id, name, email, website")
+    .eq("email", data.email)
+    .maybeSingle();
+
+  if (!tenant) return res.send(resetPageHtml("", "Account not found. Please <a href='/portal/forgot-password'>try again</a>."));
+
+  await supabase.from("tenants").update({ portal_password: password }).eq("id", tenant.id);
+
+  // Auto-login
+  const token = createTenantToken({ tenantId: tenant.id, tenantName: tenant.name, email: tenant.email, website: tenant.website, role: "senior" });
+  setSessionCookie(res, token);
+  res.redirect("/portal/dashboard");
+});
+
 app.get("/portal", (req, res) => {
   if (getTenantSession(req)) return res.redirect("/portal/dashboard");
   res.sendFile(path.join(__dirname, "views", "portal-login.html"));

@@ -1236,6 +1236,23 @@
 
   loadNoshowReport("day");
 
+  window.calibrateGps = function() {
+    var msg = document.getElementById("gpsCalibMsg");
+    if (msg) { msg.style.display = "inline"; msg.textContent = "Calculating…"; }
+    fetch("/api/portal/checkins/gps-centroid")
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.lat || !d.lng) {
+          if (msg) msg.textContent = "No GPS check-in data yet.";
+          return;
+        }
+        document.getElementById("checkinLat").value = d.lat;
+        document.getElementById("checkinLng").value = d.lng;
+        if (msg) msg.textContent = "Prefilled from " + d.count + " check-in" + (d.count !== 1 ? "s" : "") + " — review and save.";
+      })
+      .catch(function() { if (msg) msg.textContent = "Could not load data."; });
+  };
+
   window.saveGps = function() {
     var latVal = document.getElementById("checkinLat").value.trim();
     var lngVal = document.getElementById("checkinLng").value.trim();

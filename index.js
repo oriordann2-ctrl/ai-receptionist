@@ -17395,6 +17395,27 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
   }
 });
 
+// GET /api/portal/checkins/gps-centroid — average GPS of all verified check-ins for calibration
+app.get("/api/portal/checkins/gps-centroid", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  try {
+    const { data, error } = await supabase.from("court_checkins")
+      .select("gps_lat, gps_lng")
+      .eq("tenant_id", tenantId)
+      .eq("gps_verified", true)
+      .not("gps_lat", "is", null)
+      .not("gps_lng", "is", null);
+    if (error) throw error;
+    if (!data || data.length === 0) return res.json({ count: 0, lat: null, lng: null });
+    const lat = data.reduce((s, r) => s + r.gps_lat, 0) / data.length;
+    const lng = data.reduce((s, r) => s + r.gps_lng, 0) / data.length;
+    res.json({ count: data.length, lat: Math.round(lat * 1000000) / 1000000, lng: Math.round(lng * 1000000) / 1000000 });
+  } catch (err) {
+    console.error("[gps-centroid]", err.message);
+    res.status(500).json({ error: "Failed to compute centroid" });
+  }
+});
+
 // GET /api/portal/checkins/log — check-in history for this tenant
 app.get("/api/portal/checkins/log", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;

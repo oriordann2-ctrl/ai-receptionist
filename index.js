@@ -17119,15 +17119,22 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
     const nowMins = nowH * 60 + nowM;
 
     // Window: opens 15 mins before booking, closes at end of slot duration.
-    // This ensures a member who checked in at 7:51 for an 8:00 booking still sees
-    // "already checked in" at 8:31 rather than "window closed".
-    const validBooking = mine.find(b => {
-      const hhmm = String(b.time || "").slice(11, 16);
-      if (!hhmm || !hhmm.includes(":")) return false;
-      const [bh, bm] = hhmm.split(":").map(Number);
-      const bMins = bh * 60 + bm;
-      return nowMins >= bMins - 15 && nowMins <= bMins + slotMins;
-    });
+    // When two slots overlap (e.g. 9:00am is in both the 8:00 window and the 9:15 window),
+    // prefer the earliest upcoming booking so the member checks into the right slot.
+    const inWindow = mine
+      .map(b => {
+        const hhmm = String(b.time || "").slice(11, 16);
+        if (!hhmm || !hhmm.includes(":")) return null;
+        const [bh, bm] = hhmm.split(":").map(Number);
+        const bMins = bh * 60 + bm;
+        if (nowMins < bMins - 15 || nowMins > bMins + slotMins) return null;
+        return { b, bMins };
+      })
+      .filter(Boolean);
+    const upcoming = inWindow.filter(x => x.bMins > nowMins);
+    const validBooking = upcoming.length
+      ? upcoming.sort((a, x) => a.bMins - x.bMins)[0].b
+      : inWindow.sort((a, x) => x.bMins - a.bMins)[0]?.b || null;
 
     if (!validBooking) {
       // No active window — but check if they already have a check-in for any of their

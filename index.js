@@ -2244,6 +2244,7 @@ async function rewriteForRetrieval(text, documentType) {
 Rules:
 - Preserve every fact, name, date, price, role, and figure exactly as given — do not invent or omit anything
 - Convert lists and tables into full sentences (e.g. "Julie Kenneally Junior Secretary" → "The Junior Secretary is Julie Kenneally.")
+- For each role or title, add a sentence with common alternative phrasings so retrieval works regardless of how someone asks (e.g. "Head of IT" → also add "The IT Director is Amy Perrott. The person responsible for IT is Amy Perrott.")
 - Remove redundant preamble and formatting artefacts
 - Use plain prose — no markdown, no bullet points, no headers
 - Keep each sentence self-contained so it makes sense out of context

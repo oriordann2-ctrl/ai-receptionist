@@ -6422,7 +6422,7 @@ async function fetchTwitterPhotos(handle, tenantId, maxImages = 6) {
   }
 }
 
-async function startBackgroundCrawl({ tenantId, name, website, email, portalPassword }) {
+async function startBackgroundCrawl({ tenantId, name, website, email, portalPassword, oldDocIds = [] }) {
   try {
     let imported = 0;
 
@@ -6774,6 +6774,15 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
       }
 
       console.log(`[crawl] Imported ${imported} pages for ${tenantId}`);
+
+      // Atomic swap — now that new docs are saved, delete the old ones.
+      // Only runs if we actually imported something (protects against empty crawl wiping the KB).
+      if (oldDocIds.length && imported > 0) {
+        await supabase.from("knowledge_chunks").delete().in("document_id", oldDocIds);
+        await supabase.from("documents").delete().in("id", oldDocIds);
+        console.log(`[crawl] Swapped out ${oldDocIds.length} old website docs for ${tenantId}`);
+      }
+
       setCrawlProgress(tenantId, 80, "Analysing your content — picking out the key details…");
 
       // ── Detect business type + auto-seed template flows ──────────────────
@@ -7733,23 +7742,19 @@ app.post("/api/portal/recrawl", requireSeniorTenant, async (req, res) => {
       return res.status(400).json({ error: "No website URL found for this account." });
     }
 
-    // Delete all existing website-crawled documents (and their chunks cascade)
+    // Collect old website doc IDs — delete AFTER new crawl succeeds so portal shows
+    // existing docs during the crawl rather than going blank.
     const { data: websiteDocs } = await supabase
       .from("documents")
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("document_type", "Website Content");
 
-    if (websiteDocs?.length) {
-      const docIds = websiteDocs.map(d => d.id);
-      await supabase.from("knowledge_chunks").delete().in("document_id", docIds);
-      await supabase.from("documents").delete().in("id", docIds);
-      console.log(`[recrawl] Deleted ${docIds.length} old website docs for ${tenantId}`);
-    }
+    const oldDocIds = websiteDocs?.length ? websiteDocs.map(d => d.id) : [];
 
-    // Fire off fresh crawl in background
-    startBackgroundCrawl({ tenantId: tenant.id, name: tenant.name, website: tenant.website });
-    console.log(`[recrawl] Re-crawl started for ${tenantId}`);
+    // Fire off fresh crawl in background, passing old IDs so it can swap atomically
+    startBackgroundCrawl({ tenantId: tenant.id, name: tenant.name, website: tenant.website, oldDocIds });
+    console.log(`[recrawl] Re-crawl started for ${tenantId} (will replace ${oldDocIds.length} existing docs on success)`);
 
     res.json({ ok: true });
   } catch (err) {

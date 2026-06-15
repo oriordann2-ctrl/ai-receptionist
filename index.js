@@ -7022,12 +7022,7 @@ app.post("/verify-email/:token", async (req, res) => {
     email: tenant.email,
     website: tenant.website
   });
-  res.cookie("tenant_session", signupToken, {
-    httpOnly: true,
-    secure:   true,
-    sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  });
+  setSessionCookie(res, signupToken);
 
   console.log(`[verify] Password set for ${tenant.id} — starting background crawl`);
 
@@ -7337,10 +7332,21 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
 // Token format: base64url(JSON) + "." + HMAC-SHA256 signature
 const SESSION_SECRET = process.env.SESSION_SECRET || "sprimal-tenant-session-secret-v1";
 
+const SESSION_INACTIVITY_MS = 8 * 60 * 60 * 1000; // 8 hours
+
 function createTenantToken(data) {
-  const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ ...data, lastActive: Date.now() })).toString("base64url");
   const sig = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
   return payload + "." + sig;
+}
+
+function setSessionCookie(res, token) {
+  res.cookie("tenant_session", token, {
+    httpOnly: true,
+    secure:   true,
+    sameSite: "lax"
+    // No maxAge — session cookie, cleared when browser closes
+  });
 }
 
 function verifyTenantToken(token) {
@@ -7363,8 +7369,23 @@ function getTenantSession(req) {
   return verifyTenantToken(token);
 }
 
-function requireTenant(req, res, next) {
+function checkAndRefreshSession(req, res) {
   const session = getTenantSession(req);
+  if (!session) return null;
+  // Treat sessions without lastActive (pre-existing) as active — they'll get a timestamp on next refresh
+  const lastActive = session.lastActive || Date.now();
+  if (Date.now() - lastActive > SESSION_INACTIVITY_MS) {
+    res.clearCookie("tenant_session");
+    return null;
+  }
+  // Refresh the cookie with updated lastActive on every request
+  const { lastActive: _old, ...rest } = session;
+  setSessionCookie(res, createTenantToken(rest));
+  return session;
+}
+
+function requireTenant(req, res, next) {
+  const session = checkAndRefreshSession(req, res);
   if (!session) {
     if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Unauthorized" });
     return res.redirect("/portal");
@@ -7376,7 +7397,7 @@ function requireTenant(req, res, next) {
 // requireSeniorTenant — portal routes only accessible to account owners (role=senior)
 // Existing sessions without a role field are treated as senior (pre-dated the role field)
 function requireSeniorTenant(req, res, next) {
-  const session = getTenantSession(req);
+  const session = checkAndRefreshSession(req, res);
   if (!session) {
     if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Unauthorized" });
     return res.redirect("/portal");
@@ -7432,12 +7453,7 @@ app.post("/portal/login", async (req, res) => {
       userName:   pu.name
     });
 
-    res.cookie("tenant_session", juniorToken, {
-      httpOnly: true,
-      secure:   true,
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+    setSessionCookie(res, juniorToken);
     return res.json({ success: true });
   }
 
@@ -7465,12 +7481,7 @@ app.post("/portal/login", async (req, res) => {
     role:       "senior"
   });
 
-  res.cookie("tenant_session", loginToken, {
-    httpOnly: true,
-    secure:   true,   // required for HTTPS (Render)
-    sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  });
+  setSessionCookie(res, loginToken);
 
   res.json({ success: true });
 });

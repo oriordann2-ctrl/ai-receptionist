@@ -1187,28 +1187,49 @@
           table.innerHTML = '<div style="font-size:13px;color:#9ca3af;">No booking data for this period.</div>';
           return;
         }
-        var rows = d.members.map(function(m, i) {
-          var badgeClass = m.rate >= 60 ? "noshow-badge-red" : m.rate >= 30 ? "noshow-badge-amber" : "noshow-badge-green";
-          var barColor = m.rate >= 60 ? "#ef4444" : m.rate >= 30 ? "#f59e0b" : "#22c55e";
-          return '<tr style="border-bottom:1px solid #f3f4f6;">' +
-            '<td style="padding:7px 6px;font-size:12px;color:#9ca3af;width:24px;">' + (i + 1) + '</td>' +
-            '<td style="padding:7px 6px;">' +
-              '<div style="font-size:13px;font-weight:600;color:#111827;">' + m.name + '</div>' +
-              '<div style="height:4px;background:#f3f4f6;border-radius:2px;margin-top:4px;"><div style="height:4px;width:' + m.rate + '%;background:' + barColor + ';border-radius:2px;"></div></div>' +
-            '</td>' +
-            '<td style="padding:7px 6px;font-size:13px;color:#6b7280;text-align:right;">' + m.booked + '</td>' +
-            '<td style="padding:7px 6px;font-size:13px;font-weight:600;color:#111827;text-align:right;">' + m.noshows + '</td>' +
-            '<td style="padding:7px 6px;text-align:right;"><span class="noshow-badge ' + badgeClass + '">' + m.rate + '%</span></td>' +
-            '</tr>';
-        }).join("");
-        table.innerHTML = '<table style="width:100%;border-collapse:collapse;">' +
-          '<thead><tr style="border-bottom:1.5px solid #e5e7eb;">' +
-          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;width:24px;"></th>' +
-          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;">Member</th>' +
-          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Booked</th>' +
-          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">No-shows</th>' +
-          '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Rate</th>' +
-          '</tr></thead><tbody>' + rows + '</tbody></table>';
+        var PAGE_SIZE = 8;
+        var currentPage = 0;
+        var members = d.members;
+
+        function renderPage() {
+          var start = currentPage * PAGE_SIZE;
+          var pageMembers = members.slice(start, start + PAGE_SIZE);
+          var totalPages = Math.ceil(members.length / PAGE_SIZE);
+          var rows = pageMembers.map(function(m, i) {
+            var rank = start + i + 1;
+            var badgeClass = m.rate >= 60 ? "noshow-badge-red" : m.rate >= 30 ? "noshow-badge-amber" : "noshow-badge-green";
+            var barColor = m.rate >= 60 ? "#ef4444" : m.rate >= 30 ? "#f59e0b" : "#22c55e";
+            return '<tr style="border-bottom:1px solid #f3f4f6;">' +
+              '<td style="padding:7px 6px;font-size:12px;color:#9ca3af;width:24px;">' + rank + '</td>' +
+              '<td style="padding:7px 6px;">' +
+                '<div style="font-size:13px;font-weight:600;color:#111827;">' + m.name + '</div>' +
+                '<div style="height:4px;background:#f3f4f6;border-radius:2px;margin-top:4px;"><div style="height:4px;width:' + m.rate + '%;background:' + barColor + ';border-radius:2px;"></div></div>' +
+              '</td>' +
+              '<td style="padding:7px 6px;font-size:13px;color:#6b7280;text-align:right;">' + m.booked + '</td>' +
+              '<td style="padding:7px 6px;font-size:13px;font-weight:600;color:#111827;text-align:right;">' + m.noshows + '</td>' +
+              '<td style="padding:7px 6px;text-align:right;"><span class="noshow-badge ' + badgeClass + '">' + m.rate + '%</span></td>' +
+              '</tr>';
+          }).join("");
+          var pagination = totalPages > 1
+            ? '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 4px 2px;">' +
+                '<button onclick="noshowPrev()" ' + (currentPage === 0 ? 'disabled' : '') + ' style="font-size:12px;padding:4px 12px;border:1.5px solid #e5e7eb;border-radius:6px;background:white;color:#374151;cursor:pointer;font-family:inherit;opacity:' + (currentPage === 0 ? '0.4' : '1') + ';">← Prev</button>' +
+                '<span style="font-size:12px;color:#9ca3af;">' + (currentPage + 1) + ' / ' + totalPages + '</span>' +
+                '<button onclick="noshowNext()" ' + (currentPage >= totalPages - 1 ? 'disabled' : '') + ' style="font-size:12px;padding:4px 12px;border:1.5px solid #e5e7eb;border-radius:6px;background:white;color:#374151;cursor:pointer;font-family:inherit;opacity:' + (currentPage >= totalPages - 1 ? '0.4' : '1') + ';">Next →</button>' +
+              '</div>'
+            : '';
+          table.innerHTML = '<table style="width:100%;border-collapse:collapse;">' +
+            '<thead><tr style="border-bottom:1.5px solid #e5e7eb;">' +
+            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;width:24px;"></th>' +
+            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;">Member</th>' +
+            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Booked</th>' +
+            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">No-shows</th>' +
+            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Rate</th>' +
+            '</tr></thead><tbody>' + rows + '</tbody></table>' + pagination;
+        }
+
+        window.noshowPrev = function() { if (currentPage > 0) { currentPage--; renderPage(); } };
+        window.noshowNext = function() { if ((currentPage + 1) * PAGE_SIZE < members.length) { currentPage++; renderPage(); } };
+        renderPage();
       })
       .catch(function() { metrics.innerHTML = '<div style="font-size:13px;color:#ef4444;">Could not load report.</div>'; });
   }

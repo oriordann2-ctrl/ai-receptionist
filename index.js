@@ -7332,7 +7332,7 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
 // Token format: base64url(JSON) + "." + HMAC-SHA256 signature
 const SESSION_SECRET = process.env.SESSION_SECRET || "sprimal-tenant-session-secret-v1";
 
-const SESSION_INACTIVITY_MS = 1 * 60 * 1000; // TEMP: 1 minute for testing — change back to 8 * 60 * 60 * 1000
+const SESSION_INACTIVITY_MS = 8 * 60 * 60 * 1000; // 8 hours inactivity
 
 function createTenantToken(data) {
   const payload = Buffer.from(JSON.stringify({ ...data, lastActive: Date.now() })).toString("base64url");
@@ -8944,25 +8944,6 @@ app.get("/api/portal/me", requireTenant, (req, res) => {
   });
 });
 
-// ── Temporary session debug endpoint — remove after diagnosing timeout issue ──
-app.get("/api/portal/session-debug", (req, res) => {
-  const session = getTenantSession(req);
-  if (!session) return res.json({ session: null, message: "No valid session cookie" });
-  const now        = Date.now();
-  const lastActive = session.lastActive ?? 0;
-  res.json({
-    tenantId:         session.tenantId,
-    lastActive:       lastActive,
-    lastActiveDate:   lastActive ? new Date(lastActive).toISOString() : "none",
-    now:              now,
-    nowDate:          new Date(now).toISOString(),
-    diffMs:           now - lastActive,
-    diffHours:        ((now - lastActive) / (1000 * 60 * 60)).toFixed(2),
-    limitMs:          SESSION_INACTIVITY_MS,
-    limitHours:       (SESSION_INACTIVITY_MS / (1000 * 60 * 60)).toFixed(0),
-    wouldExpire:      (now - lastActive) > SESSION_INACTIVITY_MS
-  });
-});
 
 app.get("/api/portal/documents", requireTenant, async (req, res) => {
   let query = supabase

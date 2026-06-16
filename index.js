@@ -17482,9 +17482,12 @@ function showDelegateSuccess(adultMembershipNumber, juniorName, booking) {
 }
 
 function showForm() {
+  var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
+  var assistantName = clubInfo.assistant_name || 'Maeve';
   document.getElementById('card').innerHTML = header() +
     '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Member Check-In</button>' +
     '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;">👶 Supervising a Junior?</button>' +
+    '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';
   document.getElementById('member-btn').addEventListener('click', showMemberSearch);

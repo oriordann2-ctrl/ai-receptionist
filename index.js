@@ -17184,6 +17184,8 @@ async function init() {
     var autoCode = params.get('c');
     var autoMember = parseInt(params.get('m'));
     if (autoCode && autoMember) { autoVerifyFromLink(autoMember, autoCode); return; }
+    // ?forget=1 clears saved member — useful when browser cache prevents the forget button from showing
+    if (params.get('forget') === '1') { localStorage.removeItem(LS_KEY); }
     savedMember = getSavedMember();
     if (savedMember) showWelcomeBack();
     else showForm();

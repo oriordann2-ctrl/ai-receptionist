@@ -17124,7 +17124,7 @@ app.get("/checkin/:tenantId", (req, res) => {
 <style>
   :root { color-scheme: only light; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; color: #1a1a2e; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; color: #1a1a2e; }
   .card { background: white; border-radius: 20px; padding: 32px 24px; max-width: 400px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.1); text-align: center; }
   .logo { width: 72px; height: 72px; object-fit: contain; border-radius: 12px; margin-bottom: 10px; }
   .logo-emoji { font-size: 48px; margin-bottom: 8px; }

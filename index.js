@@ -17284,16 +17284,12 @@ function showAlreadyCheckedIn(memberName, booking) {
 }
 
 function showNoBooking(membershipNumber, memberName, message) {
-  var msg = message || 'No booking found for the current time slot.';
+  var msg = message || 'No booking found for the current check-in window.';
   document.getElementById('card').innerHTML = header() +
     '<div class="status status-error" style="margin-top:16px;">' + msg + '</div>' +
-    '<button class="btn btn-primary" id="alt-checkin-btn" style="margin-top:16px;">Check in with a different number</button>' +
-    '<button class="btn btn-secondary" id="delegate-btn" style="margin-top:8px;">Check in a junior as delegate</button>' +
+    '<button class="btn btn-secondary" id="no-booking-back-btn" style="margin-top:16px;">← Back</button>' +
     '<div id="msg"></div>';
-  document.getElementById('alt-checkin-btn').addEventListener('click', showAltCheckinForm);
-  document.getElementById('delegate-btn').addEventListener('click', function() {
-    showDelegateForm(membershipNumber);
-  });
+  document.getElementById('no-booking-back-btn').addEventListener('click', showForm);
 }
 
 function showAltCheckinForm() {
@@ -18119,7 +18115,7 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
           const openStr = String(Math.floor(openMins / 60)).padStart(2, "0") + ":" + String(openMins % 60).padStart(2, "0");
           msg = `Check-in opens at ${openStr} — 15 minutes before your ${hhmm} booking.`;
         } else {
-          msg = "Your check-in window has closed for today’s bookings.";
+          msg = "No active booking found in the current check-in window.";
         }
       }
       return res.json({ valid_booking: null, already_checked_in: false, member_name: null, message: msg });

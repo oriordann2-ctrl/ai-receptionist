@@ -17594,7 +17594,8 @@ function showJuniorSearch(supervisorName, supervisorContact) {
     '<div class="welcome"><div class="welcome-name">Find the Junior</div>' +
     '<div class="welcome-sub">Search by the junior&#39;s name</div></div>' +
     '<label for="junior-name-search">Junior&#39;s Name</label>' +
-    '<input type="text" id="junior-name-search" placeholder="e.g. Sarah O&#39;Brien" autocomplete="off">' +
+    '<input type="text" id="junior-name-search" placeholder="e.g. Sarah Smith" autocomplete="off">' +
+    '<p style="font-size:12px;color:#6b7280;margin-top:6px;text-align:left;line-height:1.4;">You can only check in from 15 minutes before the court booking up to 30 minutes into it.</p>' +
     '<div id="junior-search-results" style="margin-top:8px;"></div>' +
     '<button class="btn btn-secondary" id="junior-back-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
     '<div id="msg"></div>';

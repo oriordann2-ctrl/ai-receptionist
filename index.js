@@ -17502,7 +17502,7 @@ function showForm() {
 function showMemberSearch() {
   document.getElementById('card').innerHTML = header() +
     '<label for="name-search">Your Name</label>' +
-    '<input type="text" id="name-search" placeholder="e.g. Noel O&#39;Riordan" autocomplete="off">' +
+    '<input type="text" id="name-search" placeholder="e.g. John Smith" autocomplete="off">' +
     '<p style="font-size:12px;color:#6b7280;margin-top:6px;text-align:left;line-height:1.4;">You can only check in from 15 minutes before your court booking up to 30 minutes into it.</p>' +
     '<div id="search-results" style="margin-top:8px;"></div>' +
     '<button class="btn btn-secondary" id="back-home-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +

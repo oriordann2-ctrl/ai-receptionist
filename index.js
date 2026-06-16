@@ -7372,8 +7372,8 @@ function getTenantSession(req) {
 function checkAndRefreshSession(req, res) {
   const session = getTenantSession(req);
   if (!session) return null;
-  // Treat sessions without lastActive (pre-existing) as active — they'll get a timestamp on next refresh
-  const lastActive = session.lastActive || Date.now();
+  // Sessions without lastActive (pre-deploy) are treated as expired — user logs in again and gets a proper token
+  const lastActive = session.lastActive ?? 0;
   if (Date.now() - lastActive > SESSION_INACTIVITY_MS) {
     res.clearCookie("tenant_session");
     return null;

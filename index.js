@@ -17351,7 +17351,7 @@ function showOtpScreenAlt(membershipNumber, memberName, emailHint) {
     '<input class="otp-box" id="otp3" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
     '</div>' +
     '<button class="btn btn-primary" id="verify-btn">Verify & Check In</button>' +
-    '<a href="mailto:" class="btn btn-secondary" style="display:block;text-decoration:none;">📧 Open email app</a>' +
+    '<p style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.4;">📧 Check your email inbox for the 4-digit code.</p>' +
     '<button class="btn btn-secondary" id="resend-btn" style="margin-top:8px;">Resend code</button>' +
     '<button class="btn btn-secondary" id="back-btn" style="margin-top:4px;font-size:13px;color:#6b7280;">← Change membership number</button>' +
     '<div id="msg"></div>';
@@ -17761,7 +17761,7 @@ function showOtpScreen(membershipNumber, memberName, emailHint) {
     '<input class="otp-box" id="otp3" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
     '</div>' +
     '<button class="btn btn-primary" id="verify-btn">Verify & Check In</button>' +
-    '<a href="mailto:" class="btn btn-secondary" style="display:block;text-decoration:none;">📧 Open email app</a>' +
+    '<p style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.4;">📧 Check your email inbox for the 4-digit code.</p>' +
     '<button class="btn btn-secondary" id="resend-btn" style="margin-top:8px;">Resend code</button>' +
     '<button class="btn btn-secondary" id="back-btn" style="margin-top:4px;font-size:13px;color:#6b7280;">← Search again</button>' +
     '<div id="msg"></div>';

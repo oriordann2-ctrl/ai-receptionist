@@ -116,6 +116,22 @@ const chatLimiter = rateLimit({
   message: { error: "Too many messages. Please slow down and try again shortly." }
 });
 
+const otpSendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15-minute window
+  max: 5,                    // max 5 OTP sends per IP per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many code requests. Please wait 15 minutes before trying again." }
+});
+
+const otpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15-minute window
+  max: 20,                   // max 20 verify attempts per IP per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please wait before trying again." }
+});
+
 // Redirect root to portal; admin is still accessible at /login or /admin
 app.get("/", (req, res) => res.redirect("/portal"));
 app.use(express.static(path.join(__dirname, "public")));
@@ -17675,7 +17691,7 @@ app.post("/api/checkin/validate-member", async (req, res) => {
 const OTP_STORE = new Map();
 
 // POST /api/checkin/send-otp — validate member, generate OTP, email it
-app.post("/api/checkin/send-otp", async (req, res) => {
+app.post("/api/checkin/send-otp", otpSendLimiter, async (req, res) => {
   const { tenant_id, membership_number } = req.body;
   if (!tenant_id || !membership_number) return res.status(400).json({ error: "Missing fields" });
   await loadEboConfigFromDb(tenant_id);
@@ -17685,7 +17701,7 @@ app.post("/api/checkin/send-otp", async (req, res) => {
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const key = `${tenant_id}:${membership_number}`;
-  OTP_STORE.set(key, { code, expires: Date.now() + 10 * 60 * 1000, name: member.first_name + " " + member.last_name });
+  OTP_STORE.set(key, { code, expires: Date.now() + 10 * 60 * 1000, name: member.first_name + " " + member.last_name, attempts: 0 });
 
   const { data: tenant } = await supabase.from("tenants").select("name, logo_url").eq("id", tenant_id).single();
   const clubName = tenant?.name || "your club";
@@ -17722,14 +17738,22 @@ app.post("/api/checkin/send-otp", async (req, res) => {
 });
 
 // POST /api/checkin/verify-otp — verify OTP code
-app.post("/api/checkin/verify-otp", async (req, res) => {
+app.post("/api/checkin/verify-otp", otpVerifyLimiter, async (req, res) => {
   const { tenant_id, membership_number, code } = req.body;
   if (!tenant_id || !membership_number || !code) return res.status(400).json({ error: "Missing fields" });
   const key = `${tenant_id}:${membership_number}`;
   const stored = OTP_STORE.get(key);
   if (!stored) return res.status(400).json({ error: "No code was sent. Please request a new one." });
   if (Date.now() > stored.expires) { OTP_STORE.delete(key); return res.status(400).json({ error: "Code expired. Please request a new one." }); }
-  if (stored.code !== String(code).trim()) return res.status(400).json({ error: "Incorrect code. Please try again." });
+  stored.attempts = (stored.attempts || 0) + 1;
+  if (stored.attempts > 5) {
+    OTP_STORE.delete(key);
+    return res.status(429).json({ error: "Too many incorrect attempts. Please request a new code." });
+  }
+  if (stored.code !== String(code).trim()) {
+    const remaining = 5 - stored.attempts;
+    return res.status(400).json({ error: `Incorrect code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.` });
+  }
   OTP_STORE.delete(key);
   res.json({ ok: true, name: stored.name });
 });

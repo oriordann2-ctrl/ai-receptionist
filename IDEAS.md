@@ -595,6 +595,19 @@ Tenant logo now appears as favicon on generated websites. Falls back to Sprimal 
 
 ---
 
+## ⏳ TODO — Field Validations Need Testing
+
+The field-level validation and input sanitisation added 2026-06-16 needs end-to-end manual testing on a phone:
+
+- [ ] **Member name search** — try entering numbers, special chars (`<script>`, `@`, `%`). Search should fire for valid names only; `maxlength` should cap at 60 chars.
+- [ ] **Supervisor name** — submit with no name (red border + message), with invalid chars (e.g. `1234` or `<b>`), and with a valid Irish name (e.g. `Seán O'Brien`).
+- [ ] **Supervisor phone/email** — submit blank (message), submit `abc` (invalid phone/email message), submit a valid phone (`085 1234567`) and a valid email.
+- [ ] **Junior name search** — same as member name search tests.
+- [ ] **Server side** — open DevTools → Network, try sending a fetch to `/api/checkin/search-members/{tenant}?q=<script>alert(1)</script>` — should return `[]`.
+- [ ] **Confirm screen XSS** — enter `<b>bold</b>` as supervisor name, check the confirm screen renders it as literal text, not as HTML.
+
+---
+
 ## ✅ TODO — Check-In Flow End-to-End Testing (Monkstown)
 
 Run these manually on a phone to verify the booking-based check-in is working correctly.

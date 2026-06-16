@@ -17218,12 +17218,12 @@ function escHtml(s) {
 }
 function isValidName(n) {
   if (!n || n.length < 2 || n.length > 60) return false;
-  return /^[a-zA-Z '\-.]+$/.test(n);
+  return /^[a-zA-Z '.-]+$/.test(n);
 }
 function isValidContact(c) {
   if (!c || c.length < 6 || c.length > 100) return false;
-  if (c.indexOf('@') !== -1) return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c);
-  return /^[\d\s\+\-\(\)]{7,}$/.test(c);
+  if (c.indexOf('@') !== -1) return /^[^ @]+@[^ @]+[.][^ @]{2,}$/.test(c);
+  return /^[0-9 +().-]{7,}$/.test(c);
 }
 
 function header() {

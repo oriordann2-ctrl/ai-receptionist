@@ -17398,7 +17398,9 @@ function showSupervisorForm() {
     }
     showJuniorSearch(name, contact);
   });
-  document.getElementById('sup-back-btn').addEventListener('click', showForm);
+  document.getElementById('sup-back-btn').addEventListener('click', function() {
+    savedMember ? showWelcomeBack() : showForm();
+  });
 }
 
 function showJuniorSearch(supervisorName, supervisorContact) {

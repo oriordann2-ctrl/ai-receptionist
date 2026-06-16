@@ -17910,6 +17910,12 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
           const displayTime = String(activeExisting.booking_time || "").slice(11, 16);
           return res.json({ valid_booking: { court_id: activeExisting.booking_court_id, time: activeExisting.booking_time, display_time: displayTime }, already_checked_in: true, member_name: null, message: `Already checked in for Court ${activeExisting.booking_court_id} at ${displayTime}.` });
         }
+        // Slot is running but check-in window has closed
+        const slotHhmm = String(activeSlot.time || "").slice(11, 16);
+        const [sh, sm] = slotHhmm.split(":").map(Number);
+        const closedMins = sh * 60 + sm + 30;
+        const closedStr = String(Math.floor(closedMins / 60)).padStart(2, "0") + ":" + String(closedMins % 60).padStart(2, "0");
+        return res.json({ valid_booking: null, already_checked_in: false, member_name: null, message: `Check-in window for your ${slotHhmm} booking closed at ${closedStr}. Check-in must be completed within 30 minutes of the booking start.` });
       }
 
       let msg;

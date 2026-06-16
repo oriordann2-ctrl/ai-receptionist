@@ -569,9 +569,12 @@
         card.style.display = "block";
         var pct     = Math.min(100, Math.round((d.used / d.limit) * 100));
         var barColor = pct >= 100 ? "#dc2626" : pct >= 80 ? "#f59e0b" : "#2563eb";
-        var now     = new Date();
+        var now       = new Date();
         var nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         var resetStr  = nextReset.toLocaleDateString("en-IE", { day: "numeric", month: "long" });
+        var daysLeft  = Math.ceil((nextReset - now) / (1000 * 60 * 60 * 24));
+        var daysLabel = daysLeft === 1 ? "1 day" : daysLeft + " days";
+        var resetNote = "Resets " + resetStr + " — " + daysLabel + " away";
         meter.innerHTML =
           '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
           + '<span style="font-size:22px;font-weight:700;color:#111827;">' + d.used + ' <span style="font-size:14px;font-weight:400;color:#6b7280;">/ ' + d.limit + ' conversations</span></span>'
@@ -580,7 +583,7 @@
           + '<div style="height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-bottom:10px;">'
           + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:99px;transition:width 0.4s;"></div>'
           + '</div>'
-          + '<div style="font-size:12px;color:#9ca3af;">Resets on ' + resetStr + '.</div>';
+          + '<div style="font-size:12px;color:#9ca3af;">' + resetNote + '</div>';
       })
       .catch(function() {}); // silently ignore — non-critical
   }

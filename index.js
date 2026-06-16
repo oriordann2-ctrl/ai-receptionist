@@ -8073,6 +8073,29 @@ const chatUsageCache = new Map(); // tenantId → { count, month, ts }
 const warned80pct    = new Set(); // `${tenantId}-YYYY-MM` — prevents repeat warning emails per month
 const CHAT_CACHE_TTL = 5 * 60 * 1000; // 5-minute cache
 
+// Per-IP per-tenant conversation start tracking (anti-abuse)
+// Keyed by `${ip}-${tenantId}-YYYY-MM-DD-HH` → Set of conversation IDs seen this hour
+const ipConvoStarts  = new Map();
+const MAX_CONVOS_PER_IP_PER_HOUR = 15;
+
+function checkIpConvoLimit(ip, tenantId, conversationId) {
+  const now = new Date();
+  const hourKey = `${ip}-${tenantId}-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
+  if (!ipConvoStarts.has(hourKey)) {
+    // Prune stale hour buckets to prevent unbounded memory growth
+    for (const k of ipConvoStarts.keys()) {
+      if (!k.startsWith(`${ip}-${tenantId}`)) continue;
+      if (k !== hourKey) ipConvoStarts.delete(k);
+    }
+    ipConvoStarts.set(hourKey, new Set());
+  }
+  const seen = ipConvoStarts.get(hourKey);
+  if (seen.has(conversationId)) return true; // already seen this convo — allow
+  if (seen.size >= MAX_CONVOS_PER_IP_PER_HOUR) return false; // too many new convos this hour
+  seen.add(conversationId);
+  return true;
+}
+
 async function getChatUsageThisMonth(tenantId) {
   const now   = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -8085,6 +8108,7 @@ async function getChatUsageThisMonth(tenantId) {
     .from("chat_logs")
     .select("conversation_id")
     .eq("tenant_id", tenantId)
+    .eq("sender", "user")
     .gte("timestamp", start)
     .not("conversation_id", "is", null);
   const count = new Set((data || []).map(r => r.conversation_id)).size;
@@ -12246,12 +12270,14 @@ app.post("/chat", chatLimiter, async (req, res) => {
     let tenantAssistantName = "Maeve";
     let tenantPhone = null;
     let tenantEmail = null;
+    let tenantData = null;
     try {
-      const { data: tenantData } = await supabase
+      const { data: _tenantData } = await supabase
         .from("tenants")
         .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name, monthly_chat_limit")
         .eq("id", tenantId)
         .maybeSingle();
+      tenantData = _tenantData;
       if (tenantData?.business_mode) effectiveMode = tenantData.business_mode;
       if (tenantData?.name) tenantDisplayName = tenantData.name;
       else tenantDisplayName = tenantId.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -12264,6 +12290,11 @@ app.post("/chat", chatLimiter, async (req, res) => {
         return res.json({ reply: "The AI assistant is currently unavailable. Please contact us directly." });
       }
     } catch {}
+
+    // ── IP-based conversation start rate limit (anti-abuse) ──────────────────
+    if (conversationId && !checkIpConvoLimit(req.ip, tenantId, conversationId)) {
+      return res.json({ reply: "Too many new conversations from your connection. Please try again later." });
+    }
 
     // ── Monthly chat limit check ──────────────────────────────────────────────
     // Only checked for new conversations (conversationId present). null limit = unlimited.

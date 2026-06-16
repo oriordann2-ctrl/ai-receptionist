@@ -17213,6 +17213,19 @@ function saveMember(data) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {}
 }
 
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function isValidName(n) {
+  if (!n || n.length < 2 || n.length > 60) return false;
+  return /^[a-zA-Z '\-.]+$/.test(n);
+}
+function isValidContact(c) {
+  if (!c || c.length < 6 || c.length > 100) return false;
+  if (c.indexOf('@') !== -1) return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c);
+  return /^[\d\s\+\-\(\)]{7,}$/.test(c);
+}
+
 function header() {
   var logoHtml = clubInfo.logo_url
     ? '<img class="logo" src="' + clubInfo.logo_url + '" alt="' + clubInfo.club_name + '">'
@@ -17316,7 +17329,7 @@ function showForm() {
 function showMemberSearch() {
   document.getElementById('card').innerHTML = header() +
     '<label for="name-search">Your Name</label>' +
-    '<input type="text" id="name-search" placeholder="e.g. John Smith" autocomplete="off">' +
+    '<input type="text" id="name-search" placeholder="e.g. John Smith" autocomplete="off" maxlength="60">' +
     '<p style="font-size:12px;color:#6b7280;margin-top:6px;text-align:left;line-height:1.4;">You can only check in from 15 minutes before your court booking up to 30 minutes into it.</p>' +
     '<div id="search-results" style="margin-top:8px;"></div>' +
     '<button class="btn btn-secondary" id="back-home-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
@@ -17364,9 +17377,9 @@ function showSupervisorForm() {
     '<div class="welcome"><div class="welcome-name">Supervising a Junior</div>' +
     '<div class="welcome-sub">Please provide your details</div></div>' +
     '<label for="sup-name">Your Name</label>' +
-    '<input type="text" id="sup-name" placeholder="Your full name" autocomplete="name">' +
+    '<input type="text" id="sup-name" placeholder="Your full name" autocomplete="name" maxlength="60">' +
     '<label for="sup-contact" style="margin-top:8px;">Your Phone or Email</label>' +
-    '<input type="text" id="sup-contact" placeholder="e.g. 085 1234567" autocomplete="tel">' +
+    '<input type="text" id="sup-contact" placeholder="e.g. 085 1234567" autocomplete="tel" maxlength="100">' +
     '<div style="display:grid;grid-template-columns:20px 1fr;gap:8px;align-items:start;margin-top:14px;text-align:left;">' +
     '<input type="checkbox" id="sup-agree" style="margin-top:3px;cursor:pointer;">' +
     '<span style="font-size:13px;line-height:1.5;color:#333;cursor:pointer;" onclick="document.getElementById(&#39;sup-agree&#39;).click()">I agree to supervise the junior(s) during their time at ' + (clubInfo.club_name || 'the club') + ' and take responsibility for their welfare on the premises</span>' +
@@ -17379,16 +17392,18 @@ function showSupervisorForm() {
     var name = (document.getElementById('sup-name').value || '').trim();
     var contact = (document.getElementById('sup-contact').value || '').trim();
     var agreed = document.getElementById('sup-agree').checked;
-    if (!name) {
+    if (!name || !isValidName(name)) {
       var el = document.getElementById('sup-name');
       el.style.borderColor = '#dc2626';
       el.addEventListener('input', function() { el.style.borderColor = ''; }, { once: true });
+      showMsg(!name ? 'Please enter your name.' : 'Name should contain letters, spaces, hyphens or apostrophes only.', 'error');
       el.focus(); return;
     }
-    if (!contact) {
+    if (!contact || !isValidContact(contact)) {
       var el = document.getElementById('sup-contact');
       el.style.borderColor = '#dc2626';
       el.addEventListener('input', function() { el.style.borderColor = ''; }, { once: true });
+      showMsg(!contact ? 'Please enter your phone number or email.' : 'Please enter a valid phone number or email address.', 'error');
       el.focus(); return;
     }
     if (!agreed) {
@@ -17410,7 +17425,7 @@ function showJuniorSearch(supervisorName, supervisorContact) {
     '<div class="welcome"><div class="welcome-name">Find the Junior</div>' +
     '<div class="welcome-sub">Search by the junior&#39;s name</div></div>' +
     '<label for="junior-name-search">Junior&#39;s Name</label>' +
-    '<input type="text" id="junior-name-search" placeholder="e.g. Sarah Smith" autocomplete="off">' +
+    '<input type="text" id="junior-name-search" placeholder="e.g. Sarah Smith" autocomplete="off" maxlength="60">' +
     '<p style="font-size:12px;color:#6b7280;margin-top:6px;text-align:left;line-height:1.4;">You can only check in from 15 minutes before the court booking up to 30 minutes into it.</p>' +
     '<div id="junior-search-results" style="margin-top:8px;"></div>' +
     '<button class="btn btn-secondary" id="junior-back-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
@@ -17459,11 +17474,11 @@ function showJuniorConfirm(supervisorName, supervisorContact, juniorNum, juniorN
   var slotText = bookingTime ? new Date(String(bookingTime).replace(' ', 'T')).toLocaleTimeString('en-IE', {hour:'2-digit',minute:'2-digit'}) : '';
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Confirm Check-In</div>' +
-    (slotText ? '<div class="welcome-sub">Checking in ' + juniorName + ' at ' + slotText + '</div>' : '<div class="welcome-sub">Checking in ' + juniorName + '</div>') +
+    (slotText ? '<div class="welcome-sub">Checking in ' + escHtml(juniorName) + ' at ' + slotText + '</div>' : '<div class="welcome-sub">Checking in ' + escHtml(juniorName) + '</div>') +
     '</div>' +
     '<div style="background:#f0f4f8;border-radius:8px;padding:12px;font-size:14px;margin:12px 0;line-height:1.6;">' +
-    '<strong>Supervisor:</strong> ' + supervisorName + '<br>' +
-    '<strong>Contact:</strong> ' + supervisorContact +
+    '<strong>Supervisor:</strong> ' + escHtml(supervisorName) + '<br>' +
+    '<strong>Contact:</strong> ' + escHtml(supervisorContact) +
     '</div>' +
     '<button class="btn btn-primary" id="confirm-junior-btn">Confirm & Check In</button>' +
     '<button class="btn btn-secondary" id="junior-back-btn2" style="margin-top:8px;font-size:13px;color:#6b7280;">← Search again</button>' +
@@ -17776,6 +17791,7 @@ app.get("/api/checkin/search-members/:tenantId", async (req, res) => {
   const { tenantId } = req.params;
   const q = (req.query.q || "").trim().toLowerCase();
   if (!q || q.length < 2) return res.json([]);
+  if (q.length > 100 || /</.test(q)) return res.json([]);
   try {
     await loadEboConfigFromDb(tenantId);
     const today = new Date().toISOString().slice(0, 10);
@@ -17971,6 +17987,11 @@ app.post("/api/checkin/submit", async (req, res) => {
   try {
     const { tenant_id, membership_number, member_name, gps_lat, gps_lng, booking_time, booking_court_id, checked_in_by, is_delegate, supervisor_name, supervisor_contact } = req.body;
     if (!tenant_id || !membership_number || !member_name) return res.status(400).json({ error: "Missing fields" });
+    // Input length + HTML injection guard
+    const hasHtml = (s) => s && /</.test(s);
+    if (member_name.length > 100 || hasHtml(member_name)) return res.status(400).json({ error: "Invalid input" });
+    if (supervisor_name && (supervisor_name.length > 100 || hasHtml(supervisor_name))) return res.status(400).json({ error: "Invalid input" });
+    if (supervisor_contact && (supervisor_contact.length > 150 || hasHtml(supervisor_contact))) return res.status(400).json({ error: "Invalid input" });
 
     // Duplicate booking check
     if (booking_time && booking_court_id) {

@@ -1205,6 +1205,22 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
+## 🏷️ Check-In Journey — Audit for Hardcoded Club Name
+
+**Observation:** The word "Monkstown" may appear hardcoded in parts of the QR check-in flow. Any other tennis club using Sprimal's check-in must only see their own club name throughout — agreement text, headings, OTP emails, success screens, etc.
+
+**What to audit:**
+- Supervisor agreement text: "I agree to supervise the junior(s) during their time at [club name]" — currently uses `clubInfo.club_name` but verify it's populated correctly for all tenants
+- OTP email subject and body — check for hardcoded "Monkstown" strings
+- Any static text in the check-in HTML template, success/error messages, or JS strings
+- The `court_checkins` Supabase table — any hardcoded club references in insert logic
+
+**How to fix:** Global search for "Monkstown" and "monkstown" in `index.js`. Every occurrence in the check-in flow should be replaced with `clubInfo.club_name`, `tenantId`, or equivalent dynamic value pulled from the tenant record.
+
+**Status:** ⏳ TODO — audit before onboarding any second tennis club tenant.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

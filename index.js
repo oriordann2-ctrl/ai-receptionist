@@ -17895,48 +17895,58 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
 
 // POST /api/checkin/submit — record a check-in
 app.post("/api/checkin/submit", async (req, res) => {
-  const { tenant_id, membership_number, member_name, gps_lat, gps_lng, booking_time, booking_court_id, checked_in_by, is_delegate } = req.body;
-  if (!tenant_id || !membership_number || !member_name) return res.status(400).json({ error: "Missing fields" });
+  try {
+    const { tenant_id, membership_number, member_name, gps_lat, gps_lng, booking_time, booking_court_id, checked_in_by, is_delegate } = req.body;
+    if (!tenant_id || !membership_number || !member_name) return res.status(400).json({ error: "Missing fields" });
 
-  // Duplicate booking check
-  if (booking_time && booking_court_id) {
-    const { data: existing } = await supabase.from("court_checkins")
-      .select("id").eq("tenant_id", tenant_id).eq("membership_number", membership_number)
-      .eq("booking_time", booking_time).eq("booking_court_id", String(booking_court_id))
-      .maybeSingle();
-    if (existing) {
-      const t = String(booking_time).slice(11, 16);
-      return res.status(409).json({ error: `Already checked in for Court ${booking_court_id} at ${t}.` });
-    }
-  }
-
-  // GPS validation — if tenant has GPS set and member provided location, check distance
-  let gps_verified = false;
-  let gps_distance_meters = null;
-  if (gps_lat && gps_lng) {
-    const { data: tenant } = await supabase.from("tenants").select("checkin_lat, checkin_lng, checkin_radius_meters").eq("id", tenant_id).single();
-    if (tenant?.checkin_lat && tenant?.checkin_lng) {
-      gps_distance_meters = Math.round(gpsDistance(gps_lat, gps_lng, tenant.checkin_lat, tenant.checkin_lng));
-      const radius = tenant.checkin_radius_meters || 150;
-      if (gps_distance_meters > radius) {
-        return res.status(403).json({ error: `You must be at the club to check in (you appear to be ${gps_distance_meters}m away).` });
+    // Duplicate booking check
+    if (booking_time && booking_court_id) {
+      const { data: existing } = await supabase.from("court_checkins")
+        .select("id").eq("tenant_id", tenant_id).eq("membership_number", membership_number)
+        .eq("booking_time", booking_time).eq("booking_court_id", String(booking_court_id))
+        .maybeSingle();
+      if (existing) {
+        const t = String(booking_time).slice(11, 16);
+        return res.status(409).json({ error: `Already checked in for Court ${booking_court_id} at ${t}.` });
       }
-      gps_verified = true;
     }
-  }
 
-  const { error } = await supabase.from("court_checkins").insert({
-    tenant_id, membership_number, member_name,
-    gps_lat, gps_lng, gps_distance_meters, gps_verified,
-    booking_time: booking_time || null,
-    booking_court_id: booking_court_id ? String(booking_court_id) : null,
-    checked_in_by: checked_in_by || null,
-    is_delegate: is_delegate || false
-  });
-  if (error) return res.status(500).json({ error: "Failed to record check-in" });
-  const note = checked_in_by ? ` (delegated by #${checked_in_by})` : "";
-  console.log(`[checkin] ${member_name} (#${membership_number}) checked in at ${tenant_id} — GPS ${gps_verified ? gps_distance_meters + "m" : "not verified"}${note}`);
-  res.json({ ok: true });
+    // GPS validation — if tenant has GPS set and member provided location, check distance
+    let gps_verified = false;
+    let gps_distance_meters = null;
+    if (gps_lat && gps_lng) {
+      const { data: tenant } = await supabase.from("tenants").select("checkin_lat, checkin_lng, checkin_radius_meters").eq("id", tenant_id).single();
+      if (tenant?.checkin_lat && tenant?.checkin_lng) {
+        gps_distance_meters = Math.round(gpsDistance(gps_lat, gps_lng, tenant.checkin_lat, tenant.checkin_lng));
+        const radius = tenant.checkin_radius_meters || 150;
+        if (gps_distance_meters > radius) {
+          console.warn(`[checkin] GPS rejected: ${member_name} (#${membership_number}) at ${tenant_id} — ${gps_distance_meters}m away (radius ${radius}m)`);
+          return res.status(403).json({ error: `You must be at the club to check in (you appear to be ${gps_distance_meters}m away).` });
+        }
+        gps_verified = true;
+      }
+    }
+
+    console.log(`[checkin] attempting insert: ${member_name} (#${membership_number}) at ${tenant_id} — GPS ${gps_verified ? gps_distance_meters + "m" : "not verified"}, booking ${booking_time || "none"}`);
+    const { error } = await supabase.from("court_checkins").insert({
+      tenant_id, membership_number, member_name,
+      gps_lat, gps_lng, gps_distance_meters, gps_verified,
+      booking_time: booking_time || null,
+      booking_court_id: booking_court_id ? String(booking_court_id) : null,
+      checked_in_by: checked_in_by || null,
+      is_delegate: is_delegate || false
+    });
+    if (error) {
+      console.error(`[checkin] insert failed for ${member_name} (#${membership_number}) at ${tenant_id}:`, error.message, error.code);
+      return res.status(500).json({ error: "Failed to record check-in" });
+    }
+    const note = checked_in_by ? ` (delegated by #${checked_in_by})` : "";
+    console.log(`[checkin] SUCCESS: ${member_name} (#${membership_number}) checked in at ${tenant_id} — GPS ${gps_verified ? gps_distance_meters + "m" : "not verified"}${note}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`[checkin] unexpected error in submit:`, err.message);
+    res.status(500).json({ error: "Failed to record check-in" });
+  }
 });
 
 // GET /api/portal/checkins/dashboard — captain dashboard: today's check-ins vs EBO bookings
@@ -18080,6 +18090,29 @@ app.delete("/api/portal/checkins/:id", requireTenant, async (req, res) => {
   const { error } = await supabase.from("court_checkins").delete().eq("id", id).eq("tenant_id", tenantId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
+});
+
+// POST /api/portal/checkins/manual — admin manually records a check-in (GPS bypass)
+app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { membership_number, member_name } = req.body;
+  if (!membership_number || !member_name) return res.status(400).json({ error: "Missing membership_number or member_name" });
+  try {
+    const { error } = await supabase.from("court_checkins").insert({
+      tenant_id: tenantId,
+      membership_number: parseInt(membership_number),
+      member_name: String(member_name).trim(),
+      gps_lat: null, gps_lng: null, gps_distance_meters: null, gps_verified: false,
+      booking_time: null, booking_court_id: null,
+      checked_in_by: "admin", is_delegate: false
+    });
+    if (error) return res.status(500).json({ error: error.message });
+    console.log(`[checkin] MANUAL: ${member_name} (#${membership_number}) added by admin at ${tenantId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[checkin] manual insert error:", err.message);
+    res.status(500).json({ error: "Failed to record check-in" });
+  }
 });
 
 const PORT = process.env.PORT || 3000;

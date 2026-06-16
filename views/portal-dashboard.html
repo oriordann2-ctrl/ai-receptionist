@@ -1128,8 +1128,28 @@
 
     <!-- Check-in log -->
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f3f4f6;">
-      <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;">Today's Check-Ins</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-size:14px;font-weight:600;color:#374151;">Today's Check-Ins</div>
+        <button onclick="window.showManualCheckin()" style="padding:6px 14px;background:#1565c0;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">+ Manual Check-In</button>
+      </div>
       <div id="checkinLog"></div>
+    </div>
+
+    <!-- Manual check-in modal -->
+    <div id="manualCheckinModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:16px;padding:28px;width:340px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:16px;">Manual Check-In</div>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:16px;">Use this when a member's GPS check-in failed but they are physically on-site.</div>
+        <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Membership Number</label>
+        <input id="manualMnum" type="number" placeholder="e.g. 1234" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:12px;outline:none;">
+        <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Member Name</label>
+        <input id="manualName" type="text" placeholder="e.g. Noel O'Riordan" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:16px;outline:none;">
+        <div id="manualCheckinMsg" style="display:none;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="window.submitManualCheckin()" style="flex:1;padding:10px;background:#1565c0;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Check In</button>
+          <button onclick="window.hideManualCheckin()" style="flex:1;padding:10px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+        </div>
+      </div>
     </div>
 
   </div>

@@ -1214,6 +1214,47 @@
       .catch(function() {});
   }
 
+  window.showManualCheckin = function() {
+    var modal = document.getElementById("manualCheckinModal");
+    if (modal) { modal.style.display = "flex"; document.getElementById("manualMnum").focus(); }
+  };
+
+  window.hideManualCheckin = function() {
+    var modal = document.getElementById("manualCheckinModal");
+    if (modal) { modal.style.display = "none"; }
+    var msg = document.getElementById("manualCheckinMsg");
+    if (msg) { msg.style.display = "none"; }
+    document.getElementById("manualMnum").value = "";
+    document.getElementById("manualName").value = "";
+  };
+
+  window.submitManualCheckin = function() {
+    var mnum = parseInt((document.getElementById("manualMnum") || {}).value || "");
+    var name = ((document.getElementById("manualName") || {}).value || "").trim();
+    var msgEl = document.getElementById("manualCheckinMsg");
+    function showModalMsg(text, color) {
+      if (msgEl) { msgEl.style.display = "block"; msgEl.style.color = color; msgEl.textContent = text; }
+    }
+    if (!mnum || mnum < 1) { showModalMsg("Please enter a valid membership number.", "#ef4444"); return; }
+    if (!name) { showModalMsg("Please enter the member's name.", "#ef4444"); return; }
+    fetch("/api/portal/checkins/manual", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ membership_number: mnum, member_name: name })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        window.hideManualCheckin();
+        renderCheckinLog();
+        renderCaptainDashboard();
+      } else {
+        showModalMsg(d.error || "Failed to check in.", "#ef4444");
+      }
+    })
+    .catch(function() { showModalMsg("Network error — please try again.", "#ef4444"); });
+  };
+
   window.deleteCheckin = function(id) {
     if (!confirm("Remove this check-in record?")) return;
     fetch("/api/portal/checkins/" + id, { method: "DELETE" })

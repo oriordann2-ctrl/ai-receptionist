@@ -1183,6 +1183,28 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
+## 👥 Multi-User Portal Access (Admin Users per Tenant)
+
+**What:** The person who signs up a tenant (e.g. it@monkstowntennisclub.com) can grant portal access to 1–2 additional users at the same club, with the same privilege level.
+
+**Why:** Clubs and businesses are not run by one person. The IT contact may sign up but the club secretary or chairman also needs access. Currently only the signup email can log in.
+
+**How it could work:**
+- In portal settings, a "Users" section lists the current admin
+- "Invite user" button — enter an email address → sends an invite link → they set a password and get full portal access
+- Cap at 2–3 additional users per tenant (e.g. max 3 total — the owner + 2 others)
+- Any portal user can invite others (up to the cap), or restrict to only the original signup user
+
+**Access model options:**
+- **Simple:** all invited users get the same full access as the signup user (easiest to build)
+- **Role-based (later):** Owner / Admin / View-only — useful for clubs that want a treasurer to see leads but not edit flows
+
+**Use case:** Monkstown LTCC — the IT contact signed up, but the club captain and secretary both need to see the check-in dashboard and no-show report.
+
+**Status:** Idea. Currently single-user per tenant only.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

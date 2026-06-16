@@ -18002,17 +18002,26 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
 
   try {
     await loadEboConfigFromDb(tenantId);
-    const [bookings, { data: checkins }] = await Promise.all([
+    const [bookings, { data: checkins }, { data: manualCheckins }] = await Promise.all([
       fetchEboBookingsPaged(tenantId, fromDate, toDate),
-      supabase.from("court_checkins").select("booking_time")
+      supabase.from("court_checkins").select("booking_time, membership_number")
         .eq("tenant_id", tenantId)
         .gte("booking_time", fromDate + " 00:00:00")
-        .lte("booking_time", toDate + " 23:59:59")
+        .lte("booking_time", toDate + " 23:59:59"),
+      // Manual check-ins have null booking_time — match by membership_number + date instead
+      supabase.from("court_checkins").select("membership_number")
+        .eq("tenant_id", tenantId)
+        .is("booking_time", null)
+        .gte("checked_in_at", fromDate + "T00:00:00.000Z")
+        .lte("checked_in_at", toDate + "T23:59:59.999Z")
     ]);
 
-    // Build a set of booking_times that have at least one check-in.
-    // If anyone on the booking checked in, all members on that booking are credited.
-    const checkedInTimes = new Set((checkins || []).map(c => String(c.booking_time || "").replace(" ", "T").slice(0, 16)));
+    // Match by booking_time + membership_number so one person's check-in doesn't credit everyone at that slot
+    const checkedInKeys = new Set((checkins || []).map(c =>
+      `${String(c.booking_time || "").replace(" ", "T").slice(0, 16)}_${c.membership_number}`
+    ));
+    // Manual check-ins (no booking_time) credit that member for any booking they had that day
+    const manualCheckedInMembers = new Set((manualCheckins || []).map(c => String(c.membership_number)));
 
     // For "today" only count slots that have already started — future bookings can't be no-shows yet
     const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
@@ -18030,10 +18039,10 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         const [bh, bm] = hhmm.split(":").map(Number);
         if (bh * 60 + bm > nowMinsOfDay) continue;
       }
-      const wasCheckedIn = checkedInTimes.has(bookingTime);
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || Number(key) === 1 || m.colour) continue;
+        const wasCheckedIn = checkedInKeys.has(`${bookingTime}_${key}`) || manualCheckedInMembers.has(String(key));
         if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0, noshow_times: [] };
         memberMap[key].booked++;
         if (!wasCheckedIn) { memberMap[key].noshows++; memberMap[key].noshow_times.push(bookingTime); }

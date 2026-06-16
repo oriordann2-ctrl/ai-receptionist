@@ -17183,11 +17183,107 @@ function showNoBooking(membershipNumber, memberName, message) {
   var msg = message || 'No booking found for the current time slot.';
   document.getElementById('card').innerHTML = header() +
     '<div class="status status-error" style="margin-top:16px;">' + msg + '</div>' +
-    '<button class="btn btn-secondary" id="delegate-btn" style="margin-top:16px;">Check in a junior as delegate</button>' +
+    '<button class="btn btn-primary" id="alt-checkin-btn" style="margin-top:16px;">Check in with a different number</button>' +
+    '<button class="btn btn-secondary" id="delegate-btn" style="margin-top:8px;">Check in a junior as delegate</button>' +
     '<div id="msg"></div>';
+  document.getElementById('alt-checkin-btn').addEventListener('click', showAltCheckinForm);
   document.getElementById('delegate-btn').addEventListener('click', function() {
     showDelegateForm(membershipNumber);
   });
+}
+
+function showAltCheckinForm() {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="welcome"><div class="welcome-name">Different Membership</div>' +
+    '<div class="welcome-sub">Enter your coaching or secondary membership number</div></div>' +
+    '<label for="altnum">Membership Number</label>' +
+    '<input type="number" id="altnum" placeholder="e.g. 1234" inputmode="numeric" autocomplete="off">' +
+    '<button class="btn btn-primary" id="alt-send-btn">Send Code</button>' +
+    '<button class="btn btn-secondary" id="alt-back-btn" style="margin-top:4px;font-size:13px;color:#6b7280;">← Back</button>' +
+    '<div id="msg"></div>';
+  document.getElementById('altnum').focus();
+  document.getElementById('alt-send-btn').addEventListener('click', function() {
+    var num = parseInt((document.getElementById('altnum') || {}).value || '');
+    if (!num || num < 1) { showMsg('Please enter a membership number.', 'error'); return; }
+    sendOtpAndShowAlt(num);
+  });
+  document.getElementById('altnum').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      var num = parseInt(this.value || '');
+      if (num > 0) sendOtpAndShowAlt(num);
+    }
+  });
+  document.getElementById('alt-back-btn').addEventListener('click', function() { history.go(-0); location.reload(); });
+}
+
+async function sendOtpAndShowAlt(membershipNumber) {
+  var btn = document.getElementById('alt-send-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending code...'; }
+  showMsg('Sending code to your email...', 'info');
+  try {
+    var r = await fetch('/api/checkin/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: membershipNumber })
+    });
+    var d = await r.json();
+    if (!r.ok) {
+      showMsg(d.error || 'Could not send code. Please try again.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Send Code'; }
+      return;
+    }
+    showOtpScreenAlt(membershipNumber, d.name, d.email_hint);
+  } catch(e) {
+    showMsg('Network error — please try again.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Code'; }
+  }
+}
+
+function showOtpScreenAlt(membershipNumber, memberName, emailHint) {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="email-hint">Code sent to ' + emailHint + '</div>' +
+    '<div class="otp-wrap">' +
+    '<input class="otp-box" id="otp0" maxlength="1" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp1" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp2" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp3" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp4" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '<input class="otp-box" id="otp5" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
+    '</div>' +
+    '<button class="btn btn-primary" id="verify-btn">Verify & Check In</button>' +
+    '<button class="btn btn-secondary" id="resend-btn">Resend code</button>' +
+    '<button class="btn btn-secondary" id="back-btn" style="margin-top:4px;font-size:13px;color:#6b7280;">← Change membership number</button>' +
+    '<div id="msg"></div>';
+  initOtpBoxes(function() { verifyAndSubmitAlt(membershipNumber, memberName); });
+  document.getElementById('verify-btn').addEventListener('click', function() { verifyAndSubmitAlt(membershipNumber, memberName); });
+  document.getElementById('resend-btn').addEventListener('click', function() { sendOtpAndShowAlt(membershipNumber); });
+  document.getElementById('back-btn').addEventListener('click', showAltCheckinForm);
+  document.getElementById('otp0').focus();
+}
+
+async function verifyAndSubmitAlt(membershipNumber, memberName) {
+  var code = getOtpCode();
+  if (code.length < 6) { showMsg('Please enter the full 6-digit code.', 'error'); return; }
+  var btn = document.getElementById('verify-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+  try {
+    var r = await fetch('/api/checkin/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, membership_number: membershipNumber, code: code })
+    });
+    var d = await r.json();
+    if (!r.ok) {
+      showMsg(d.error || 'Invalid code. Please try again.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Verify & Check In'; }
+      return;
+    }
+    // deliberately skip saveMember() — personal number stays saved in localStorage
+    validateBookingThenCheckin(membershipNumber, d.name);
+  } catch(e) {
+    showMsg('Network error — please try again.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Verify & Check In'; }
+  }
 }
 
 function showDelegateForm(adultMembershipNumber) {

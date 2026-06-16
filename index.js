@@ -17499,7 +17499,7 @@ function showForm() {
 function showMemberSearch() {
   document.getElementById('card').innerHTML = header() +
     '<label for="name-search">Your Name</label>' +
-    '<input type="text" id="name-search" placeholder="e.g. Noel O\'Riordan" autocomplete="off">' +
+    '<input type="text" id="name-search" placeholder="e.g. Noel O&#39;Riordan" autocomplete="off">' +
     '<div id="search-results" style="margin-top:8px;"></div>' +
     '<button class="btn btn-secondary" id="back-home-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
     '<div id="msg"></div>';
@@ -17574,7 +17574,7 @@ function showJuniorSearch(supervisorName, supervisorContact) {
     '<div class="welcome"><div class="welcome-name">Find the Junior</div>' +
     '<div class="welcome-sub">Search by the junior\'s name</div></div>' +
     '<label for="junior-name-search">Junior\'s Name</label>' +
-    '<input type="text" id="junior-name-search" placeholder="e.g. Sarah O\'Brien" autocomplete="off">' +
+    '<input type="text" id="junior-name-search" placeholder="e.g. Sarah O&#39;Brien" autocomplete="off">' +
     '<div id="junior-search-results" style="margin-top:8px;"></div>' +
     '<button class="btn btn-secondary" id="junior-back-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
     '<div id="msg"></div>';

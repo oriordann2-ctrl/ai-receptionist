@@ -17274,7 +17274,9 @@ function showBookingConfirm(membershipNumber, memberName, booking) {
     document.getElementById('booking-checkin-btn').textContent = 'Checking in...';
     submitCheckin(membershipNumber, memberName);
   });
-  document.getElementById('booking-back-btn').addEventListener('click', showForm);
+  document.getElementById('booking-back-btn').addEventListener('click', function() {
+    savedMember ? showWelcomeBack() : showForm();
+  });
 }
 
 function showAlreadyCheckedIn(memberName, booking) {

@@ -1746,7 +1746,7 @@ async function handleEboPersonalFlow(convo, message, tenantId, clubName) {
       if (!member) {
         return { handled: true, reply: `I couldn't find a ${clubName} account with that email. Could you double-check it? Try the address you used when you joined the club.` };
       }
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const code = String(Math.floor(1000 + Math.random() * 9000));
       eboOtpStore[email.toLowerCase()] = {
         code,
         expiresAt:        Date.now() + 10 * 60 * 1000,
@@ -7803,7 +7803,7 @@ app.post("/api/aom/send-otp", async (req, res) => {
     if (!email || !applicationId) return res.status(400).json({ error: "email and applicationId required" });
 
     // Generate 6-digit code
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(Math.floor(1000 + Math.random() * 9000));
     aomOtpStore.set(email, { code, applicationId, expiresAt: Date.now() + AOM_OTP_TTL_MS });
 
     // Send via Resend
@@ -17346,8 +17346,6 @@ function showOtpScreenAlt(membershipNumber, memberName, emailHint) {
     '<input class="otp-box" id="otp1" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
     '<input class="otp-box" id="otp2" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
     '<input class="otp-box" id="otp3" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
-    '<input class="otp-box" id="otp4" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
-    '<input class="otp-box" id="otp5" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
     '</div>' +
     '<button class="btn btn-primary" id="verify-btn">Verify & Check In</button>' +
     '<button class="btn btn-secondary" id="resend-btn">Resend code</button>' +
@@ -17362,7 +17360,7 @@ function showOtpScreenAlt(membershipNumber, memberName, emailHint) {
 
 async function verifyAndSubmitAlt(membershipNumber, memberName) {
   var code = getOtpCode();
-  if (code.length < 6) { showMsg('Please enter the full 6-digit code.', 'error'); return; }
+  if (code.length < 4) { showMsg('Please enter the full 4-digit code.', 'error'); return; }
   var btn = document.getElementById('verify-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
   try {
@@ -17484,16 +17482,196 @@ function showDelegateSuccess(adultMembershipNumber, juniorName, booking) {
 
 function showForm() {
   document.getElementById('card').innerHTML = header() +
-    '<label for="mnum">Membership Number</label>' +
-    '<input type="number" id="mnum" placeholder="e.g. 1234" inputmode="numeric" autocomplete="off">' +
-    '<button class="btn btn-primary" id="send-btn">Check In</button>' +
+    '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Member Check-In</button>' +
+    '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;">👶 Supervising a Junior?</button>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';
-  document.getElementById('mnum').focus();
-  document.getElementById('mnum').addEventListener('keydown', function(e) { if (e.key === 'Enter') handleSubmit(); });
-  document.getElementById('send-btn').addEventListener('click', handleSubmit);
+  document.getElementById('member-btn').addEventListener('click', showMemberSearch);
+  document.getElementById('supervisor-btn').addEventListener('click', showSupervisorForm);
   updateClock();
   setInterval(updateClock, 1000);
+}
+
+function showMemberSearch() {
+  document.getElementById('card').innerHTML = header() +
+    '<label for="name-search">Your Name</label>' +
+    '<input type="text" id="name-search" placeholder="e.g. Noel O\'Riordan" autocomplete="off">' +
+    '<div id="search-results" style="margin-top:8px;"></div>' +
+    '<button class="btn btn-secondary" id="back-home-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
+    '<div id="msg"></div>';
+  var searchEl = document.getElementById('name-search');
+  searchEl.focus();
+  var timer;
+  searchEl.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(function() { searchMembersByName(searchEl.value); }, 350);
+  });
+  document.getElementById('back-home-btn').addEventListener('click', showForm);
+}
+
+async function searchMembersByName(q) {
+  q = (q || '').trim();
+  var el = document.getElementById('search-results');
+  if (!el) return;
+  if (q.length < 2) { el.innerHTML = ''; return; }
+  try {
+    var r = await fetch('/api/checkin/search-members/' + encodeURIComponent(TENANT_ID) + '?q=' + encodeURIComponent(q));
+    var data = await r.json();
+    if (!el.isConnected) return;
+    if (!data.length) {
+      el.innerHTML = '<div class="status status-error" style="font-size:13px;">No booking found for that name right now.</div>';
+      return;
+    }
+    el.innerHTML = data.map(function(m) {
+      return '<button class="btn btn-secondary member-pick" data-num="' + m.membership_number + '" data-name="' + encodeURIComponent(m.name) + '" style="margin-bottom:6px;text-align:left;">' + m.name + '</button>';
+    }).join('');
+    el.querySelectorAll('.member-pick').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var num = parseInt(this.dataset.num);
+        var name = decodeURIComponent(this.dataset.name);
+        sendOtpAndShow(num);
+      });
+    });
+  } catch(e) {
+    if (el.isConnected) el.innerHTML = '<div class="status status-error" style="font-size:13px;">Search error — try again.</div>';
+  }
+}
+
+function showSupervisorForm() {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="welcome"><div class="welcome-name">Supervising a Junior</div>' +
+    '<div class="welcome-sub">Please provide your details</div></div>' +
+    '<label for="sup-name">Your Name</label>' +
+    '<input type="text" id="sup-name" placeholder="Your full name" autocomplete="name">' +
+    '<label for="sup-contact" style="margin-top:8px;">Your Phone or Email</label>' +
+    '<input type="text" id="sup-contact" placeholder="e.g. 085 1234567" autocomplete="tel">' +
+    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:13px;line-height:1.4;cursor:pointer;">' +
+    '<input type="checkbox" id="sup-agree" style="margin-top:2px;flex-shrink:0;"> ' +
+    '<span>I agree to supervise the junior(s) during their time at ' + (clubInfo.club_name || 'the club') + ' and take responsibility for their welfare on the premises</span>' +
+    '</label>' +
+    '<button class="btn btn-primary" id="sup-next-btn" style="margin-top:16px;">Next — Find Junior</button>' +
+    '<button class="btn btn-secondary" id="sup-back-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
+    '<div id="msg"></div>';
+  document.getElementById('sup-name').focus();
+  document.getElementById('sup-next-btn').addEventListener('click', function() {
+    var name = (document.getElementById('sup-name').value || '').trim();
+    var contact = (document.getElementById('sup-contact').value || '').trim();
+    var agreed = document.getElementById('sup-agree').checked;
+    if (!name) { showMsg('Please enter your name.', 'error'); return; }
+    if (!contact) { showMsg('Please enter your phone or email.', 'error'); return; }
+    if (!agreed) { showMsg('Please tick the box to agree to supervise.', 'error'); return; }
+    showJuniorSearch(name, contact);
+  });
+  document.getElementById('sup-back-btn').addEventListener('click', showForm);
+}
+
+function showJuniorSearch(supervisorName, supervisorContact) {
+  document.getElementById('card').innerHTML = header() +
+    '<div class="welcome"><div class="welcome-name">Find the Junior</div>' +
+    '<div class="welcome-sub">Search by the junior\'s name</div></div>' +
+    '<label for="junior-name-search">Junior\'s Name</label>' +
+    '<input type="text" id="junior-name-search" placeholder="e.g. Sarah O\'Brien" autocomplete="off">' +
+    '<div id="junior-search-results" style="margin-top:8px;"></div>' +
+    '<button class="btn btn-secondary" id="junior-back-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
+    '<div id="msg"></div>';
+  var searchEl = document.getElementById('junior-name-search');
+  searchEl.focus();
+  var timer;
+  searchEl.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(function() { searchJuniorByName(supervisorName, supervisorContact, searchEl.value); }, 350);
+  });
+  document.getElementById('junior-back-btn').addEventListener('click', function() { showSupervisorForm(); });
+}
+
+async function searchJuniorByName(supervisorName, supervisorContact, q) {
+  q = (q || '').trim();
+  var el = document.getElementById('junior-search-results');
+  if (!el) return;
+  if (q.length < 2) { el.innerHTML = ''; return; }
+  try {
+    var r = await fetch('/api/checkin/search-members/' + encodeURIComponent(TENANT_ID) + '?q=' + encodeURIComponent(q));
+    var data = await r.json();
+    if (!el.isConnected) return;
+    if (!data.length) {
+      el.innerHTML = '<div class="status status-error" style="font-size:13px;">No booking found for that name right now.</div>';
+      return;
+    }
+    el.innerHTML = data.map(function(m) {
+      return '<button class="btn btn-secondary junior-pick" data-num="' + m.membership_number + '" data-name="' + encodeURIComponent(m.name) + '" data-time="' + encodeURIComponent(m.booking_time||'') + '" data-court="' + encodeURIComponent(m.court_id||'') + '" style="margin-bottom:6px;text-align:left;">' + m.name + '</button>';
+    }).join('');
+    el.querySelectorAll('.junior-pick').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var num = parseInt(this.dataset.num);
+        var name = decodeURIComponent(this.dataset.name);
+        var btime = decodeURIComponent(this.dataset.time) || null;
+        var bcourt = decodeURIComponent(this.dataset.court) || null;
+        showJuniorConfirm(supervisorName, supervisorContact, num, name, btime, bcourt);
+      });
+    });
+  } catch(e) {
+    if (el.isConnected) el.innerHTML = '<div class="status status-error" style="font-size:13px;">Search error — try again.</div>';
+  }
+}
+
+function showJuniorConfirm(supervisorName, supervisorContact, juniorNum, juniorName, bookingTime, bookingCourtId) {
+  var slotText = bookingTime ? new Date(String(bookingTime).replace(' ', 'T')).toLocaleTimeString('en-IE', {hour:'2-digit',minute:'2-digit'}) : '';
+  document.getElementById('card').innerHTML = header() +
+    '<div class="welcome"><div class="welcome-name">Confirm Check-In</div>' +
+    (slotText ? '<div class="welcome-sub">Checking in ' + juniorName + ' at ' + slotText + '</div>' : '<div class="welcome-sub">Checking in ' + juniorName + '</div>') +
+    '</div>' +
+    '<div style="background:#f0f4f8;border-radius:8px;padding:12px;font-size:14px;margin:12px 0;line-height:1.6;">' +
+    '<strong>Supervisor:</strong> ' + supervisorName + '<br>' +
+    '<strong>Contact:</strong> ' + supervisorContact +
+    '</div>' +
+    '<button class="btn btn-primary" id="confirm-junior-btn">Confirm & Check In</button>' +
+    '<button class="btn btn-secondary" id="junior-back-btn2" style="margin-top:8px;font-size:13px;color:#6b7280;">← Search again</button>' +
+    '<div id="msg"></div>';
+  document.getElementById('confirm-junior-btn').addEventListener('click', function() {
+    submitSupervisorCheckin(supervisorName, supervisorContact, juniorNum, juniorName, bookingTime, bookingCourtId);
+  });
+  document.getElementById('junior-back-btn2').addEventListener('click', function() {
+    showJuniorSearch(supervisorName, supervisorContact);
+  });
+}
+
+async function submitSupervisorCheckin(supervisorName, supervisorContact, juniorNum, juniorName, bookingTime, bookingCourtId) {
+  var btn = document.getElementById('confirm-junior-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking in...'; }
+  showMsg('Getting your location...', 'info');
+
+  async function doSubmit(lat, lng) {
+    try {
+      var body = {
+        tenant_id: TENANT_ID,
+        membership_number: juniorNum,
+        member_name: juniorName,
+        gps_lat: lat,
+        gps_lng: lng,
+        is_delegate: true,
+        supervisor_name: supervisorName,
+        supervisor_contact: supervisorContact
+      };
+      if (bookingTime) { body.booking_time = bookingTime; body.booking_court_id = String(bookingCourtId || ''); }
+      var cr = await fetch('/api/checkin/submit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      var cd = await cr.json();
+      if (!cr.ok) {
+        showMsg(cd.error || 'Check-in failed.', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
+        return;
+      }
+      showSuccess(juniorName);
+    } catch(e) {
+      showMsg('Network error — please try again.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
+    }
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude); },
+    function() { doSubmit(null, null); },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+  );
 }
 
 function updateClock() {
@@ -17524,12 +17702,6 @@ function showSuccess(name) {
   }
 }
 
-async function handleSubmit() {
-  var input = document.getElementById('mnum');
-  var num = parseInt(input ? input.value : '');
-  if (!num || num < 1) { showMsg('Please enter your membership number.', 'error'); return; }
-  sendOtpAndShow(num);
-}
 
 async function sendOtpAndShow(membershipNumber) {
   var btn = document.getElementById('send-btn') || document.getElementById('wb-send-btn');
@@ -17562,18 +17734,16 @@ function showOtpScreen(membershipNumber, memberName, emailHint) {
     '<input class="otp-box" id="otp1" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
     '<input class="otp-box" id="otp2" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
     '<input class="otp-box" id="otp3" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
-    '<input class="otp-box" id="otp4" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
-    '<input class="otp-box" id="otp5" maxlength="1" inputmode="numeric" pattern="[0-9]">' +
     '</div>' +
     '<button class="btn btn-primary" id="verify-btn">Verify & Check In</button>' +
     '<button class="btn btn-secondary" id="resend-btn">Resend code</button>' +
-    '<button class="btn btn-secondary" id="back-btn" style="margin-top:4px;font-size:13px;color:#6b7280;">← Change membership number</button>' +
+    '<button class="btn btn-secondary" id="back-btn" style="margin-top:4px;font-size:13px;color:#6b7280;">← Search again</button>' +
     '<div id="msg"></div>';
 
   initOtpBoxes(function() { verifyAndSubmit(membershipNumber, memberName); });
   document.getElementById('verify-btn').addEventListener('click', function() { verifyAndSubmit(membershipNumber, memberName); });
   document.getElementById('resend-btn').addEventListener('click', function() { sendOtpAndShow(membershipNumber); });
-  document.getElementById('back-btn').addEventListener('click', showForm);
+  document.getElementById('back-btn').addEventListener('click', showMemberSearch);
   document.getElementById('otp0').focus();
 }
 
@@ -17584,16 +17754,15 @@ function initOtpBoxes(onComplete) {
       if (e.key === 'Backspace' && !this.value && i > 0) { boxes[i-1].focus(); boxes[i-1].value = ''; }
     });
     box.addEventListener('input', function() {
-      // Handle paste distributing multiple digits
       var val = this.value.replace(/\D/g, '');
       if (val.length > 1) {
         val.split('').forEach(function(ch, j) { if (boxes[i+j]) boxes[i+j].value = ch; });
-        var last = Math.min(i + val.length, 5);
+        var last = Math.min(i + val.length, 3);
         boxes[last].focus();
         this.value = val[0];
       } else {
         this.value = val;
-        if (val && i < 5) boxes[i+1].focus();
+        if (val && i < 3) boxes[i+1].focus();
       }
       if (boxes.every(function(b) { return b.value; })) onComplete();
     });
@@ -17601,8 +17770,8 @@ function initOtpBoxes(onComplete) {
       e.preventDefault();
       var text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
       text.split('').forEach(function(ch, j) { if (boxes[j]) boxes[j].value = ch; });
-      boxes[Math.min(text.length, 5)].focus();
-      if (text.length >= 6) onComplete();
+      boxes[Math.min(text.length, 3)].focus();
+      if (text.length >= 4) onComplete();
     });
   });
 }
@@ -17613,7 +17782,7 @@ function getOtpCode() {
 
 async function verifyAndSubmit(membershipNumber, memberName) {
   var code = getOtpCode();
-  if (code.length < 6) { showMsg('Please enter the full 6-digit code.', 'error'); return; }
+  if (code.length < 4) { showMsg('Please enter the full 4-digit code.', 'error'); return; }
   var btn = document.getElementById('verify-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
   try {
@@ -17738,6 +17907,39 @@ app.post("/api/checkin/validate-member", async (req, res) => {
   res.json({ name: member.first_name + " " + member.last_name, membership_number: member.membership_number });
 });
 
+// GET /api/checkin/search-members/:tenantId — search today's EBO bookings by name within check-in window
+app.get("/api/checkin/search-members/:tenantId", async (req, res) => {
+  const { tenantId } = req.params;
+  const q = (req.query.q || "").trim().toLowerCase();
+  if (!q || q.length < 2) return res.json([]);
+  try {
+    await loadEboConfigFromDb(tenantId);
+    const today = new Date().toISOString().slice(0, 10);
+    const bookings = await fetchEboBookings(tenantId, today, today, 500);
+    const now = Date.now();
+    const seen = new Set();
+    const results = [];
+    for (const b of bookings) {
+      const slotMs = new Date(String(b.time || "").replace(" ", "T")).getTime();
+      if (isNaN(slotMs)) continue;
+      // window: 15 min before start to 30 min after start
+      if (now < slotMs - 15 * 60000 || now > slotMs + 30 * 60000) continue;
+      for (const m of (b.bookedMembers || [])) {
+        if (!m.membership_number || Number(m.membership_number) === 1 || m.colour) continue;
+        if (seen.has(String(m.membership_number))) continue;
+        const fullName = (m.name || `${m.first_name || ""} ${m.last_name || ""}`.trim());
+        if (!fullName.toLowerCase().includes(q)) continue;
+        seen.add(String(m.membership_number));
+        results.push({ membership_number: m.membership_number, name: fullName, booking_time: b.time, court_id: b.court_id });
+      }
+    }
+    res.json(results);
+  } catch (err) {
+    console.error("[search-members]", err.message);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
 // In-memory OTP store — key: `${tenantId}:${membershipNumber}`
 const OTP_STORE = new Map();
 
@@ -17750,7 +17952,7 @@ app.post("/api/checkin/send-otp", otpSendLimiter, async (req, res) => {
   if (!member || !member.active) return res.status(404).json({ error: "Membership number not found or inactive" });
   if (!member.email) return res.status(400).json({ error: "No email address on file for this membership. Please contact the club." });
 
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(Math.floor(1000 + Math.random() * 9000));
   const key = `${tenant_id}:${membership_number}`;
   OTP_STORE.set(key, { code, expires: Date.now() + 10 * 60 * 1000, name: member.first_name + " " + member.last_name, attempts: 0 });
 
@@ -17904,7 +18106,7 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
 // POST /api/checkin/submit — record a check-in
 app.post("/api/checkin/submit", async (req, res) => {
   try {
-    const { tenant_id, membership_number, member_name, gps_lat, gps_lng, booking_time, booking_court_id, checked_in_by, is_delegate } = req.body;
+    const { tenant_id, membership_number, member_name, gps_lat, gps_lng, booking_time, booking_court_id, checked_in_by, is_delegate, supervisor_name, supervisor_contact } = req.body;
     if (!tenant_id || !membership_number || !member_name) return res.status(400).json({ error: "Missing fields" });
 
     // Duplicate booking check
@@ -17942,7 +18144,9 @@ app.post("/api/checkin/submit", async (req, res) => {
       booking_time: booking_time || null,
       booking_court_id: booking_court_id ? String(booking_court_id) : null,
       checked_in_by: checked_in_by || null,
-      is_delegate: is_delegate || false
+      is_delegate: is_delegate || false,
+      supervisor_name: supervisor_name || null,
+      supervisor_contact: supervisor_contact || null
     });
     if (error) {
       console.error(`[checkin] insert failed for ${member_name} (#${membership_number}) at ${tenant_id}:`, error.message, error.code);

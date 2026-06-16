@@ -8112,6 +8112,31 @@ function checkIpConvoLimit(ip, tenantId, conversationId) {
   return true;
 }
 
+// Per-tenant hourly new-conversation cap (IP-agnostic — defeats IP rotation attacks)
+// Keyed by tenantId → { seen: Set<conversationId>, windowStart: timestamp }
+const tenantHourlyConvos = new Map();
+const TENANT_HOURLY_CONVO_CAP = 100; // alert threshold before hard cap
+const TENANT_HOURLY_CONVO_HARD_CAP = 150;
+
+function checkTenantHourlyCap(tenantId, conversationId) {
+  const now = Date.now();
+  const entry = tenantHourlyConvos.get(tenantId);
+  if (!entry || now - entry.windowStart > 60 * 60 * 1000) {
+    // New or expired window — start fresh
+    tenantHourlyConvos.set(tenantId, { seen: new Set([conversationId]), windowStart: now, alerted: false });
+    return { allowed: true, count: 1 };
+  }
+  if (entry.seen.has(conversationId)) return { allowed: true, count: entry.seen.size }; // known convo
+  if (entry.seen.size >= TENANT_HOURLY_CONVO_HARD_CAP) return { allowed: false, count: entry.seen.size };
+  entry.seen.add(conversationId);
+  return { allowed: true, count: entry.seen.size, nearLimit: entry.seen.size >= TENANT_HOURLY_CONVO_CAP && !entry.alerted };
+}
+
+function markTenantHourlyAlerted(tenantId) {
+  const entry = tenantHourlyConvos.get(tenantId);
+  if (entry) entry.alerted = true;
+}
+
 async function getChatUsageThisMonth(tenantId) {
   const now   = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -12310,6 +12335,24 @@ app.post("/chat", chatLimiter, async (req, res) => {
     // ── IP-based conversation start rate limit (anti-abuse) ──────────────────
     if (conversationId && !checkIpConvoLimit(req.ip, tenantId, conversationId)) {
       return res.json({ reply: "Too many new conversations from your connection. Please try again later." });
+    }
+
+    // ── Per-tenant hourly cap (defeats IP rotation attacks) ───────────────────
+    if (conversationId) {
+      const { allowed, count, nearLimit } = checkTenantHourlyCap(tenantId, conversationId);
+      if (!allowed) {
+        console.warn(`[abuse] Tenant ${tenantId} hit hourly hard cap (${TENANT_HOURLY_CONVO_HARD_CAP} convos/hr)`);
+        return res.json({ reply: "Our chat is experiencing unusually high traffic right now. Please try again shortly or contact us directly." });
+      }
+      if (nearLimit) {
+        markTenantHourlyAlerted(tenantId);
+        console.warn(`[abuse] Tenant ${tenantId} approaching hourly cap: ${count} new convos this hour`);
+        // Fire-and-forget alert email to tenant
+        if (tenantEmail) {
+          sendChatLimitWarning(tenantEmail, tenantDisplayName, count, TENANT_HOURLY_CONVO_HARD_CAP)
+            .catch(() => {});
+        }
+      }
     }
 
     // ── Monthly chat limit check ──────────────────────────────────────────────

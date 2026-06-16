@@ -17554,7 +17554,7 @@ function showSupervisorForm() {
     '<input type="text" id="sup-contact" placeholder="e.g. 085 1234567" autocomplete="tel">' +
     '<div style="display:grid;grid-template-columns:20px 1fr;gap:8px;align-items:start;margin-top:14px;text-align:left;">' +
     '<input type="checkbox" id="sup-agree" style="margin-top:3px;cursor:pointer;">' +
-    '<span style="font-size:13px;line-height:1.5;color:#333;cursor:pointer;" onclick="document.getElementById(\'sup-agree\').click()">I agree to supervise the junior(s) during their time at ' + (clubInfo.club_name || 'the club') + ' and take responsibility for their welfare on the premises</span>' +
+    '<span style="font-size:13px;line-height:1.5;color:#333;cursor:pointer;" onclick="document.getElementById(&#39;sup-agree&#39;).click()">I agree to supervise the junior(s) during their time at ' + (clubInfo.club_name || 'the club') + ' and take responsibility for their welfare on the premises</span>' +
     '</div>' +
     '<button class="btn btn-primary" id="sup-next-btn" style="margin-top:16px;">Next — Find Junior</button>' +
     '<button class="btn btn-secondary" id="sup-back-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +

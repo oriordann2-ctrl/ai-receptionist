@@ -18002,26 +18002,17 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
 
   try {
     await loadEboConfigFromDb(tenantId);
-    const [bookings, { data: checkins }, { data: manualCheckins }] = await Promise.all([
+    const [bookings, { data: checkins }] = await Promise.all([
       fetchEboBookingsPaged(tenantId, fromDate, toDate),
-      supabase.from("court_checkins").select("booking_time, membership_number")
+      supabase.from("court_checkins").select("booking_time")
         .eq("tenant_id", tenantId)
         .gte("booking_time", fromDate + " 00:00:00")
-        .lte("booking_time", toDate + " 23:59:59"),
-      // Manual check-ins have null booking_time — match by membership_number + date instead
-      supabase.from("court_checkins").select("membership_number")
-        .eq("tenant_id", tenantId)
-        .is("booking_time", null)
-        .gte("checked_in_at", fromDate + "T00:00:00.000Z")
-        .lte("checked_in_at", toDate + "T23:59:59.999Z")
+        .lte("booking_time", toDate + " 23:59:59")
     ]);
 
-    // Match by booking_time + membership_number so one person's check-in doesn't credit everyone at that slot
-    const checkedInKeys = new Set((checkins || []).map(c =>
-      `${String(c.booking_time || "").replace(" ", "T").slice(0, 16)}_${c.membership_number}`
-    ));
-    // Manual check-ins (no booking_time) credit that member for any booking they had that day
-    const manualCheckedInMembers = new Set((manualCheckins || []).map(c => String(c.membership_number)));
+    // One check-in per timeslot covers everyone on that court booking —
+    // if any member of the booking checked in, all are credited (shared court logic)
+    const checkedInTimes = new Set((checkins || []).map(c => String(c.booking_time || "").replace(" ", "T").slice(0, 16)));
 
     // For "today" only count slots that have already started — future bookings can't be no-shows yet
     const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
@@ -18039,10 +18030,10 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         const [bh, bm] = hhmm.split(":").map(Number);
         if (bh * 60 + bm > nowMinsOfDay) continue;
       }
+      const wasCheckedIn = checkedInTimes.has(bookingTime);
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || Number(key) === 1 || m.colour) continue;
-        const wasCheckedIn = checkedInKeys.has(`${bookingTime}_${key}`) || manualCheckedInMembers.has(String(key));
         if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0, noshow_times: [] };
         memberMap[key].booked++;
         if (!wasCheckedIn) { memberMap[key].noshows++; memberMap[key].noshow_times.push(bookingTime); }
@@ -18084,12 +18075,59 @@ app.get("/api/portal/checkins/gps-centroid", requireTenant, async (req, res) => 
   }
 });
 
-// GET /api/portal/checkins/log — check-in history for this tenant
+// GET /api/portal/checkins/log — check-in history for this tenant, augmented with EBO court-mates
 app.get("/api/portal/checkins/log", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
-  const { data, error } = await supabase.from("court_checkins").select("*").eq("tenant_id", tenantId).order("checked_in_at", { ascending: false }).limit(200);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(new Date());
+
+  const { data: checkins, error } = await supabase.from("court_checkins").select("*").eq("tenant_id", tenantId).order("checked_in_at", { ascending: false }).limit(200);
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data || []);
+
+  // For today's check-ins, augment with EBO court-mates who share a checked-in timeslot
+  // so the log shows all booked members on a court even if only one physically scanned
+  try {
+    await loadEboConfigFromDb(tenantId);
+    const todayBookings = await fetchEboBookings(tenantId, today, today, 500);
+    const todayCheckins = (checkins || []).filter(c => c.checked_in_at && c.checked_in_at.slice(0, 10) === today);
+
+    // Build set of timeslots that have at least one real check-in today
+    const checkedInSlots = new Set(todayCheckins.filter(c => c.booking_time).map(c =>
+      String(c.booking_time).replace(" ", "T").slice(0, 16)
+    ));
+    // Build set of membership numbers already in the real check-in list (avoid duplicates)
+    const realCheckinMembers = new Set(todayCheckins.map(c => String(c.membership_number)));
+
+    // Find court-mates: booked members on a checked-in slot who don't have their own record
+    const courtMates = [];
+    for (const b of todayBookings) {
+      const slotKey = String(b.time || "").replace(" ", "T").slice(0, 16);
+      if (!checkedInSlots.has(slotKey)) continue;
+      // Find the real check-in for this slot to copy its timestamp
+      const anchor = todayCheckins.find(c => c.booking_time && String(c.booking_time).replace(" ", "T").slice(0, 16) === slotKey);
+      for (const m of (b.bookedMembers || [])) {
+        if (!m.membership_number || Number(m.membership_number) === 1 || m.colour) continue;
+        if (realCheckinMembers.has(String(m.membership_number))) continue;
+        const name = m.name || `${m.first_name || ""} ${m.last_name || ""}`.trim() || `Member #${m.membership_number}`;
+        courtMates.push({
+          id: `inferred_${slotKey}_${m.membership_number}`,
+          tenant_id: tenantId,
+          membership_number: m.membership_number,
+          member_name: name,
+          checked_in_at: anchor ? anchor.checked_in_at : new Date().toISOString(),
+          booking_time: anchor ? anchor.booking_time : null,
+          booking_court_id: anchor ? anchor.booking_court_id : null,
+          gps_verified: false,
+          gps_distance_meters: null,
+          is_delegate: false,
+          inferred: true  // flag so portal can style it differently
+        });
+      }
+    }
+    res.json([...(checkins || []), ...courtMates]);
+  } catch {
+    // EBO unavailable — return real check-ins only
+    res.json(checkins || []);
+  }
 });
 
 // DELETE /api/portal/checkins/:id — remove a specific check-in record (admin only)

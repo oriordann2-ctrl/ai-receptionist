@@ -1203,11 +1203,15 @@
           + '<th style="padding:6px 8px;">Member</th><th style="padding:6px 8px;">Time</th><th style="padding:6px 8px;">GPS</th><th style="padding:6px 8px;"></th></tr></thead>'
           + '<tbody>' + todayLog.map(function(c) {
             var t = new Date(c.checked_in_at).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
-            return '<tr style="border-bottom:1px solid #f9fafb;" id="checkin-row-' + c.id + '">'
+            var gpsCell = c.inferred ? '<span style="color:#9ca3af;font-size:12px;">via booking</span>'
+              : (c.gps_verified ? '✅ ' + c.gps_distance_meters + 'm' : c.gps_lat ? '⚠️ unverified' : '—');
+            var actionCell = c.inferred ? '' : '<button onclick="deleteCheckin(\'' + c.id + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px 6px;" title="Remove check-in">✕</button>';
+            var rowStyle = c.inferred ? 'border-bottom:1px solid #f9fafb;opacity:0.75;' : 'border-bottom:1px solid #f9fafb;';
+            return '<tr style="' + rowStyle + '" id="checkin-row-' + c.id + '">'
               + '<td style="padding:6px 8px;font-weight:600;">' + c.member_name + ' <span style="color:#9ca3af;font-weight:400;">#' + c.membership_number + '</span></td>'
               + '<td style="padding:6px 8px;color:#374151;">' + t + '</td>'
-              + '<td style="padding:6px 8px;">' + (c.gps_verified ? '✅ ' + c.gps_distance_meters + 'm' : c.gps_lat ? '⚠️ unverified' : '—') + '</td>'
-              + '<td style="padding:6px 8px;"><button onclick="deleteCheckin(\'' + c.id + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px 6px;" title="Remove check-in">✕</button></td>'
+              + '<td style="padding:6px 8px;">' + gpsCell + '</td>'
+              + '<td style="padding:6px 8px;">' + actionCell + '</td>'
               + '</tr>';
           }).join("") + '</tbody></table>';
       })

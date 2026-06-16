@@ -7375,7 +7375,7 @@ function checkAndRefreshSession(req, res) {
   // Sessions without lastActive (pre-deploy) are treated as expired — user logs in again and gets a proper token
   const lastActive = session.lastActive ?? 0;
   if (Date.now() - lastActive > SESSION_INACTIVITY_MS) {
-    res.clearCookie("tenant_session");
+    res.clearCookie("tenant_session", { httpOnly: true, secure: true, sameSite: "lax" });
     return null;
   }
   // Refresh the cookie with updated lastActive on every request
@@ -8724,7 +8724,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
 
       if (!tenantCheck?.train_staff_enabled) {
         // Feature has been disabled — clear session and redirect to login with message
-        res.clearCookie("tenant_session");
+        res.clearCookie("tenant_session", { httpOnly: true, secure: true, sameSite: "lax" });
         return res.redirect("/portal?disabled=1");
       }
 
@@ -8931,7 +8931,7 @@ function buildChatLogsHtml(conversations) {
 }
 
 app.post("/portal/logout", (req, res) => {
-  res.clearCookie("tenant_session");
+  res.clearCookie("tenant_session", { httpOnly: true, secure: true, sameSite: "lax" });
   res.redirect("/portal");
 });
 
@@ -8941,6 +8941,26 @@ app.get("/api/portal/me", requireTenant, (req, res) => {
     tenantName: req.tenant.tenantName,
     email:      req.tenant.email,
     website:    req.tenant.website
+  });
+});
+
+// ── Temporary session debug endpoint — remove after diagnosing timeout issue ──
+app.get("/api/portal/session-debug", (req, res) => {
+  const session = getTenantSession(req);
+  if (!session) return res.json({ session: null, message: "No valid session cookie" });
+  const now        = Date.now();
+  const lastActive = session.lastActive ?? 0;
+  res.json({
+    tenantId:         session.tenantId,
+    lastActive:       lastActive,
+    lastActiveDate:   lastActive ? new Date(lastActive).toISOString() : "none",
+    now:              now,
+    nowDate:          new Date(now).toISOString(),
+    diffMs:           now - lastActive,
+    diffHours:        ((now - lastActive) / (1000 * 60 * 60)).toFixed(2),
+    limitMs:          SESSION_INACTIVITY_MS,
+    limitHours:       (SESSION_INACTIVITY_MS / (1000 * 60 * 60)).toFixed(0),
+    wouldExpire:      (now - lastActive) > SESSION_INACTIVITY_MS
   });
 });
 

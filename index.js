@@ -17228,7 +17228,7 @@ function showWelcomeBack() {
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
     '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
-    '<button class="btn btn-secondary" id="wb-supervisor-btn" style="margin-top:12px;">👶 Supervising a Junior?</button>' +
+    '<button class="btn btn-secondary" id="wb-supervisor-btn" style="margin-top:12px;">👶 Supervising a Junior (not playing)</button>' +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div style="text-align:center;margin-top:12px;"><button id="wb-switch-btn" style="background:none;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;margin-right:12px;">Not you?</button><button id="wb-forget-btn" style="background:none;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;">Forget this device</button></div>' +
     '<div id="msg"></div>';
@@ -17485,8 +17485,8 @@ function showForm() {
   var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
   var assistantName = clubInfo.assistant_name || 'Maeve';
   document.getElementById('card').innerHTML = header() +
-    '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Member Check-In</button>' +
-    '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;">👶 Supervising a Junior?</button>' +
+    '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Check In to Play</button>' +
+    '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;">👶 Supervising a Junior (not playing)</button>' +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;text-decoration:none;color:#1a1a2e;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';

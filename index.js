@@ -17552,7 +17552,7 @@ function showSupervisorForm() {
     '<input type="text" id="sup-name" placeholder="Your full name" autocomplete="name">' +
     '<label for="sup-contact" style="margin-top:8px;">Your Phone or Email</label>' +
     '<input type="text" id="sup-contact" placeholder="e.g. 085 1234567" autocomplete="tel">' +
-    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:13px;line-height:1.4;cursor:pointer;">' +
+    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:13px;line-height:1.4;cursor:pointer;width:100%;box-sizing:border-box;">' +
     '<input type="checkbox" id="sup-agree" style="margin-top:2px;flex-shrink:0;"> ' +
     '<span>I agree to supervise the junior(s) during their time at ' + (clubInfo.club_name || 'the club') + ' and take responsibility for their welfare on the premises</span>' +
     '</label>' +
@@ -17566,7 +17566,13 @@ function showSupervisorForm() {
     var agreed = document.getElementById('sup-agree').checked;
     if (!name) { showMsg('Please enter your name.', 'error'); return; }
     if (!contact) { showMsg('Please enter your phone or email.', 'error'); return; }
-    if (!agreed) { showMsg('Please tick the box to agree to supervise.', 'error'); return; }
+    if (!agreed) {
+      var cb = document.getElementById('sup-agree');
+      cb.style.outline = '2px solid #dc2626';
+      cb.style.accentColor = '#dc2626';
+      cb.addEventListener('change', function() { cb.style.outline = ''; cb.style.accentColor = ''; }, { once: true });
+      return;
+    }
     showJuniorSearch(name, contact);
   });
   document.getElementById('sup-back-btn').addEventListener('click', showForm);

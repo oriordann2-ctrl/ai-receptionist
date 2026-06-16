@@ -1205,23 +1205,6 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
-## ✅ GPS Bypass — Member Checked In Without Accepting Location Prompt
-
-**Observation (2026-06-16):** Dave Groeger was successfully checked in at Monkstown even though he dismissed the GPS location prompt. The current flow calls `submitCheckinNoGps()` as a fallback when GPS is denied — the check-in goes through with `gps_verified: false` and null coordinates. There is no enforcement.
-
-**The problem:** GPS is meant to confirm physical presence at the club. If a member can decline the prompt and still check in, the geofence is optional, not enforced.
-
-**Options to consider:**
-1. **Block if GPS denied** — show a message: "Location access is required to check in. Please allow location and try again." Hard enforcement — no GPS, no check-in.
-2. **Flag for admin review** — check-in goes through but is marked `gps_required_review: true` in the portal (yellow row, not green). Captain sees it and can investigate.
-3. **Configurable per tenant** — club decides: strict (block) vs lenient (allow but flag).
-
-**Current behaviour:** Check-in always succeeds regardless of GPS. `gps_verified` column captures the truth but nothing acts on it.
-
-**Status:** Idea. No enforcement currently. Simplest fix: block if GPS denied and tenant has GPS configured.
-
----
-
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

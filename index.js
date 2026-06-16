@@ -17924,14 +17924,18 @@ app.get("/api/checkin/search-members/:tenantId", async (req, res) => {
     await loadEboConfigFromDb(tenantId);
     const today = new Date().toISOString().slice(0, 10);
     const bookings = await fetchEboBookings(tenantId, today, today, 500);
-    const now = Date.now();
+    const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+    const [nowH, nowM] = irishTime.split(":").map(Number);
+    const nowMins = nowH * 60 + nowM;
     const seen = new Set();
     const results = [];
     for (const b of bookings) {
-      const slotMs = new Date(String(b.time || "").replace(" ", "T")).getTime();
-      if (isNaN(slotMs)) continue;
-      // window: 15 min before start to 30 min after start
-      if (now < slotMs - 15 * 60000 || now > slotMs + 30 * 60000) continue;
+      const hhmm = String(b.time || "").slice(11, 16);
+      if (!hhmm || !hhmm.includes(":")) continue;
+      const [bh, bm] = hhmm.split(":").map(Number);
+      const bMins = bh * 60 + bm;
+      // window: 15 min before start to 30 min after start (Irish time)
+      if (nowMins < bMins - 15 || nowMins > bMins + 30) continue;
       for (const m of (b.bookedMembers || [])) {
         if (!m.membership_number || Number(m.membership_number) === 1 || m.colour) continue;
         if (seen.has(String(m.membership_number))) continue;

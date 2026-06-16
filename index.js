@@ -17552,10 +17552,10 @@ function showSupervisorForm() {
     '<input type="text" id="sup-name" placeholder="Your full name" autocomplete="name">' +
     '<label for="sup-contact" style="margin-top:8px;">Your Phone or Email</label>' +
     '<input type="text" id="sup-contact" placeholder="e.g. 085 1234567" autocomplete="tel">' +
-    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:13px;line-height:1.4;cursor:pointer;width:100%;box-sizing:border-box;">' +
-    '<input type="checkbox" id="sup-agree" style="margin-top:2px;flex-shrink:0;"> ' +
-    '<span>I agree to supervise the junior(s) during their time at ' + (clubInfo.club_name || 'the club') + ' and take responsibility for their welfare on the premises</span>' +
-    '</label>' +
+    '<div style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;text-align:left;">' +
+    '<input type="checkbox" id="sup-agree" style="margin-top:3px;flex-shrink:0;min-width:16px;cursor:pointer;">' +
+    '<label for="sup-agree" style="font-size:13px;line-height:1.5;cursor:pointer;font-weight:normal;margin-bottom:0;color:#333;">I agree to supervise the junior(s) during their time at ' + (clubInfo.club_name || 'the club') + ' and take responsibility for their welfare on the premises</label>' +
+    '</div>' +
     '<button class="btn btn-primary" id="sup-next-btn" style="margin-top:16px;">Next — Find Junior</button>' +
     '<button class="btn btn-secondary" id="sup-back-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
     '<div id="msg"></div>';

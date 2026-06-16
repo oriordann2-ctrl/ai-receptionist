@@ -1158,6 +1158,13 @@
 
         renderCaptainDashboard();
         renderCheckinLog();
+
+        // Auto-refresh every 30 seconds so new check-ins appear without a manual reload
+        if (window._checkinRefreshInterval) clearInterval(window._checkinRefreshInterval);
+        window._checkinRefreshInterval = setInterval(function() {
+          renderCaptainDashboard();
+          renderCheckinLog();
+        }, 30 * 1000);
       });
   }
 

@@ -17854,6 +17854,11 @@ async function autoVerifyFromLink(membershipNumber, code) {
   }
 }
 
+function resetCheckinBtn() {
+  var btn = document.getElementById('booking-checkin-btn');
+  if (btn) { btn.disabled = false; btn.textContent = '✅ Check In'; }
+}
+
 async function submitCheckin(membershipNumber, memberName) {
   showMsg('Getting your location...', 'info');
   navigator.geolocation.getCurrentPosition(async function(pos) {
@@ -17863,10 +17868,11 @@ async function submitCheckin(membershipNumber, memberName) {
       if (currentBooking) { body.booking_time = currentBooking.time; body.booking_court_id = String(currentBooking.court_id); }
       var cr = await fetch('/api/checkin/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       var cd = await cr.json();
-      if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
+      if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); resetCheckinBtn(); return; }
       showSuccess(memberName);
     } catch(e) {
       showMsg('Network error — please try again.', 'error');
+      resetCheckinBtn();
     }
   }, function() {
     submitCheckinNoGps(membershipNumber, memberName);
@@ -17879,10 +17885,11 @@ async function submitCheckinNoGps(membershipNumber, memberName) {
     if (currentBooking) { body.booking_time = currentBooking.time; body.booking_court_id = String(currentBooking.court_id); }
     var cr = await fetch('/api/checkin/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var cd = await cr.json();
-    if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); return; }
+    if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); resetCheckinBtn(); return; }
     showSuccess(memberName);
   } catch(e) {
     showMsg('Network error — please try again.', 'error');
+    resetCheckinBtn();
   }
 }
 

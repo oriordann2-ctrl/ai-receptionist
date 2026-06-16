@@ -17915,6 +17915,21 @@ app.post("/api/checkin/validate-member", async (req, res) => {
   res.json({ name: member.first_name + " " + member.last_name, membership_number: member.membership_number });
 });
 
+// EBO returns booking times as Irish local time strings ("2026-06-16 19:15:00").
+// Never use Date.now() or new Date(b.time) for window comparisons — the server runs UTC
+// and will be 1 hour off. Always use these two helpers together.
+function irishNowMins() {
+  const t = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+function eboBookingMins(b) {
+  const hhmm = String(b.time || "").slice(11, 16);
+  if (!hhmm || !hhmm.includes(":")) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
 // GET /api/checkin/search-members/:tenantId — search today's EBO bookings by name within check-in window
 app.get("/api/checkin/search-members/:tenantId", async (req, res) => {
   const { tenantId } = req.params;
@@ -17924,17 +17939,12 @@ app.get("/api/checkin/search-members/:tenantId", async (req, res) => {
     await loadEboConfigFromDb(tenantId);
     const today = new Date().toISOString().slice(0, 10);
     const bookings = await fetchEboBookings(tenantId, today, today, 500);
-    const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
-    const [nowH, nowM] = irishTime.split(":").map(Number);
-    const nowMins = nowH * 60 + nowM;
+    const nowMins = irishNowMins();
     const seen = new Set();
     const results = [];
     for (const b of bookings) {
-      const hhmm = String(b.time || "").slice(11, 16);
-      if (!hhmm || !hhmm.includes(":")) continue;
-      const [bh, bm] = hhmm.split(":").map(Number);
-      const bMins = bh * 60 + bm;
-      // window: 15 min before start to 30 min after start (Irish time)
+      const bMins = eboBookingMins(b);
+      if (bMins === null) continue;
       if (nowMins < bMins - 15 || nowMins > bMins + 30) continue;
       for (const m of (b.bookedMembers || [])) {
         if (!m.membership_number || Number(m.membership_number) === 1 || m.colour) continue;
@@ -18040,28 +18050,20 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
     );
 
     const slotMins = cfg.slotMinutes || 60;
-    const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
-    const [nowH, nowM] = irishTime.split(":").map(Number);
-    const nowMins = nowH * 60 + nowM;
+    const nowMins = irishNowMins();
 
     // Window: 15 mins before booking to 30 mins after. Encourages on-time arrival.
     const validBooking = mine.find(b => {
-      const hhmm = String(b.time || "").slice(11, 16);
-      if (!hhmm || !hhmm.includes(":")) return false;
-      const [bh, bm] = hhmm.split(":").map(Number);
-      const bMins = bh * 60 + bm;
-      return nowMins >= bMins - 15 && nowMins <= bMins + 30;
+      const bMins = eboBookingMins(b);
+      return bMins !== null && nowMins >= bMins - 15 && nowMins <= bMins + 30;
     });
 
     if (!validBooking) {
       // Check if they already checked in for a slot that's still running (window has closed
       // but slot hasn't ended) — show "already checked in" rather than "window closed".
       const activeSlot = mine.find(b => {
-        const hhmm = String(b.time || "").slice(11, 16);
-        if (!hhmm || !hhmm.includes(":")) return false;
-        const [bh, bm] = hhmm.split(":").map(Number);
-        const bMins = bh * 60 + bm;
-        return nowMins > bMins + 30 && nowMins <= bMins + slotMins;
+        const bMins = eboBookingMins(b);
+        return bMins !== null && nowMins > bMins + 30 && nowMins <= bMins + slotMins;
       });
       if (activeSlot) {
         const { data: activeExisting } = await supabase.from("court_checkins")

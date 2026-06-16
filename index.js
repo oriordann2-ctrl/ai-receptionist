@@ -17289,7 +17289,9 @@ function showNoBooking(membershipNumber, memberName, message) {
     '<div class="status status-error" style="margin-top:16px;">' + msg + '</div>' +
     '<button class="btn btn-secondary" id="no-booking-back-btn" style="margin-top:16px;">← Back</button>' +
     '<div id="msg"></div>';
-  document.getElementById('no-booking-back-btn').addEventListener('click', showForm);
+  document.getElementById('no-booking-back-btn').addEventListener('click', function() {
+    savedMember ? showWelcomeBack() : showForm();
+  });
 }
 
 

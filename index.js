@@ -17267,12 +17267,14 @@ function showBookingConfirm(membershipNumber, memberName, booking) {
     '<div class="welcome"><div class="welcome-name">Ready to check in!</div>' +
     '<div class="welcome-sub">Court ' + booking.court_id + ' · ' + booking.display_time + '</div></div>' +
     '<button class="btn btn-success" id="booking-checkin-btn">✅ Check In</button>' +
+    '<button class="btn btn-secondary" id="booking-back-btn" style="margin-top:8px;font-size:13px;color:#6b7280;">← Back</button>' +
     '<div id="msg"></div>';
   document.getElementById('booking-checkin-btn').addEventListener('click', function() {
     document.getElementById('booking-checkin-btn').disabled = true;
     document.getElementById('booking-checkin-btn').textContent = 'Checking in...';
     submitCheckin(membershipNumber, memberName);
   });
+  document.getElementById('booking-back-btn').addEventListener('click', showForm);
 }
 
 function showAlreadyCheckedIn(memberName, booking) {

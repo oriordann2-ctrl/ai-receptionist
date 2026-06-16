@@ -17564,8 +17564,18 @@ function showSupervisorForm() {
     var name = (document.getElementById('sup-name').value || '').trim();
     var contact = (document.getElementById('sup-contact').value || '').trim();
     var agreed = document.getElementById('sup-agree').checked;
-    if (!name) { showMsg('Please enter your name.', 'error'); return; }
-    if (!contact) { showMsg('Please enter your phone or email.', 'error'); return; }
+    if (!name) {
+      var el = document.getElementById('sup-name');
+      el.style.borderColor = '#dc2626';
+      el.addEventListener('input', function() { el.style.borderColor = ''; }, { once: true });
+      el.focus(); return;
+    }
+    if (!contact) {
+      var el = document.getElementById('sup-contact');
+      el.style.borderColor = '#dc2626';
+      el.addEventListener('input', function() { el.style.borderColor = ''; }, { once: true });
+      el.focus(); return;
+    }
     if (!agreed) {
       var cb = document.getElementById('sup-agree');
       cb.style.outline = '2px solid #dc2626';

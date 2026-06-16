@@ -7332,7 +7332,7 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
 // Token format: base64url(JSON) + "." + HMAC-SHA256 signature
 const SESSION_SECRET = process.env.SESSION_SECRET || "sprimal-tenant-session-secret-v1";
 
-const SESSION_INACTIVITY_MS = 8 * 60 * 60 * 1000; // 8 hours
+const SESSION_INACTIVITY_MS = 1 * 60 * 1000; // TEMP: 1 minute for testing — change back to 8 * 60 * 60 * 1000
 
 function createTenantToken(data) {
   const payload = Buffer.from(JSON.stringify({ ...data, lastActive: Date.now() })).toString("base64url");

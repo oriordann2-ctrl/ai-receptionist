@@ -1205,12 +1205,14 @@
 
         renderCaptainDashboard();
         renderCheckinLog();
+        window.loadSupervisors();
 
         // Auto-refresh every 30 seconds so new check-ins appear without a manual reload
         if (window._checkinRefreshInterval) clearInterval(window._checkinRefreshInterval);
         window._checkinRefreshInterval = setInterval(function() {
           renderCaptainDashboard();
           renderCheckinLog();
+          window.loadSupervisors();
         }, 30 * 1000);
       });
   }
@@ -1264,6 +1266,49 @@
       })
       .catch(function() {});
   }
+
+  // ── Junior Supervisors Report ───────────────────────────────────────────────
+  window.loadSupervisors = function() {
+    var picker = document.getElementById("supDatePicker");
+    var date = picker ? picker.value : "";
+    var url = "/api/portal/checkins/supervisors" + (date ? "?date=" + date : "");
+    var el = document.getElementById("supervisorLog");
+    if (!el) return;
+    el.innerHTML = '<div style="font-size:13px;color:#9ca3af;">Loading…</div>';
+    fetch(url, { credentials: "include" })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.rows || !d.rows.length) {
+          el.innerHTML = '<div style="font-size:13px;color:#9ca3af;">No junior supervision check-ins for this date.</div>';
+          return;
+        }
+        el.innerHTML = '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
+          + '<thead><tr style="color:#6b7280;text-align:left;border-bottom:1px solid #f3f4f6;">'
+          + '<th style="padding:6px 8px;">Time</th>'
+          + '<th style="padding:6px 8px;">Supervisor</th>'
+          + '<th style="padding:6px 8px;">Phone</th>'
+          + '<th style="padding:6px 8px;">Junior Supervised</th>'
+          + '</tr></thead><tbody>'
+          + d.rows.map(function(r) {
+            var t = new Date(r.checked_in_at).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
+            return '<tr style="border-bottom:1px solid #f9fafb;">'
+              + '<td style="padding:6px 8px;color:#374151;">' + t + '</td>'
+              + '<td style="padding:6px 8px;font-weight:600;">' + esc(r.supervisor_name) + '</td>'
+              + '<td style="padding:6px 8px;">' + esc(r.supervisor_contact || "—") + '</td>'
+              + '<td style="padding:6px 8px;">' + esc(r.member_name) + ' <span style="color:#9ca3af;font-weight:400;">#' + r.membership_number + '</span></td>'
+              + '</tr>';
+          }).join("") + '</tbody></table>';
+      })
+      .catch(function() {
+        if (el) el.innerHTML = '<div style="font-size:13px;color:#ef4444;">Failed to load supervisor log.</div>';
+      });
+  };
+
+  // Set date picker to today and load on home view init
+  (function() {
+    var picker = document.getElementById("supDatePicker");
+    if (picker && !picker.value) picker.value = new Date().toISOString().slice(0, 10);
+  })();
 
   // ── Print Poster Generator ──────────────────────────────────────────────────
 

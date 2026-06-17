@@ -18261,6 +18261,26 @@ app.post("/api/checkin/submit", async (req, res) => {
   }
 });
 
+// GET /api/portal/checkins/supervisors — junior supervision log for a given date (default today)
+app.get("/api/portal/checkins/supervisors", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const date = (req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const dayStart = date + "T00:00:00.000Z";
+  const dayEnd   = date + "T23:59:59.000Z";
+
+  const { data, error } = await supabase
+    .from("court_checkins")
+    .select("id, supervisor_name, supervisor_contact, member_name, membership_number, checked_in_at")
+    .eq("tenant_id", tenantId)
+    .not("supervisor_name", "is", null)
+    .gte("checked_in_at", dayStart)
+    .lte("checked_in_at", dayEnd)
+    .order("checked_in_at", { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ date, rows: data || [] });
+});
+
 // GET /api/portal/checkins/dashboard — captain dashboard: today's check-ins vs EBO bookings
 app.get("/api/portal/checkins/dashboard", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;

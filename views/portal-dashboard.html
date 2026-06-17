@@ -893,7 +893,7 @@
     <a href="#knowledge" data-nav="knowledge" class="nav-item" title="Knowledge &amp; Agents">
       <span class="nav-icon">📚</span><span class="nav-label">Knowledge</span>
     </a>
-    <a href="#requests" data-nav="requests" class="nav-item" title="Member Requests">
+    <a href="#requests" data-nav="requests" data-sports-only class="nav-item" title="Member Requests">
       <span class="nav-icon">🎯</span><span class="nav-label">Requests <span class="nav-badge" id="leadsBadgeNav" style="display:none;"></span></span>
     </a>
     <div class="nav-divider"></div>
@@ -1662,7 +1662,7 @@
 </section><!-- /knowledge -->
 
 <!-- ── View: Requests ── -->
-<section data-view="requests" hidden>
+<section data-view="requests" data-sports-only hidden>
   <div class="view-header">
     <h1 class="view-title">🎯 Member Requests</h1>
     <p class="view-sub">Membership change requests and mortgage applications — review and action.</p>
@@ -2046,10 +2046,18 @@
 
 <script>
   // Tenant data injected server-side
-  window.tenantId   = "TENANT_ID_PLACEHOLDER";
-  window.tenantName = "TENANT_NAME_PLACEHOLDER";
+  window.tenantId      = "TENANT_ID_PLACEHOLDER";
+  window.tenantName    = "TENANT_NAME_PLACEHOLDER";
+  window.businessType  = "BUSINESS_TYPE_PLACEHOLDER";
   // Mortgage tracker data — null for all non-AOM tenants
   MORTGAGE_APPS_JSON_PLACEHOLDER
+  // Hide sports-only UI elements for non-sports tenants
+  (function() {
+    var SPORTS_TYPES = ["tennis_club","gaa_club","team_sports_club","racket_sports_club","golf_club","swim_club"];
+    if (!SPORTS_TYPES.includes(window.businessType)) {
+      document.querySelectorAll("[data-sports-only]").forEach(function(el) { el.hidden = true; });
+    }
+  })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="/portal.js"></script>

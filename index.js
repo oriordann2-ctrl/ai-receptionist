@@ -8954,7 +8954,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
         .order("uploaded_at", { ascending: false }),
       supabase
         .from("tenants")
-        .select("created_at, last_crawl_at, last_crawl_pages")
+        .select("created_at, last_crawl_at, last_crawl_pages, business_type")
         .eq("id", tid)
         .maybeSingle()
     ]);
@@ -8962,6 +8962,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
     const tenantCreatedAt = tenantMeta?.created_at || null;
     const lastCrawlAt = tenantMeta?.last_crawl_at || null;
     const lastCrawlPages = tenantMeta?.last_crawl_pages ?? null;
+    const bizType = tenantMeta?.business_type || "other";
     const docListHtml = buildDocListHtml(docs || [], tid, req.tenant.website || null, tenantCreatedAt, lastCrawlAt, lastCrawlPages);
 
     // Chat logs are lazy-loaded via /api/portal/chat-logs when the section is opened,
@@ -8990,7 +8991,8 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
       .replace("DOC_LIST_PLACEHOLDER",           docListHtml)
       .replace("CHAT_LOGS_PLACEHOLDER",          chatLogsHtml)
       .replace("AUTO_REFRESH_PLACEHOLDER",       autoRefresh)
-      .replace("MORTGAGE_APPS_JSON_PLACEHOLDER", mortgageAppsScript);
+      .replace("MORTGAGE_APPS_JSON_PLACEHOLDER", mortgageAppsScript)
+      .replace("BUSINESS_TYPE_PLACEHOLDER",      bizType);
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");

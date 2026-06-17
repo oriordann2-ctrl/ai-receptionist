@@ -6276,7 +6276,7 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
     if (downloaded.length >= maxImages * 3) break;
     try {
       const r = await fetch(imgUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "Referer": imgUrl },
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "Referer": new URL(imgUrl).origin + "/", "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8" },
         signal: AbortSignal.timeout(10000)
       });
       if (!r.ok) { console.log(`[img-extract] Skip ${imgUrl}: HTTP ${r.status}`); continue; }
@@ -6295,9 +6295,14 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
           const buf = await new Promise((resolve, reject) => {
             const https = require("https");
             const chunks = [];
+            const reqOrigin = new URL(imgUrl).origin + "/";
             const req = https.get(imgUrl, {
               agent: new https.Agent({ rejectUnauthorized: false }),
-              headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Referer": reqOrigin,
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+              },
               timeout: 10000
             }, (res) => {
               if (res.statusCode < 200 || res.statusCode >= 300) { reject(new Error(`HTTP ${res.statusCode}`)); return; }

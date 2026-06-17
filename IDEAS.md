@@ -1234,6 +1234,28 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
+## 🔄 Re-scan After Check-In — Already Checked In UX
+
+**The scenario:** A member checks in, which also checks in their booking party. If one of the party scans the QR code again during the same booking window, what happens?
+
+**Current behaviour (unverified):** Likely shows a generic "already checked in" error.
+
+**Better behaviour:** Detect that the member is already checked in for an active booking and show a friendly, informative message — e.g.:
+
+> *"You're already checked in for Court 3 at 18:00. Your check-in window runs until 18:30. You can check in again from 15 minutes before your next booking."*
+
+**What to build:**
+- On re-scan, detect the duplicate check-in case (existing logic already returns a 409)
+- Instead of a red error, show a calm status screen: court, booking time, and when the window closes
+- If the member has a later booking that day, mention when they can check in for that one
+- Consider "you're all set" framing rather than "already checked in" — less alarming for members who just want to confirm they're in
+
+**Also affects:** Booking-party members who were checked in by someone else (delegate flow) — they should see the same friendly status if they scan.
+
+**Status:** Idea. Current 409 handling shows a generic error message.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

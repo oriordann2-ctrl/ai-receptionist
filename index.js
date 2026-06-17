@@ -5652,6 +5652,19 @@ const BUSINESS_TYPE_PROBE_PATHS = {
   ],
 };
 
+// Reject localhost and private IP ranges before sending to Jina or insecure fetch
+function isSafePublicUrl(url) {
+  try {
+    const u = new URL(url);
+    if (!["http:", "https:"].includes(u.protocol)) return false;
+    const h = u.hostname;
+    if (h === "localhost" || h === "127.0.0.1" || h === "::1") return false;
+    if (/^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)) return false;
+    if (h === "169.254.169.254") return false; // AWS metadata endpoint
+    return true;
+  } catch { return false; }
+}
+
 async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessType = null) {
   const visited = new Set();
   const root    = rootUrl.replace(/\/$/, "");
@@ -5763,7 +5776,8 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
   console.log(`[crawler] Queue: ${allUrls.length} total URLs (${priorityUrls.length} priority, ${noiseUrls.length} noise)${bizLabel} — cap: ${maxPages} pages`);
 
   const pages   = [];
-  let siteIsSlow = false; // set true if homepage direct fetch fails — skip direct fetch for subsequent pages
+  let siteIsSlow = false;        // set true if homepage direct fetch fails — skip direct fetch for subsequent pages
+  let siteNeedsInsecure = false; // set true if site has a broken SSL cert — use insecure fetch for all pages
 
   // ── Helper: fetch and process a single page ───────────────────────────────
   const BOT_PROTECTION_PHRASES = [
@@ -5774,6 +5788,10 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
 
   async function fetchOnePage(url) {
     const isProbe = probeSet.has(canonicalUrl(url));
+    // If site has a broken SSL cert, skip straight to insecure fetch
+    if (siteNeedsInsecure && !isProbe) {
+      return await insecureFetch(url);
+    }
     // If homepage already proved the site is too slow for direct fetch, skip straight to Jina
     if (siteIsSlow && !isProbe) {
       return await jinaFallback(url, "", "site is slow — skipping direct fetch");
@@ -5844,15 +5862,25 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
   }
 
   async function jinaFallback(url, html, reason) {
+    if (!isSafePublicUrl(url)) {
+      console.log(`[crawler] Blocked unsafe URL from Jina: ${url}`);
+      return null;
+    }
     try {
       console.log(`[crawler] ${reason} — trying Jina Reader for ${url}`);
       const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
         headers: jinaHeaders(),
         signal: AbortSignal.timeout(30000)
       });
-      if (!jinaRes.ok) return null;
+      if (!jinaRes.ok) {
+        console.log(`[crawler] Jina returned HTTP ${jinaRes.status} for ${url} — trying insecure fetch`);
+        return await insecureFetch(url, html);
+      }
       const jinaText = (await jinaRes.text()).trim();
-      if (jinaText.length < 80) return null;
+      if (jinaText.length < 80) {
+        console.log(`[crawler] Jina returned empty/thin content for ${url} — trying insecure fetch`);
+        return await insecureFetch(url, html);
+      }
 
       const title = extractPageTitle(html) || url.split("/").filter(Boolean).pop() || "Page";
       const externalUrls = extractExternalUrlsFromHtml(html);
@@ -5867,9 +5895,52 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
       console.log(`[crawler] Jina succeeded for ${url} (${jinaText.length} chars)`);
       return { page: { url, title, text: finalText, html }, links };
     } catch (jinaErr) {
-      console.log(`[crawler] Jina also failed for ${url}: ${jinaErr.message}`);
-      return null;
+      console.log(`[crawler] Jina also failed for ${url}: ${jinaErr.message} — trying insecure fetch`);
+      return await insecureFetch(url, html);
     }
+  }
+
+  // Last-resort fetch that bypasses SSL certificate verification.
+  // Only used when direct fetch AND Jina both fail (typically a broken/self-signed cert).
+  async function insecureFetch(url, html = "") {
+    if (!isSafePublicUrl(url)) return null;
+    console.log(`[crawler] SSL cert issue — retrying without verification for ${url}`);
+    return new Promise((resolve) => {
+      try {
+        const https = require("https");
+        const http  = require("http");
+        const mod   = url.startsWith("https") ? https : http;
+        const agent = url.startsWith("https") ? new https.Agent({ rejectUnauthorized: false }) : undefined;
+        const req   = mod.get(url, {
+          agent,
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+          timeout: 15000
+        }, (res) => {
+          let data = "";
+          res.on("data", chunk => data += chunk);
+          res.on("end", () => {
+            if (res.statusCode < 200 || res.statusCode >= 300) { resolve(null); return; }
+            const rawText = extractTextFromHtml(data);
+            if (rawText.length < 80) { resolve(null); return; }
+            const title        = extractPageTitle(data) || url.split("/").filter(Boolean).pop() || "Page";
+            const externalUrls = extractExternalUrlsFromHtml(data);
+            const anchorLinks  = extractLinksWithAnchorText(data, url);
+            const text = rawText
+              + (externalUrls.length ? "\n\nBooking platform links: " + externalUrls.join(" ") : "")
+              + (anchorLinks.length  ? "\n\n[Linked forms and resources]\n" + anchorLinks.map(l => `${l.text} → ${l.url}`).join("\n") : "");
+            const links = extractInternalLinks(data, url);
+            siteNeedsInsecure = true;
+            console.log(`[crawler] Insecure fetch succeeded for ${url} (${rawText.length} chars) ⚠️ broken SSL cert`);
+            resolve({ page: { url, title, text, html: data }, links });
+          });
+        });
+        req.on("error", (e) => { console.log(`[crawler] Insecure fetch also failed for ${url}: ${e.message}`); resolve(null); });
+        req.on("timeout", () => { req.destroy(); resolve(null); });
+      } catch (e) {
+        console.log(`[crawler] Insecure fetch error for ${url}: ${e.message}`);
+        resolve(null);
+      }
+    });
   }
 
   // ── Parallel batch crawl ─────────────────────────────────────────────────────

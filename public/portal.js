@@ -1339,7 +1339,7 @@
     ctx.fillStyle = "rgba(255,255,255,0.90)";
     ctx.font = Math.round(28 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Show this to confirm your booking", W / 2, 742 * s);
+    ctx.fillText("Scan with your phone camera to check in", W / 2, 742 * s);
 
     // URL hint
     ctx.fillStyle = "rgba(255,255,255,0.55)";

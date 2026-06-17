@@ -6290,6 +6290,7 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
     } catch (e) {
       // On any HTTPS fetch failure, retry without certificate verification (broken-cert sites)
       if (imgUrl.startsWith("https://") && isSafePublicUrl(imgUrl)) {
+        console.log(`[img-extract] SSL cert issue — retrying insecure for ${imgUrl}`);
         try {
           const buf = await new Promise((resolve, reject) => {
             const https = require("https");
@@ -6312,7 +6313,7 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
           const ct = imgUrl.endsWith(".png") ? "image/png" : imgUrl.endsWith(".webp") ? "image/webp" : "image/jpeg";
           downloaded.push({ buf, ct, pixels, url: imgUrl });
           console.log(`[img-extract] Insecure fetch succeeded for ${imgUrl} ⚠️ broken SSL cert`);
-        } catch (e2) { console.log(`[img-extract] Fetch error ${imgUrl}: ${e.message}`); }
+        } catch (e2) { console.log(`[img-extract] Insecure fetch also failed for ${imgUrl}: ${e2.message}`); }
       } else {
         console.log(`[img-extract] Fetch error ${imgUrl}: ${e.message}`);
       }

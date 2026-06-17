@@ -1311,8 +1311,8 @@
     var qrImg = await loadImg(qrApiUrl);
     var logoImg = settings.logo_url ? await loadImg(settings.logo_url) : null;
 
-    // ── 3ft: QR-only on white ──────────────────────────────────────────────
-    if (_posterSize === "3ft") {
+    // ── QR-only on white (3ft board or explicit QR-only option) ───────────
+    if (_posterSize === "3ft" || _posterSize === "qr") {
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, W, H);
       if (qrImg) {
@@ -1488,7 +1488,7 @@
 
   window.setPosterSize = function(size, btn) {
     _posterSize = size;
-    ["2ft","3ft"].forEach(function(sz) {
+    ["2ft","3ft","qr"].forEach(function(sz) {
       var b = document.getElementById("posterSize" + sz);
       if (!b) return;
       if (sz === size) {
@@ -1497,17 +1497,17 @@
         b.style.background = "#f3f4f6"; b.style.color = "#374151"; b.style.border = "1.5px solid #e5e7eb";
       }
     });
-    // Show/hide background options — not relevant for QR-only 3ft
+    // Hide background picker for QR-only modes
     var bgSection = document.getElementById("posterBgSection");
-    if (bgSection) bgSection.style.display = size === "3ft" ? "none" : "";
+    if (bgSection) bgSection.style.display = (size === "3ft" || size === "qr") ? "none" : "";
     renderPosterCanvas();
   };
 
   window.downloadPoster = function() {
     var canvas = document.getElementById("posterCanvas");
     if (!canvas) return;
-    // 2ft×2ft at 100dpi = 2400px, 3ft×3ft = 3600px
-    var printPx = _posterSize === "3ft" ? 3600 : 2400;
+    // 2ft = 2400px, 3ft = 3600px, QR Only = 3600px
+    var printPx = (_posterSize === "3ft" || _posterSize === "qr") ? 3600 : 2400;
     var origW = canvas.width, origH = canvas.height;
     canvas.width = printPx;
     canvas.height = printPx;

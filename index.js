@@ -4825,7 +4825,7 @@ function reciprocalRankFusion(resultLists, k = 60) {
 // Change 1: MIN_SIMILARITY raised from 0.30 → 0.42
 // Change 3: accepts conversationHistory for context-aware query rewriting
 // Change 4: hybrid BM25 + vector search with RRF fusion
-async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom", conversationHistory = "", orgName = "") {
+async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom", conversationHistory = "", orgName = "", conversationId = null) {
   try {
     // 1. Expand query with diversity + conversation context + org name for grounding
     const alternatives = await expandQuery(message, conversationHistory, orgName);
@@ -4931,6 +4931,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     const simScores = goodChunks.map(c => vectorSimMap.get(`${c.document_id}-${c.chunk_index}`) || 0);
     supabase.from("retrieval_events").insert({
       tenant_id: tenantId,
+      conversation_id: conversationId,
       query: message,
       expanded_queries: alternatives,
       chunks_returned: goodChunks.length,
@@ -13179,7 +13180,7 @@ Use plain numbers where possible.
     .slice(-4)
     .map(log => `${log.sender === "user" ? "User" : "Assistant"}: ${log.message}`)
     .join("\n");
-  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId, recentHistory, tenantDisplayName || "");
+  const relevantDocs = await findRelevantKnowledgeChunks(trimmedMessage, 5, tenantId, recentHistory, tenantDisplayName || "", conversationId);
 
   console.log("Relevant knowledge docs:", relevantDocs);
 

@@ -6287,7 +6287,36 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
       let pixels = buf.length;
       try { const d = sizeOf(buf); pixels = (d.width || 0) * (d.height || 0); } catch {}
       downloaded.push({ buf, ct, pixels, url: imgUrl });
-    } catch (e) { console.log(`[img-extract] Fetch error ${imgUrl}: ${e.message}`); }
+    } catch (e) {
+      // On SSL/network failure, retry without certificate verification (broken-cert sites)
+      if (e.name === "TypeError" && imgUrl.startsWith("https://") && isSafePublicUrl(imgUrl)) {
+        try {
+          const buf = await new Promise((resolve, reject) => {
+            const https = require("https");
+            const chunks = [];
+            const req = https.get(imgUrl, {
+              agent: new https.Agent({ rejectUnauthorized: false }),
+              headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+              timeout: 10000
+            }, (res) => {
+              if (res.statusCode < 200 || res.statusCode >= 300) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+              res.on("data", c => chunks.push(c));
+              res.on("end", () => resolve(Buffer.concat(chunks)));
+            });
+            req.on("error", reject);
+            req.on("timeout", () => { req.destroy(); reject(new Error("timeout")); });
+          });
+          if (buf.length < 10000) { console.log(`[img-extract] Skip ${imgUrl}: too small after insecure retry`); continue; }
+          let pixels = buf.length;
+          try { const d = sizeOf(buf); pixels = (d.width || 0) * (d.height || 0); } catch {}
+          const ct = imgUrl.endsWith(".png") ? "image/png" : imgUrl.endsWith(".webp") ? "image/webp" : "image/jpeg";
+          downloaded.push({ buf, ct, pixels, url: imgUrl });
+          console.log(`[img-extract] Insecure fetch succeeded for ${imgUrl} ⚠️ broken SSL cert`);
+        } catch (e2) { console.log(`[img-extract] Fetch error ${imgUrl}: ${e.message}`); }
+      } else {
+        console.log(`[img-extract] Fetch error ${imgUrl}: ${e.message}`);
+      }
+    }
   }
   console.log(`[img-extract] ${downloaded.length} images downloaded successfully for ${tenantId}`);
 

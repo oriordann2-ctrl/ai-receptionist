@@ -1136,6 +1136,7 @@
 
         // Render club QR code
         var tenantId = window.tenantId;
+        var settingsData = d;
         if (tenantId) {
           var checkinUrl = "https://app.sprimal.com/checkin/" + tenantId;
           var qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=10&data=" + encodeURIComponent(checkinUrl);
@@ -1147,9 +1148,17 @@
               + '<div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:4px;">Club Check-In QR</div>'
               + '<div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Print and display at your club entrance</div>'
               + '<a href="' + qrUrl + '" download="checkin-qr.png" style="font-size:13px;font-weight:600;color:white;background:#1565c0;padding:6px 14px;border-radius:7px;text-decoration:none;">⬇ Download QR</a>'
-              + '</div></div>';
+              + '</div></div>'
+              + '<div style="margin-top:14px;">'
+              + '<div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:6px;">Print Poster</div>'
+              + '<div style="font-size:12px;color:#6b7280;margin-bottom:10px;">Generate an A4 print-ready poster with your club logo and QR code to display at the entrance.</div>'
+              + '<button onclick="window.openPosterModal()" style="padding:9px 18px;background:#166534;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">🖨 Generate Print Poster</button>'
+              + '</div>';
           }
         }
+
+        // Store settings for poster generator
+        window._checkinSettings = settingsData;
 
         // Pre-fill GPS fields if already set
         if (d.checkin_lat) document.getElementById("checkinLat").value = d.checkin_lat;
@@ -1217,6 +1226,213 @@
       })
       .catch(function() {});
   }
+
+  // ── Print Poster Generator ──────────────────────────────────────────────────
+
+  var _posterBg = "#166534"; // default: tennis green
+  var _posterBgImage = null; // HTMLImageElement when a photo is selected
+
+  function loadImg(url) {
+    return new Promise(function(resolve) {
+      var img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function() { resolve(img); };
+      img.onerror = function() { resolve(null); };
+      img.src = url;
+    });
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    var words = text.split(" ");
+    var line = "";
+    for (var i = 0; i < words.length; i++) {
+      var testLine = line + words[i] + " ";
+      if (ctx.measureText(testLine).width > maxWidth && i > 0) {
+        ctx.fillText(line.trim(), x, y);
+        line = words[i] + " ";
+        y += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line.trim(), x, y);
+    return y;
+  }
+
+  async function renderPosterCanvas() {
+    var canvas = document.getElementById("posterCanvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+    var W = canvas.width, H = canvas.height;
+    // All layout values are proportional to W so it scales correctly at any resolution
+    var s = W / 620;
+
+    var settings = window._checkinSettings || {};
+    var clubName = window.tenantName || "Your Club";
+    var tenantId = window.tenantId || "";
+    var checkinUrl = "https://app.sprimal.com/checkin/" + tenantId;
+    var qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=500x500&margin=10&data=" + encodeURIComponent(checkinUrl);
+
+    var qrImg = await loadImg(qrApiUrl);
+    var logoImg = settings.logo_url ? await loadImg(settings.logo_url) : null;
+
+    // Background
+    if (_posterBgImage) {
+      var bgScale = Math.max(W / _posterBgImage.width, H / _posterBgImage.height);
+      var bw = _posterBgImage.width * bgScale, bh = _posterBgImage.height * bgScale;
+      ctx.drawImage(_posterBgImage, (W - bw) / 2, (H - bh) / 2, bw, bh);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      ctx.fillStyle = _posterBg;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fillRect(0, 0, W, 110 * s);
+
+    // Logo (top centre)
+    if (logoImg) {
+      var logoMax = 90 * s;
+      var lScale = Math.min(logoMax / logoImg.width, logoMax / logoImg.height);
+      var lw = logoImg.width * lScale, lh = logoImg.height * lScale;
+      ctx.drawImage(logoImg, (W - lw) / 2, 16 * s, lw, lh);
+    }
+
+    // Club name
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.font = "bold " + Math.round(36 * s) + "px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(clubName, W / 2, (logoImg ? 126 : 80) * s);
+
+    // Headline
+    ctx.fillStyle = "rgba(255,255,255,1)";
+    ctx.font = "bold " + Math.round(52 * s) + "px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("SCAN TO CHECK IN", W / 2, 210 * s);
+
+    // Divider
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(48 * s, 228 * s);
+    ctx.lineTo(W - 48 * s, 228 * s);
+    ctx.stroke();
+
+    // QR code with white card
+    if (qrImg) {
+      var qrSize = 420 * s;
+      var qrX = (W - qrSize) / 2;
+      var qrY = 248 * s;
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(qrX - 12 * s, qrY - 12 * s, qrSize + 24 * s, qrSize + 24 * s, 16 * s);
+      } else {
+        ctx.rect(qrX - 12 * s, qrY - 12 * s, qrSize + 24 * s, qrSize + 24 * s);
+      }
+      ctx.fill();
+      ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+    }
+
+    // Instruction text below QR
+    ctx.fillStyle = "rgba(255,255,255,0.90)";
+    ctx.font = Math.round(28 * s) + "px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Show this to confirm your booking", W / 2, 742 * s);
+
+    // URL hint
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.font = Math.round(20 * s) + "px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(checkinUrl, W / 2, 778 * s);
+
+    // Bottom bar
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(0, H - 60 * s, W, 60 * s);
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = Math.round(18 * s) + "px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Powered by Sprimal · sprimal.com", W / 2, H - 22 * s);
+  }
+
+  window.openPosterModal = function() {
+    var modal = document.getElementById("posterModal");
+    if (!modal) return;
+    modal.style.display = "flex";
+
+    // Populate social image thumbnails from crawled website photos
+    var settings = window._checkinSettings || {};
+    var thumbsEl = document.getElementById("posterSocialThumbs");
+    if (thumbsEl && settings.social_images && settings.social_images.length) {
+      thumbsEl.innerHTML = settings.social_images.slice(0, 4).map(function(url) {
+        return '<div onclick="window.selectPosterBgImg(\'' + url.replace(/'/g,"&#39;") + '\',this)" '
+          + 'style="width:72px;height:48px;border-radius:8px;background:url(\'' + url.replace(/'/g,"&#39;") + '\') center/cover;cursor:pointer;border:2px solid #e5e7eb;flex-shrink:0;display:inline-block;"></div>';
+      }).join("");
+    }
+
+    // Render with default background
+    renderPosterCanvas();
+  };
+
+  window.closePosterModal = function() {
+    var modal = document.getElementById("posterModal");
+    if (modal) modal.style.display = "none";
+    _posterBgImage = null;
+  };
+
+  window.selectPosterBg = function(el, color) {
+    _posterBg = color;
+    _posterBgImage = null;
+    // Update border highlights
+    var picker = document.getElementById("posterImagePicker");
+    if (picker) picker.querySelectorAll("[data-bg]").forEach(function(d) {
+      d.style.border = d === el ? "3px solid #fff" : "2px solid #e5e7eb";
+    });
+    renderPosterCanvas();
+  };
+
+  window.selectPosterBgImg = function(url, el) {
+    loadImg(url).then(function(img) {
+      if (!img) return;
+      _posterBgImage = img;
+      // Highlight selected
+      var thumbsEl = document.getElementById("posterSocialThumbs");
+      if (thumbsEl) thumbsEl.querySelectorAll("div").forEach(function(d) {
+        d.style.border = d === el ? "3px solid #1565c0" : "2px solid #e5e7eb";
+      });
+      renderPosterCanvas();
+    });
+  };
+
+  window.posterUploadImage = function(input) {
+    if (!input.files || !input.files[0]) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      loadImg(e.target.result).then(function(img) {
+        if (img) { _posterBgImage = img; renderPosterCanvas(); }
+      });
+    };
+    reader.readAsDataURL(input.files[0]);
+  };
+
+  window.downloadPoster = function() {
+    // Render at print quality: 1240×1754 (A4 at ~150dpi)
+    var canvas = document.getElementById("posterCanvas");
+    if (!canvas) return;
+    var origW = canvas.width, origH = canvas.height;
+    canvas.width = 1240;
+    canvas.height = 1754;
+    renderPosterCanvas().then(function() {
+      var link = document.createElement("a");
+      link.download = (window.tenantName || "club").replace(/\s+/g, "-").toLowerCase() + "-checkin-poster.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      canvas.width = origW;
+      canvas.height = origH;
+      renderPosterCanvas();
+    });
+  };
 
   window.showManualCheckin = function() {
     var modal = document.getElementById("manualCheckinModal");

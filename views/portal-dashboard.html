@@ -1135,6 +1135,46 @@
       <div id="checkinLog"></div>
     </div>
 
+    <!-- Print Poster Modal -->
+    <div id="posterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1001;align-items:center;justify-content:center;overflow:auto;">
+      <div style="background:white;border-radius:16px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="font-size:16px;font-weight:700;color:#111827;">🖨 Generate Print Poster</div>
+          <button onclick="window.closePosterModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;line-height:1;">×</button>
+        </div>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:16px;">Choose a background for your poster. The poster will include your club logo and check-in QR code at print quality (A4).</div>
+
+        <!-- Court image picker -->
+        <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">Background Image</div>
+        <div id="posterImagePicker" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <div onclick="window.selectPosterBg(this,'#166534')" data-bg="#166534" style="width:72px;height:48px;border-radius:8px;background:#166534;cursor:pointer;border:2px solid #166534;flex-shrink:0;"></div>
+          <div onclick="window.selectPosterBg(this,'#1565c0')" data-bg="#1565c0" style="width:72px;height:48px;border-radius:8px;background:#1565c0;cursor:pointer;border:2px solid #e5e7eb;flex-shrink:0;"></div>
+          <div onclick="window.selectPosterBg(this,'#111827')" data-bg="#111827" style="width:72px;height:48px;border-radius:8px;background:#111827;cursor:pointer;border:2px solid #e5e7eb;flex-shrink:0;"></div>
+          <div id="posterSocialThumbs"></div>
+        </div>
+
+        <!-- Upload own image -->
+        <div style="margin-bottom:16px;">
+          <label style="font-size:13px;color:#6b7280;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px dashed #d1d5db;border-radius:8px;">
+            <span>📁</span> Upload court photo
+            <input type="file" id="posterImageUpload" accept="image/*" style="display:none;" onchange="window.posterUploadImage(this)">
+          </label>
+        </div>
+
+        <!-- Canvas preview -->
+        <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">Preview</div>
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:16px;background:#f9fafb;display:flex;justify-content:center;">
+          <canvas id="posterCanvas" width="620" height="877" style="max-width:100%;display:block;"></canvas>
+        </div>
+
+        <div id="posterMsg" style="display:none;font-size:13px;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="window.downloadPoster()" style="flex:1;padding:10px;background:#166534;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">⬇ Download PNG (Print Ready)</button>
+          <button onclick="window.closePosterModal()" style="padding:10px 16px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Manual check-in modal -->
     <div id="manualCheckinModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
       <div style="background:white;border-radius:16px;padding:28px;width:340px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.3);">

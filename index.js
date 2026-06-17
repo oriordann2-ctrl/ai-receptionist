@@ -18342,10 +18342,20 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         .lte("booking_time", toDate + " 23:59:59")
     ]);
 
-    // Key = booking_time|court_id so only members on the same court at the same time are credited
-    const checkedInKeys = new Set((checkins || []).map(c =>
-      String(c.booking_time || "").replace(" ", "T").slice(0, 16) + "|" + String(c.booking_court_id || "")
-    ));
+    // Build two sets: court-specific (time|court_id) and time-only (for GPS check-ins that lack court_id)
+    // A null/empty court_id must NEVER spread across all courts — only exact court matches count
+    const checkedInCourtKeys = new Set();
+    const checkedInTimeOnly  = new Set();
+    for (const c of (checkins || [])) {
+      const t = String(c.booking_time || "").replace(" ", "T").slice(0, 16);
+      if (!t) continue;
+      if (c.booking_court_id) {
+        checkedInCourtKeys.add(t + "|" + String(c.booking_court_id));
+      } else {
+        checkedInTimeOnly.add(t);
+      }
+    }
+    console.log(`[noshow] ${tenantId}: ${checkedInCourtKeys.size} court-keyed check-ins, ${checkedInTimeOnly.size} time-only check-ins`);
 
     // For "today" only count slots that have already started — future bookings can't be no-shows yet
     const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
@@ -18363,8 +18373,10 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         const [bh, bm] = hhmm.split(":").map(Number);
         if (bh * 60 + bm > nowMinsOfDay) continue;
       }
-      const courtKey = bookingTime + "|" + String(b.court_id || "");
-      const wasCheckedIn = checkedInKeys.has(courtKey);
+      // Prefer court-specific match; fall back to time-only for legacy check-ins without court_id
+      const courtId = b.court_id ? String(b.court_id) : null;
+      const wasCheckedIn = (courtId && checkedInCourtKeys.has(bookingTime + "|" + courtId))
+        || checkedInTimeOnly.has(bookingTime);
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || Number(key) === 1 || m.colour) continue;

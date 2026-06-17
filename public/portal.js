@@ -1380,9 +1380,9 @@
 
     // QR code with white card
     if (qrImg) {
-      var qrSize = 420 * s;
+      var qrSize = 360 * s;
       var qrX = (W - qrSize) / 2;
-      var qrY = dividerY + 20 * s;
+      var qrY = dividerY + 18 * s;
       ctx.fillStyle = "white";
       ctx.beginPath();
       if (ctx.roundRect) {
@@ -1395,17 +1395,17 @@
     }
 
     // Instruction text below QR
-    var belowQr = qrY + qrSize + 28 * s;
+    var belowQr = qrY + qrSize + 24 * s;
     ctx.fillStyle = "rgba(255,255,255,0.90)";
-    ctx.font = Math.round(28 * s) + "px Arial, sans-serif";
+    ctx.font = Math.round(24 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Scan with your phone camera to check in", W / 2, belowQr);
 
     // URL hint
     ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.font = Math.round(20 * s) + "px Arial, sans-serif";
+    ctx.font = Math.round(17 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(checkinUrl, W / 2, belowQr + 32 * s);
+    ctx.fillText(checkinUrl, W / 2, belowQr + 26 * s);
 
     // Bottom bar
     ctx.fillStyle = "rgba(0,0,0,0.3)";

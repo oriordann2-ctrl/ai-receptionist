@@ -8994,7 +8994,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
     const embedCode = `&lt;script src="https://app.sprimal.com/widget.js" data-club-id="${tid}" data-club-name="${tname}"&gt;&lt;/script&gt;`;
 
     // ── Fetch documents + tenant created_at in parallel ──────────────────────
-    const [{ data: docs }, { data: tenantMeta }] = await Promise.all([
+    const [{ data: docs }, { data: tenantMeta, error: tenantMetaError }] = await Promise.all([
       supabase
         .from("documents")
         .select("id, original_filename, stored_filename, storage_path, document_type, uploaded_at")
@@ -9006,6 +9006,9 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
         .eq("id", tid)
         .maybeSingle()
     ]);
+
+    if (tenantMetaError) console.error(`[portal-dashboard] tenantMeta error for ${tid}:`, tenantMetaError.message);
+    console.log(`[portal-dashboard] bizType for ${tid}: ${tenantMeta?.business_type} (tenantMeta null: ${tenantMeta === null})`);
 
     const tenantCreatedAt = tenantMeta?.created_at || null;
     const lastCrawlAt = tenantMeta?.last_crawl_at || null;

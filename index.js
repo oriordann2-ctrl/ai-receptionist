@@ -18502,17 +18502,36 @@ app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
   const { membership_number, member_name, reason } = req.body;
   if (!membership_number || !member_name) return res.status(400).json({ error: "Missing membership_number or member_name" });
   try {
+    // Resolve today's booking time for this member so the no-show report credits the whole court
+    let booking_time = null;
+    let booking_court_id = null;
+    try {
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(new Date());
+      await loadEboConfigFromDb(tenantId);
+      const bookings = await fetchEboBookings(tenantId, today, today, 500);
+      const match = bookings.find(b =>
+        Array.isArray(b.bookedMembers) &&
+        b.bookedMembers.some(m => Number(m.membership_number) === Number(membership_number))
+      );
+      if (match) {
+        booking_time = match.time || null;
+        booking_court_id = match.court_id ? String(match.court_id) : null;
+      }
+    } catch (e) {
+      console.warn(`[checkin] manual: could not resolve booking time for #${membership_number}:`, e.message);
+    }
+
     const { error } = await supabase.from("court_checkins").insert({
       tenant_id: tenantId,
       membership_number: parseInt(membership_number),
       member_name: String(member_name).trim(),
       gps_lat: null, gps_lng: null, gps_distance_meters: null, gps_verified: false,
-      booking_time: null, booking_court_id: null,
+      booking_time, booking_court_id,
       checked_in_by: null, is_delegate: false,
       manual_reason: reason ? String(reason).slice(0, 500) : null
     });
     if (error) return res.status(500).json({ error: error.message });
-    console.log(`[checkin] MANUAL: ${member_name} (#${membership_number}) at ${tenantId} — reason: ${reason || "none"}`);
+    console.log(`[checkin] MANUAL: ${member_name} (#${membership_number}) at ${tenantId} — booking_time: ${booking_time || "none"}, reason: ${reason || "none"}`);
     res.json({ ok: true });
   } catch (err) {
     console.error("[checkin] manual insert error:", err.message);

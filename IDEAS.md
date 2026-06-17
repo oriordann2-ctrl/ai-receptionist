@@ -407,7 +407,9 @@ Collapsible 🎯 Leads card added to portal dashboard. Lazy-loads from `/api/por
 
 ## 📞 Twilio / SMS Channel
 
-Blocked on CRO company registration and regulatory bundle. Revisit when registered.
+Alphanumeric sender ID "Sprimal" submitted to Twilio 2026-06-17 (IE, Transactional, ISV, no subassign). Pending Twilio approval (1-2 days). Once approved, wire into check-in OTP flow as SMS alternative to email.
+
+Regulatory bundle for Irish phone number approved 2026-06-17 — no longer blocked on CRO. Can purchase an IE number anytime for two-way SMS or voice.
 
 ---
 

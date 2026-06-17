@@ -4827,18 +4827,25 @@ function reciprocalRankFusion(resultLists, k = 60) {
 // Change 4: hybrid BM25 + vector search with RRF fusion
 async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "aom", conversationHistory = "", orgName = "", conversationId = null) {
   try {
-    // 1. Expand query with diversity + conversation context + org name for grounding
-    const alternatives = await expandQuery(message, conversationHistory, orgName);
     // Prepend org name to original query so embeddings are anchored to the right entity
     const anchoredQuery = orgName ? `${orgName} — ${message}` : message;
-    const allQueries = [anchoredQuery, message, ...alternatives];
 
-    // 2. Embed all query variants in one batched API call
-    const embResp = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: allQueries
-    });
-    const embeddings = embResp.data.map(d => d.embedding);
+    // 1. Expand query and embed original queries in parallel.
+    //    Cap expansion at 600ms — if the GPT call is slow, proceed with just the
+    //    original queries rather than blocking the entire retrieval pipeline.
+    const [alternatives, origEmbResp] = await Promise.all([
+      Promise.race([
+        expandQuery(message, conversationHistory, orgName),
+        new Promise(resolve => setTimeout(() => resolve([]), 600))
+      ]),
+      openai.embeddings.create({ model: "text-embedding-3-small", input: [anchoredQuery, message] })
+    ]);
+
+    // 2. Embed alternatives (if expansion returned in time), then combine all embeddings
+    const altEmbeddings = alternatives.length > 0
+      ? (await openai.embeddings.create({ model: "text-embedding-3-small", input: alternatives })).data.map(d => d.embedding)
+      : [];
+    const embeddings = [...origEmbResp.data.map(d => d.embedding), ...altEmbeddings];
 
     // 3. Run vector searches (all variants) + BM25 keyword search in parallel.
     //    Use a large match_count (30) so uploaded docs appear in results with real scores

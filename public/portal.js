@@ -1397,13 +1397,13 @@
     // Instruction text below QR
     var belowQr = qrY + qrSize + 24 * s;
     ctx.fillStyle = "rgba(255,255,255,0.90)";
-    ctx.font = Math.round(24 * s) + "px Arial, sans-serif";
+    ctx.font = Math.round(18 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Scan with your phone camera to check in", W / 2, belowQr);
 
     // URL hint
     ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.font = Math.round(17 * s) + "px Arial, sans-serif";
+    ctx.font = Math.round(13 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(checkinUrl, W / 2, belowQr + 26 * s);
 

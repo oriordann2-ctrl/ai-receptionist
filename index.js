@@ -18436,20 +18436,37 @@ app.get("/api/portal/checkins/log", requireTenant, async (req, res) => {
     const todayBookings = await fetchEboBookings(tenantId, today, today, 500);
     const todayCheckins = (checkins || []).filter(c => c.checked_in_at && c.checked_in_at.slice(0, 10) === today);
 
-    // Build set of timeslots that have at least one real check-in today
-    const checkedInSlots = new Set(todayCheckins.filter(c => c.booking_time).map(c =>
-      String(c.booking_time).replace(" ", "T").slice(0, 16)
-    ));
+    // Build two sets so we only infer court-mates for the specific court that has a real check-in.
+    // Court-specific keys (time|court_id) for check-ins that have booking_court_id;
+    // time-only fallback for legacy check-ins that don't.
+    const checkedInCourtSlots = new Set();
+    const checkedInTimeSlots  = new Set();
+    for (const c of todayCheckins.filter(c => c.booking_time)) {
+      const t = String(c.booking_time).replace(" ", "T").slice(0, 16);
+      if (c.booking_court_id) {
+        checkedInCourtSlots.add(t + "|" + String(c.booking_court_id));
+      } else {
+        checkedInTimeSlots.add(t);
+      }
+    }
     // Build set of membership numbers already in the real check-in list (avoid duplicates)
     const realCheckinMembers = new Set(todayCheckins.map(c => String(c.membership_number)));
 
-    // Find court-mates: booked members on a checked-in slot who don't have their own record
+    // Find court-mates: booked members on a checked-in court who don't have their own record
     const courtMates = [];
     for (const b of todayBookings) {
       const slotKey = String(b.time || "").replace(" ", "T").slice(0, 16);
-      if (!checkedInSlots.has(slotKey)) continue;
-      // Find the real check-in for this slot to copy its timestamp
-      const anchor = todayCheckins.find(c => c.booking_time && String(c.booking_time).replace(" ", "T").slice(0, 16) === slotKey);
+      const courtId = b.court_id ? String(b.court_id) : null;
+      const slotHasCheckin = (courtId && checkedInCourtSlots.has(slotKey + "|" + courtId))
+        || checkedInTimeSlots.has(slotKey);
+      if (!slotHasCheckin) continue;
+      // Find the real check-in for this specific court to copy its timestamp
+      const anchor = todayCheckins.find(c => {
+        const t = c.booking_time && String(c.booking_time).replace(" ", "T").slice(0, 16);
+        if (t !== slotKey) return false;
+        if (courtId && c.booking_court_id) return String(c.booking_court_id) === courtId;
+        return !c.booking_court_id;
+      });
       for (const m of (b.bookedMembers || [])) {
         if (!m.membership_number || Number(m.membership_number) === 1 || m.colour) continue;
         if (realCheckinMembers.has(String(m.membership_number))) continue;

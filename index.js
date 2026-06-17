@@ -18530,6 +18530,9 @@ app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
       if (match) {
         booking_time = match.time || null;
         booking_court_id = match.court_id ? String(match.court_id) : null;
+        console.log(`[checkin] manual EBO match keys: ${Object.keys(match).join(", ")} | court_id=${match.court_id} | resource_id=${match.resource_id}`);
+      } else {
+        console.log(`[checkin] manual: no EBO booking found for #${membership_number} on ${today} (${bookings.length} bookings fetched)`);
       }
     } catch (e) {
       console.warn(`[checkin] manual: could not resolve booking time for #${membership_number}:`, e.message);
@@ -18545,7 +18548,7 @@ app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
       manual_reason: reason ? String(reason).slice(0, 500) : null
     });
     if (error) return res.status(500).json({ error: error.message });
-    console.log(`[checkin] MANUAL: ${member_name} (#${membership_number}) at ${tenantId} — booking_time: ${booking_time || "none"}, reason: ${reason || "none"}`);
+    console.log(`[checkin] MANUAL: ${member_name} (#${membership_number}) at ${tenantId} — booking_time: ${booking_time || "none"}, booking_court_id: ${booking_court_id || "none"}, reason: ${reason || "none"}`);
     res.json({ ok: true });
   } catch (err) {
     console.error("[checkin] manual insert error:", err.message);

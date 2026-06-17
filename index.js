@@ -18483,7 +18483,7 @@ app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
       member_name: String(member_name).trim(),
       gps_lat: null, gps_lng: null, gps_distance_meters: null, gps_verified: false,
       booking_time: null, booking_court_id: null,
-      checked_in_by: "admin", is_delegate: false
+      checked_in_by: null, is_delegate: false
     });
     if (error) return res.status(500).json({ error: error.message });
     console.log(`[checkin] MANUAL: ${member_name} (#${membership_number}) added by admin at ${tenantId}`);

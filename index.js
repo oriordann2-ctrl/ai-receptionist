@@ -9803,6 +9803,25 @@ app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
   }
 });
 
+// ── Admin: retrieval telemetry ────────────────────────────────────────────────
+app.get("/api/admin/retrieval-events", requireAdmin, async (req, res) => {
+  try {
+    const { tenantId, limit = 100 } = req.query;
+    let query = supabase
+      .from("retrieval_events")
+      .select("id, tenant_id, conversation_id, query, expanded_queries, chunks_returned, similarity_scores, has_uploaded_docs, created_at")
+      .order("created_at", { ascending: false })
+      .limit(Math.min(parseInt(limit, 10) || 100, 500));
+    if (tenantId) query = query.eq("tenant_id", tenantId);
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error("[admin-retrieval-events]", err.message);
+    res.status(500).json({ error: "Failed to fetch retrieval events." });
+  }
+});
+
 // ── Admin: list all tenants ───────────────────────────────────────────────────
 app.get("/api/admin/tenants", requireAdmin, async (req, res) => {
   try {

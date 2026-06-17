@@ -42,7 +42,7 @@
 
 ---
 
-## 🔴 URGENT — JavaScript-Rendered Pages Not Crawled (Tomorrow)
+## ✅ DONE — JavaScript-Rendered Pages Not Crawled
 
 **Problem:** The crawl uses a basic HTTP fetch which never runs JavaScript. Wix, React, and similar sites return an HTML shell (HTTP 200) with the real content injected by JS after load. The crawler sees the shell and thinks it succeeded — so Jina fallback never triggers. Committee names, officer lists, dynamic content — all missed silently.
 
@@ -101,7 +101,7 @@ Deal closed 2026-06-10 with Sebastien Perey. €300 on go-live + €49/month rec
 
 ---
 
-## 📊 Retrieval Telemetry — Log Similarity Scores Per Query
+## ✅ DONE — Retrieval Telemetry — Log Similarity Scores Per Query
 
 **Why:** We tried raising the vector similarity threshold from 0.30 → 0.42 based on research recommendations, but it broke retrieval for valid documents that were scoring 0.30–0.41. We had no data on what scores real answers actually produce, so the change was blind.
 

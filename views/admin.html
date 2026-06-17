@@ -1247,6 +1247,109 @@
     .adm-tenant-stats { font-size:12px; color:#6b7280; }
   </style>
 
+  <!-- ── Retrieval Health ──────────────────────────────────────── -->
+  <div class="card senior-only" id="adminRetrievalCard" style="padding:0;">
+    <details id="adminRetrievalDetails" onToggle="if(this.open && !window._retrievalLoaded){ loadRetrievalEvents(); window._retrievalLoaded=true; }">
+      <summary class="adm-analytics-summary">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🔍</span>
+          <div>
+            <h2 style="margin:0 0 2px;">Retrieval Health</h2>
+            <p class="muted" style="margin:0;font-size:13px;">Similarity scores &amp; retrieval quality per query — last 100 events</p>
+          </div>
+        </div>
+        <span class="adm-analytics-chevron">▾</span>
+      </summary>
+      <div style="padding:20px 24px 24px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+          <label style="font-size:13px;font-weight:600;color:#374151;">Filter by tenant:</label>
+          <select id="retrievalTenantFilter" onchange="loadRetrievalEvents()"
+            style="border:1.5px solid #d1d5db;border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;background:white;color:#111827;cursor:pointer;">
+            <option value="">All tenants</option>
+          </select>
+          <button onclick="loadRetrievalEvents()"
+            style="background:#1e40af;color:white;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+            ↺ Refresh
+          </button>
+          <span style="font-size:12px;color:#6b7280;margin-left:4px;">
+            🟢 ≥ 0.45 &nbsp; 🟡 0.30–0.44 &nbsp; 🔴 &lt; 0.30 or no chunks
+          </span>
+        </div>
+        <div id="adminRetrievalContent">
+          <p class="muted" style="text-align:center;padding:20px 0;">Open this section to load retrieval events…</p>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <style>
+    .ret-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .ret-table th { text-align:left; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase;
+      letter-spacing:0.6px; padding:6px 10px; border-bottom:2px solid #e2e8f0; }
+    .ret-table td { padding:9px 10px; border-bottom:1px solid #f1f5f9; vertical-align:top; color:#111827; }
+    .ret-table tr:last-child td { border-bottom:none; }
+    .ret-table tr:hover td { background:#f8fafc; }
+    .ret-score { display:inline-block; font-weight:700; border-radius:6px; padding:2px 8px; font-size:12px; }
+    .ret-score-green  { background:#dcfce7; color:#15803d; }
+    .ret-score-yellow { background:#fef9c3; color:#854d0e; }
+    .ret-score-red    { background:#fee2e2; color:#dc2626; }
+    .ret-miss { background:#fff1f2 !important; }
+    .ret-query { max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ret-time  { font-size:11px; color:#6b7280; white-space:nowrap; }
+    .ret-tenant { font-size:11px; font-weight:700; background:#e0e7ff; color:#3730a3;
+      border-radius:20px; padding:2px 8px; white-space:nowrap; }
+  </style>
+
+  <script>
+    async function loadRetrievalEvents() {
+      const tenantId = document.getElementById("retrievalTenantFilter").value;
+      const container = document.getElementById("adminRetrievalContent");
+      container.innerHTML = '<p class="muted" style="text-align:center;padding:20px 0;">Loading…</p>';
+      try {
+        const url = "/api/admin/retrieval-events" + (tenantId ? "?tenantId=" + encodeURIComponent(tenantId) : "");
+        const events = await fetch(url, { credentials: "include" }).then(r => r.json());
+        if (!events.length) { container.innerHTML = '<p class="muted" style="text-align:center;padding:20px 0;">No retrieval events yet.</p>'; return; }
+
+        // Populate tenant filter if not already done
+        const sel = document.getElementById("retrievalTenantFilter");
+        if (sel.options.length <= 1) {
+          const tids = [...new Set(events.map(e => e.tenant_id))].sort();
+          tids.forEach(tid => { const o = document.createElement("option"); o.value = tid; o.textContent = tid; sel.appendChild(o); });
+          if (tenantId) sel.value = tenantId;
+        }
+
+        const rows = events.map(ev => {
+          const scores = ev.similarity_scores || [];
+          const top = scores.length ? Math.max(...scores) : null;
+          const miss = ev.chunks_returned === 0;
+          const scoreClass = miss || top === null || top < 0.30 ? "ret-score-red"
+            : top < 0.45 ? "ret-score-yellow" : "ret-score-green";
+          const scoreLabel = miss ? "0 chunks" : top === null ? "—" : top.toFixed(3);
+          const time = new Date(ev.created_at).toLocaleString("en-IE", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+          return `<tr class="${miss ? "ret-miss" : ""}">
+            <td class="ret-time">${time}</td>
+            <td><span class="ret-tenant">${ev.tenant_id}</span></td>
+            <td class="ret-query" title="${(ev.query||"").replace(/"/g,"&quot;")}">${ev.query || "—"}</td>
+            <td><span class="ret-score ${scoreClass}">${scoreLabel}</span></td>
+            <td style="text-align:center;">${ev.chunks_returned ?? "—"}</td>
+            <td style="text-align:center;">${ev.has_uploaded_docs ? "✓" : ""}</td>
+          </tr>`;
+        }).join("");
+
+        container.innerHTML = `<div style="overflow-x:auto;">
+          <table class="ret-table">
+            <thead><tr>
+              <th>Time</th><th>Tenant</th><th>Query</th>
+              <th>Top Score</th><th style="text-align:center;">Chunks</th><th style="text-align:center;">Uploaded</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>`;
+      } catch (err) {
+        container.innerHTML = `<p class="muted" style="color:#dc2626;text-align:center;padding:20px 0;">Error: ${err.message}</p>`;
+      }
+    }
+  </script>
+
   <!-- ── Chat Logs ─────────────────────────────────────────────── -->
   <div class="card senior-only" id="adminChatLogsCard">
     <h2>Chat Logs</h2>

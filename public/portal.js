@@ -1325,28 +1325,22 @@
 
     // ── Top strip (logo + club name + headline) ────────────────────────────
     var pad = 28 * s;
-    var topStripH = 155 * s;
-
-    // Subtle header tint
-    ctx.fillStyle = "rgba(0,0,0,0.15)";
-    ctx.fillRect(0, 0, W, topStripH);
-
-    var curY = 14 * s;
+    var curY = 16 * s;
 
     // Logo
     if (logoImg) {
-      var logoMax = 52 * s;
+      var logoMax = 44 * s;
       var lsc = Math.min(logoMax / logoImg.width, logoMax / logoImg.height);
       var lw = logoImg.width * lsc, lh = logoImg.height * lsc;
       ctx.drawImage(logoImg, (W - lw) / 2, curY, lw, lh);
-      curY += lh + 8 * s;
+      curY += lh + 10 * s;
     } else {
-      curY += 8 * s;
+      curY += 10 * s;
     }
 
     // Club name — shrink to fit, wrap if needed
     ctx.textAlign = "center";
-    var nameFontSize = Math.round(28 * s);
+    var nameFontSize = Math.round(26 * s);
     var nameMaxW = W - pad * 2;
     ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
     while (ctx.measureText(clubName).width > nameMaxW && nameFontSize > Math.round(14 * s)) {
@@ -1364,19 +1358,18 @@
       }
       ctx.fillText(line1, W / 2, curY + nameFontSize);
       if (line2) ctx.fillText(line2, W / 2, curY + nameFontSize * 2.2);
-      curY += line2 ? nameFontSize * 2.2 : nameFontSize;
+      curY += (line2 ? nameFontSize * 2.2 : nameFontSize) + 14 * s;
     } else {
       ctx.fillText(clubName, W / 2, curY + nameFontSize);
-      curY += nameFontSize;
+      curY += nameFontSize + 14 * s;
     }
-    curY += 10 * s;
 
     // "SCAN TO CHECK IN" headline
-    var headlineFontSize = Math.round(44 * s);
+    var headlineFontSize = Math.round(40 * s);
     ctx.font = "bold " + headlineFontSize + "px Arial, sans-serif";
     ctx.fillStyle = "#ffffff";
     ctx.fillText("SCAN TO CHECK IN", W / 2, curY + headlineFontSize);
-    curY += headlineFontSize + 10 * s;
+    curY += headlineFontSize + 14 * s;
 
     // ── QR code (dominant, centred in remaining space) ─────────────────────
     var bottomStripH = 72 * s;
@@ -1406,7 +1399,7 @@
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,0.92)";
     ctx.font = "bold " + Math.round(18 * s) + "px Arial, sans-serif";
-    ctx.fillText("Scan with your phone camera to check in", W / 2, bottomY + 24 * s);
+    ctx.fillText("Scan with your phone camera to check in", W / 2, bottomY + 26 * s);
 
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.font = Math.round(13 * s) + "px Arial, sans-serif";
@@ -1414,11 +1407,7 @@
     var footerText = foundedYear
       ? checkinUrl + "  ·  Est. " + foundedYear
       : checkinUrl;
-    ctx.fillText(footerText, W / 2, bottomY + 46 * s);
-
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.font = Math.round(11 * s) + "px Arial, sans-serif";
-    ctx.fillText("Powered by Sprimal · sprimal.com", W / 2, bottomY + 63 * s);
+    ctx.fillText(footerText, W / 2, bottomY + 50 * s);
   }
 
   window.openPosterModal = function() {

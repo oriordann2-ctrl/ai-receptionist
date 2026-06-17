@@ -1576,31 +1576,57 @@
 
   window.showManualCheckin = function() {
     var modal = document.getElementById("manualCheckinModal");
-    if (modal) { modal.style.display = "flex"; document.getElementById("manualMnum").focus(); }
+    if (!modal) return;
+    modal.style.display = "flex";
+    var sel = document.getElementById("manualMemberSelect");
+    var reason = document.getElementById("manualReason");
+    if (sel) sel.innerHTML = '<option value="">Loading today\'s bookings…</option>';
+    if (reason) reason.value = "";
+    var msg = document.getElementById("manualCheckinMsg");
+    if (msg) msg.style.display = "none";
+    fetch("/api/portal/checkins/todays-members", { credentials: "include" })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!sel) return;
+        var members = d.members || [];
+        if (!members.length) {
+          sel.innerHTML = '<option value="">No bookings found for today</option>';
+          return;
+        }
+        sel.innerHTML = '<option value="">— Select a member —</option>'
+          + members.map(function(m) {
+            return '<option value="' + m.membership_number + '" data-name="' + esc(m.name) + '">' + esc(m.name) + ' #' + m.membership_number + '</option>';
+          }).join("");
+        sel.focus();
+      })
+      .catch(function() {
+        if (sel) sel.innerHTML = '<option value="">Failed to load bookings</option>';
+      });
   };
 
   window.hideManualCheckin = function() {
     var modal = document.getElementById("manualCheckinModal");
-    if (modal) { modal.style.display = "none"; }
+    if (modal) modal.style.display = "none";
     var msg = document.getElementById("manualCheckinMsg");
-    if (msg) { msg.style.display = "none"; }
-    document.getElementById("manualMnum").value = "";
-    document.getElementById("manualName").value = "";
+    if (msg) msg.style.display = "none";
   };
 
   window.submitManualCheckin = function() {
-    var mnum = parseInt((document.getElementById("manualMnum") || {}).value || "");
-    var name = ((document.getElementById("manualName") || {}).value || "").trim();
+    var sel = document.getElementById("manualMemberSelect");
+    var reason = ((document.getElementById("manualReason") || {}).value || "").trim();
     var msgEl = document.getElementById("manualCheckinMsg");
     function showModalMsg(text, color) {
       if (msgEl) { msgEl.style.display = "block"; msgEl.style.color = color; msgEl.textContent = text; }
     }
-    if (!mnum || mnum < 1) { showModalMsg("Please enter a valid membership number.", "#ef4444"); return; }
-    if (!name) { showModalMsg("Please enter the member's name.", "#ef4444"); return; }
+    var mnum = sel ? parseInt(sel.value) : 0;
+    var name = sel && sel.selectedOptions[0] ? (sel.selectedOptions[0].dataset.name || "") : "";
+    if (!mnum || !name) { showModalMsg("Please select a member.", "#ef4444"); return; }
+    if (!reason) { showModalMsg("Please enter a reason for the manual check-in.", "#ef4444"); return; }
     fetch("/api/portal/checkins/manual", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ membership_number: mnum, member_name: name })
+      credentials: "include",
+      body: JSON.stringify({ membership_number: mnum, member_name: name, reason: reason })
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {

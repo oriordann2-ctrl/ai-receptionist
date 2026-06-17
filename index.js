@@ -18471,10 +18471,35 @@ app.delete("/api/portal/checkins/:id", requireTenant, async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/portal/checkins/todays-members — unique members booked on courts today (for manual check-in dropdown)
+app.get("/api/portal/checkins/todays-members", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(new Date());
+  try {
+    await loadEboConfigFromDb(tenantId);
+    const bookings = await fetchEboBookings(tenantId, today, today, 500);
+    const seen = new Map();
+    for (const b of bookings) {
+      if (!Array.isArray(b.bookedMembers)) continue;
+      for (const m of b.bookedMembers) {
+        if (!m.membership_number || Number(m.membership_number) === 1) continue; // skip guests
+        if (!seen.has(m.membership_number)) {
+          seen.set(m.membership_number, { membership_number: m.membership_number, name: m.name || "Unknown" });
+        }
+      }
+    }
+    const members = Array.from(seen.values()).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    res.json({ members });
+  } catch (err) {
+    console.error("[checkins/todays-members] error:", err.message);
+    res.json({ members: [] });
+  }
+});
+
 // POST /api/portal/checkins/manual — admin manually records a check-in (GPS bypass)
 app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
-  const { membership_number, member_name } = req.body;
+  const { membership_number, member_name, reason } = req.body;
   if (!membership_number || !member_name) return res.status(400).json({ error: "Missing membership_number or member_name" });
   try {
     const { error } = await supabase.from("court_checkins").insert({
@@ -18483,10 +18508,11 @@ app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
       member_name: String(member_name).trim(),
       gps_lat: null, gps_lng: null, gps_distance_meters: null, gps_verified: false,
       booking_time: null, booking_court_id: null,
-      checked_in_by: null, is_delegate: false
+      checked_in_by: null, is_delegate: false,
+      manual_reason: reason ? String(reason).slice(0, 500) : null
     });
     if (error) return res.status(500).json({ error: error.message });
-    console.log(`[checkin] MANUAL: ${member_name} (#${membership_number}) added by admin at ${tenantId}`);
+    console.log(`[checkin] MANUAL: ${member_name} (#${membership_number}) at ${tenantId} — reason: ${reason || "none"}`);
     res.json({ ok: true });
   } catch (err) {
     console.error("[checkin] manual insert error:", err.message);

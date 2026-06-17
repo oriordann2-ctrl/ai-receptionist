@@ -1179,7 +1179,7 @@
 
         <div id="posterMsg" style="display:none;font-size:13px;margin-bottom:12px;"></div>
         <div style="display:flex;gap:8px;">
-          <button onclick="window.downloadPoster()" style="flex:1;padding:10px;background:#166534;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">⬇ Download PNG (Print Ready)</button>
+          <button onclick="window.downloadPoster()" style="flex:1;padding:10px;background:#166534;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">⬇ Download PDF (Print Ready)</button>
           <button onclick="window.closePosterModal()" style="padding:10px 16px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
         </div>
       </div>
@@ -4360,5 +4360,6 @@
     details.addEventListener("toggle", function() { if (details.open) loadMemberRequests(); });
   })();
 </script>
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </body>
 </html>

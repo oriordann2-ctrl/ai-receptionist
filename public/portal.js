@@ -1506,20 +1506,24 @@
   window.downloadPoster = function() {
     var canvas = document.getElementById("posterCanvas");
     if (!canvas) return;
-    // 2ft = 2400px, 3ft = 3600px, QR Only = 3600px
-    var printPx = (_posterSize === "3ft" || _posterSize === "qr") ? 3600 : 2400;
+    var is3ft = (_posterSize === "3ft" || _posterSize === "qr");
+    var printPx = is3ft ? 3600 : 2400;
+    var inchSize = is3ft ? 36 : 24;
     var origW = canvas.width, origH = canvas.height;
     canvas.width = printPx;
     canvas.height = printPx;
     renderPosterCanvas().then(function() {
-      var link = document.createElement("a");
-      link.download = (window.tenantName || "club").replace(/\s+/g, "-").toLowerCase()
-        + "-checkin-poster-" + _posterSize + ".png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      var imgData = canvas.toDataURL("image/png");
       canvas.width = origW;
       canvas.height = origH;
       renderPosterCanvas();
+      var jsPDF = (window.jspdf || {}).jsPDF;
+      if (!jsPDF) { alert("PDF library not loaded — please refresh and try again."); return; }
+      var doc = new jsPDF({ orientation: "portrait", unit: "in", format: [inchSize, inchSize] });
+      doc.addImage(imgData, "PNG", 0, 0, inchSize, inchSize);
+      var filename = (window.tenantName || "club").replace(/\s+/g, "-").toLowerCase()
+        + "-checkin-poster-" + (is3ft ? "3ft" : "2ft") + ".pdf";
+      doc.save(filename);
     });
   };
 

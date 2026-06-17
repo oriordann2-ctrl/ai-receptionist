@@ -1323,67 +1323,53 @@
       ctx.fillRect(0, 0, W, H);
     }
 
-    // ── Top strip (logo + club name + headline) ────────────────────────────
-    var pad = 28 * s;
-    var curY = 16 * s;
+    var pad = 24 * s;
 
-    // Logo
+    // ── Top strip: logo + club name (compact) ──────────────────────────────
+    var topH = 80 * s;
+    ctx.fillStyle = "rgba(0,0,0,0.20)";
+    ctx.fillRect(0, 0, W, topH);
+
+    // Logo left, club name centre — or just name centred if no logo
+    var nameMaxW = W - pad * 2;
+    var nameFontSize = Math.round(24 * s);
+    ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
+    while (ctx.measureText(clubName).width > nameMaxW && nameFontSize > Math.round(12 * s)) {
+      nameFontSize -= Math.max(1, Math.round(s));
+      ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
+    }
+
     if (logoImg) {
       var logoMax = 44 * s;
       var lsc = Math.min(logoMax / logoImg.width, logoMax / logoImg.height);
       var lw = logoImg.width * lsc, lh = logoImg.height * lsc;
-      ctx.drawImage(logoImg, (W - lw) / 2, curY, lw, lh);
-      curY += lh + 10 * s;
+      var logoX = pad;
+      var logoY = (topH - lh) / 2;
+      ctx.drawImage(logoImg, logoX, logoY, lw, lh);
+      // Club name centred in remaining space
+      var nameX = logoX + lw + 8 * s + (W - logoX - lw - 8 * s - pad) / 2;
+      ctx.textAlign = "center";
+      ctx.fillStyle = "white";
+      ctx.fillText(clubName, nameX, topH / 2 + nameFontSize * 0.35);
     } else {
-      curY += 10 * s;
+      ctx.textAlign = "center";
+      ctx.fillStyle = "white";
+      ctx.fillText(clubName, W / 2, topH / 2 + nameFontSize * 0.35);
     }
 
-    // Club name — shrink to fit, wrap if needed
-    ctx.textAlign = "center";
-    var nameFontSize = Math.round(26 * s);
-    var nameMaxW = W - pad * 2;
-    ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
-    while (ctx.measureText(clubName).width > nameMaxW && nameFontSize > Math.round(14 * s)) {
-      nameFontSize -= Math.max(1, Math.round(s));
-      ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
-    }
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
-    var line2 = "";
-    if (ctx.measureText(clubName).width > nameMaxW) {
-      var words = clubName.split(" "), line1 = "";
-      for (var wi = 0; wi < words.length; wi++) {
-        var test = (line1 ? line1 + " " : "") + words[wi];
-        if (ctx.measureText(test).width <= nameMaxW) { line1 = test; }
-        else { line2 = words.slice(wi).join(" "); break; }
-      }
-      ctx.fillText(line1, W / 2, curY + nameFontSize);
-      if (line2) ctx.fillText(line2, W / 2, curY + nameFontSize * 2.2);
-      curY += (line2 ? nameFontSize * 2.2 : nameFontSize) + 14 * s;
-    } else {
-      ctx.fillText(clubName, W / 2, curY + nameFontSize);
-      curY += nameFontSize + 14 * s;
-    }
-
-    // "SCAN TO CHECK IN" headline
-    var headlineFontSize = Math.round(40 * s);
-    ctx.font = "bold " + headlineFontSize + "px Arial, sans-serif";
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText("SCAN TO CHECK IN", W / 2, curY + headlineFontSize);
-    curY += headlineFontSize + 14 * s;
-
-    // ── QR code (dominant, centred in remaining space) ─────────────────────
-    var bottomStripH = 72 * s;
-    var qrAreaH = H - curY - bottomStripH - 12 * s;
-    var qrSize = Math.min(qrAreaH, W - pad * 2); // as large as fits
+    // ── QR code (dominant) ─────────────────────────────────────────────────
+    var bottomH = 110 * s;
+    var qrPad = 16 * s;
+    var qrSize = Math.min(H - topH - bottomH - qrPad * 2, W - pad * 2);
     var qrX = (W - qrSize) / 2;
-    var qrY = curY + (qrAreaH - qrSize) / 2;
+    var qrY = topH + qrPad + (H - topH - bottomH - qrPad * 2 - qrSize) / 2;
 
     if (qrImg) {
       var cardPad = 10 * s;
       ctx.fillStyle = "white";
       ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.roundRect(qrX - cardPad, qrY - cardPad, qrSize + cardPad * 2, qrSize + cardPad * 2, 14 * s);
+        ctx.roundRect(qrX - cardPad, qrY - cardPad, qrSize + cardPad * 2, qrSize + cardPad * 2, 12 * s);
       } else {
         ctx.rect(qrX - cardPad, qrY - cardPad, qrSize + cardPad * 2, qrSize + cardPad * 2);
       }
@@ -1391,23 +1377,27 @@
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
     }
 
-    // ── Bottom strip ───────────────────────────────────────────────────────
-    var bottomY = H - bottomStripH;
+    // ── Bottom strip: headline + URL ───────────────────────────────────────
+    var bottomY = H - bottomH;
     ctx.fillStyle = "rgba(0,0,0,0.30)";
-    ctx.fillRect(0, bottomY, W, bottomStripH);
+    ctx.fillRect(0, bottomY, W, bottomH);
 
     ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.font = "bold " + Math.round(18 * s) + "px Arial, sans-serif";
-    ctx.fillText("Scan with your phone camera to check in", W / 2, bottomY + 26 * s);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold " + Math.round(36 * s) + "px Arial, sans-serif";
+    ctx.fillText("SCAN TO CHECK IN", W / 2, bottomY + 42 * s);
 
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.font = Math.round(13 * s) + "px Arial, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.65)";
+    ctx.font = Math.round(15 * s) + "px Arial, sans-serif";
     var foundedYear = settings.founded_year;
     var footerText = foundedYear
       ? checkinUrl + "  ·  Est. " + foundedYear
       : checkinUrl;
-    ctx.fillText(footerText, W / 2, bottomY + 50 * s);
+    ctx.fillText(footerText, W / 2, bottomY + 68 * s);
+
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.font = Math.round(11 * s) + "px Arial, sans-serif";
+    ctx.fillText("Scan with your phone camera", W / 2, bottomY + 90 * s);
   }
 
   window.openPosterModal = function() {

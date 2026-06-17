@@ -1299,31 +1299,54 @@
       ctx.drawImage(logoImg, (W - lw) / 2, 16 * s, lw, lh);
     }
 
-    // Club name
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
-    ctx.font = "bold " + Math.round(36 * s) + "px Arial, sans-serif";
+    // Club name — shrink font until it fits, then wrap if still needed
     ctx.textAlign = "center";
-    ctx.fillText(clubName, W / 2, (logoImg ? 126 : 80) * s);
+    var nameFontSize = Math.round(36 * s);
+    ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
+    while (ctx.measureText(clubName).width > W - 48 * s * 2 && nameFontSize > Math.round(18 * s)) {
+      nameFontSize -= Math.round(1 * s);
+      ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    var nameY = (logoImg ? 120 : 74) * s;
+    var nameMaxW = W - 48 * s * 2;
+    if (ctx.measureText(clubName).width > nameMaxW) {
+      // Wrap onto two lines
+      var words = clubName.split(" ");
+      var line1 = "", line2 = "";
+      for (var wi = 0; wi < words.length; wi++) {
+        var test = (line1 ? line1 + " " : "") + words[wi];
+        if (ctx.measureText(test).width <= nameMaxW) { line1 = test; }
+        else { line2 = words.slice(wi).join(" "); break; }
+      }
+      ctx.fillText(line1, W / 2, nameY);
+      if (line2) ctx.fillText(line2, W / 2, nameY + nameFontSize * 1.2);
+    } else {
+      ctx.fillText(clubName, W / 2, nameY);
+    }
 
-    // Headline
+    // Headline — positioned below name block
+    var nameBlockBottom = nameY + (line2 ? nameFontSize * 2.4 : nameFontSize * 1.2);
+    var headlineY = nameBlockBottom + 38 * s;
     ctx.fillStyle = "rgba(255,255,255,1)";
     ctx.font = "bold " + Math.round(52 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("SCAN TO CHECK IN", W / 2, 210 * s);
+    ctx.fillText("SCAN TO CHECK IN", W / 2, headlineY);
 
     // Divider
+    var dividerY = headlineY + 20 * s;
     ctx.strokeStyle = "rgba(255,255,255,0.3)";
     ctx.lineWidth = 1.5 * s;
     ctx.beginPath();
-    ctx.moveTo(48 * s, 228 * s);
-    ctx.lineTo(W - 48 * s, 228 * s);
+    ctx.moveTo(48 * s, dividerY);
+    ctx.lineTo(W - 48 * s, dividerY);
     ctx.stroke();
 
     // QR code with white card
     if (qrImg) {
       var qrSize = 420 * s;
       var qrX = (W - qrSize) / 2;
-      var qrY = 248 * s;
+      var qrY = dividerY + 20 * s;
       ctx.fillStyle = "white";
       ctx.beginPath();
       if (ctx.roundRect) {
@@ -1336,16 +1359,17 @@
     }
 
     // Instruction text below QR
+    var belowQr = qrY + qrSize + 28 * s;
     ctx.fillStyle = "rgba(255,255,255,0.90)";
     ctx.font = Math.round(28 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Scan with your phone camera to check in", W / 2, 742 * s);
+    ctx.fillText("Scan with your phone camera to check in", W / 2, belowQr);
 
     // URL hint
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.font = Math.round(20 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(checkinUrl, W / 2, 778 * s);
+    ctx.fillText(checkinUrl, W / 2, belowQr + 32 * s);
 
     // Bottom bar
     ctx.fillStyle = "rgba(0,0,0,0.3)";

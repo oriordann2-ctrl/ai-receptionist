@@ -18484,7 +18484,7 @@ app.get("/api/portal/checkins/todays-members", requireTenant, async (req, res) =
     for (const b of bookings) {
       if (!Array.isArray(b.bookedMembers)) continue;
       for (const m of b.bookedMembers) {
-        if (!m.membership_number || Number(m.membership_number) === 1) continue; // skip guests
+        if (!m.membership_number || Number(m.membership_number) === 1 || m.colour) continue; // skip guests and group/special events
         if (!seen.has(m.membership_number)) {
           seen.set(m.membership_number, { membership_number: m.membership_number, name: m.name || "Unknown" });
         }

@@ -1380,7 +1380,7 @@
 
     // QR code with white card
     if (qrImg) {
-      var qrSize = 360 * s;
+      var qrSize = 440 * s;
       var qrX = (W - qrSize) / 2;
       var qrY = dividerY + 18 * s;
       ctx.fillStyle = "white";

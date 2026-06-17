@@ -602,6 +602,16 @@
       + '<span id="assistantNameStatus" style="font-size:13px;color:#6b7280;"></span>'
       + '</div>'
       + '</div>'
+      // Year Founded
+      + '<div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
+      + '<div class="toggle-label" style="margin-bottom:4px;">Year Founded</div>'
+      + '<div class="toggle-sub" style="margin-bottom:10px;">Shown on the check-in poster as "Est. YYYY". Leave blank to hide it.</div>'
+      + '<input id="foundedYearInput" type="number" min="1800" max="' + new Date().getFullYear() + '" placeholder="e.g. 1893" value="' + (d.founded_year || '') + '" style="width:160px;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
+      + '<button onclick="saveFoundedYear()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save year</button>'
+      + '<span id="foundedYearStatus" style="font-size:13px;color:#6b7280;"></span>'
+      + '</div>'
+      + '</div>'
       // AI Assistant Description
       + '<div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
       + '<div class="toggle-label" style="margin-bottom:4px;">AI Assistant Description</div>'
@@ -902,6 +912,32 @@
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.success) throw new Error(d.error || "save failed");
+      if (status) { status.textContent = "Saved ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
+  };
+
+  window.saveFoundedYear = function() {
+    var input  = document.getElementById("foundedYearInput");
+    var status = document.getElementById("foundedYearStatus");
+    var raw = (input || {}).value;
+    var year = raw === "" ? null : parseInt(raw, 10);
+    if (year !== null && (isNaN(year) || year < 1800 || year > new Date().getFullYear())) {
+      if (status) status.textContent = "Enter a valid year";
+      return;
+    }
+    if (status) status.textContent = "Saving…";
+    fetch("/api/portal/settings", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ founded_year: year })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success) throw new Error(d.error || "save failed");
+      if (window._checkinSettings) window._checkinSettings.founded_year = year;
       if (status) { status.textContent = "Saved ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
     })
     .catch(function(err) {
@@ -1377,7 +1413,11 @@
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.font = Math.round(18 * s) + "px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Powered by Sprimal · sprimal.com", W / 2, H - 22 * s);
+    var foundedYear = settings.founded_year;
+    var footerText = foundedYear
+      ? "Est. " + foundedYear + "  ·  Powered by Sprimal · sprimal.com"
+      : "Powered by Sprimal · sprimal.com";
+    ctx.fillText(footerText, W / 2, H - 22 * s);
   }
 
   window.openPosterModal = function() {

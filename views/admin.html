@@ -1300,7 +1300,20 @@
       border-radius:20px; padding:2px 8px; white-space:nowrap; }
   </style>
 
+  <style>
+    .ret-pager { display:flex; align-items:center; gap:8px; margin-top:14px; justify-content:center; }
+    .ret-pager-btn { background:white; border:1.5px solid #d1d5db; border-radius:8px; padding:6px 14px;
+      font-size:13px; font-weight:600; color:#374151; cursor:pointer; font-family:inherit; transition:background 0.15s; }
+    .ret-pager-btn:hover:not(:disabled) { background:#f1f5f9; border-color:#6b7280; }
+    .ret-pager-btn:disabled { opacity:0.4; cursor:default; }
+    .ret-pager-info { font-size:13px; color:#6b7280; }
+  </style>
+
   <script>
+    let _retAllEvents = [];
+    let _retPage = 1;
+    const RET_PAGE_SIZE = 10;
+
     async function loadRetrievalEvents() {
       const tenantId = document.getElementById("retrievalTenantFilter").value;
       const container = document.getElementById("adminRetrievalContent");
@@ -1310,7 +1323,7 @@
         const events = await fetch(url, { credentials: "include" }).then(r => r.json());
         if (!events.length) { container.innerHTML = '<p class="muted" style="text-align:center;padding:20px 0;">No retrieval events yet.</p>'; return; }
 
-        // Populate tenant filter if not already done
+        // Populate tenant filter once
         const sel = document.getElementById("retrievalTenantFilter");
         if (sel.options.length <= 1) {
           const tids = [...new Set(events.map(e => e.tenant_id))].sort();
@@ -1318,35 +1331,55 @@
           if (tenantId) sel.value = tenantId;
         }
 
-        const rows = events.map(ev => {
-          const scores = ev.similarity_scores || [];
-          const top = scores.length ? Math.max(...scores) : null;
-          const miss = ev.chunks_returned === 0;
-          const scoreClass = miss || top === null || top < 0.30 ? "ret-score-red"
-            : top < 0.45 ? "ret-score-yellow" : "ret-score-green";
-          const scoreLabel = miss ? "0 chunks" : top === null ? "—" : top.toFixed(3);
-          const time = new Date(ev.created_at).toLocaleString("en-IE", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
-          return `<tr class="${miss ? "ret-miss" : ""}">
-            <td class="ret-time">${time}</td>
-            <td><span class="ret-tenant">${ev.tenant_id}</span></td>
-            <td class="ret-query" title="${(ev.query||"").replace(/"/g,"&quot;")}">${ev.query || "—"}</td>
-            <td><span class="ret-score ${scoreClass}">${scoreLabel}</span></td>
-            <td style="text-align:center;">${ev.chunks_returned ?? "—"}</td>
-            <td style="text-align:center;">${ev.has_uploaded_docs ? "✓" : ""}</td>
-          </tr>`;
-        }).join("");
+        _retAllEvents = events;
+        _retPage = 1;
+        renderRetrievalPage();
+      } catch (err) {
+        document.getElementById("adminRetrievalContent").innerHTML =
+          `<p class="muted" style="color:#dc2626;text-align:center;padding:20px 0;">Error: ${err.message}</p>`;
+      }
+    }
 
-        container.innerHTML = `<div style="overflow-x:auto;">
+    function renderRetrievalPage() {
+      const container = document.getElementById("adminRetrievalContent");
+      const total = _retAllEvents.length;
+      const totalPages = Math.ceil(total / RET_PAGE_SIZE);
+      const start = (_retPage - 1) * RET_PAGE_SIZE;
+      const slice = _retAllEvents.slice(start, start + RET_PAGE_SIZE);
+
+      const rows = slice.map(ev => {
+        const scores = ev.similarity_scores || [];
+        const top = scores.length ? Math.max(...scores) : null;
+        const miss = ev.chunks_returned === 0;
+        const scoreClass = miss || top === null || top < 0.30 ? "ret-score-red"
+          : top < 0.45 ? "ret-score-yellow" : "ret-score-green";
+        const scoreLabel = miss ? "0 chunks" : top === null ? "—" : top.toFixed(3);
+        const time = new Date(ev.created_at).toLocaleString("en-IE", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+        return `<tr class="${miss ? "ret-miss" : ""}">
+          <td class="ret-time">${time}</td>
+          <td><span class="ret-tenant">${ev.tenant_id}</span></td>
+          <td class="ret-query" title="${(ev.query||"").replace(/"/g,"&quot;")}">${ev.query || "—"}</td>
+          <td><span class="ret-score ${scoreClass}">${scoreLabel}</span></td>
+          <td style="text-align:center;">${ev.chunks_returned ?? "—"}</td>
+          <td style="text-align:center;">${ev.has_uploaded_docs ? "✓" : ""}</td>
+        </tr>`;
+      }).join("");
+
+      container.innerHTML = `
+        <div style="overflow-x:auto;">
           <table class="ret-table">
             <thead><tr>
               <th>Time</th><th>Tenant</th><th>Query</th>
               <th>Top Score</th><th style="text-align:center;">Chunks</th><th style="text-align:center;">Uploaded</th>
             </tr></thead>
             <tbody>${rows}</tbody>
-          </table></div>`;
-      } catch (err) {
-        container.innerHTML = `<p class="muted" style="color:#dc2626;text-align:center;padding:20px 0;">Error: ${err.message}</p>`;
-      }
+          </table>
+        </div>
+        <div class="ret-pager">
+          <button class="ret-pager-btn" onclick="_retPage--; renderRetrievalPage();" ${_retPage <= 1 ? "disabled" : ""}>← Prev</button>
+          <span class="ret-pager-info">Page ${_retPage} of ${totalPages} &nbsp;·&nbsp; ${total} events</span>
+          <button class="ret-pager-btn" onclick="_retPage++; renderRetrievalPage();" ${_retPage >= totalPages ? "disabled" : ""}>Next →</button>
+        </div>`;
     }
   </script>
 

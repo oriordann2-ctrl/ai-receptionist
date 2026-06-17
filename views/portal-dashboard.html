@@ -1151,7 +1151,8 @@
           <button id="posterSize3ft" onclick="window.setPosterSize('3ft',this)" style="flex:1;padding:9px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">3ft × 3ft</button>
         </div>
 
-        <!-- Court image picker -->
+        <!-- Court image picker (hidden for 3ft QR-only) -->
+        <div id="posterBgSection">
         <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">Background Image</div>
         <div id="posterImagePicker" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
           <div onclick="window.selectPosterBg(this,'#166534')" data-bg="#166534" style="width:72px;height:48px;border-radius:8px;background:#166534;cursor:pointer;border:2px solid #166534;flex-shrink:0;"></div>
@@ -1167,6 +1168,7 @@
             <input type="file" id="posterImageUpload" accept="image/*" style="display:none;" onchange="window.posterUploadImage(this)">
           </label>
         </div>
+        </div><!-- /posterBgSection -->
 
         <!-- Canvas preview -->
         <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">Preview</div>

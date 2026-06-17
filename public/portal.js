@@ -1311,6 +1311,25 @@
     var qrImg = await loadImg(qrApiUrl);
     var logoImg = settings.logo_url ? await loadImg(settings.logo_url) : null;
 
+    // ── 3ft: QR-only on white ──────────────────────────────────────────────
+    if (_posterSize === "3ft") {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, W, H);
+      if (qrImg) {
+        var margin = 28 * s;
+        var urlBarH = 36 * s;
+        var qrSize = Math.min(W, H - urlBarH) - margin * 2;
+        var qrX = (W - qrSize) / 2;
+        var qrY = (H - urlBarH - qrSize) / 2;
+        ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+        ctx.fillStyle = "#374151";
+        ctx.font = Math.round(14 * s) + "px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(checkinUrl, W / 2, qrY + qrSize + 26 * s);
+      }
+      return;
+    }
+
     // Background
     if (_posterBgImage) {
       var bgScale = Math.max(W / _posterBgImage.width, H / _posterBgImage.height);
@@ -1464,15 +1483,19 @@
 
   window.setPosterSize = function(size, btn) {
     _posterSize = size;
-    ["2ft","3ft"].forEach(function(s) {
-      var b = document.getElementById("posterSize" + s);
+    ["2ft","3ft"].forEach(function(sz) {
+      var b = document.getElementById("posterSize" + sz);
       if (!b) return;
-      if (s === size) {
+      if (sz === size) {
         b.style.background = "#166534"; b.style.color = "white"; b.style.border = "none";
       } else {
         b.style.background = "#f3f4f6"; b.style.color = "#374151"; b.style.border = "1.5px solid #e5e7eb";
       }
     });
+    // Show/hide background options — not relevant for QR-only 3ft
+    var bgSection = document.getElementById("posterBgSection");
+    if (bgSection) bgSection.style.display = size === "3ft" ? "none" : "";
+    renderPosterCanvas();
   };
 
   window.downloadPoster = function() {

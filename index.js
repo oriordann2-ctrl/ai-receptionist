@@ -6288,8 +6288,8 @@ async function extractAndRehostWebsiteImages(pages, tenantId, maxImages = 9) {
       try { const d = sizeOf(buf); pixels = (d.width || 0) * (d.height || 0); } catch {}
       downloaded.push({ buf, ct, pixels, url: imgUrl });
     } catch (e) {
-      // On SSL/network failure, retry without certificate verification (broken-cert sites)
-      if (e.name === "TypeError" && imgUrl.startsWith("https://") && isSafePublicUrl(imgUrl)) {
+      // On any HTTPS fetch failure, retry without certificate verification (broken-cert sites)
+      if (imgUrl.startsWith("https://") && isSafePublicUrl(imgUrl)) {
         try {
           const buf = await new Promise((resolve, reject) => {
             const https = require("https");

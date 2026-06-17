@@ -2055,7 +2055,7 @@
   (function() {
     var SPORTS_TYPES = ["tennis_club","gaa_club","team_sports_club","racket_sports_club","golf_club","swim_club"];
     if (!SPORTS_TYPES.includes(window.businessType)) {
-      document.querySelectorAll("[data-sports-only]").forEach(function(el) { el.hidden = true; });
+      document.querySelectorAll("[data-sports-only]").forEach(function(el) { el.style.display = "none"; });
     }
   })();
 </script>

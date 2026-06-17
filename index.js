@@ -18336,15 +18336,16 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
     await loadEboConfigFromDb(tenantId);
     const [bookings, { data: checkins }] = await Promise.all([
       fetchEboBookingsPaged(tenantId, fromDate, toDate),
-      supabase.from("court_checkins").select("booking_time")
+      supabase.from("court_checkins").select("booking_time, booking_court_id")
         .eq("tenant_id", tenantId)
         .gte("booking_time", fromDate + " 00:00:00")
         .lte("booking_time", toDate + " 23:59:59")
     ]);
 
-    // One check-in per timeslot covers everyone on that court booking —
-    // if any member of the booking checked in, all are credited (shared court logic)
-    const checkedInTimes = new Set((checkins || []).map(c => String(c.booking_time || "").replace(" ", "T").slice(0, 16)));
+    // Key = booking_time|court_id so only members on the same court at the same time are credited
+    const checkedInKeys = new Set((checkins || []).map(c =>
+      String(c.booking_time || "").replace(" ", "T").slice(0, 16) + "|" + String(c.booking_court_id || "")
+    ));
 
     // For "today" only count slots that have already started — future bookings can't be no-shows yet
     const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
@@ -18362,7 +18363,8 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         const [bh, bm] = hhmm.split(":").map(Number);
         if (bh * 60 + bm > nowMinsOfDay) continue;
       }
-      const wasCheckedIn = checkedInTimes.has(bookingTime);
+      const courtKey = bookingTime + "|" + String(b.court_id || "");
+      const wasCheckedIn = checkedInKeys.has(courtKey);
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || Number(key) === 1 || m.colour) continue;

@@ -1300,14 +1300,13 @@
     if (!canvas) return;
     var ctx = canvas.getContext("2d");
     var W = canvas.width, H = canvas.height;
-    // All layout values are proportional to W so it scales correctly at any resolution
-    var s = W / 620;
+    var s = W / 620; // scale factor — all values authored at 620px
 
     var settings = window._checkinSettings || {};
     var clubName = window.tenantName || "Your Club";
     var tenantId = window.tenantId || "";
     var checkinUrl = "https://app.sprimal.com/checkin/" + tenantId;
-    var qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=500x500&margin=10&data=" + encodeURIComponent(checkinUrl);
+    var qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=8&data=" + encodeURIComponent(checkinUrl);
 
     var qrImg = await loadImg(qrApiUrl);
     var logoImg = settings.logo_url ? await loadImg(settings.logo_url) : null;
@@ -1324,100 +1323,102 @@
       ctx.fillRect(0, 0, W, H);
     }
 
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.fillRect(0, 0, W, 110 * s);
+    // ── Top strip (logo + club name + headline) ────────────────────────────
+    var pad = 28 * s;
+    var topStripH = 155 * s;
 
-    // Logo (top centre)
+    // Subtle header tint
+    ctx.fillStyle = "rgba(0,0,0,0.15)";
+    ctx.fillRect(0, 0, W, topStripH);
+
+    var curY = 14 * s;
+
+    // Logo
     if (logoImg) {
-      var logoMax = 90 * s;
-      var lScale = Math.min(logoMax / logoImg.width, logoMax / logoImg.height);
-      var lw = logoImg.width * lScale, lh = logoImg.height * lScale;
-      ctx.drawImage(logoImg, (W - lw) / 2, 16 * s, lw, lh);
+      var logoMax = 52 * s;
+      var lsc = Math.min(logoMax / logoImg.width, logoMax / logoImg.height);
+      var lw = logoImg.width * lsc, lh = logoImg.height * lsc;
+      ctx.drawImage(logoImg, (W - lw) / 2, curY, lw, lh);
+      curY += lh + 8 * s;
+    } else {
+      curY += 8 * s;
     }
 
-    // Club name — shrink font until it fits, then wrap if still needed
+    // Club name — shrink to fit, wrap if needed
     ctx.textAlign = "center";
-    var nameFontSize = Math.round(36 * s);
+    var nameFontSize = Math.round(28 * s);
+    var nameMaxW = W - pad * 2;
     ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
-    while (ctx.measureText(clubName).width > W - 48 * s * 2 && nameFontSize > Math.round(18 * s)) {
-      nameFontSize -= Math.round(1 * s);
+    while (ctx.measureText(clubName).width > nameMaxW && nameFontSize > Math.round(14 * s)) {
+      nameFontSize -= Math.max(1, Math.round(s));
       ctx.font = "bold " + nameFontSize + "px Arial, sans-serif";
     }
     ctx.fillStyle = "rgba(255,255,255,0.95)";
-    var nameY = (logoImg ? 120 : 74) * s;
-    var nameMaxW = W - 48 * s * 2;
+    var line2 = "";
     if (ctx.measureText(clubName).width > nameMaxW) {
-      // Wrap onto two lines
-      var words = clubName.split(" ");
-      var line1 = "", line2 = "";
+      var words = clubName.split(" "), line1 = "";
       for (var wi = 0; wi < words.length; wi++) {
         var test = (line1 ? line1 + " " : "") + words[wi];
         if (ctx.measureText(test).width <= nameMaxW) { line1 = test; }
         else { line2 = words.slice(wi).join(" "); break; }
       }
-      ctx.fillText(line1, W / 2, nameY);
-      if (line2) ctx.fillText(line2, W / 2, nameY + nameFontSize * 1.2);
+      ctx.fillText(line1, W / 2, curY + nameFontSize);
+      if (line2) ctx.fillText(line2, W / 2, curY + nameFontSize * 2.2);
+      curY += line2 ? nameFontSize * 2.2 : nameFontSize;
     } else {
-      ctx.fillText(clubName, W / 2, nameY);
+      ctx.fillText(clubName, W / 2, curY + nameFontSize);
+      curY += nameFontSize;
     }
+    curY += 10 * s;
 
-    // Headline — positioned below name block
-    var nameBlockBottom = nameY + (line2 ? nameFontSize * 2.4 : nameFontSize * 1.2);
-    var headlineY = nameBlockBottom + 38 * s;
-    ctx.fillStyle = "rgba(255,255,255,1)";
-    ctx.font = "bold " + Math.round(52 * s) + "px Arial, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("SCAN TO CHECK IN", W / 2, headlineY);
+    // "SCAN TO CHECK IN" headline
+    var headlineFontSize = Math.round(44 * s);
+    ctx.font = "bold " + headlineFontSize + "px Arial, sans-serif";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText("SCAN TO CHECK IN", W / 2, curY + headlineFontSize);
+    curY += headlineFontSize + 10 * s;
 
-    // Divider
-    var dividerY = headlineY + 20 * s;
-    ctx.strokeStyle = "rgba(255,255,255,0.3)";
-    ctx.lineWidth = 1.5 * s;
-    ctx.beginPath();
-    ctx.moveTo(48 * s, dividerY);
-    ctx.lineTo(W - 48 * s, dividerY);
-    ctx.stroke();
+    // ── QR code (dominant, centred in remaining space) ─────────────────────
+    var bottomStripH = 72 * s;
+    var qrAreaH = H - curY - bottomStripH - 12 * s;
+    var qrSize = Math.min(qrAreaH, W - pad * 2); // as large as fits
+    var qrX = (W - qrSize) / 2;
+    var qrY = curY + (qrAreaH - qrSize) / 2;
 
-    // QR code with white card
     if (qrImg) {
-      var qrSize = 440 * s;
-      var qrX = (W - qrSize) / 2;
-      var qrY = dividerY + 18 * s;
+      var cardPad = 10 * s;
       ctx.fillStyle = "white";
       ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.roundRect(qrX - 12 * s, qrY - 12 * s, qrSize + 24 * s, qrSize + 24 * s, 16 * s);
+        ctx.roundRect(qrX - cardPad, qrY - cardPad, qrSize + cardPad * 2, qrSize + cardPad * 2, 14 * s);
       } else {
-        ctx.rect(qrX - 12 * s, qrY - 12 * s, qrSize + 24 * s, qrSize + 24 * s);
+        ctx.rect(qrX - cardPad, qrY - cardPad, qrSize + cardPad * 2, qrSize + cardPad * 2);
       }
       ctx.fill();
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
     }
 
-    // Instruction text below QR
-    var belowQr = qrY + qrSize + 24 * s;
-    ctx.fillStyle = "rgba(255,255,255,0.90)";
-    ctx.font = Math.round(18 * s) + "px Arial, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("Scan with your phone camera to check in", W / 2, belowQr);
+    // ── Bottom strip ───────────────────────────────────────────────────────
+    var bottomY = H - bottomStripH;
+    ctx.fillStyle = "rgba(0,0,0,0.30)";
+    ctx.fillRect(0, bottomY, W, bottomStripH);
 
-    // URL hint
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = "bold " + Math.round(18 * s) + "px Arial, sans-serif";
+    ctx.fillText("Scan with your phone camera to check in", W / 2, bottomY + 24 * s);
+
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.font = Math.round(13 * s) + "px Arial, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(checkinUrl, W / 2, belowQr + 26 * s);
-
-    // Bottom bar
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
-    ctx.fillRect(0, H - 60 * s, W, 60 * s);
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.font = Math.round(18 * s) + "px Arial, sans-serif";
-    ctx.textAlign = "center";
     var foundedYear = settings.founded_year;
     var footerText = foundedYear
-      ? "Est. " + foundedYear + "  ·  Powered by Sprimal · sprimal.com"
-      : "Powered by Sprimal · sprimal.com";
-    ctx.fillText(footerText, W / 2, H - 22 * s);
+      ? checkinUrl + "  ·  Est. " + foundedYear
+      : checkinUrl;
+    ctx.fillText(footerText, W / 2, bottomY + 46 * s);
+
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.font = Math.round(11 * s) + "px Arial, sans-serif";
+    ctx.fillText("Powered by Sprimal · sprimal.com", W / 2, bottomY + 63 * s);
   }
 
   window.openPosterModal = function() {
@@ -1480,16 +1481,33 @@
     reader.readAsDataURL(input.files[0]);
   };
 
+  var _posterSize = "2ft"; // default
+
+  window.setPosterSize = function(size, btn) {
+    _posterSize = size;
+    ["2ft","3ft"].forEach(function(s) {
+      var b = document.getElementById("posterSize" + s);
+      if (!b) return;
+      if (s === size) {
+        b.style.background = "#166534"; b.style.color = "white"; b.style.border = "none";
+      } else {
+        b.style.background = "#f3f4f6"; b.style.color = "#374151"; b.style.border = "1.5px solid #e5e7eb";
+      }
+    });
+  };
+
   window.downloadPoster = function() {
-    // Render at print quality: 1240×1754 (A4 at ~150dpi)
     var canvas = document.getElementById("posterCanvas");
     if (!canvas) return;
+    // 2ft×2ft at 100dpi = 2400px, 3ft×3ft = 3600px
+    var printPx = _posterSize === "3ft" ? 3600 : 2400;
     var origW = canvas.width, origH = canvas.height;
-    canvas.width = 1240;
-    canvas.height = 1754;
+    canvas.width = printPx;
+    canvas.height = printPx;
     renderPosterCanvas().then(function() {
       var link = document.createElement("a");
-      link.download = (window.tenantName || "club").replace(/\s+/g, "-").toLowerCase() + "-checkin-poster.png";
+      link.download = (window.tenantName || "club").replace(/\s+/g, "-").toLowerCase()
+        + "-checkin-poster-" + _posterSize + ".png";
       link.href = canvas.toDataURL("image/png");
       link.click();
       canvas.width = origW;

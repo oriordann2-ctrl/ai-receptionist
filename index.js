@@ -5904,12 +5904,17 @@ async function crawlWebsite(rootUrl, maxPages = 40, onProgress = null, businessT
       ];
       const isJsShell = JS_SHELL_SIGNALS.some(s => html.includes(s));
       const wordCount = rawText.split(/\s+/).filter(w => w.length > 2).length;
-      const isThinContent = wordCount < 150;
+      // Wix/React shells return 200-300 words of nav+footer boilerplate — use a higher bar
+      // so committee pages, about pages etc. still get Jina even if they look non-trivial
+      const isThinForShell = isJsShell && wordCount < 400;
+      // Catch unrecognised SPAs that aren't in our signal list but are still near-empty
+      const isThinForAny = !isJsShell && wordCount < 80;
 
-      if (text.length < 80 || isBotProtected || (isJsShell && isThinContent)) {
+      if (text.length < 80 || isBotProtected || isThinForShell || isThinForAny) {
         if (isProbe) { console.log(`[crawler] Probe skip (thin/bot/js-shell) ${url}`); return null; }
         const reason = isBotProtected ? "bot-protection page detected"
-          : (isJsShell && isThinContent) ? `JS-rendered shell detected (${wordCount} words) — page is likely Wix/React/Next.js`
+          : isThinForShell ? `JS-rendered shell detected (${wordCount} words) — Wix/React boilerplate, trying Jina`
+          : isThinForAny ? `Very thin page (${wordCount} words) — may be unrecognised SPA, trying Jina`
           : "text too short";
         return await jinaFallback(url, html, reason);
       }

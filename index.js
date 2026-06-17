@@ -257,6 +257,12 @@ async function detectBusinessType(name, description, pageText) {
   if (nameType) return nameType;
   if (/\bgaa\b/.test(n) || /cumann lúthchleas gael/i.test(n)) return "gaa_club";
 
+  // If the crawl got nothing useful, don't let GPT guess from the name alone — it gets it wrong
+  if ((pageText || "").trim().length < 100) {
+    console.log(`[biz-type] Insufficient page text for GPT detection — defaulting to 'other'`);
+    return "other";
+  }
+
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -1241,6 +1247,65 @@ async function seedCafeFlows(tenantId, name, websiteUrl, info) {
   return true;
 }
 
+async function seedGenericFlows(tenantId, name, websiteUrl, info) {
+  const { data: existing } = await supabase.from("chat_workflows").select("id").eq("club_id", tenantId).limit(1);
+  if (existing && existing.length > 0) {
+    console.log(`[generic-seed] Flows already exist for ${tenantId}, skipping`);
+    return false;
+  }
+  const v = (val) => (val && val !== "null") ? val : null;
+
+  const fMain  = crypto.randomUUID(), fInfo    = crypto.randomUUID();
+  const fContact = crypto.randomUUID(), fOther = crypto.randomUUID();
+  const sMain  = crypto.randomUUID(), sInfo    = crypto.randomUUID();
+  const sContact = crypto.randomUUID(), sOther = crypto.randomUUID();
+
+  const contactEmail = v(info.email) || null;
+  const emailLink    = contactEmail ? `[link=mailto:${contactEmail}]${contactEmail}[/link]` : null;
+  const mapsQuery    = encodeURIComponent(name + (v(info.address) ? ", " + info.address : ", Ireland"));
+  const mapsUrl      = `https://maps.google.com/?q=${mapsQuery}`;
+
+  const contactLines = [
+    emailLink       ? `📧 ${emailLink}` : null,
+    v(info.phone)   ? `📞 ${info.phone}` : null,
+    v(info.address) ? `📍 ${info.address}` : null,
+  ].filter(Boolean).join("\n") || "Please visit our website for contact details.";
+
+  const { error: fErr } = await supabase.from("chat_workflows").insert([
+    { id: fMain,    club_id: tenantId, name: "Main Menu",  is_active: true  },
+    { id: fInfo,    club_id: tenantId, name: "About Us",   is_active: false },
+    { id: fContact, club_id: tenantId, name: "Contact Us", is_active: false },
+    { id: fOther,   club_id: tenantId, name: "Other",      is_active: false },
+  ]);
+  if (fErr) { console.error("[generic-seed] Flow insert error:", fErr.message); return false; }
+
+  const { error: sErr } = await supabase.from("workflow_steps").insert([
+    { id: sMain,    workflow_id: fMain,    step_order: 1, bot_message: `Hi there! 👋 Welcome to ${name}. What can I help you with today?` },
+    { id: sInfo,    workflow_id: fInfo,    step_order: 1, bot_message: `Here's a bit about us:\n\n${v(info.description) || `Visit our website to learn more about ${name}.`}\n\n🌐 [link=${websiteUrl}]${websiteUrl.replace(/https?:\/\/(www\.)?/, "")}[/link]` },
+    { id: sContact, workflow_id: fContact, step_order: 1, bot_message: `Here's how to reach us:\n\n${contactLines}` },
+    { id: sOther,   workflow_id: fOther,   step_order: 1, bot_message: `No problem! How else can I help you?` },
+  ]);
+  if (sErr) { console.error("[generic-seed] Step insert error:", sErr.message); return false; }
+
+  const { error: cErr } = await supabase.from("workflow_choices").insert([
+    { step_id: sMain,    choice_order: 1, label: "💬 Ask a question",    action_type: "ai_fallback", action_value: null     },
+    { step_id: sMain,    choice_order: 2, label: "ℹ️ About us",          action_type: "switch_flow", action_value: fInfo    },
+    { step_id: sMain,    choice_order: 3, label: "📞 Contact us",        action_type: "switch_flow", action_value: fContact },
+    { step_id: sMain,    choice_order: 4, label: "🌐 Visit website",     action_type: "url",         action_value: websiteUrl },
+    { step_id: sMain,    choice_order: 5, label: "💬 Something else",    action_type: "switch_flow", action_value: fOther   },
+    { step_id: sInfo,    choice_order: 1, label: "📞 Contact us",        action_type: "switch_flow", action_value: fContact },
+    { step_id: sInfo,    choice_order: 2, label: "↩ Back to menu",       action_type: "switch_flow", action_value: fMain    },
+    { step_id: sContact, choice_order: 1, label: "📍 Get directions",    action_type: "url",         action_value: mapsUrl  },
+    { step_id: sContact, choice_order: 2, label: "↩ Back to menu",       action_type: "switch_flow", action_value: fMain    },
+    { step_id: sOther,   choice_order: 1, label: "💬 I have a question", action_type: "ai_fallback", action_value: null     },
+    { step_id: sOther,   choice_order: 2, label: "↩ Back to menu",       action_type: "switch_flow", action_value: fMain    },
+  ]);
+  if (cErr) { console.error("[generic-seed] Choice insert error:", cErr.message); return false; }
+
+  console.log(`[generic-seed] ✅ Seeded 4 generic flows for ${tenantId} (${name})`);
+  return true;
+}
+
 // ── Dispatcher: detect type, extract info, seed appropriate flows ─────────────
 async function seedFlowsForType(tenantId, name, websiteUrl, bizType, pages) {
   if (bizType === "tennis_club") {
@@ -1260,6 +1325,7 @@ async function seedFlowsForType(tenantId, name, websiteUrl, bizType, pages) {
     case "gaa_club":           return seedGAAClubFlows(tenantId, name, websiteUrl, info);
     case "team_sports_club":   return seedTeamSportsClubFlows(tenantId, name, websiteUrl, info);
     case "cafe":               return seedCafeFlows(tenantId, name, websiteUrl, info);
+    case "other":              return seedGenericFlows(tenantId, name, websiteUrl, info);
     default:
       console.log(`[seed] No template for business type '${bizType}' — skipping`);
       return false;

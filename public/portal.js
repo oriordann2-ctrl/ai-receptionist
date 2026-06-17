@@ -1343,10 +1343,15 @@
     }
 
     var pad = 24 * s;
+    var isLight = (_posterBg === "#ffffff" && !_posterBgImage);
+    var textMain  = isLight ? "#111827" : "#ffffff";
+    var textMuted = isLight ? "#6b7280" : "rgba(255,255,255,0.65)";
+    var overlayStrip = isLight ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.20)";
+    var overlayBottom = isLight ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.30)";
 
     // ── Top strip: logo + club name (compact) ──────────────────────────────
     var topH = 80 * s;
-    ctx.fillStyle = "rgba(0,0,0,0.20)";
+    ctx.fillStyle = overlayStrip;
     ctx.fillRect(0, 0, W, topH);
 
     // Logo left, club name centre — or just name centred if no logo
@@ -1368,11 +1373,11 @@
       // Club name centred in remaining space
       var nameX = logoX + lw + 8 * s + (W - logoX - lw - 8 * s - pad) / 2;
       ctx.textAlign = "center";
-      ctx.fillStyle = "white";
+      ctx.fillStyle = textMain;
       ctx.fillText(clubName, nameX, topH / 2 + nameFontSize * 0.35);
     } else {
       ctx.textAlign = "center";
-      ctx.fillStyle = "white";
+      ctx.fillStyle = textMain;
       ctx.fillText(clubName, W / 2, topH / 2 + nameFontSize * 0.35);
     }
 
@@ -1398,15 +1403,15 @@
 
     // ── Bottom strip: headline + URL ───────────────────────────────────────
     var bottomY = H - bottomH;
-    ctx.fillStyle = "rgba(0,0,0,0.30)";
+    ctx.fillStyle = overlayBottom;
     ctx.fillRect(0, bottomY, W, bottomH);
 
     ctx.textAlign = "center";
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = textMain;
     ctx.font = "bold " + Math.round(36 * s) + "px Arial, sans-serif";
     ctx.fillText("SCAN TO CHECK IN", W / 2, bottomY + 42 * s);
 
-    ctx.fillStyle = "rgba(255,255,255,0.65)";
+    ctx.fillStyle = textMuted;
     ctx.font = Math.round(15 * s) + "px Arial, sans-serif";
     var foundedYear = settings.founded_year;
     var footerText = foundedYear
@@ -1414,7 +1419,7 @@
       : checkinUrl;
     ctx.fillText(footerText, W / 2, bottomY + 68 * s);
 
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fillStyle = isLight ? "#9ca3af" : "rgba(255,255,255,0.35)";
     ctx.font = Math.round(11 * s) + "px Arial, sans-serif";
     ctx.fillText("Scan with your phone camera", W / 2, bottomY + 90 * s);
   }

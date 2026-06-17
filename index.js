@@ -18284,7 +18284,7 @@ app.get("/api/portal/checkins/supervisors", requireTenant, async (req, res) => {
 // GET /api/portal/checkins/dashboard — captain dashboard: today's check-ins vs EBO bookings
 app.get("/api/portal/checkins/dashboard", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(new Date());
   const todayStart = today + "T00:00:00.000Z";
   const todayEnd   = today + "T23:59:59.000Z";
 
@@ -18295,9 +18295,35 @@ app.get("/api/portal/checkins/dashboard", requireTenant, async (req, res) => {
 
   const cfg = EBO_CONFIG[tenantId];
   const slotMins = cfg?.slotMinutes || 60;
-  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
 
-  // Bookings in the current slot window
+  // Use Irish local time so slot boundaries match EBO booking times (which are also Irish local)
+  const irishHHMM = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+  const [nowH, nowM] = irishHHMM.split(":").map(Number);
+  const nowMins = nowH * 60 + nowM;
+
+  // Build court-specific and time-only check-in key sets (same logic as no-show report)
+  const checkedInCourtKeys = new Set();
+  const checkedInTimeKeys  = new Set();
+  for (const c of (checkins || [])) {
+    const t = String(c.booking_time || "").replace(" ", "T").slice(0, 16);
+    if (!t) continue;
+    if (c.booking_court_id) {
+      checkedInCourtKeys.add(t + "|" + String(c.booking_court_id));
+    } else {
+      checkedInTimeKeys.add(t);
+    }
+  }
+
+  const countMembers = (bs) => bs.reduce((n, b) =>
+    n + (b.bookedMembers || []).filter(m => m.membership_number && Number(m.membership_number) !== 1 && !m.colour).length, 0
+  );
+  const isCourtCovered = (b) => {
+    const slotKey = String(b.time || "").replace(" ", "T").slice(0, 16);
+    const courtId = b.court_id ? String(b.court_id) : null;
+    return (courtId && checkedInCourtKeys.has(slotKey + "|" + courtId)) || checkedInTimeKeys.has(slotKey);
+  };
+
+  // Current slot: bookings whose start time falls in the current hour window
   const currentBookings = bookings.filter(b => {
     const hhmm = String(b.time || "").slice(11, 16);
     if (!hhmm) return false;
@@ -18306,17 +18332,18 @@ app.get("/api/portal/checkins/dashboard", requireTenant, async (req, res) => {
     return nowMins >= slotStart && nowMins < slotStart + slotMins;
   });
 
-  // Check-ins in the current slot window
-  const slotStartTs = new Date(); slotStartTs.setMinutes(slotStartTs.getMinutes() - (nowMins % slotMins)); slotStartTs.setSeconds(0);
-  const currentCheckins = (checkins || []).filter(c => new Date(c.checked_in_at) >= slotStartTs);
+  const currentBookingMembers  = countMembers(currentBookings);
+  const currentCheckinMembers  = countMembers(currentBookings.filter(isCourtCovered));
+  const totalBookingMembers    = countMembers(bookings);
+  const totalCheckinMembers    = countMembers(bookings.filter(isCourtCovered));
 
   res.json({
     date: today,
-    total_checkins_today: (checkins || []).length,
-    total_bookings_today: bookings.length,
-    current_bookings: currentBookings.length,
-    current_checkins: currentCheckins.length,
-    no_show_risk: currentBookings.length > 0 && currentCheckins.length === 0
+    total_checkins_today: totalCheckinMembers,
+    total_bookings_today: totalBookingMembers,
+    current_bookings: currentBookingMembers,
+    current_checkins: currentCheckinMembers,
+    no_show_risk: currentBookingMembers > 0 && currentCheckinMembers === 0
   });
 });
 

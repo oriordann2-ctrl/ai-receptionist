@@ -6981,12 +6981,19 @@ async function startBackgroundCrawl({ tenantId, name, website, email, portalPass
 
       // ── Detect business type + auto-seed template flows ──────────────────
       try {
-        const allText = pages.map(p => p.text).join(" ").slice(0, 2000);
-        const { data: td } = await supabase.from("tenants").select("business_description").eq("id", tenantId).single();
-        const bizDesc = td?.business_description || "";
-        const bizType = await detectBusinessType(name, bizDesc, allText);
-        await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
-        console.log(`[crawl] Business type: ${bizType} for ${tenantId}`);
+        const { data: td } = await supabase.from("tenants").select("business_description, business_type").eq("id", tenantId).single();
+        const existingBizType = td?.business_type;
+        let bizType = existingBizType;
+        // Only re-detect if not already set — avoids overwriting a confirmed type on recrawl
+        if (!existingBizType || existingBizType === "other") {
+          const allText = pages.map(p => p.text).join(" ").slice(0, 2000);
+          const bizDesc = td?.business_description || "";
+          bizType = await detectBusinessType(name, bizDesc, allText);
+          await supabase.from("tenants").update({ business_type: bizType }).eq("id", tenantId);
+          console.log(`[crawl] Business type detected: ${bizType} for ${tenantId}`);
+        } else {
+          console.log(`[crawl] Business type: ${existingBizType} for ${tenantId} (retained — not re-detected)`);
+        }
 
         if (bizType !== "other") {
           setCrawlProgress(tenantId, 90, "Building your personalised chat flows…");

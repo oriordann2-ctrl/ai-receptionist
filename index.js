@@ -18439,7 +18439,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT} [${process.env.NODE_ENV || "dev"}]`);
   startEmailPolling();
-  scheduleMorningDigest();
+  if (process.env.MORNING_DIGEST_ENABLED === "true") scheduleMorningDigest();
 
   // Ensure public bucket exists for social/profile images (img tags need public URLs)
   try {

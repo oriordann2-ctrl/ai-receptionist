@@ -17735,6 +17735,8 @@ function showJuniorConfirm(supervisorName, supervisorContact, juniorNum, juniorN
     .catch(function() {});
 }
 
+var _supervisedJuniors = [];
+
 async function submitSupervisorCheckin(supervisorName, supervisorContact, juniorNum, juniorName, bookingTime, bookingCourtId) {
   var btn = document.getElementById('confirm-junior-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Checking in...'; }
@@ -17760,7 +17762,8 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
         if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
         return;
       }
-      showSuccess(juniorName);
+      _supervisedJuniors.push(juniorName);
+      showSupervisorSuccess(supervisorName, supervisorContact);
     } catch(e) {
       showMsg('Network error — please try again.', 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
@@ -17772,6 +17775,30 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
     function() { doSubmit(null, null); },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
+}
+
+function showSupervisorSuccess(supervisorName, supervisorContact) {
+  var time = new Date().toLocaleTimeString('en-IE', {hour:'2-digit', minute:'2-digit'});
+  var listHtml = _supervisedJuniors.map(function(n) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0fdf4;font-size:14px;color:#166534;">✅ ' + escHtml(n) + '</div>';
+  }).join('');
+  document.getElementById('card').innerHTML =
+    '<div class="success-icon">👶</div>' +
+    '<div class="success-title">Junior' + (_supervisedJuniors.length > 1 ? 's' : '') + ' Checked In</div>' +
+    '<div class="success-sub">' + clubInfo.club_name + ' · ' + time + '</div>' +
+    '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin:16px 0;">' +
+    '<div style="font-size:12px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Supervised by ' + escHtml(supervisorName) + '</div>' +
+    listHtml +
+    '</div>' +
+    '<button class="btn btn-primary" id="sup-add-another-btn">+ Supervise Another Junior</button>' +
+    '<button class="btn btn-secondary" id="sup-done-btn" style="margin-top:10px;">Done</button>';
+  document.getElementById('sup-add-another-btn').addEventListener('click', function() {
+    showJuniorSearch(supervisorName, supervisorContact);
+  });
+  document.getElementById('sup-done-btn').addEventListener('click', function() {
+    _supervisedJuniors = [];
+    showSuccess(supervisorName);
+  });
 }
 
 function updateClock() {

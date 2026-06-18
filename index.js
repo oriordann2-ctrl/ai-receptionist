@@ -17448,40 +17448,38 @@ function showPrivacyModal() {
       '<div style="font-size:13px;color:#374151;line-height:1.6;">' +
 
         '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Data Controller</p>' +
-        '<p style="margin-bottom:12px;">The club is the data controller responsible for your personal data collected through this check-in system. Sprimal (sprimal.com) acts as a data processor on behalf of the club.</p>' +
+        '<p style="margin-bottom:12px;">The club is the data controller for your personal data. Sprimal (sprimal.com) processes data on behalf of the club as a data processor.</p>' +
 
-        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">What we collect</p>' +
+        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">What is recorded at check-in</p>' +
+        '<p style="margin-bottom:8px;">Your name and membership number are already held by the club membership system. When you check in, the following attendance record is created:</p>' +
         '<ul style="padding-left:18px;margin-bottom:12px;">' +
-          '<li style="margin-bottom:6px;"><strong>Your name</strong> — to identify you at check-in</li>' +
-          '<li style="margin-bottom:6px;"><strong>Your GPS location</strong> — verified once to confirm you are at the club, then immediately discarded. Your coordinates are never stored.</li>' +
-          '<li style="margin-bottom:6px;"><strong>Check-in date and time</strong> — kept as part of the club attendance record</li>' +
-          '<li style="margin-bottom:6px;"><strong>Supervisor name and contact number</strong> — for junior check-ins only, to identify the responsible adult on site</li>' +
+          '<li style="margin-bottom:6px;"><strong>Your name and membership number</strong> — retrieved from the club membership system to link your attendance record</li>' +
+          '<li style="margin-bottom:6px;"><strong>Date, time, and court number</strong> — when and where you checked in</li>' +
+          '<li style="margin-bottom:6px;"><strong>GPS verification result</strong> — whether you were confirmed at the club (approximate distance only; your exact coordinates are never stored)</li>' +
+          '<li style="margin-bottom:6px;"><strong>Supervising adult name and contact number</strong> — for junior check-ins only</li>' +
         '</ul>' +
 
-        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Data sharing</p>' +
-        '<p style="margin-bottom:12px;">Your data is not sold or shared with third parties for marketing purposes. It may be shared with the club court booking system to validate your booking, and is stored securely on cloud infrastructure within the EU.</p>' +
-
         '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Legal basis</p>' +
-        '<p style="margin-bottom:12px;">Processing is based on <strong>legitimate interest</strong> under your club membership — to manage on-site attendance, validate court bookings, and meet the club duty of care obligations.</p>' +
+        '<p style="margin-bottom:12px;">Processing is based on <strong>legitimate interest</strong> — to manage on-site attendance, validate court bookings, and fulfil the club duty of care obligations under your membership agreement.</p>' +
 
-        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Retention</p>' +
-        '<p style="margin-bottom:12px;">Check-in records are retained for <strong>12 months</strong> and are accessible only to authorised club administrators.</p>' +
+        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Storage and sharing</p>' +
+        '<p style="margin-bottom:12px;">Attendance records are stored securely on EU-based cloud infrastructure, accessible only to authorised club administrators, and are not shared with or sold to third parties. Records are retained for <strong>12 months</strong> and then deleted.</p>' +
 
         '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Right to object</p>' +
-        '<p style="margin-bottom:12px;">You have the right to object to this processing at any time. If you object, the club may be unable to record your attendance or permit access to club facilities. To object, contact the club directly.</p>' +
+        '<p style="margin-bottom:12px;">You may object to this processing at any time by contacting the club. If you object, the club may be unable to record your attendance or grant access to club facilities.</p>' +
 
-        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Your other rights</p>' +
-        '<p style="margin-bottom:6px;">Under GDPR you also have the right to:</p>' +
+        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Your rights</p>' +
+        '<p style="margin-bottom:6px;">Under data protection law you have the right to:</p>' +
         '<ul style="padding-left:18px;margin-bottom:12px;">' +
-          '<li style="margin-bottom:4px;"><strong>Access</strong> — request a copy of your personal data</li>' +
+          '<li style="margin-bottom:4px;"><strong>Access</strong> — obtain a copy of your personal data</li>' +
           '<li style="margin-bottom:4px;"><strong>Rectification</strong> — have inaccurate data corrected</li>' +
-          '<li style="margin-bottom:4px;"><strong>Erasure</strong> — request deletion of your data</li>' +
-          '<li style="margin-bottom:4px;"><strong>Restriction</strong> — request that processing is limited</li>' +
-          '<li style="margin-bottom:4px;"><strong>Portability</strong> — receive your data in a portable format</li>' +
+          '<li style="margin-bottom:4px;"><strong>Erasure</strong> — request deletion of your attendance records</li>' +
+          '<li style="margin-bottom:4px;"><strong>Restriction</strong> — limit how your data is processed</li>' +
+          '<li style="margin-bottom:4px;"><strong>Portability</strong> — receive your data in a machine-readable format</li>' +
         '</ul>' +
         '<p style="margin-bottom:12px;">To exercise any of these rights, contact the club directly.</p>' +
 
-        '<p style="font-size:12px;color:#6b7280;">You have the right to lodge a complaint with your national data protection authority if you believe your data has been handled unlawfully.</p>' +
+        '<p style="font-size:12px;color:#6b7280;">You also have the right to lodge a complaint with your national data protection authority if you believe your personal data has been handled unlawfully.</p>' +
       '</div>' +
     '</div>';
   document.body.appendChild(overlay);

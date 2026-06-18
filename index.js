@@ -17802,7 +17802,10 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
 
   navigator.geolocation.getCurrentPosition(
     function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude); },
-    function() { doSubmit(null, null); },
+    function() {
+      showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
+    },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
 }
@@ -18007,22 +18010,9 @@ async function submitCheckin(membershipNumber, memberName) {
       resetCheckinBtn();
     }
   }, function() {
-    submitCheckinNoGps(membershipNumber, memberName);
-  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
-}
-
-async function submitCheckinNoGps(membershipNumber, memberName) {
-  try {
-    var body = { tenant_id: TENANT_ID, membership_number: membershipNumber, member_name: memberName, gps_lat: null, gps_lng: null };
-    if (currentBooking) { body.booking_time = currentBooking.time; body.booking_court_id = String(currentBooking.court_id); }
-    var cr = await fetch('/api/checkin/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    var cd = await cr.json();
-    if (!cr.ok) { showMsg(cd.error || 'Check-in failed.', 'error'); resetCheckinBtn(); return; }
-    showSuccess(memberName);
-  } catch(e) {
-    showMsg('Network error — please try again.', 'error');
+    showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error');
     resetCheckinBtn();
-  }
+  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
 }
 
 init();
@@ -18342,7 +18332,12 @@ app.post("/api/checkin/submit", async (req, res) => {
       }
     }
 
-    // GPS validation — if tenant has GPS set and member provided location, check distance
+    // GPS is mandatory — reject if client didn't provide coordinates
+    if (!gps_lat || !gps_lng) {
+      return res.status(403).json({ error: "Location access is required to check in. Please enable location in your phone settings and try again." });
+    }
+
+    // GPS validation — if tenant has GPS set, check distance
     let gps_verified = false;
     let gps_distance_meters = null;
     if (gps_lat && gps_lng) {

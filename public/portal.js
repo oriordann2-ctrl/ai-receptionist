@@ -1220,6 +1220,8 @@
         card.style.display = "block";
         var noshowCard = document.getElementById("noshowCard");
         if (noshowCard) noshowCard.style.display = "block";
+        var captainDashboardCard = document.getElementById("captainDashboardCard");
+        if (captainDashboardCard) captainDashboardCard.style.display = "block";
 
         // Rename Analytics → Club Check-In for tennis clubs
         if (navIcon) navIcon.textContent = "🎾";
@@ -1281,7 +1283,7 @@
         var color = d.no_show_risk ? "#fee2e2" : d.current_checkins > 0 ? "#dcfce7" : "#f9fafb";
         var border = d.no_show_risk ? "#fca5a5" : d.current_checkins > 0 ? "#86efac" : "#e5e7eb";
         var icon = d.no_show_risk ? "🔴" : d.current_checkins > 0 ? "🟢" : "⚪";
-        var label = d.no_show_risk ? "No-shows this slot" : d.current_checkins > 0 ? "Members checked in" : "No bookings this slot";
+        var label = d.no_show_risk ? "No-shows this time slot" : d.current_checkins > 0 ? "Members checked in" : "No bookings this slot";
         el.innerHTML = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px;">'
           + '<div style="background:' + color + ';border:1.5px solid ' + border + ';border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:12px;">'
           + '<div style="font-size:28px;">' + icon + '</div>'

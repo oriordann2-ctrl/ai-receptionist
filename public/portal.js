@@ -1688,9 +1688,7 @@
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.ok) {
-        window.hideManualCheckin();
-        renderCheckinLog();
-        renderCaptainDashboard();
+        window.location.reload();
       } else {
         if (btn) { btn.disabled = false; btn.textContent = "Check In"; }
         showModalMsg(d.error || "Failed to check in.", "#ef4444");

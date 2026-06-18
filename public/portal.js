@@ -1266,11 +1266,7 @@
 
         // Auto-refresh every 30 seconds so new check-ins appear without a manual reload
         if (window._checkinRefreshInterval) clearInterval(window._checkinRefreshInterval);
-        window._checkinRefreshInterval = setInterval(function() {
-          renderCaptainDashboard();
-          renderCheckinLog();
-          window.loadSupervisors();
-        }, 30 * 1000);
+        window._checkinRefreshInterval = setInterval(refreshCheckinData, 30 * 1000);
       });
   }
 
@@ -1690,7 +1686,8 @@
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.ok) {
-        window.location.reload();
+        window.hideManualCheckin();
+        refreshCheckinData();
       } else {
         if (btn) { btn.disabled = false; btn.textContent = "Check In"; }
         showModalMsg(d.error || "Failed to check in.", "#ef4444");
@@ -1708,8 +1705,7 @@
       .then(function(r) { return r.json(); })
       .then(function(res) {
         if (res.ok) {
-          var row = document.getElementById("checkin-row-" + id);
-          if (row) row.remove();
+          refreshCheckinData();
         } else {
           alert("Failed to delete: " + (res.error || "unknown error"));
         }
@@ -1717,11 +1713,21 @@
       .catch(function() { alert("Network error — could not delete check-in."); });
   };
 
+  window._noshowPeriod = "day";
+
   window.setNoshowPeriod = function(period, btn) {
+    window._noshowPeriod = period;
     document.querySelectorAll(".noshow-period-btn").forEach(function(b) { b.classList.remove("active"); });
     btn.classList.add("active");
     loadNoshowReport(period);
   };
+
+  function refreshCheckinData() {
+    renderCaptainDashboard();
+    renderCheckinLog();
+    window.loadSupervisors();
+    loadNoshowReport(window._noshowPeriod || "day");
+  }
 
   function loadNoshowReport(period) {
     var metrics = document.getElementById("noshow-metrics");

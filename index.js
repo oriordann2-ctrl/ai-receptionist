@@ -3364,7 +3364,9 @@ function addChatLog(entry) {
       message:         entry.message,
       answer_source:   entry.answerSource   || null,  // "kb", "approved", "workflow", "generic", "ebo"
       created_at:      entry.timestamp      || new Date()
-    }).then(() => {}).catch(() => {}); // fire-and-forget — never block the chat response
+    }).then(() => {
+      chatUsageCache.delete(entry.tenantId); // bust cache so portal shows updated count immediately
+    }).catch(() => {}); // fire-and-forget — never block the chat response
   }
 }
 
@@ -8279,7 +8281,7 @@ app.get("/chat/:tenantId", async (req, res) => {
 // ── Chat monthly limit helpers ────────────────────────────────────────────────
 const chatUsageCache = new Map(); // tenantId → { count, month, ts }
 const warned80pct    = new Set(); // `${tenantId}-YYYY-MM` — prevents repeat warning emails per month
-const CHAT_CACHE_TTL = 5 * 60 * 1000; // 5-minute cache
+const CHAT_CACHE_TTL = 60 * 1000; // 1-minute cache
 
 // Per-IP per-tenant conversation start tracking (anti-abuse)
 // Keyed by `${ip}-${tenantId}-YYYY-MM-DD-HH` → Set of conversation IDs seen this hour
@@ -8342,7 +8344,7 @@ async function getChatUsageThisMonth(tenantId) {
     .select("conversation_id")
     .eq("tenant_id", tenantId)
     .eq("sender", "user")
-    .gte("timestamp", start)
+    .gte("created_at", start)
     .not("conversation_id", "is", null);
   const count = new Set((data || []).map(r => r.conversation_id)).size;
   chatUsageCache.set(tenantId, { count, month, ts: Date.now() });

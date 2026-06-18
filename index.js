@@ -3366,7 +3366,9 @@ function addChatLog(entry) {
       created_at:      entry.timestamp      || new Date()
     }).then(() => {
       chatUsageCache.delete(entry.tenantId); // bust cache so portal shows updated count immediately
-    }).catch(() => {}); // fire-and-forget — never block the chat response
+    }).catch(err => {
+      console.error("[chat_logs] Supabase insert failed:", err?.message || err, "| tenant:", entry.tenantId, "| sender:", entry.sender);
+    });
   }
 }
 

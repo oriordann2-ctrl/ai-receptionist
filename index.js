@@ -17708,7 +17708,7 @@ async function validateBookingThenCheckin(membershipNumber, memberName) {
     var r = await fetch('/api/checkin/validate-booking/' + TENANT_ID + '/' + membershipNumber);
     var d = await r.json();
     if (d.ebo_error) { currentBooking = null; submitCheckin(membershipNumber, memberName); return; }
-    if (d.already_checked_in) { showAlreadyCheckedIn(memberName, d.valid_booking); return; }
+    if (d.already_checked_in) { showAlreadyCheckedIn(memberName, d.valid_booking, d.credited_by_party, d.party_member_name); return; }
     if (!d.valid_booking) { showNoBooking(membershipNumber, memberName, d.message); return; }
     currentBooking = d.valid_booking;
     showBookingConfirm(membershipNumber, memberName, d.valid_booking);
@@ -17735,10 +17735,19 @@ function showBookingConfirm(membershipNumber, memberName, booking) {
   });
 }
 
-function showAlreadyCheckedIn(memberName, booking) {
-  document.getElementById('card').innerHTML = header() +
-    '<div class="status status-error" style="margin-top:16px;">You&#39;ve already checked in for Court ' + booking.court_id + ' at ' + booking.display_time + '.</div>' +
-    '<div class="welcome-sub" style="margin-top:12px;text-align:center;">See you on the court, ' + memberName.split(' ')[0] + '!</div>';
+function showAlreadyCheckedIn(memberName, booking, creditedByParty, partyMemberName) {
+  if (creditedByParty) {
+    var partnerFirst = partyMemberName ? escHtml(partyMemberName.split(' ')[0]) : 'Your court-mate';
+    document.getElementById('card').innerHTML = header() +
+      '<div class="success-icon">✅</div>' +
+      '<div class="success-title">You\'re Checked In</div>' +
+      '<div class="welcome-sub" style="margin-top:8px;text-align:center;">' + partnerFirst + ' already checked in for your court — you\'re all set!</div>' +
+      '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin:16px 0;font-size:14px;color:#166534;text-align:center;">Court ' + escHtml(String(booking.court_id || '')) + ' · ' + escHtml(booking.display_time || '') + '</div>';
+  } else {
+    document.getElementById('card').innerHTML = header() +
+      '<div class="status status-error" style="margin-top:16px;">You&#39;ve already checked in for Court ' + escHtml(String(booking.court_id || '')) + ' at ' + escHtml(booking.display_time || '') + '.</div>' +
+      '<div class="welcome-sub" style="margin-top:12px;text-align:center;">See you on the court, ' + escHtml(memberName.split(' ')[0]) + '!</div>';
+  }
 }
 
 function showNoBooking(membershipNumber, memberName, message) {
@@ -18487,6 +18496,22 @@ app.get("/api/checkin/validate-booking/:tenantId/:membershipNumber", async (req,
       .eq("booking_time", validBooking.time).maybeSingle();
 
     if (existing) return res.json({ valid_booking: booking, already_checked_in: true, member_name: memberName, message: `Already checked in for Court ${existing.booking_court_id || validBooking.court_id} at ${displayTime}.` });
+
+    // Check if a court-mate's non-supervised check-in has already credited this booking party.
+    // Supervised check-ins are member-specific and don't trigger party credit.
+    if (validBooking.court_id) {
+      const { data: courtMate } = await supabase.from("court_checkins")
+        .select("member_name")
+        .eq("tenant_id", tenantId)
+        .eq("booking_time", validBooking.time)
+        .eq("booking_court_id", String(validBooking.court_id))
+        .is("supervisor_name", null)
+        .neq("membership_number", memberNum)
+        .maybeSingle();
+      if (courtMate) {
+        return res.json({ valid_booking: booking, already_checked_in: true, credited_by_party: true, party_member_name: courtMate.member_name, member_name: memberName, message: null });
+      }
+    }
 
     return res.json({ valid_booking: booking, already_checked_in: false, member_name: memberName, message: null });
   } catch(err) {

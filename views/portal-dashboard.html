@@ -2604,6 +2604,7 @@
     window.unanswSaveAnswer = function(rowIdx) {
       var row = document.getElementById("unanswAnswerRow-" + rowIdx);
       if (!row) return;
+      if (row.getAttribute("data-saving") === "1") return;
       var question = row.getAttribute("data-q");
       var key = row.getAttribute("data-key");
       var ta = document.getElementById("unanswAnswerTa-" + rowIdx);
@@ -2611,6 +2612,7 @@
       if (!ta || !question) return;
       var answer = ta.value.trim();
       if (!answer) { if (st) { st.style.color = "#b91c1c"; st.textContent = "Please enter an answer before saving."; } return; }
+      row.setAttribute("data-saving", "1");
       if (st) { st.style.color = "#7c3aed"; st.textContent = "Saving…"; }
       fetch("/api/portal/approved-answers", {
         method: "POST",
@@ -2634,6 +2636,7 @@
           if (typeof reloadApprovedAnswers === "function") reloadApprovedAnswers();
         })
         .catch(function(err) {
+          row.removeAttribute("data-saving");
           if (st) { st.style.color = "#b91c1c"; st.textContent = "Save failed: " + (err && err.message ? err.message : "unknown error"); }
         });
     };

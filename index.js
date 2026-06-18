@@ -17430,10 +17430,10 @@ let currentBooking = null;
 const PRIVACY_KEY = 'sprimal_privacy_' + TENANT_ID;
 
 function hasSeenPrivacyNotice() {
-  try { return !!localStorage.getItem(PRIVACY_KEY); } catch { return false; }
+  try { return !!localStorage.getItem(PRIVACY_KEY); } catch(e) { return false; }
 }
 function markPrivacyNoticeSeen() {
-  try { localStorage.setItem(PRIVACY_KEY, '1'); } catch {}
+  try { localStorage.setItem(PRIVACY_KEY, '1'); } catch(e) {}
 }
 
 function showPrivacyNotice(onContinue) {
@@ -17497,11 +17497,11 @@ async function init() {
 }
 
 function getSavedMember() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch(e) { return null; }
 }
 
 function saveMember(data) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {}
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e) {}
 }
 
 function escHtml(s) {

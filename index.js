@@ -12480,13 +12480,22 @@ app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
   try {
     const tenantId = req.tenant.tenantId;
     const since = new Date(); since.setDate(since.getDate() - 30);
-    const { data: logs, error } = await supabase
-      .from("chat_logs")
-      .select("id, conversation_id, sender, message, answer_source, created_at")
-      .eq("tenant_id", tenantId)
-      .gte("created_at", since.toISOString())
-      .order("created_at", { ascending: true });
+
+    const [{ data: logs, error }, { data: dismissed }] = await Promise.all([
+      supabase
+        .from("chat_logs")
+        .select("id, conversation_id, sender, message, answer_source, created_at")
+        .eq("tenant_id", tenantId)
+        .gte("created_at", since.toISOString())
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("dismissed_questions")
+        .select("question_key")
+        .eq("tenant_id", tenantId),
+    ]);
     if (error) throw error;
+
+    const dismissedKeys = new Set((dismissed || []).map(d => d.question_key));
 
     // Pair each generic bot response with the preceding customer message
     const rows = logs || [];
@@ -12497,6 +12506,7 @@ app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
           .find(r => r.conversation_id === row.conversation_id && r.sender === "customer");
         if (preceding?.message) {
           const key = preceding.message.trim().toLowerCase();
+          if (dismissedKeys.has(key)) return;
           if (!questionMap[key]) {
             questionMap[key] = { question: preceding.message.trim(), count: 0, last_asked: preceding.created_at };
           }
@@ -12513,6 +12523,22 @@ app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
   } catch (err) {
     console.error("[unanswered-questions]", err.message);
     res.status(500).json({ error: "Failed to fetch unanswered questions." });
+  }
+});
+
+// POST /api/portal/unanswered-questions/dismiss — mark questions as answered
+app.post("/api/portal/unanswered-questions/dismiss", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const { keys } = req.body || {};
+    if (!Array.isArray(keys) || !keys.length) return res.status(400).json({ error: "keys required" });
+    const rows = keys.map(k => ({ tenant_id: tenantId, question_key: String(k).trim().toLowerCase() }));
+    const { error } = await supabase.from("dismissed_questions").upsert(rows, { onConflict: "tenant_id,question_key" });
+    if (error) throw error;
+    res.json({ ok: true, dismissed: rows.length });
+  } catch (err) {
+    console.error("[dismiss-questions]", err.message);
+    res.status(500).json({ error: "Failed to dismiss questions." });
   }
 });
 

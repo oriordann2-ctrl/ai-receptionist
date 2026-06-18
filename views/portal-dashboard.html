@@ -1921,6 +1921,12 @@
     <p class="view-sub">Manage your subscription and configure AI Receptionist features.</p>
   </div>
 
+  <!-- ── Chat Usage ── -->
+  <div class="card" id="chatUsageCard" style="display:none;">
+    <div class="card-title" style="margin-bottom:12px;">💬 Chat Usage This Month</div>
+    <div id="chatUsageMeter"></div>
+  </div>
+
   <div class="card" id="billingCard">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
       <div>
@@ -1929,12 +1935,6 @@
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;" id="billingActions"></div>
     </div>
-  </div>
-
-  <!-- ── Chat Usage ── -->
-  <div class="card" id="chatUsageCard" style="display:none;">
-    <div class="card-title" style="margin-bottom:12px;">💬 Chat Usage This Month</div>
-    <div id="chatUsageMeter"></div>
   </div>
 
   <!-- ── Section: Settings ── -->
@@ -2338,20 +2338,46 @@
       return new Date(ts).toLocaleString("en-IE", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
     }
 
+    var _unanswSelected = new Set();
+
+    function updateDismissBar() {
+      var bar = document.getElementById("unanswDismissBar");
+      if (!bar) return;
+      var n = _unanswSelected.size;
+      if (n === 0) {
+        bar.style.display = "none";
+      } else {
+        bar.style.display = "flex";
+        var btn = document.getElementById("unanswDismissBtn");
+        if (btn) btn.textContent = "Mark " + n + " as Answered ✓";
+      }
+    }
+
     function renderUnansw() {
       var start      = _unanswPage * UNANSW_PAGE_SIZE;
       var pageItems  = _unanswData.slice(start, start + UNANSW_PAGE_SIZE);
       var totalPages = Math.ceil(_unanswData.length / UNANSW_PAGE_SIZE);
-      var html = '<p style="font-size:13px;color:#6b7280;margin-bottom:14px;">Add answers to these questions to your knowledge base so the chat can handle them automatically next time.</p>'
+      var allPageKeys = pageItems.map(function(q) { return q.question.trim().toLowerCase(); });
+      var allChecked  = allPageKeys.length > 0 && allPageKeys.every(function(k) { return _unanswSelected.has(k); });
+
+      var html = '<p style="font-size:13px;color:#6b7280;margin-bottom:14px;">Add answers to these questions to your knowledge base so the chat can handle them automatically next time. Select questions you\'ve already addressed to hide them.</p>'
+        + '<div id="unanswDismissBar" style="display:none;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">'
+        + '<button id="unanswDismissBtn" onclick="unanswDismiss()" style="padding:5px 14px;border-radius:7px;border:none;background:#16a34a;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Mark as Answered ✓</button>'
+        + '<span style="font-size:12px;color:#166534;">These will be hidden from the list going forward.</span>'
+        + '</div>'
         + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
         + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
+        + '<th style="padding:6px 10px;width:32px;"><input type="checkbox" id="unanswSelectAll" title="Select all on this page" ' + (allChecked ? 'checked' : '') + ' onchange="unanswToggleAll(this.checked)"></th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Asked</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Last seen</th>'
         + '</tr></thead><tbody>';
       pageItems.forEach(function (q, i) {
-        var bg = i % 2 === 0 ? "#fff" : "#f9fafb";
+        var bg  = i % 2 === 0 ? "#fff" : "#f9fafb";
+        var key = q.question.trim().toLowerCase();
+        var chk = _unanswSelected.has(key) ? 'checked' : '';
         html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;">'
+          + '<td style="padding:8px 10px;"><input type="checkbox" data-key="' + esc(key) + '" ' + chk + ' onchange="unanswToggleOne(this)"></td>'
           + '<td style="padding:8px 10px;color:#111827;font-weight:500;">' + esc(q.question) + '</td>'
           + '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap;">' + (q.count > 1 ? q.count + '×' : '1×') + '</td>'
           + '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap;">' + esc(fmtDate(q.last_asked)) + '</td>'
@@ -2367,7 +2393,57 @@
           + '</div>';
       }
       container.innerHTML = html;
+      updateDismissBar();
     }
+
+    window.unanswToggleOne = function(cb) {
+      var key = cb.getAttribute("data-key");
+      if (cb.checked) _unanswSelected.add(key); else _unanswSelected.delete(key);
+      updateDismissBar();
+      var allOnPage = Array.from(container.querySelectorAll("tbody input[type=checkbox]"));
+      var selectAll = document.getElementById("unanswSelectAll");
+      if (selectAll) selectAll.checked = allOnPage.length > 0 && allOnPage.every(function(c) { return c.checked; });
+    };
+
+    window.unanswToggleAll = function(checked) {
+      var allOnPage = Array.from(container.querySelectorAll("tbody input[type=checkbox]"));
+      allOnPage.forEach(function(cb) {
+        cb.checked = checked;
+        var key = cb.getAttribute("data-key");
+        if (checked) _unanswSelected.add(key); else _unanswSelected.delete(key);
+      });
+      updateDismissBar();
+    };
+
+    window.unanswDismiss = function() {
+      var keys = Array.from(_unanswSelected);
+      if (!keys.length) return;
+      var btn = document.getElementById("unanswDismissBtn");
+      if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+      fetch("/api/portal/unanswered-questions/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keys: keys })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d.ok) throw new Error(d.error || "Failed");
+          _unanswData = _unanswData.filter(function(q) {
+            return !_unanswSelected.has(q.question.trim().toLowerCase());
+          });
+          _unanswSelected.clear();
+          _unanswPage = Math.min(_unanswPage, Math.max(0, Math.ceil(_unanswData.length / UNANSW_PAGE_SIZE) - 1));
+          if (!_unanswData.length) {
+            container.innerHTML = '<div style="text-align:center;padding:32px 0;font-size:14px;color:#9ca3af;">All questions marked as answered — great work!</div>';
+          } else {
+            renderUnansw();
+          }
+        })
+        .catch(function() {
+          alert("Failed to save — please try again.");
+          if (btn) { btn.disabled = false; btn.textContent = "Mark " + keys.length + " as Answered ✓"; }
+        });
+    };
 
     window.unanswPrev = function() { if (_unanswPage > 0) { _unanswPage--; renderUnansw(); } };
     window.unanswNext = function() { if ((_unanswPage + 1) * UNANSW_PAGE_SIZE < _unanswData.length) { _unanswPage++; renderUnansw(); } };

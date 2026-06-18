@@ -20,6 +20,24 @@
     loadCourts();
     loadDocuments();
     loadChatUsage();
+    reorderKnowledgeSection();
+  }
+
+  function reorderKnowledgeSection() {
+    var view = document.querySelector('[data-view="knowledge"]');
+    if (!view) return;
+    var kbLabel = null;
+    view.querySelectorAll('.section-group-label').forEach(function(l) {
+      if (l.textContent.includes('Knowledge')) kbLabel = l;
+    });
+    if (!kbLabel) return;
+    var viewHeader = view.querySelector('.view-header');
+    if (!viewHeader) return;
+    var ref = viewHeader.nextElementSibling;
+    var toMove = [];
+    var el = kbLabel;
+    while (el) { toMove.push(el); el = el.nextElementSibling; }
+    toMove.forEach(function(e) { view.insertBefore(e, ref); });
   }
 
   // ── Polling (for new signups while crawl runs) ────────────────────────────

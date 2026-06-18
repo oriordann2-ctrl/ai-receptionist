@@ -17456,7 +17456,9 @@ function showPrivacyModal() {
           '<li style="margin-bottom:6px;"><strong>Your name and membership number</strong> — retrieved from the club membership system to link your attendance record</li>' +
           '<li style="margin-bottom:6px;"><strong>Date, time, and court number</strong> — when and where you checked in</li>' +
           '<li style="margin-bottom:6px;"><strong>GPS verification result</strong> — whether you were confirmed at the club (approximate distance only; your exact coordinates are never stored)</li>' +
-          '<li style="margin-bottom:6px;"><strong>Supervising adult name and contact number</strong> — for junior check-ins only</li>' +
+          '<li style="margin-bottom:6px;"><strong>Supervising adult name and contact number</strong> — for junior check-ins only, to identify the responsible adult on site</li>' +
+          '<li style="margin-bottom:6px;"><strong>Identity of the person who performed the check-in</strong> — if a club administrator or delegate checked you in on your behalf, their membership number is recorded alongside yours</li>' +
+          '<li style="margin-bottom:6px;"><strong>Administrator notes</strong> — if a club administrator records a manual check-in on your behalf, a reason or note may be added to your attendance record</li>' +
         '</ul>' +
 
         '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Legal basis</p>' +

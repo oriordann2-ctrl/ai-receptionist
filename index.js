@@ -17448,7 +17448,7 @@ function showPrivacyModal() {
       '<div style="font-size:13px;color:#374151;line-height:1.6;">' +
 
         '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Data Controller</p>' +
-        '<p style="margin-bottom:12px;">' + (clubInfo.club_name || 'The Club') + ' is the data controller responsible for your personal data. Sprimal (sprimal.com) acts as a data processor on behalf of the club.</p>' +
+        '<p style="margin-bottom:12px;">The club is the data controller responsible for your personal data collected through this check-in system. Sprimal (sprimal.com) acts as a data processor on behalf of the club.</p>' +
 
         '<p style="margin-bottom:6px;font-weight:600;color:#111827;">What we collect</p>' +
         '<ul style="padding-left:18px;margin-bottom:12px;">' +

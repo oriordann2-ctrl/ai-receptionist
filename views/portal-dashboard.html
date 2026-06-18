@@ -2124,17 +2124,6 @@
 
       document.title = 'Sprimal — ' + (TITLES[hash] || 'Portal');
       initView(hash);
-
-      // Android fixed-position repaint fix: after initView opens <details> and
-      // causes a large layout reflow, the fixed tab bar can vanish. Force a
-      // repaint by briefly hiding it then restoring — getBoundingClientRect()
-      // triggers a synchronous layout flush so the bar redraws in the right place.
-      var _bar = document.querySelector('.bottom-tab-bar');
-      if (_bar) {
-        _bar.style.visibility = 'hidden';
-        _bar.getBoundingClientRect();
-        _bar.style.visibility = '';
-      }
     }
 
     function initView(view) {
@@ -2149,6 +2138,16 @@
 
     window.addEventListener('hashchange', route);
     route();
+
+    // Pre-open all <details> in every view while they are still hidden.
+    // This prevents the large layout reflow that happens when initView() opens
+    // them on first navigation — that reflow was causing Android's position:fixed
+    // tab bar to repaint to the wrong position and disappear.
+    VIEWS.forEach(function(v) {
+      _inited[v] = true;
+      var section = document.querySelector('[data-view="' + v + '"]');
+      if (section) section.querySelectorAll('details').forEach(function(d) { d.open = true; });
+    });
 
     // Sidebar collapse toggle (desktop only)
     var sidebar = document.getElementById('sidebar');

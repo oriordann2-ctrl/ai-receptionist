@@ -612,6 +612,16 @@
       + '<span id="assistantNameStatus" style="font-size:13px;color:#6b7280;"></span>'
       + '</div>'
       + '</div>'
+      // Contact Phone Number
+      + '<div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
+      + '<div class="toggle-label" style="margin-bottom:4px;">Contact Phone Number</div>'
+      + '<div class="toggle-sub" style="margin-bottom:10px;">Shown to visitors when the assistant can\'t answer a question. Leave blank to hide it.</div>'
+      + '<input id="phoneInput" type="tel" placeholder="e.g. 021 4115300" value="' + (d.phone || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
+      + '<button onclick="savePhone()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save number</button>'
+      + '<span id="phoneStatus" style="font-size:13px;color:#6b7280;"></span>'
+      + '</div>'
+      + '</div>'
       // Year Founded — sports clubs only
       + (['tennis_club','gaa_club','team_sports_club','racket_sports_club','golf_club','swim_club'].includes(d.business_type) ? (
           '<div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
@@ -920,6 +930,25 @@
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ assistant_name: val })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success) throw new Error(d.error || "save failed");
+      if (status) { status.textContent = "Saved ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
+    })
+    .catch(function(err) {
+      if (status) status.textContent = "Error: " + err.message;
+    });
+  };
+
+  window.savePhone = function() {
+    var val    = ((document.getElementById("phoneInput") || {}).value || "").trim();
+    var status = document.getElementById("phoneStatus");
+    if (status) status.textContent = "Saving…";
+    fetch("/api/portal/settings", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ phone: val || null })
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {

@@ -17740,7 +17740,7 @@ function showAlreadyCheckedIn(memberName, booking, creditedByParty, partyMemberN
     var partnerFirst = partyMemberName ? escHtml(partyMemberName.split(' ')[0]) : 'Your court-mate';
     document.getElementById('card').innerHTML = header() +
       '<div class="success-icon">✅</div>' +
-      '<div class="success-title">You\'re Checked In</div>' +
+      '<div class="success-title">You&#39;re Checked In</div>' +
       '<div class="welcome-sub" style="margin-top:8px;text-align:center;">' + partnerFirst + ' already checked in for your court — you\'re all set!</div>' +
       '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin:16px 0;font-size:14px;color:#166534;text-align:center;">Court ' + escHtml(String(booking.court_id || '')) + ' · ' + escHtml(booking.display_time || '') + '</div>';
   } else {

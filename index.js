@@ -13571,7 +13571,7 @@ Use plain numbers where possible.
 
           const kbReply = stripHtml(completion.choices[0].message.content);
           // Only treat as "unsure" if we don't have live EBO data driving the answer
-          const kbUnsure = !eboContext && /i do not know|don't know|don't have that|not in the|no information|cannot find|not sure|unable to find|no details/i.test(kbReply);
+          const kbUnsure = !eboContext && /i do not know|don't know|don't have that|not in the|no information|cannot find|not sure|unable to find|no details|only able to help|only here to help|can only help/i.test(kbReply);
 
           if (!kbUnsure) {
             result.reply = kbReply;

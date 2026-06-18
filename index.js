@@ -17497,6 +17497,10 @@ function showWelcomeBack() {
   var assistantName = clubInfo.assistant_name || 'Maeve';
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
+    '<div style="display:flex;align-items:flex-start;gap:8px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-bottom:4px;text-align:left;">' +
+      '<span style="font-size:16px;line-height:1.3;">📍</span>' +
+      '<span style="font-size:13px;color:#0369a1;line-height:1.4;">We\'ll ask for your location when you check in — just to confirm you\'re at the club. We don\'t store or track it beyond that.</span>' +
+    '</div>' +
     '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
     '<button class="btn btn-secondary" id="wb-supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:12px;text-decoration:none;color:#5b21b6;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
@@ -17572,6 +17576,10 @@ function showForm() {
   document.getElementById('card').innerHTML = header() +
     '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Check In to Play</button>' +
     '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' +
+    '<div style="display:flex;align-items:flex-start;gap:8px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-top:14px;text-align:left;">' +
+      '<span style="font-size:16px;line-height:1.3;">📍</span>' +
+      '<span style="font-size:13px;color:#0369a1;line-height:1.4;">We\'ll ask for your location when you check in — just to confirm you\'re at the club. We don\'t store or track it beyond that.</span>' +
+    '</div>' +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:12px;text-decoration:none;color:#5b21b6;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';

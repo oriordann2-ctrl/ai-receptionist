@@ -17446,15 +17446,36 @@ function showPrivacyModal() {
         '<button id="privacy-modal-close" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;padding:0;line-height:1;">&#x2715;</button>' +
       '</div>' +
       '<div style="font-size:13px;color:#374151;line-height:1.6;">' +
-        '<p style="margin-bottom:10px;">When you check in, we collect:</p>' +
+
+        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Data Controller</p>' +
+        '<p style="margin-bottom:12px;">' + (clubInfo.club_name || 'The Club') + ' is the data controller responsible for your personal data collected through this check-in system. Sprimal acts as a data processor on behalf of the club.</p>' +
+
+        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">What we collect</p>' +
         '<ul style="padding-left:18px;margin-bottom:12px;">' +
-          '<li style="margin-bottom:6px;"><strong>Your name &amp; membership number</strong> — to record your check-in</li>' +
-          '<li style="margin-bottom:6px;"><strong>Your GPS location</strong> — verified once to confirm you are at the club, then discarded. We do not store your coordinates or track your movements.</li>' +
-          '<li style="margin-bottom:6px;"><strong>Date &amp; time</strong> — kept as part of the club attendance record</li>' +
+          '<li style="margin-bottom:6px;"><strong>Your name</strong> — to identify you at check-in</li>' +
+          '<li style="margin-bottom:6px;"><strong>Your GPS location</strong> — verified once to confirm you are at the club, then immediately discarded. Your coordinates are never stored.</li>' +
+          '<li style="margin-bottom:6px;"><strong>Check-in date and time</strong> — kept as part of the club attendance record</li>' +
+          '<li style="margin-bottom:6px;"><strong>Supervisor name and mobile number</strong> — for junior check-ins only, to identify the responsible adult</li>' +
         '</ul>' +
-        '<p style="margin-bottom:10px;">Check-in records are held for <strong>12 months</strong> and are only accessible to club administrators.</p>' +
-        '<p style="margin-bottom:10px;">You have the right to access or request deletion of your data at any time. Contact the club secretary to exercise these rights.</p>' +
-        '<p style="font-size:12px;color:#6b7280;">Processing is carried out under legitimate interest as part of your club membership.</p>' +
+
+        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Legal basis</p>' +
+        '<p style="margin-bottom:12px;">Your data is processed under <strong>legitimate interest</strong> as part of your club membership agreement — specifically to manage on-site attendance, enforce court bookings, and fulfil the club duty of care obligations.</p>' +
+
+        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Retention</p>' +
+        '<p style="margin-bottom:12px;">Check-in records are held for <strong>12 months</strong> and are accessible only to club administrators.</p>' +
+
+        '<p style="margin-bottom:6px;font-weight:600;color:#111827;">Your rights</p>' +
+        '<p style="margin-bottom:6px;">Under GDPR you have the right to:</p>' +
+        '<ul style="padding-left:18px;margin-bottom:12px;">' +
+          '<li style="margin-bottom:4px;"><strong>Access</strong> — request a copy of your personal data</li>' +
+          '<li style="margin-bottom:4px;"><strong>Rectification</strong> — have inaccurate data corrected</li>' +
+          '<li style="margin-bottom:4px;"><strong>Erasure</strong> — request deletion of your data</li>' +
+          '<li style="margin-bottom:4px;"><strong>Object</strong> — object to processing of your data</li>' +
+          '<li style="margin-bottom:4px;"><strong>Portability</strong> — receive your data in a portable format</li>' +
+        '</ul>' +
+        '<p style="margin-bottom:12px;">To exercise any of these rights, contact the club secretary.</p>' +
+
+        '<p style="font-size:12px;color:#6b7280;">You also have the right to lodge a complaint with the Data Protection Commission (Ireland) at <strong>dataprotection.ie</strong> if you believe your data has been handled unlawfully.</p>' +
       '</div>' +
     '</div>';
   document.body.appendChild(overlay);

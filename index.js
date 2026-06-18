@@ -18366,14 +18366,28 @@ app.post("/api/checkin/submit", async (req, res) => {
         try {
           const ctrl = new AbortController();
           const ipTimeout = setTimeout(() => ctrl.abort(), 3000);
-          const geoRes = await fetch(`http://ip-api.com/json/${clientIp}?fields=status,lat,lon`, { signal: ctrl.signal });
+          const geoRes = await fetch(`http://ip-api.com/json/${clientIp}?fields=status,lat,lon,org,isp`, { signal: ctrl.signal });
           clearTimeout(ipTimeout);
           const geo = await geoRes.json();
           if (geo.status === 'success') {
+            // Check 1: IP too far from club
             const ipDistKm = Math.round(gpsDistance(geo.lat, geo.lon, tenant.checkin_lat, tenant.checkin_lng) / 1000);
             if (ipDistKm > 500) {
               console.warn(`[checkin] IP spoof suspected: ${member_name} (#${membership_number}) at ${tenant_id} — IP ${clientIp} geolocates ${ipDistKm}km from club, GPS claims ${gps_distance_meters}m`);
-              return res.status(403).json({ error: "Location verification failed. Your network location doesn't match the club. Please check in on site using your mobile data." });
+              return res.status(403).json({ error: "Location verification failed. Your network location doesn't match the club. Please check in using your mobile data." });
+            }
+            // Check 2: IP belongs to a datacenter / VPN provider
+            // All commercial VPNs (NordVPN, ExpressVPN, etc.) run on rented datacenter infrastructure.
+            const orgStr = ((geo.org || '') + ' ' + (geo.isp || '')).toLowerCase();
+            const DATACENTER_KEYWORDS = [
+              'amazon', 'aws', 'google', 'microsoft', 'azure', 'digitalocean', 'linode',
+              'vultr', 'hetzner', 'ovh', 'cloudflare', 'fastly', 'akamai', 'choopa',
+              'leaseweb', 'psychz', 'quadranet', 'serverius', 'datacamp', 'm247',
+              'mullvad', 'nordvpn', 'expressvpn', 'ipvanish', 'privateinternetaccess'
+            ];
+            if (DATACENTER_KEYWORDS.some(k => orgStr.includes(k))) {
+              console.warn(`[checkin] VPN/datacenter IP: ${member_name} (#${membership_number}) at ${tenant_id} — ${clientIp} org="${geo.org}"`);
+              return res.status(403).json({ error: "VPN detected. Please disable your VPN and check in using your mobile data." });
             }
           }
         } catch(e) {

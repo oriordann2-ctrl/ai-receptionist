@@ -17675,7 +17675,7 @@ async function searchJuniorByName(supervisorName, supervisorContact, q) {
   if (!el) return;
   if (q.length < 2) { el.innerHTML = ''; return; }
   try {
-    var r = await fetch('/api/checkin/search-members/' + encodeURIComponent(TENANT_ID) + '?q=' + encodeURIComponent(q));
+    var r = await fetch('/api/checkin/search-members/' + encodeURIComponent(TENANT_ID) + '?q=' + encodeURIComponent(q) + '&supervisor=1');
     var data = await r.json();
     if (!el.isConnected) return;
     if (!data.length) {
@@ -18076,6 +18076,7 @@ function eboBookingMins(b) {
 app.get("/api/checkin/search-members/:tenantId", async (req, res) => {
   const { tenantId } = req.params;
   const q = (req.query.q || "").trim().toLowerCase();
+  const isSupervisor = req.query.supervisor === "1";
   if (!q || q.length < 2) return res.json([]);
   if (q.length > 100 || /</.test(q)) return res.json([]);
   try {
@@ -18083,12 +18084,17 @@ app.get("/api/checkin/search-members/:tenantId", async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const bookings = await fetchEboBookings(tenantId, today, today, 500);
     const nowMins = irishNowMins();
+    console.log(`[search-members] q="${q}" nowMins=${nowMins} bookings=${bookings.length} supervisor=${isSupervisor}`);
     const seen = new Set();
     const results = [];
     for (const b of bookings) {
       const bMins = eboBookingMins(b);
       if (bMins === null) continue;
-      if (nowMins < bMins - 15 || nowMins > bMins + 30) continue;
+      const inWindow = nowMins >= bMins - 15 && nowMins <= bMins + 30;
+      const members = (b.bookedMembers || []).map(m => m.name || m.first_name);
+      console.log(`[search-members] booking ${b.time} bMins=${bMins} inWindow=${inWindow} members=[${members.join(', ')}]`);
+      // Supervisors can find any junior booked today regardless of time window
+      if (!isSupervisor && !inWindow) continue;
       for (const m of (b.bookedMembers || [])) {
         if (!m.membership_number || Number(m.membership_number) === 1 || m.colour) continue;
         if (seen.has(String(m.membership_number))) continue;

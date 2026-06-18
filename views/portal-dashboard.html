@@ -2268,16 +2268,20 @@
 
     details.addEventListener("toggle", function () {
       if (!details.open || loaded) return;
-      // Skip if the parent view is hidden (pre-opened in background to prevent Android reflow)
       if (details.closest('[data-view]').hidden) return;
       doLoadConvs();
     });
 
-    // Fire when the user actually navigates to this view (details already open, not yet loaded)
+    // Fires when user navigates to this view (details already open, no toggle fires)
     window.addEventListener('hashchange', function () {
       if (!details.open || loaded) return;
       doLoadConvs();
     });
+
+    // Handle direct page load where details was opened before this listener attached
+    if (details.open && !loaded && !details.closest('[data-view]').hidden) {
+      doLoadConvs();
+    }
   })();
 
   // ── Lazy-load Leads ──────────────────────────────────────────────────────────
@@ -2370,6 +2374,10 @@
       if (!details.open || loaded) return;
       doLoadLeads();
     });
+
+    if (details.open && !loaded && !details.closest('[data-view]').hidden) {
+      doLoadLeads();
+    }
   })();
 
   // ── Lazy-load Unanswered Questions ───────────────────────────────────────────
@@ -2526,6 +2534,10 @@
       if (!details.open || loaded) return;
       doLoadUnansw();
     });
+
+    if (details.open && !loaded && !details.closest('[data-view]').hidden) {
+      doLoadUnansw();
+    }
   })();
 
   // ── Mortgage Application Tracker (AOM only) ──────────────────────────────────

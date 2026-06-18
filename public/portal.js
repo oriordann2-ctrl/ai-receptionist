@@ -1268,9 +1268,19 @@
         renderCheckinLog();
         window.loadSupervisors();
 
-        // Auto-refresh every 30 seconds so new check-ins appear without a manual reload
+        // Auto-refresh check-in data every 30s (Supabase only — no EBO calls)
         if (window._checkinRefreshInterval) clearInterval(window._checkinRefreshInterval);
-        window._checkinRefreshInterval = setInterval(refreshCheckinData, 30 * 1000);
+        window._checkinRefreshInterval = setInterval(function() {
+          renderCaptainDashboard();
+          renderCheckinLog();
+          window.loadSupervisors();
+        }, 30 * 1000);
+
+        // No-show report hits EBO — refresh every 5 minutes only
+        if (window._noshowRefreshInterval) clearInterval(window._noshowRefreshInterval);
+        window._noshowRefreshInterval = setInterval(function() {
+          loadNoshowReport(window._noshowPeriod || "day");
+        }, 5 * 60 * 1000);
       });
   }
 

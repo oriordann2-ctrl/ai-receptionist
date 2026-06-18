@@ -17443,7 +17443,7 @@ function requestGpsOrBlock(onSuccess) {
       onSuccess();
     },
     function(e) {
-      showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error');
+      showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error');
     },
     { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
   );
@@ -17925,7 +17925,7 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
   navigator.geolocation.getCurrentPosition(
     function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); },
     function() {
-      showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error');
+      showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
@@ -18138,7 +18138,7 @@ async function submitCheckin(membershipNumber, memberName) {
   showMsg('Getting your location...', 'info');
   navigator.geolocation.getCurrentPosition(
     function(pos) { cachedGpsPos = pos; doSubmit(pos); },
-    function(e) { showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error'); resetCheckinBtn(); },
+    function(e) { showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error'); resetCheckinBtn(); },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
 }
@@ -18462,7 +18462,7 @@ app.post("/api/checkin/submit", async (req, res) => {
 
     // GPS is mandatory — reject if client didn't provide coordinates
     if (!gps_lat || !gps_lng) {
-      return res.status(403).json({ error: "Location access is required to check in. Please enable location in your phone settings and try again." });
+      return res.status(403).json({ error: "To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again." });
     }
 
     // Reject if GPS accuracy is too poor to be meaningful (>300m = no real fix)

@@ -9800,14 +9800,16 @@ function buildAnalytics(rows, businessType) {
   const totalMessages = convs.reduce((sum, c) => sum + c.messages.length, 0);
   const avgMessages   = convs.length ? Math.round((totalMessages / convs.length) * 10) / 10 : 0;
 
-  // Top topics — classify first customer message per conversation
+  // Top topics — scan all customer messages, use first specific match over General Enquiry
   const topicCounts = {};
   convs.forEach(c => {
-    const customerMsg = c.messages.find(m => m.sender === "customer");
-    if (customerMsg) {
-      const topic = classifyTopic(customerMsg.message, businessType);
-      topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+    const customerMsgs = c.messages.filter(m => m.sender === "customer");
+    let topic = "General Enquiry";
+    for (const msg of customerMsgs) {
+      const t = classifyTopic(msg.message, businessType);
+      if (t !== "General Enquiry") { topic = t; break; }
     }
+    topicCounts[topic] = (topicCounts[topic] || 0) + 1;
   });
   const topTopics = Object.entries(topicCounts)
     .sort((a, b) => b[1] - a[1])

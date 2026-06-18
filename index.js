@@ -18771,16 +18771,18 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
     for (const b of bookings) {
       const bookingTime = String(b.time || "").replace(" ", "T").slice(0, 16);
       if (!bookingTime) continue;
-      if (period === "day") {
-        const hhmm = String(b.time || "").slice(11, 16);
-        if (!hhmm.includes(":")) continue;
-        const [bh, bm] = hhmm.split(":").map(Number);
-        if (bh * 60 + bm > nowMinsOfDay) continue;
-      }
       // Prefer court-specific match; fall back to time-only for legacy check-ins without court_id
       const courtId = b.court_id ? String(b.court_id) : null;
       const wasCheckedIn = (courtId && checkedInCourtKeys.has(bookingTime + "|" + courtId))
         || checkedInTimeOnly.has(bookingTime);
+      if (period === "day") {
+        const hhmm = String(b.time || "").slice(11, 16);
+        if (!hhmm.includes(":")) continue;
+        const [bh, bm] = hhmm.split(":").map(Number);
+        // Skip future slots that have no check-in — they can't be no-shows yet.
+        // But if a check-in already exists (member arrived early), include the slot.
+        if (bh * 60 + bm > nowMinsOfDay && !wasCheckedIn) continue;
+      }
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || Number(key) === 1 || m.colour) continue;

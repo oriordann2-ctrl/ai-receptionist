@@ -17426,8 +17426,28 @@ const LS_KEY = 'sprimal_member_' + TENANT_ID;
 let clubInfo = null;
 let savedMember = null;
 let currentBooking = null;
+let cachedGpsPos = null;
 
 const PRIVACY_KEY = 'sprimal_privacy_' + TENANT_ID;
+
+function requestGpsOrBlock(onSuccess) {
+  if (!navigator.geolocation) {
+    showMsg('Location is not supported by this browser.', 'error');
+    return;
+  }
+  showMsg('Getting your location...', 'info');
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      cachedGpsPos = pos;
+      showMsg('', '');
+      onSuccess();
+    },
+    function(e) {
+      showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error');
+    },
+    { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+  );
+}
 
 function hasSeenPrivacyNotice() {
   try { return !!localStorage.getItem(PRIVACY_KEY); } catch(e) { return false; }
@@ -17595,9 +17615,11 @@ function showWelcomeBack() {
     '<div style="text-align:center;margin-top:12px;"><button id="wb-switch-btn" style="background:none;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;margin-right:12px;">Not you?</button><button id="wb-forget-btn" style="background:none;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;">Forget this device</button></div>' +
     '<div id="msg"></div>';
   document.getElementById('wb-checkin-btn').addEventListener('click', function() {
-    validateBookingThenCheckin(savedMember.membership_number, savedMember.name);
+    requestGpsOrBlock(function() { validateBookingThenCheckin(savedMember.membership_number, savedMember.name); });
   });
-  document.getElementById('wb-supervisor-btn').addEventListener('click', showSupervisorForm);
+  document.getElementById('wb-supervisor-btn').addEventListener('click', function() {
+    requestGpsOrBlock(showSupervisorForm);
+  });
   wirePrivacyCheckbox(['wb-checkin-btn', 'wb-supervisor-btn']);
   document.getElementById('wb-switch-btn').addEventListener('click', showForm);
   document.getElementById('wb-forget-btn').addEventListener('click', function() {
@@ -17669,8 +17691,12 @@ function showForm() {
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:12px;text-decoration:none;color:#5b21b6;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';
-  document.getElementById('member-btn').addEventListener('click', showMemberSearch);
-  document.getElementById('supervisor-btn').addEventListener('click', showSupervisorForm);
+  document.getElementById('member-btn').addEventListener('click', function() {
+    requestGpsOrBlock(showMemberSearch);
+  });
+  document.getElementById('supervisor-btn').addEventListener('click', function() {
+    requestGpsOrBlock(showSupervisorForm);
+  });
   wirePrivacyCheckbox(['member-btn', 'supervisor-btn']);
   updateClock();
   setInterval(updateClock, 1000);
@@ -18091,8 +18117,7 @@ function resetCheckinBtn() {
 }
 
 async function submitCheckin(membershipNumber, memberName) {
-  showMsg('Getting your location...', 'info');
-  navigator.geolocation.getCurrentPosition(async function(pos) {
+  async function doSubmit(pos) {
     showMsg('Checking in...', 'info');
     try {
       var body = { tenant_id: TENANT_ID, membership_number: membershipNumber, member_name: memberName, gps_lat: pos.coords.latitude, gps_lng: pos.coords.longitude, gps_accuracy: Math.round(pos.coords.accuracy) };
@@ -18105,10 +18130,17 @@ async function submitCheckin(membershipNumber, memberName) {
       showMsg('Network error — please try again.', 'error');
       resetCheckinBtn();
     }
-  }, function() {
-    showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error');
-    resetCheckinBtn();
-  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+  }
+  if (cachedGpsPos) {
+    doSubmit(cachedGpsPos);
+    return;
+  }
+  showMsg('Getting your location...', 'info');
+  navigator.geolocation.getCurrentPosition(
+    function(pos) { cachedGpsPos = pos; doSubmit(pos); },
+    function(e) { showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error'); resetCheckinBtn(); },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+  );
 }
 
 init();

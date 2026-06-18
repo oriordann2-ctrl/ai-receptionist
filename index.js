@@ -3366,6 +3366,7 @@ function addChatLog(entry) {
       created_at:      entry.timestamp      || new Date()
     }).then(() => {
       chatUsageCache.delete(entry.tenantId); // bust cache so portal shows updated count immediately
+      if (entry.sender === "customer") console.log(`[chat_logs] insert ok | tenant: ${entry.tenantId} | conv: ${entry.conversationId} | sender: ${entry.sender}`);
     }).catch(err => {
       console.error("[chat_logs] Supabase insert failed:", err?.message || err, "| tenant:", entry.tenantId, "| sender:", entry.sender);
     });
@@ -8349,6 +8350,7 @@ async function getChatUsageThisMonth(tenantId) {
     .gte("created_at", start)
     .not("conversation_id", "is", null);
   const count = new Set((data || []).map(r => r.conversation_id)).size;
+  console.log(`[chat-usage] tenant: ${tenantId} | month: ${month} | rows: ${(data || []).length} | unique convs: ${count}`);
   chatUsageCache.set(tenantId, { count, month, ts: Date.now() });
   return { count, month };
 }

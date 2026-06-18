@@ -534,9 +534,11 @@
       display: none; position: fixed;
       bottom: 0; left: 0; right: 0;
       height: 56px; background: #fff;
-      border-top: 1px solid #e2e8f0; z-index: 200;
+      border-top: 1px solid #e2e8f0; z-index: 1000;
       padding-bottom: env(safe-area-inset-bottom);
       align-items: stretch;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
     }
     .tab-item {
       flex: 1; display: flex; flex-direction: column;

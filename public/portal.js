@@ -1221,6 +1221,12 @@
         var captainDashboardCard = document.getElementById("captainDashboardCard");
         if (captainDashboardCard) captainDashboardCard.style.display = "block";
 
+        // Show Club Check-In home tile, hide generic Analytics tile
+        var homeCheckinTile = document.getElementById("homeCheckinTile");
+        if (homeCheckinTile) homeCheckinTile.style.display = "flex";
+        var homeAnalyticsTiles = document.querySelectorAll('#homeOverview a[href="#analytics"]');
+        homeAnalyticsTiles.forEach(function(t) { if (t.id !== "homeCheckinTile") t.style.display = "none"; });
+
         // Rename Analytics → Club Check-In for tennis clubs
         if (navIcon) navIcon.textContent = "🎾";
         if (navLabel) navLabel.textContent = "Club Check-In";

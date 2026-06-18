@@ -17436,26 +17436,58 @@ function markPrivacyNoticeSeen() {
   try { localStorage.setItem(PRIVACY_KEY, '1'); } catch(e) {}
 }
 
-function showPrivacyNotice(onContinue) {
-  document.getElementById('card').innerHTML =
-    '<div class="logo-emoji">🔒</div>' +
-    '<div class="club-name" style="font-size:16px;margin-bottom:16px;">How we use your data</div>' +
-    '<div style="text-align:left;font-size:13px;color:#374151;line-height:1.6;">' +
-      '<p style="margin-bottom:10px;">When you check in, we collect:</p>' +
-      '<ul style="padding-left:18px;margin-bottom:12px;">' +
-        '<li><strong>Your name &amp; membership number</strong> — to record your check-in</li>' +
-        '<li><strong>Your GPS location</strong> — verified once to confirm you are at the club, then discarded. We do not store your coordinates or track your movements.</li>' +
-        '<li><strong>Date &amp; time</strong> — kept as part of the club attendance record</li>' +
-      '</ul>' +
-      '<p style="margin-bottom:10px;">Check-in records are held for <strong>12 months</strong> and are only accessible to club administrators.</p>' +
-      '<p style="margin-bottom:16px;">You have the right to access or request deletion of your data at any time. Contact the club secretary to exercise these rights.</p>' +
-      '<p style="font-size:12px;color:#6b7280;">Processing is carried out under legitimate interest as part of your club membership.</p>' +
-    '</div>' +
-    '<button class="btn btn-primary" id="privacy-ok-btn" style="margin-top:20px;">Got it — continue</button>';
-  document.getElementById('privacy-ok-btn').addEventListener('click', function() {
-    markPrivacyNoticeSeen();
-    onContinue();
+function showPrivacyModal() {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:16px;box-sizing:border-box;';
+  overlay.innerHTML =
+    '<div style="background:white;border-radius:16px 16px 12px 12px;padding:24px;max-width:400px;width:100%;max-height:80vh;overflow-y:auto;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+        '<strong style="font-size:16px;color:#111827;">Privacy Notice</strong>' +
+        '<button id="privacy-modal-close" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;padding:0;line-height:1;">&#x2715;</button>' +
+      '</div>' +
+      '<div style="font-size:13px;color:#374151;line-height:1.6;">' +
+        '<p style="margin-bottom:10px;">When you check in, we collect:</p>' +
+        '<ul style="padding-left:18px;margin-bottom:12px;">' +
+          '<li style="margin-bottom:6px;"><strong>Your name &amp; membership number</strong> — to record your check-in</li>' +
+          '<li style="margin-bottom:6px;"><strong>Your GPS location</strong> — verified once to confirm you are at the club, then discarded. We do not store your coordinates or track your movements.</li>' +
+          '<li style="margin-bottom:6px;"><strong>Date &amp; time</strong> — kept as part of the club attendance record</li>' +
+        '</ul>' +
+        '<p style="margin-bottom:10px;">Check-in records are held for <strong>12 months</strong> and are only accessible to club administrators.</p>' +
+        '<p style="margin-bottom:10px;">You have the right to access or request deletion of your data at any time. Contact the club secretary to exercise these rights.</p>' +
+        '<p style="font-size:12px;color:#6b7280;">Processing is carried out under legitimate interest as part of your club membership.</p>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) document.body.removeChild(overlay); });
+  document.getElementById('privacy-modal-close').addEventListener('click', function() { document.body.removeChild(overlay); });
+}
+
+function privacyCheckboxHtml() {
+  if (hasSeenPrivacyNotice()) return '';
+  return '<div style="display:flex;align-items:flex-start;gap:10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-top:14px;text-align:left;">' +
+    '<input type="checkbox" id="privacy-cb" style="width:18px;height:18px;margin-top:1px;cursor:pointer;accent-color:#1565c0;flex-shrink:0;">' +
+    '<label for="privacy-cb" style="font-size:13px;color:#374151;line-height:1.5;cursor:pointer;">I agree to the <button id="privacy-link" style="background:none;border:none;padding:0;color:#1565c0;text-decoration:underline;cursor:pointer;font-size:13px;font-family:inherit;">privacy notice</button> — required to check in</label>' +
+  '</div>';
+}
+
+function wirePrivacyCheckbox(btnIds) {
+  if (hasSeenPrivacyNotice()) return;
+  var cb = document.getElementById('privacy-cb');
+  var link = document.getElementById('privacy-link');
+  if (!cb) return;
+  btnIds.forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.45'; }
   });
+  cb.addEventListener('change', function() {
+    var checked = cb.checked;
+    btnIds.forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (btn) { btn.disabled = !checked; btn.style.opacity = checked ? '' : '0.45'; }
+    });
+    if (checked) markPrivacyNoticeSeen();
+  });
+  if (link) link.addEventListener('click', function(e) { e.preventDefault(); showPrivacyModal(); });
 }
 
 async function init() {
@@ -17476,12 +17508,8 @@ async function init() {
     if (params.get('forget') === '1') { localStorage.removeItem(LS_KEY); }
     savedMember = getSavedMember();
 
-    function continueAfterPrivacy() {
-      if (savedMember) showWelcomeBack();
-      else showForm();
-    }
-    if (!hasSeenPrivacyNotice()) showPrivacyNotice(continueAfterPrivacy);
-    else continueAfterPrivacy();
+    if (savedMember) showWelcomeBack();
+    else showForm();
   } catch(e) {
     document.getElementById('card').innerHTML =
       '<div class="logo-emoji">🎾</div>' +
@@ -17533,12 +17561,9 @@ function showWelcomeBack() {
   var assistantName = clubInfo.assistant_name || 'Maeve';
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
-    '<div style="display:flex;align-items:flex-start;gap:8px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-bottom:4px;text-align:left;">' +
-      '<span style="font-size:16px;line-height:1.3;">📍</span>' +
-      '<span style="font-size:13px;color:#0369a1;line-height:1.4;">We will ask for your location when you check in — just to confirm you are at the club. We do not store or track it beyond that.</span>' +
-    '</div>' +
     '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
     '<button class="btn btn-secondary" id="wb-supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' +
+    privacyCheckboxHtml() +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:12px;text-decoration:none;color:#5b21b6;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div style="text-align:center;margin-top:12px;"><button id="wb-switch-btn" style="background:none;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;margin-right:12px;">Not you?</button><button id="wb-forget-btn" style="background:none;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;">Forget this device</button></div>' +
     '<div id="msg"></div>';
@@ -17546,6 +17571,7 @@ function showWelcomeBack() {
     validateBookingThenCheckin(savedMember.membership_number, savedMember.name);
   });
   document.getElementById('wb-supervisor-btn').addEventListener('click', showSupervisorForm);
+  wirePrivacyCheckbox(['wb-checkin-btn', 'wb-supervisor-btn']);
   document.getElementById('wb-switch-btn').addEventListener('click', showForm);
   document.getElementById('wb-forget-btn').addEventListener('click', function() {
     localStorage.removeItem(LS_KEY);
@@ -17612,15 +17638,13 @@ function showForm() {
   document.getElementById('card').innerHTML = header() +
     '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Check In to Play</button>' +
     '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' +
-    '<div style="display:flex;align-items:flex-start;gap:8px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-top:14px;text-align:left;">' +
-      '<span style="font-size:16px;line-height:1.3;">📍</span>' +
-      '<span style="font-size:13px;color:#0369a1;line-height:1.4;">We will ask for your location when you check in — just to confirm you are at the club. We do not store or track it beyond that.</span>' +
-    '</div>' +
+    privacyCheckboxHtml() +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:12px;text-decoration:none;color:#5b21b6;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';
   document.getElementById('member-btn').addEventListener('click', showMemberSearch);
   document.getElementById('supervisor-btn').addEventListener('click', showSupervisorForm);
+  wirePrivacyCheckbox(['member-btn', 'supervisor-btn']);
   updateClock();
   setInterval(updateClock, 1000);
 }

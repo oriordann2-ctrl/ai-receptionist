@@ -1643,6 +1643,34 @@
     </div>
   </div>
 
+  <!-- ── Approved Answers ── -->
+  <div class="card" id="approvedAnswersCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+      <div>
+        <div class="card-title" style="margin-bottom:0;">Approved Answers</div>
+        <div class="card-sub" style="margin-top:2px;">Human-approved Q&amp;A pairs — surfaced by the chat when a visitor asks a matching question.</div>
+      </div>
+      <span id="approvedAnswersBadge" style="display:none;background:#ede9fe;color:#6d28d9;font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;white-space:nowrap;"></span>
+    </div>
+
+    <!-- Filter + search bar -->
+    <div style="display:flex;align-items:center;gap:8px;margin:14px 0 12px;flex-wrap:wrap;">
+      <div style="display:flex;gap:2px;background:#f3f4f6;border-radius:8px;padding:3px;">
+        <button id="aaBtnActive"   onclick="aaSetFilter('active')"   style="padding:5px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:#7c3aed;color:white;">Active</button>
+        <button id="aaBtnArchived" onclick="aaSetFilter('archived')" style="padding:5px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:#6b7280;">Archived</button>
+        <button id="aaBtnAll"      onclick="aaSetFilter('all')"      style="padding:5px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:#6b7280;">All</button>
+      </div>
+      <input id="aaSearch" type="search" placeholder="Search questions or answers…"
+        oninput="aaOnSearch()"
+        style="flex:1;min-width:180px;padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;color:#111827;outline:none;"
+        onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'" />
+    </div>
+
+    <div id="approvedAnswersContainer">
+      <div style="text-align:center;padding:24px 0;font-size:14px;color:#9ca3af;">Loading…</div>
+    </div>
+  </div>
+
   <!-- ── Knowledge Base Assistant ── -->
   <div class="card">
     <div class="card-title">Knowledge Base Assistant ⭐</div>
@@ -2418,7 +2446,7 @@
       var allPageKeys = pageItems.map(function(q) { return q.question.trim().toLowerCase(); });
       var allChecked  = allPageKeys.length > 0 && allPageKeys.every(function(k) { return _unanswSelected.has(k); });
 
-      var html = '<p style="font-size:13px;color:#6b7280;margin-bottom:14px;">Add answers to these questions to your knowledge base so the chat can handle them automatically next time. Select questions you\'ve already addressed to hide them.</p>'
+      var html = '<p style="font-size:13px;color:#6b7280;margin-bottom:14px;">Click <strong>Answer</strong> on any question to add an approved answer to your knowledge base. Or select questions you\'ve already addressed elsewhere to dismiss them.</p>'
         + '<div id="unanswDismissBar" style="display:none;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">'
         + '<button id="unanswDismissBtn" onclick="unanswDismiss()" style="padding:5px 14px;border-radius:7px;border:none;background:#16a34a;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Mark as Answered ✓</button>'
         + '<span style="font-size:12px;color:#166534;">These will be hidden from the list going forward.</span>'
@@ -2429,16 +2457,34 @@
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Asked</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Last seen</th>'
+        + '<th style="padding:6px 10px;width:90px;"></th>'
         + '</tr></thead><tbody>';
       pageItems.forEach(function (q, i) {
         var bg  = i % 2 === 0 ? "#fff" : "#f9fafb";
         var key = q.question.trim().toLowerCase();
         var chk = _unanswSelected.has(key) ? 'checked' : '';
+        var rowIdx = _unanswPage * UNANSW_PAGE_SIZE + i;
         html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;">'
           + '<td style="padding:8px 10px;"><input type="checkbox" data-key="' + esc(key) + '" ' + chk + ' onchange="unanswToggleOne(this)"></td>'
           + '<td style="padding:8px 10px;color:#111827;font-weight:500;">' + esc(q.question) + '</td>'
           + '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap;">' + (q.count > 1 ? q.count + '×' : '1×') + '</td>'
           + '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap;">' + esc(fmtDate(q.last_asked)) + '</td>'
+          + '<td style="padding:8px 10px;text-align:right;">'
+          + '<button onclick="unanswOpenAnswer(' + rowIdx + ')" id="unanswAnswerBtn-' + rowIdx + '" style="padding:4px 10px;border-radius:6px;border:1.5px solid #7c3aed;background:white;color:#7c3aed;font-size:12px;font-weight:600;cursor:pointer;">Answer ✏️</button>'
+          + '</td>'
+          + '</tr>'
+          + '<tr id="unanswAnswerRow-' + rowIdx + '" data-q="' + esc(q.question) + '" data-key="' + esc(key) + '" style="display:none;">'
+          + '<td colspan="5" style="padding:0;">'
+          + '<div style="padding:14px 16px 16px;background:#faf5ff;border-bottom:2px solid #ddd6fe;border-left:3px solid #7c3aed;">'
+          + '<div style="font-size:13px;font-weight:700;color:#6d28d9;margin-bottom:8px;">Approved Answer for: <em style="font-weight:400;">' + esc(q.question) + '</em></div>'
+          + '<textarea id="unanswAnswerTa-' + rowIdx + '" rows="3" placeholder="Type the approved answer here..." style="width:100%;padding:10px 12px;border:1.5px solid #ddd6fe;border-radius:8px;font-size:13px;font-family:inherit;color:#111827;resize:vertical;outline:none;line-height:1.5;box-sizing:border-box;" onfocus="this.style.borderColor=\'#7c3aed\'" onblur="this.style.borderColor=\'#ddd6fe\'"></textarea>'
+          + '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">'
+          + '<button onclick="unanswAiDraft(' + rowIdx + ')" style="padding:6px 14px;border-radius:7px;border:1.5px solid #7c3aed;background:white;color:#7c3aed;font-size:12px;font-weight:600;cursor:pointer;">✨ AI Draft</button>'
+          + '<button onclick="unanswSaveAnswer(' + rowIdx + ')" style="padding:6px 14px;border-radius:7px;border:none;background:#7c3aed;color:white;font-size:12px;font-weight:600;cursor:pointer;">Save &amp; Dismiss ✓</button>'
+          + '<span id="unanswAnswerSt-' + rowIdx + '" style="font-size:12px;color:#6b7280;"></span>'
+          + '</div>'
+          + '</div>'
+          + '</td>'
           + '</tr>';
       });
       html += '</tbody></table>';
@@ -2506,6 +2552,92 @@
     window.unanswPrev = function() { if (_unanswPage > 0) { _unanswPage--; renderUnansw(); } };
     window.unanswNext = function() { if ((_unanswPage + 1) * UNANSW_PAGE_SIZE < _unanswData.length) { _unanswPage++; renderUnansw(); } };
 
+    var _openAnswerRowIdx = null;
+    window.unanswOpenAnswer = function(rowIdx) {
+      // Close any previously open answer row
+      if (_openAnswerRowIdx !== null && _openAnswerRowIdx !== rowIdx) {
+        var prev = document.getElementById("unanswAnswerRow-" + _openAnswerRowIdx);
+        if (prev) prev.style.display = "none";
+        var prevBtn = document.getElementById("unanswAnswerBtn-" + _openAnswerRowIdx);
+        if (prevBtn) prevBtn.textContent = "Answer ✏️";
+      }
+      var row = document.getElementById("unanswAnswerRow-" + rowIdx);
+      var btn = document.getElementById("unanswAnswerBtn-" + rowIdx);
+      if (!row) return;
+      var isOpen = row.style.display !== "none";
+      row.style.display = isOpen ? "none" : "";
+      if (btn) btn.textContent = isOpen ? "Answer ✏️" : "Cancel ✕";
+      _openAnswerRowIdx = isOpen ? null : rowIdx;
+      if (!isOpen) {
+        var ta = document.getElementById("unanswAnswerTa-" + rowIdx);
+        if (ta) ta.focus();
+      }
+    };
+
+    window.unanswAiDraft = function(rowIdx) {
+      var row = document.getElementById("unanswAnswerRow-" + rowIdx);
+      if (!row) return;
+      var question = row.getAttribute("data-q");
+      var ta = document.getElementById("unanswAnswerTa-" + rowIdx);
+      var st = document.getElementById("unanswAnswerSt-" + rowIdx);
+      if (!ta || !question) return;
+      if (st) { st.style.color = "#7c3aed"; st.textContent = "Drafting…"; }
+      fetch("/api/portal/approved-answers/ai-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.draft) {
+            ta.value = d.draft;
+            if (st) { st.style.color = "#6b7280"; st.textContent = "Draft ready — review and edit before saving."; }
+          } else {
+            if (st) { st.style.color = "#b91c1c"; st.textContent = d.message || "Not enough KB content to draft — write your answer manually."; }
+          }
+        })
+        .catch(function() {
+          if (st) { st.style.color = "#b91c1c"; st.textContent = "Draft failed — please try again."; }
+        });
+    };
+
+    window.unanswSaveAnswer = function(rowIdx) {
+      var row = document.getElementById("unanswAnswerRow-" + rowIdx);
+      if (!row) return;
+      var question = row.getAttribute("data-q");
+      var key = row.getAttribute("data-key");
+      var ta = document.getElementById("unanswAnswerTa-" + rowIdx);
+      var st = document.getElementById("unanswAnswerSt-" + rowIdx);
+      if (!ta || !question) return;
+      var answer = ta.value.trim();
+      if (!answer) { if (st) { st.style.color = "#b91c1c"; st.textContent = "Please enter an answer before saving."; } return; }
+      if (st) { st.style.color = "#7c3aed"; st.textContent = "Saving…"; }
+      fetch("/api/portal/approved-answers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question, answer: answer, source_question_key: key })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d.ok) throw new Error(d.error || "Failed");
+          // Remove from unanswered list
+          _unanswData = _unanswData.filter(function(q) { return q.question.trim().toLowerCase() !== key; });
+          _unanswSelected.delete(key);
+          _openAnswerRowIdx = null;
+          _unanswPage = Math.min(_unanswPage, Math.max(0, Math.ceil(_unanswData.length / UNANSW_PAGE_SIZE) - 1));
+          if (!_unanswData.length) {
+            container.innerHTML = '<div style="text-align:center;padding:32px 0;font-size:14px;color:#9ca3af;">All questions answered — great work!</div>';
+          } else {
+            renderUnansw();
+          }
+          // Notify Approved Answers panel to reload if open
+          if (typeof reloadApprovedAnswers === "function") reloadApprovedAnswers();
+        })
+        .catch(function() {
+          if (st) { st.style.color = "#b91c1c"; st.textContent = "Save failed — please try again."; }
+        });
+    };
+
     function doLoadUnansw() {
       loaded = true;
       fetch("/api/portal/unanswered-questions")
@@ -2538,6 +2670,216 @@
     if (details.open && !loaded && !details.closest('[data-view]').hidden) {
       doLoadUnansw();
     }
+  })();
+
+  // ── Approved Answers management ───────────────────────────────────────────────
+  (function () {
+    var _aaData     = [];
+    var _aaFilter   = 'active';
+    var _aaSearch   = '';
+    var _aaPage     = 0;
+    var AA_PAGE_SIZE = 10;
+    var _aaEditId   = null;
+    var _aaLoaded   = false;
+
+    function esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+    function fmtDate(ts) {
+      if (!ts) return "";
+      return new Date(ts).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" });
+    }
+    function preview(s, n) { return s && s.length > n ? s.slice(0, n) + "…" : s || ""; }
+
+    function updateFilterButtons() {
+      ["active","archived","all"].forEach(function(f) {
+        var btn = document.getElementById("aaBtnActive") || null;
+        var map = { active: "aaBtnActive", archived: "aaBtnArchived", all: "aaBtnAll" };
+        var el = document.getElementById(map[f]);
+        if (!el) return;
+        el.style.background   = f === _aaFilter ? "#7c3aed" : "transparent";
+        el.style.color        = f === _aaFilter ? "white"   : "#6b7280";
+      });
+    }
+
+    function filtered() {
+      return _aaData.filter(function(r) {
+        if (_aaFilter === "active"   && r.archived)  return false;
+        if (_aaFilter === "archived" && !r.archived) return false;
+        if (_aaSearch) {
+          var low = _aaSearch.toLowerCase();
+          if (!r.question.toLowerCase().includes(low) && !r.answer.toLowerCase().includes(low)) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderAA() {
+      var cont = document.getElementById("approvedAnswersContainer");
+      if (!cont) return;
+      var rows = filtered();
+      var badge = document.getElementById("approvedAnswersBadge");
+      if (badge) {
+        var activeCount = _aaData.filter(function(r) { return !r.archived; }).length;
+        if (activeCount > 0) { badge.textContent = activeCount + " active"; badge.style.display = ""; }
+        else badge.style.display = "none";
+      }
+      if (!rows.length) {
+        cont.innerHTML = '<div style="text-align:center;padding:28px 0;font-size:14px;color:#9ca3af;">'
+          + (_aaSearch ? "No matches for your search." : _aaFilter === "archived" ? "No archived answers." : "No approved answers yet — answer questions from the Conversations tab.")
+          + '</div>';
+        return;
+      }
+      var totalPages = Math.ceil(rows.length / AA_PAGE_SIZE);
+      if (_aaPage >= totalPages) _aaPage = Math.max(0, totalPages - 1);
+      var pageRows = rows.slice(_aaPage * AA_PAGE_SIZE, (_aaPage + 1) * AA_PAGE_SIZE);
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+        + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
+        + '<th style="text-align:left;padding:7px 10px;color:#6b7280;font-weight:600;width:36%;">Question</th>'
+        + '<th style="text-align:left;padding:7px 10px;color:#6b7280;font-weight:600;">Answer</th>'
+        + '<th style="text-align:left;padding:7px 10px;color:#6b7280;font-weight:600;white-space:nowrap;width:90px;">Added</th>'
+        + '<th style="padding:7px 10px;width:110px;"></th>'
+        + '</tr></thead><tbody>';
+      pageRows.forEach(function(r, i) {
+        var bg = i % 2 === 0 ? "#fff" : "#f9fafb";
+        var isEdit = _aaEditId === r.id;
+        html += '<tr style="background:' + bg + ';border-bottom:1px solid #f3f4f6;vertical-align:top;">';
+        if (isEdit) {
+          html += '<td colspan="4" style="padding:12px 10px;">'
+            + '<div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px;">Question</div>'
+            + '<textarea id="aaEditQ-' + esc(r.id) + '" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid #7c3aed;border-radius:7px;font-size:13px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;">' + esc(r.question) + '</textarea>'
+            + '<div style="font-size:12px;font-weight:700;color:#6b7280;margin:8px 0 6px;">Answer</div>'
+            + '<textarea id="aaEditA-' + esc(r.id) + '" rows="3" style="width:100%;padding:8px 10px;border:1.5px solid #7c3aed;border-radius:7px;font-size:13px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;">' + esc(r.answer) + '</textarea>'
+            + '<div style="display:flex;gap:8px;margin-top:8px;">'
+            + '<button onclick="aaSave(' + JSON.stringify(r.id) + ')" style="padding:6px 14px;border-radius:7px;border:none;background:#7c3aed;color:white;font-size:12px;font-weight:600;cursor:pointer;">Save Changes</button>'
+            + '<button onclick="aaEditCancel()" style="padding:6px 14px;border-radius:7px;border:1px solid #d1d5db;background:white;color:#374151;font-size:12px;cursor:pointer;">Cancel</button>'
+            + '<span id="aaEditSt-' + esc(r.id) + '" style="font-size:12px;color:#6b7280;align-self:center;"></span>'
+            + '</div>'
+            + '</td>';
+        } else {
+          html += '<td style="padding:9px 10px;color:#111827;font-weight:500;">' + esc(preview(r.question, 90)) + '</td>'
+            + '<td style="padding:9px 10px;color:#374151;">' + esc(preview(r.answer, 120)) + '</td>'
+            + '<td style="padding:9px 10px;color:#9ca3af;white-space:nowrap;">' + esc(fmtDate(r.created_at)) + '</td>'
+            + '<td style="padding:9px 10px;text-align:right;white-space:nowrap;">'
+            + '<button onclick="aaEdit(' + JSON.stringify(r.id) + ')" title="Edit" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#374151;font-size:11px;cursor:pointer;margin-right:4px;">Edit</button>'
+            + (r.archived
+              ? '<button onclick="aaArchive(' + JSON.stringify(r.id) + ',false)" title="Restore" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#059669;font-size:11px;cursor:pointer;margin-right:4px;">Restore</button>'
+              : '<button onclick="aaArchive(' + JSON.stringify(r.id) + ',true)" title="Archive" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#6b7280;font-size:11px;cursor:pointer;margin-right:4px;">Archive</button>')
+            + '<button onclick="aaDelete(' + JSON.stringify(r.id) + ')" title="Delete" style="padding:4px 8px;border-radius:5px;border:1px solid #fecaca;background:white;color:#dc2626;font-size:11px;cursor:pointer;">Del</button>'
+            + '</td>';
+        }
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      if (totalPages > 1) {
+        var pd = _aaPage === 0, nd = _aaPage >= totalPages - 1;
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;">'
+          + '<button onclick="aaPrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+          + '<span style="font-size:13px;color:#6b7280;">' + (_aaPage + 1) + ' / ' + totalPages + '</span>'
+          + '<button onclick="aaNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:5px 14px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:13px;cursor:pointer;color:#374151;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+          + '</div>';
+      }
+      cont.innerHTML = html;
+    }
+
+    function loadAA() {
+      _aaLoaded = true;
+      fetch("/api/portal/approved-answers")
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          _aaData = Array.isArray(data) ? data : [];
+          _aaPage = 0;
+          renderAA();
+        })
+        .catch(function() {
+          var cont = document.getElementById("approvedAnswersContainer");
+          if (cont) cont.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:14px;color:#ef4444;">Failed to load — please refresh.</div>';
+        });
+    }
+
+    // Load when KB view becomes active (hashchange or direct load)
+    window.addEventListener('hashchange', function() {
+      if (!_aaLoaded && !document.getElementById("approvedAnswersCard")?.closest('[data-view]')?.hidden) {
+        loadAA();
+      }
+    });
+    if (!document.getElementById("approvedAnswersCard")?.closest('[data-view]')?.hidden) {
+      loadAA();
+    }
+
+    // Public hook so unanswered-questions save can trigger a reload
+    window.reloadApprovedAnswers = function() {
+      fetch("/api/portal/approved-answers")
+        .then(function(r) { return r.json(); })
+        .then(function(data) { _aaData = Array.isArray(data) ? data : []; renderAA(); })
+        .catch(function() {});
+    };
+
+    window.aaSetFilter = function(f) {
+      _aaFilter = f; _aaPage = 0; _aaEditId = null;
+      updateFilterButtons(); renderAA();
+    };
+    window.aaOnSearch = function() {
+      var el = document.getElementById("aaSearch");
+      _aaSearch = el ? el.value.trim() : "";
+      _aaPage = 0; _aaEditId = null; renderAA();
+    };
+    window.aaEdit = function(id) { _aaEditId = id; renderAA(); };
+    window.aaEditCancel = function() { _aaEditId = null; renderAA(); };
+    window.aaPrev = function() { if (_aaPage > 0) { _aaPage--; renderAA(); } };
+    window.aaNext = function() { _aaPage++; renderAA(); };
+
+    window.aaSave = function(id) {
+      var qEl = document.getElementById("aaEditQ-" + id);
+      var aEl = document.getElementById("aaEditA-" + id);
+      var st  = document.getElementById("aaEditSt-" + id);
+      if (!qEl || !aEl) return;
+      var q = qEl.value.trim(), a = aEl.value.trim();
+      if (!q || !a) { if (st) { st.style.color="#dc2626"; st.textContent="Both fields required."; } return; }
+      if (st) { st.style.color="#7c3aed"; st.textContent="Saving…"; }
+      fetch("/api/portal/approved-answers/" + encodeURIComponent(id), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, answer: a })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d.ok) throw new Error(d.error);
+          var idx = _aaData.findIndex(function(r) { return r.id === id; });
+          if (idx !== -1) { _aaData[idx].question = q; _aaData[idx].answer = a; }
+          _aaEditId = null; renderAA();
+        })
+        .catch(function() { if (st) { st.style.color="#dc2626"; st.textContent="Save failed."; } });
+    };
+
+    window.aaArchive = function(id, archived) {
+      fetch("/api/portal/approved-answers/" + encodeURIComponent(id) + "/archive", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: archived })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d.ok) throw new Error(d.error);
+          var idx = _aaData.findIndex(function(r) { return r.id === id; });
+          if (idx !== -1) _aaData[idx].archived = archived;
+          renderAA();
+        })
+        .catch(function() { alert("Failed — please try again."); });
+    };
+
+    window.aaDelete = function(id) {
+      if (!confirm("Permanently delete this approved answer? This cannot be undone.")) return;
+      fetch("/api/portal/approved-answers/" + encodeURIComponent(id), { method: "DELETE" })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d.ok) throw new Error(d.error);
+          _aaData = _aaData.filter(function(r) { return r.id !== id; });
+          if (_aaEditId === id) _aaEditId = null;
+          renderAA();
+        })
+        .catch(function() { alert("Failed — please try again."); });
+    };
+
+    updateFilterButtons();
   })();
 
   // ── Mortgage Application Tracker (AOM only) ──────────────────────────────────

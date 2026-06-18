@@ -4931,7 +4931,29 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       })
       .slice(0, 10);
 
+    // 8. Query approved answers with vector similarity — prepend high-confidence matches
+    let approvedAnswerChunks = [];
+    try {
+      const { data: approvedMatches } = await supabase.rpc("match_approved_answers", {
+        query_embedding: embeddings[0],
+        match_tenant_id: tenantId,
+        match_threshold: 0.60,
+        match_count: 3
+      });
+      if (approvedMatches?.length) {
+        approvedAnswerChunks = approvedMatches.map(aa => ({
+          document_id: "approved-" + aa.id,
+          chunk_index: 0,
+          chunk_text: `Q: ${aa.question}\nA: ${aa.answer}`,
+          document_type: "Approved Answer",
+          lender: null,
+          _approvedSim: aa.similarity
+        }));
+      }
+    } catch (e) { /* non-fatal */ }
+
     const goodChunks = [
+      ...approvedAnswerChunks,
       ...sortedUploadedDocs,
       ...websiteChunks.slice(0, Math.max(matchCount, 10))
     ];
@@ -4939,7 +4961,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
     if (!goodChunks.length) return [];
 
     // Fire-and-forget telemetry — never awaited, never blocks chat
-    const simScores = goodChunks.map(c => vectorSimMap.get(`${c.document_id}-${c.chunk_index}`) || 0);
+    const simScores = goodChunks.map(c => c._approvedSim || vectorSimMap.get(`${c.document_id}-${c.chunk_index}`) || 0);
     supabase.from("retrieval_events").insert({
       tenant_id: tenantId,
       conversation_id: conversationId,
@@ -4955,7 +4977,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
         ? `${chunk.lender} — ${chunk.document_type}`
         : (chunk.document_type || "Knowledge Base"),
       text: chunk.chunk_text,
-      similarity: vectorSimMap.get(`${chunk.document_id}-${chunk.chunk_index}`) || 0.5
+      similarity: chunk._approvedSim || vectorSimMap.get(`${chunk.document_id}-${chunk.chunk_index}`) || 0.5
     }));
 
   } catch (err) {
@@ -12612,6 +12634,142 @@ app.post("/api/portal/unanswered-questions/dismiss", requireTenant, async (req, 
   } catch (err) {
     console.error("[dismiss-questions]", err.message);
     res.status(500).json({ error: "Failed to dismiss questions." });
+  }
+});
+
+// ── Approved Answers CRUD ─────────────────────────────────────────────────────
+
+// POST /api/portal/approved-answers — create (from unanswered question or standalone)
+app.post("/api/portal/approved-answers", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const { question, answer, source_question_key } = req.body;
+    if (!question || !answer) return res.status(400).json({ error: "question and answer required" });
+    const embText = `Q: ${question.trim()}\nA: ${answer.trim()}`;
+    const embResp = await openai.embeddings.create({ model: "text-embedding-3-small", input: embText });
+    const embedding = embResp.data[0].embedding;
+    const { data, error } = await supabase.from("approved_answers")
+      .insert({ tenant_id: tenantId, question: question.trim(), answer: answer.trim(),
+        source_question_key: source_question_key ? source_question_key.trim().toLowerCase() : null,
+        embedding, archived: false })
+      .select("id, question, answer, source_question_key, archived, created_at").single();
+    if (error) throw error;
+    if (source_question_key) {
+      await supabase.from("dismissed_questions").upsert(
+        [{ tenant_id: tenantId, question_key: source_question_key.trim().toLowerCase() }],
+        { onConflict: "tenant_id,question_key" }
+      );
+    }
+    res.json({ ok: true, answer: data });
+  } catch (err) {
+    console.error("[approved-answers:create]", err.message);
+    res.status(500).json({ error: "Failed to save approved answer." });
+  }
+});
+
+// GET /api/portal/approved-answers — list with optional search and archived filter
+app.get("/api/portal/approved-answers", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const { q, archived } = req.query;
+    let query = supabase.from("approved_answers")
+      .select("id, question, answer, source_question_key, archived, created_at, updated_at")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (archived === "true")  query = query.eq("archived", true);
+    else if (archived !== "all") query = query.eq("archived", false);
+    const { data, error } = await query;
+    if (error) throw error;
+    let results = data || [];
+    if (q) {
+      const lower = q.toLowerCase();
+      results = results.filter(r =>
+        r.question.toLowerCase().includes(lower) || r.answer.toLowerCase().includes(lower));
+    }
+    res.json(results);
+  } catch (err) {
+    console.error("[approved-answers:list]", err.message);
+    res.status(500).json({ error: "Failed to fetch approved answers." });
+  }
+});
+
+// PUT /api/portal/approved-answers/:id — update question and answer, regenerate embedding
+app.put("/api/portal/approved-answers/:id", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const { id } = req.params;
+    const { question, answer } = req.body;
+    if (!question || !answer) return res.status(400).json({ error: "question and answer required" });
+    const embText = `Q: ${question.trim()}\nA: ${answer.trim()}`;
+    const embResp = await openai.embeddings.create({ model: "text-embedding-3-small", input: embText });
+    const embedding = embResp.data[0].embedding;
+    const { data, error } = await supabase.from("approved_answers")
+      .update({ question: question.trim(), answer: answer.trim(), embedding, updated_at: new Date().toISOString() })
+      .eq("id", id).eq("tenant_id", tenantId)
+      .select("id, question, answer, archived, updated_at").single();
+    if (error) throw error;
+    res.json({ ok: true, answer: data });
+  } catch (err) {
+    console.error("[approved-answers:update]", err.message);
+    res.status(500).json({ error: "Failed to update approved answer." });
+  }
+});
+
+// PATCH /api/portal/approved-answers/:id/archive — toggle archived
+app.patch("/api/portal/approved-answers/:id/archive", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const { id } = req.params;
+    const { archived } = req.body;
+    const { data, error } = await supabase.from("approved_answers")
+      .update({ archived: !!archived, updated_at: new Date().toISOString() })
+      .eq("id", id).eq("tenant_id", tenantId)
+      .select("id, archived").single();
+    if (error) throw error;
+    res.json({ ok: true, answer: data });
+  } catch (err) {
+    console.error("[approved-answers:archive]", err.message);
+    res.status(500).json({ error: "Failed to archive approved answer." });
+  }
+});
+
+// DELETE /api/portal/approved-answers/:id — hard delete
+app.delete("/api/portal/approved-answers/:id", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const { id } = req.params;
+    const { error } = await supabase.from("approved_answers").delete()
+      .eq("id", id).eq("tenant_id", tenantId);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[approved-answers:delete]", err.message);
+    res.status(500).json({ error: "Failed to delete approved answer." });
+  }
+});
+
+// POST /api/portal/approved-answers/ai-draft — AI-suggested answer using existing KB
+app.post("/api/portal/approved-answers/ai-draft", requireTenant, async (req, res) => {
+  try {
+    const tenantId = req.tenant.tenantId;
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: "question required" });
+    const chunks = await findRelevantKnowledgeChunks(question, 5, tenantId);
+    if (!chunks.length) return res.json({ draft: null, message: "Not enough information in your knowledge base to draft an answer." });
+    const context = chunks.map(c => c.text).join("\n\n---\n\n");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are helping an admin draft a concise approved answer for their AI assistant knowledge base. Use only the provided context. Be direct and factual. 1-3 sentences max." },
+        { role: "user", content: `Context:\n${context}\n\nQuestion: ${question}\n\nDraft a concise answer using only the above context.` }
+      ],
+      max_tokens: 200, temperature: 0.3
+    });
+    res.json({ draft: completion.choices[0]?.message?.content?.trim() || null });
+  } catch (err) {
+    console.error("[approved-answers:ai-draft]", err.message);
+    res.status(500).json({ error: "Failed to generate draft." });
   }
 });
 

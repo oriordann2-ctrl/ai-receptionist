@@ -18395,9 +18395,7 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         checkedInTimeOnly.add(t);
       }
     }
-    console.log(`[noshow] ${tenantId}: ${checkedInCourtKeys.size} court-keyed check-ins, ${checkedInTimeOnly.size} time-only check-ins | raw rows: ${(checkins||[]).length} | fromDate: ${fromDate} | toDate: ${toDate}`);
-    if ((checkins||[]).length) console.log(`[noshow] sample booking_times:`, (checkins||[]).slice(0,3).map(c => c.booking_time));
-    console.log(`[noshow] EBO bookings fetched: ${(bookings||[]).length}`);
+    console.log(`[noshow] ${tenantId}: ${checkedInCourtKeys.size} court-keyed check-ins, ${checkedInTimeOnly.size} time-only check-ins`);
 
     // For "today" only count slots that have already started — future bookings can't be no-shows yet
     const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());

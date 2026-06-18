@@ -13554,7 +13554,9 @@ Use plain numbers where possible.
         try {
           const _org     = tenantDisplayName || "this organisation";
           const _descBit = tenantBusinessDesc ? ", " + tenantBusinessDesc : "";
-          const _offTopic = "Every question should be assumed to be about " + _org + " and its people, activities, services, or events — even short questions like ‘who is the president?’ or ‘how many courts?’ are implicitly about " + _org + ". Only treat a question as off-topic if it is clearly about an entirely unrelated subject (e.g. world news, another organisation). If off-topic, respond: ‘I’m only able to help with questions about " + _org + ". Is there something about us I can help you with?’";
+          const _offTopic = "Assume every question is about " + _org + " unless it is clearly about an entirely different topic (e.g. world news, another organisation). " +
+            "IMPORTANT DISTINCTION: if a question is genuinely about " + _org + " but the answer is not in the provided context, do NOT treat it as off-topic — instead say: ‘I don\\’t have that information — please check the website or contact " + _org + " directly.’ " +
+            "Only use the out-of-scope reply for questions that have nothing to do with " + _org + ": ‘I\\’m only able to help with questions about " + _org + ". Is there something about us I can help you with?’";
           const _name = tenantAssistantName;
           const sysPrompt = eboContext
             ? "You are " + _name + ", a helpful AI assistant for " + _org + _descBit + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE or WHAT THE ASSISTANT JUST SHOWED THE USER. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly. " + _offTopic

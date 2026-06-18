@@ -2752,7 +2752,7 @@
             + '<div style="font-size:12px;font-weight:700;color:#6b7280;margin:8px 0 6px;">Answer</div>'
             + '<textarea id="aaEditA-' + esc(r.id) + '" rows="3" style="width:100%;padding:8px 10px;border:1.5px solid #7c3aed;border-radius:7px;font-size:13px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;">' + esc(r.answer) + '</textarea>'
             + '<div style="display:flex;gap:8px;margin-top:8px;">'
-            + '<button onclick="aaSave(' + JSON.stringify(r.id) + ')" style="padding:6px 14px;border-radius:7px;border:none;background:#7c3aed;color:white;font-size:12px;font-weight:600;cursor:pointer;">Save Changes</button>'
+            + '<button onclick="aaSave(\'' + esc(r.id) + '\')" style="padding:6px 14px;border-radius:7px;border:none;background:#7c3aed;color:white;font-size:12px;font-weight:600;cursor:pointer;">Save Changes</button>'
             + '<button onclick="aaEditCancel()" style="padding:6px 14px;border-radius:7px;border:1px solid #d1d5db;background:white;color:#374151;font-size:12px;cursor:pointer;">Cancel</button>'
             + '<span id="aaEditSt-' + esc(r.id) + '" style="font-size:12px;color:#6b7280;align-self:center;"></span>'
             + '</div>'
@@ -2762,11 +2762,11 @@
             + '<td style="padding:9px 10px;color:#374151;">' + esc(preview(r.answer, 120)) + '</td>'
             + '<td style="padding:9px 10px;color:#9ca3af;white-space:nowrap;">' + esc(fmtDate(r.created_at)) + '</td>'
             + '<td style="padding:9px 10px;text-align:right;white-space:nowrap;">'
-            + '<button onclick="aaEdit(' + JSON.stringify(r.id) + ')" title="Edit" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#374151;font-size:11px;cursor:pointer;margin-right:4px;">Edit</button>'
+            + '<button onclick="aaEdit(\'' + esc(r.id) + '\')" title="Edit" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#374151;font-size:11px;cursor:pointer;margin-right:4px;">Edit</button>'
             + (r.archived
-              ? '<button onclick="aaArchive(' + JSON.stringify(r.id) + ',false)" title="Restore" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#059669;font-size:11px;cursor:pointer;margin-right:4px;">Restore</button>'
-              : '<button onclick="aaArchive(' + JSON.stringify(r.id) + ',true)" title="Archive" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#6b7280;font-size:11px;cursor:pointer;margin-right:4px;">Archive</button>')
-            + '<button onclick="aaDelete(' + JSON.stringify(r.id) + ')" title="Delete" style="padding:4px 8px;border-radius:5px;border:1px solid #fecaca;background:white;color:#dc2626;font-size:11px;cursor:pointer;">Del</button>'
+              ? '<button onclick="aaArchive(\'' + esc(r.id) + '\',false)" title="Restore" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#059669;font-size:11px;cursor:pointer;margin-right:4px;">Restore</button>'
+              : '<button onclick="aaArchive(\'' + esc(r.id) + '\',true)" title="Archive" style="padding:4px 8px;border-radius:5px;border:1px solid #e2e8f0;background:white;color:#6b7280;font-size:11px;cursor:pointer;margin-right:4px;">Archive</button>')
+            + '<button onclick="aaDelete(\'' + esc(r.id) + '\')" title="Delete" style="padding:4px 8px;border-radius:5px;border:1px solid #fecaca;background:white;color:#dc2626;font-size:11px;cursor:pointer;">Del</button>'
             + '</td>';
         }
         html += '</tr>';

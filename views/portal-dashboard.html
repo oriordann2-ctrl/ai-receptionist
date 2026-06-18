@@ -2633,8 +2633,8 @@
           // Notify Approved Answers panel to reload if open
           if (typeof reloadApprovedAnswers === "function") reloadApprovedAnswers();
         })
-        .catch(function() {
-          if (st) { st.style.color = "#b91c1c"; st.textContent = "Save failed — please try again."; }
+        .catch(function(err) {
+          if (st) { st.style.color = "#b91c1c"; st.textContent = "Save failed: " + (err && err.message ? err.message : "unknown error"); }
         });
     };
 

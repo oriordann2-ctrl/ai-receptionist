@@ -565,25 +565,35 @@
         var card  = document.getElementById("chatUsageCard");
         var meter = document.getElementById("chatUsageMeter");
         if (!card || !meter) return;
-        if (d.limit === null || d.used === null) return; // unlimited — hide card
+        if (d.used === null) return;
         card.style.display = "block";
-        var pct     = Math.min(100, Math.round((d.used / d.limit) * 100));
-        var barColor = pct >= 100 ? "#dc2626" : pct >= 80 ? "#f59e0b" : "#2563eb";
         var now       = new Date();
         var nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         var resetStr  = nextReset.toLocaleDateString("en-IE", { day: "numeric", month: "long" });
         var daysLeft  = Math.ceil((nextReset - now) / (1000 * 60 * 60 * 24));
         var daysLabel = daysLeft === 1 ? "1 day" : daysLeft + " days";
         var resetNote = "Resets " + resetStr + " — " + daysLabel + " away";
-        meter.innerHTML =
-          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
-          + '<span style="font-size:22px;font-weight:700;color:#111827;">' + d.used + ' <span style="font-size:14px;font-weight:400;color:#6b7280;">/ ' + d.limit + ' conversations</span></span>'
-          + '<span style="font-size:13px;color:#6b7280;">' + pct + '%</span>'
-          + '</div>'
-          + '<div style="height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-bottom:10px;">'
-          + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:99px;transition:width 0.4s;"></div>'
-          + '</div>'
-          + '<div style="font-size:12px;color:#9ca3af;">' + resetNote + '</div>';
+        if (d.limit === null) {
+          // No cap — just show the raw count with no progress bar
+          meter.innerHTML =
+            '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
+            + '<span style="font-size:22px;font-weight:700;color:#111827;">' + d.used + ' <span style="font-size:14px;font-weight:400;color:#6b7280;">conversations this month</span></span>'
+            + '<span style="font-size:13px;color:#6b7280;">Unlimited</span>'
+            + '</div>'
+            + '<div style="font-size:12px;color:#9ca3af;">' + resetNote + '</div>';
+        } else {
+          var pct      = Math.min(100, Math.round((d.used / d.limit) * 100));
+          var barColor = pct >= 100 ? "#dc2626" : pct >= 80 ? "#f59e0b" : "#2563eb";
+          meter.innerHTML =
+            '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
+            + '<span style="font-size:22px;font-weight:700;color:#111827;">' + d.used + ' <span style="font-size:14px;font-weight:400;color:#6b7280;">/ ' + d.limit + ' conversations</span></span>'
+            + '<span style="font-size:13px;color:#6b7280;">' + pct + '%</span>'
+            + '</div>'
+            + '<div style="height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-bottom:10px;">'
+            + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:99px;transition:width 0.4s;"></div>'
+            + '</div>'
+            + '<div style="font-size:12px;color:#9ca3af;">' + resetNote + '</div>';
+        }
       })
       .catch(function() {}); // silently ignore — non-critical
   }

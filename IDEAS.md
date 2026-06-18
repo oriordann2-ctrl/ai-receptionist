@@ -1058,6 +1058,22 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
+## 📊 Chat Usage Analytics in Portal (Not Updating)
+
+**Problem observed:** Monkstown Tennis has had significant real chat activity this month, but the chat usage counter in the portal settings hasn't increased at all — it's showing zero or stale numbers. Tenants can't see how much their widget is being used, which makes it hard to justify the subscription and impossible to spot a surge or a bot attack.
+
+**What to fix/build:**
+- Confirm chat logs are actually being written to Supabase for each widget message (log the count in Render logs to verify)
+- The portal "usage this month" stat should query `chat_logs` filtered by `tenant_id` and `created_at >= start of current month`
+- If the query is wrong (e.g. counting all-time or wrong tenant), fix the filter
+- Add a simple analytics section to the portal: total chats this month, daily chart (last 30 days), most common questions (top 10 by frequency)
+
+**Why this matters:** Usage visibility is a core part of the value prop — "see how many members your AI is helping". If the number is always 0, it looks broken and kills confidence in the product.
+
+**Status:** Bug/gap spotted 2026-06-18. Needs investigation.
+
+---
+
 ## 💬 Chat Monthly Limits per Tenant (Vlad — Cost Protection)
 
 **Problem:** No per-tenant message cap. A single tenant with a viral moment or bot attack could generate thousands of OpenAI calls at Sprimal's expense.

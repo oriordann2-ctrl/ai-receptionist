@@ -8378,7 +8378,6 @@ app.get("/api/portal/chat-usage", requireTenant, async (req, res) => {
   try {
     const { data: t } = await supabase.from("tenants").select("monthly_chat_limit").eq("id", tenantId).maybeSingle();
     const limit = t?.monthly_chat_limit ?? null;
-    if (limit === null) return res.json({ used: null, limit: null });
     const { count, month } = await getChatUsageThisMonth(tenantId);
     res.json({ used: count, limit, month });
   } catch (err) {

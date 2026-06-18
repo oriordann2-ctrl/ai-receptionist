@@ -9695,19 +9695,81 @@ app.get("/api/portal/status", requireTenant, async (req, res) => {
 });
 
 // ── Analytics helpers ─────────────────────────────────────────────────────────
-function classifyTopic(message) {
-  const m = (message || "").toLowerCase();
+function classifyTopic(message, businessType) {
+  const m  = (message || "").toLowerCase();
+  const bt = (businessType || "").toLowerCase();
+
+  // ── Racket sports ──────────────────────────────────────────────────────────
+  if (["tennis_club","squash_club","badminton_club"].includes(bt)) {
+    if (/\b(junior|youth|child|children|kid|teen|mini|under|u\d{1,2})\b/.test(m))                         return "Junior & Youth";
+    if (/\b(coach|coaching|lesson|lessons|beginner|intermediate|advanced|training|pro|tutor)\b/.test(m))   return "Coaching & Lessons";
+    if (/\b(event|competition|tournament|match|league|ladder|social|interclub|championship)\b/.test(m))    return "Events & Competitions";
+    if (/\b(court|courts|facility|facilities|bar|clubhouse|changing|locker|parking|shower|floodlit)\b/.test(m)) return "Courts & Facilities";
+    if (/\b(book|booking|reserve|slot|schedule|appointment)\b/.test(m))                                   return "Bookings";
+    if (/\b(membership|member|join|annual|fee|sign.?up|enrol|subscribe|plan|package|price|cost)\b/.test(m)) return "Membership & Pricing";
+    if (/\b(hour|open|close|opening|closing|time|when|today|tomorrow|weekend)\b/.test(m))                 return "Opening Hours";
+    if (/\b(contact|phone|call|email|address|location|directions?|where|find us)\b/.test(m))              return "Contact & Location";
+    if (/\b(cancel|refund|change|reschedule|postpone)\b/.test(m))                                         return "Cancellations";
+    return "General Enquiry";
+  }
+
+  // ── GAA / team sports ──────────────────────────────────────────────────────
+  if (["gaa_club","team_sports_club"].includes(bt)) {
+    if (/\b(minor|juvenile|under|u\d{1,2}|youth|child|kid|teen)\b/.test(m))                              return "Youth & Underage";
+    if (/\b(train|training|fixture|match|game|squad|team|practice|panel|pitch)\b/.test(m))               return "Training & Fixtures";
+    if (/\b(event|fundrais|lotto|social|function|dinner|draw|raffle)\b/.test(m))                         return "Events & Fundraising";
+    if (/\b(membership|member|join|register|registration|fee|cost|price|annual|sign.?up)\b/.test(m))     return "Membership & Registration";
+    if (/\b(hour|open|close|opening|time|when|today|weekend)\b/.test(m))                                 return "Opening Hours";
+    if (/\b(contact|phone|call|email|address|location|directions?|where)\b/.test(m))                     return "Contact & Location";
+    return "General Enquiry";
+  }
+
+  // ── Fitness / gym / wellness ───────────────────────────────────────────────
+  if (["gym","yoga_studio","pilates_studio","crossfit_box","swimming_club","cycling_club","running_club","golf_club"].includes(bt)) {
+    if (/\b(personal train|pt\b|one.to.one|private session|one.on.one)\b/.test(m))                       return "Personal Training";
+    if (/\b(class|classes|timetable|schedule|session|programme|program|roster)\b/.test(m))               return "Classes & Timetable";
+    if (/\b(facility|facilities|equipment|shower|locker|pool|sauna|changing|parking)\b/.test(m))         return "Facilities";
+    if (/\b(book|booking|reserve|slot|appointment)\b/.test(m))                                           return "Bookings";
+    if (/\b(membership|member|join|price|cost|fee|sign.?up|enrol|subscribe|plan|package|annual|monthly)\b/.test(m)) return "Membership & Pricing";
+    if (/\b(hour|open|close|opening|time|when|today|weekend)\b/.test(m))                                 return "Opening Hours";
+    if (/\b(contact|phone|call|email|address|location|directions?|where)\b/.test(m))                     return "Contact & Location";
+    if (/\b(cancel|refund|change|reschedule)\b/.test(m))                                                 return "Cancellations";
+    return "General Enquiry";
+  }
+
+  // ── Café / restaurant ──────────────────────────────────────────────────────
+  if (["cafe","coffee_shop","restaurant","bakery"].includes(bt)) {
+    if (/\b(allergen|allergy|allergic|gluten|dairy|vegan|vegetarian|lactose|nut|celiac|intolerance|dietary)\b/.test(m)) return "Allergens & Dietary";
+    if (/\b(menu|food|eat|dish|meal|breakfast|lunch|dinner|snack|cake|coffee|drink|sandwich|soup|special)\b/.test(m))   return "Menu & Food";
+    if (/\b(book|reserve|reservation|table|party|group|event|function|private)\b/.test(m))               return "Bookings & Reservations";
+    if (/\b(gift|voucher|offer|deal|discount|loyalty|reward|promo)\b/.test(m))                           return "Offers & Gift Cards";
+    if (/\b(hour|open|close|opening|time|when|today|tomorrow|weekend|sunday)\b/.test(m))                 return "Opening Hours";
+    if (/\b(contact|phone|call|email|address|location|directions?|where|parking|find us)\b/.test(m))     return "Contact & Location";
+    return "General Enquiry";
+  }
+
+  // ── Financial / mortgage ───────────────────────────────────────────────────
+  if (["mortgage_broker","financial_advisor","credit_union","financial_services"].includes(bt)) {
+    if (/\b(protect|protection|insurance|life|income|serious illness|critical|cover)\b/.test(m))         return "Protection & Insurance";
+    if (/\b(pension|retirement|planning|investment|savings|fund|portfolio)\b/.test(m))                   return "Financial Planning";
+    if (/\b(mortgage|loan|deposit|rate|lender|broker|property|buy|purchase|remortgage|ltv)\b/.test(m))   return "Mortgages";
+    if (/\b(book|appointment|consultation|meeting|call|schedule)\b/.test(m))                             return "Appointments";
+    if (/\b(contact|phone|email|address|location|where|find us)\b/.test(m))                             return "Contact & Location";
+    return "General Enquiry";
+  }
+
+  // ── Generic fallback ───────────────────────────────────────────────────────
   if (/\b(book|appointment|slot|schedule|visit|consultation|booking)\b/.test(m))         return "Bookings";
   if (/\b(mortgage|loan|deposit|rate|lender|broker|property|buy|purchase|remortgage)\b/.test(m)) return "Mortgages";
   if (/\b(price|cost|fee|membership|join|sign.?up|enrol|enroll|subscribe|plan|package)\b/.test(m)) return "Pricing & Membership";
-  if (/\b(hour|open|close|opening|closing|time|when|today|tomorrow|weekend)\b/.test(m))   return "Opening Hours";
+  if (/\b(hour|open|close|opening|closing|time|when|today|tomorrow|weekend)\b/.test(m))  return "Opening Hours";
   if (/\b(contact|phone|call|email|address|location|directions?|where|find us)\b/.test(m)) return "Contact & Location";
-  if (/\b(cancel|refund|change|update|edit|reschedule|postpone)\b/.test(m))               return "Cancellations";
-  if (/\b(class|course|session|programme|program|timetable|roster)\b/.test(m))            return "Classes & Schedule";
+  if (/\b(cancel|refund|change|update|edit|reschedule|postpone)\b/.test(m))              return "Cancellations";
+  if (/\b(class|course|session|programme|program|timetable|roster)\b/.test(m))           return "Classes & Schedule";
   return "General Enquiry";
 }
 
-function buildAnalytics(rows) {
+function buildAnalytics(rows, businessType) {
   const now = new Date();
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
 
@@ -9743,7 +9805,7 @@ function buildAnalytics(rows) {
   convs.forEach(c => {
     const customerMsg = c.messages.find(m => m.sender === "customer");
     if (customerMsg) {
-      const topic = classifyTopic(customerMsg.message);
+      const topic = classifyTopic(customerMsg.message, businessType);
       topicCounts[topic] = (topicCounts[topic] || 0) + 1;
     }
   });
@@ -9769,14 +9831,13 @@ app.get("/api/portal/analytics", requireTenant, async (req, res) => {
     const tenantId = req.tenant.tenantId;
     const since = new Date(); since.setDate(since.getDate() - 30);
 
-    const { data: rows, error } = await supabase
-      .from("chat_logs")
-      .select("id, conversation_id, sender, message, answer_source, created_at")
-      .eq("tenant_id", tenantId)
-      .gte("created_at", since.toISOString());
+    const [{ data: rows, error }, { data: tenant }] = await Promise.all([
+      supabase.from("chat_logs").select("id, conversation_id, sender, message, answer_source, created_at").eq("tenant_id", tenantId).gte("created_at", since.toISOString()),
+      supabase.from("tenants").select("business_type").eq("id", tenantId).maybeSingle()
+    ]);
 
     if (error) throw error;
-    res.json(buildAnalytics(rows));
+    res.json(buildAnalytics(rows, tenant?.business_type));
   } catch (err) {
     console.error("[portal-analytics]", err.message);
     res.status(500).json({ error: "Failed to fetch analytics." });
@@ -9803,10 +9864,10 @@ app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
     // Per-tenant breakdown
     const tids = [...new Set((rows || []).map(r => r.tenant_id))];
     const { data: tenantRows } = await supabase
-      .from("tenants").select("id, name")
+      .from("tenants").select("id, name, business_type")
       .in("id", tids.length ? tids : ["__none__"]);
-    const tenantNames = {};
-    (tenantRows || []).forEach(t => { tenantNames[t.id] = t.name || t.id; });
+    const tenantMeta = {};
+    (tenantRows || []).forEach(t => { tenantMeta[t.id] = { name: t.name || t.id, business_type: t.business_type }; });
 
     const tenantBuckets = {};
     (rows || []).forEach(row => {
@@ -9814,7 +9875,7 @@ app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
       tenantBuckets[row.tenant_id].push(row);
     });
     overall.byTenant = Object.entries(tenantBuckets)
-      .map(([tid, trows]) => ({ tenantId: tid, tenantName: tenantNames[tid] || tid, ...buildAnalytics(trows) }))
+      .map(([tid, trows]) => ({ tenantId: tid, tenantName: (tenantMeta[tid] || {}).name || tid, ...buildAnalytics(trows, (tenantMeta[tid] || {}).business_type) }))
       .sort((a, b) => b.totalConversations - a.totalConversations);
 
     const { data: allTenants } = await supabase.from("tenants").select("id, name").order("name", { ascending: true });

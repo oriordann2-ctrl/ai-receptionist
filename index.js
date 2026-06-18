@@ -12563,23 +12563,30 @@ app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
 
     const dismissedKeys = new Set((dismissed || []).map(d => d.question_key));
 
-    // Pair each generic bot response with the preceding customer message
-    const rows = logs || [];
+    // Group messages by conversation, then find generic responses in one O(n) pass
+    const convMsgMap = {};
+    (logs || []).forEach(row => {
+      const key = row.conversation_id || ("msg-" + row.id);
+      if (!convMsgMap[key]) convMsgMap[key] = [];
+      convMsgMap[key].push(row);
+    });
+
     const questionMap = {};
-    rows.forEach((row, i) => {
-      if (row.sender === "bot" && row.answer_source === "generic") {
-        const preceding = [...rows].slice(0, i).reverse()
-          .find(r => r.conversation_id === row.conversation_id && r.sender === "customer");
-        if (preceding?.message) {
-          const key = preceding.message.trim().toLowerCase();
+    Object.values(convMsgMap).forEach(msgs => {
+      let lastCustomerMsg = null;
+      msgs.forEach(row => {
+        if (row.sender === "customer") {
+          lastCustomerMsg = row;
+        } else if (row.sender === "bot" && row.answer_source === "generic" && lastCustomerMsg) {
+          const key = lastCustomerMsg.message.trim().toLowerCase();
           if (dismissedKeys.has(key)) return;
           if (!questionMap[key]) {
-            questionMap[key] = { question: preceding.message.trim(), count: 0, last_asked: preceding.created_at };
+            questionMap[key] = { question: lastCustomerMsg.message.trim(), count: 0, last_asked: lastCustomerMsg.created_at };
           }
           questionMap[key].count++;
-          if (preceding.created_at > questionMap[key].last_asked) questionMap[key].last_asked = preceding.created_at;
+          if (lastCustomerMsg.created_at > questionMap[key].last_asked) questionMap[key].last_asked = lastCustomerMsg.created_at;
         }
-      }
+      });
     });
 
     const questions = Object.values(questionMap)

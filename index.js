@@ -17772,7 +17772,7 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
   if (btn) { btn.disabled = true; btn.textContent = 'Checking in...'; }
   showMsg('Getting your location...', 'info');
 
-  async function doSubmit(lat, lng) {
+  async function doSubmit(lat, lng, accuracy) {
     try {
       var body = {
         tenant_id: TENANT_ID,
@@ -17780,6 +17780,7 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
         member_name: juniorName,
         gps_lat: lat,
         gps_lng: lng,
+        gps_accuracy: accuracy != null ? Math.round(accuracy) : null,
         is_delegate: true,
         supervisor_name: supervisorName,
         supervisor_contact: supervisorContact
@@ -17801,7 +17802,7 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
   }
 
   navigator.geolocation.getCurrentPosition(
-    function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude); },
+    function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); },
     function() {
       showMsg('Location access is required to check in. Please enable location in your phone settings and try again.', 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
@@ -17999,7 +18000,7 @@ async function submitCheckin(membershipNumber, memberName) {
   navigator.geolocation.getCurrentPosition(async function(pos) {
     showMsg('Checking in...', 'info');
     try {
-      var body = { tenant_id: TENANT_ID, membership_number: membershipNumber, member_name: memberName, gps_lat: pos.coords.latitude, gps_lng: pos.coords.longitude };
+      var body = { tenant_id: TENANT_ID, membership_number: membershipNumber, member_name: memberName, gps_lat: pos.coords.latitude, gps_lng: pos.coords.longitude, gps_accuracy: Math.round(pos.coords.accuracy) };
       if (currentBooking) { body.booking_time = currentBooking.time; body.booking_court_id = String(currentBooking.court_id); }
       var cr = await fetch('/api/checkin/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       var cd = await cr.json();
@@ -18337,19 +18338,48 @@ app.post("/api/checkin/submit", async (req, res) => {
       return res.status(403).json({ error: "Location access is required to check in. Please enable location in your phone settings and try again." });
     }
 
-    // GPS validation — if tenant has GPS set, check distance
+    // Reject if GPS accuracy is too poor to be meaningful (>300m = no real fix)
+    const gps_accuracy = typeof req.body.gps_accuracy === 'number' ? req.body.gps_accuracy : null;
+    if (gps_accuracy !== null && gps_accuracy > 300) {
+      return res.status(403).json({ error: "GPS signal is too weak to verify your location. Please step outside for a better signal and try again." });
+    }
+
+    // GPS distance check + IP geolocation anti-spoofing
     let gps_verified = false;
     let gps_distance_meters = null;
-    if (gps_lat && gps_lng) {
-      const { data: tenant } = await supabase.from("tenants").select("checkin_lat, checkin_lng, checkin_radius_meters").eq("id", tenant_id).single();
-      if (tenant?.checkin_lat && tenant?.checkin_lng) {
-        gps_distance_meters = Math.round(gpsDistance(gps_lat, gps_lng, tenant.checkin_lat, tenant.checkin_lng));
-        const radius = tenant.checkin_radius_meters || 150;
-        if (gps_distance_meters > radius) {
-          console.warn(`[checkin] GPS rejected: ${member_name} (#${membership_number}) at ${tenant_id} — ${gps_distance_meters}m away (radius ${radius}m)`);
-          return res.status(403).json({ error: `You must be at the club to check in (you appear to be ${gps_distance_meters}m away).` });
+    const { data: tenant } = await supabase.from("tenants").select("checkin_lat, checkin_lng, checkin_radius_meters").eq("id", tenant_id).single();
+    if (tenant?.checkin_lat && tenant?.checkin_lng) {
+      gps_distance_meters = Math.round(gpsDistance(gps_lat, gps_lng, tenant.checkin_lat, tenant.checkin_lng));
+      const radius = tenant.checkin_radius_meters || 150;
+      if (gps_distance_meters > radius) {
+        console.warn(`[checkin] GPS rejected: ${member_name} (#${membership_number}) at ${tenant_id} — ${gps_distance_meters}m away (radius ${radius}m)`);
+        return res.status(403).json({ error: `You must be at the club to check in (you appear to be ${gps_distance_meters}m away).` });
+      }
+      gps_verified = true;
+
+      // IP geolocation anti-spoofing: cross-check the member's network location
+      // against the club location. A spoofer can fake GPS but their mobile carrier
+      // IP will still be geolocated far from a club in Ireland.
+      const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip;
+      const isLoopback = !clientIp || clientIp === '::1' || clientIp.startsWith('127.');
+      if (!isLoopback) {
+        try {
+          const ctrl = new AbortController();
+          const ipTimeout = setTimeout(() => ctrl.abort(), 3000);
+          const geoRes = await fetch(`http://ip-api.com/json/${clientIp}?fields=status,lat,lon`, { signal: ctrl.signal });
+          clearTimeout(ipTimeout);
+          const geo = await geoRes.json();
+          if (geo.status === 'success') {
+            const ipDistKm = Math.round(gpsDistance(geo.lat, geo.lon, tenant.checkin_lat, tenant.checkin_lng) / 1000);
+            if (ipDistKm > 500) {
+              console.warn(`[checkin] IP spoof suspected: ${member_name} (#${membership_number}) at ${tenant_id} — IP ${clientIp} geolocates ${ipDistKm}km from club, GPS claims ${gps_distance_meters}m`);
+              return res.status(403).json({ error: "Location verification failed. Your network location doesn't match the club. Please check in on site using your mobile data." });
+            }
+          }
+        } catch(e) {
+          // Non-blocking — if the IP lookup fails, don't prevent legitimate check-ins
+          console.warn(`[checkin] IP geolocation check failed (non-blocking): ${e.message}`);
         }
-        gps_verified = true;
       }
     }
 

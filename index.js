@@ -18736,30 +18736,35 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         .lte("booking_time", toDate + " 23:59:59")
     ]);
 
-    // Build two sets: court-specific (time|court_id) and time-only (for GPS check-ins that lack court_id)
-    // A null/empty court_id must NEVER spread across all courts — only exact court matches count
-    const checkedInCourtKeys = new Set();
-    const checkedInTimeOnly  = new Set();
+    // Supervised check-ins (supervisor_name set) are member-specific — each junior must be individually
+    // checked in and only that junior is credited. Non-supervised check-ins (GPS self / manual) credit
+    // the whole court/party as before.
+    const selfCourtKeys   = new Set(); // "time|courtId" — non-supervised, credits whole court
+    const selfTimeOnly    = new Set(); // "time" — non-supervised, time-only fallback
+    const supervisedKeys  = new Set(); // "memberNum|time[|courtId]" — supervised, member-specific only
     // Per-member type map: "memberNum|bookingKey" → type string
     const memberCheckinTypeMap = new Map();
     for (const c of (checkins || [])) {
       const t = String(c.booking_time || "").replace(" ", "T").slice(0, 16);
       if (!t) continue;
-      if (c.booking_court_id) {
-        checkedInCourtKeys.add(t + "|" + String(c.booking_court_id));
+      const bk = c.booking_court_id ? (t + "|" + String(c.booking_court_id)) : t;
+      if (c.supervisor_name) {
+        // Supervised junior — credit this member only
+        if (c.membership_number) supervisedKeys.add(String(c.membership_number) + "|" + bk);
       } else {
-        checkedInTimeOnly.add(t);
+        // Self/manual — credit whole court
+        if (c.booking_court_id) selfCourtKeys.add(t + "|" + String(c.booking_court_id));
+        else selfTimeOnly.add(t);
       }
       if (c.membership_number) {
         let type = "self";
         if (c.supervisor_name) type = "supervised";
         else if (c.is_delegate || c.checked_in_by) type = "party";
         else if (!c.gps_verified && c.gps_lat == null) type = "manual";
-        const bk = c.booking_court_id ? (t + "|" + String(c.booking_court_id)) : t;
         memberCheckinTypeMap.set(String(c.membership_number) + "|" + bk, type);
       }
     }
-    console.log(`[noshow] ${tenantId}: ${checkedInCourtKeys.size} court-keyed check-ins, ${checkedInTimeOnly.size} time-only check-ins`);
+    console.log(`[noshow] ${tenantId}: ${selfCourtKeys.size} self court-keyed, ${selfTimeOnly.size} time-only, ${supervisedKeys.size} supervised`);
 
     // For "today" only count slots that have already started — future bookings can't be no-shows yet
     const irishTime = new Intl.DateTimeFormat("en-IE", { timeZone: "Europe/Dublin", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
@@ -18771,29 +18776,35 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
     for (const b of bookings) {
       const bookingTime = String(b.time || "").replace(" ", "T").slice(0, 16);
       if (!bookingTime) continue;
-      // Prefer court-specific match; fall back to time-only for legacy check-ins without court_id
       const courtId = b.court_id ? String(b.court_id) : null;
-      const wasCheckedIn = (courtId && checkedInCourtKeys.has(bookingTime + "|" + courtId))
-        || checkedInTimeOnly.has(bookingTime);
+      const slotBk  = courtId ? (bookingTime + "|" + courtId) : bookingTime;
+      // Self/manual check-in on this slot credits the whole court
+      const selfCheckedIn = selfCourtKeys.has(slotBk) || selfTimeOnly.has(bookingTime);
       if (period === "day") {
         const hhmm = String(b.time || "").slice(11, 16);
         if (!hhmm.includes(":")) continue;
         const [bh, bm] = hhmm.split(":").map(Number);
-        // Skip future slots that have no check-in — they can't be no-shows yet.
-        // But if a check-in already exists (member arrived early), include the slot.
-        if (bh * 60 + bm > nowMinsOfDay && !wasCheckedIn) continue;
+        if (bh * 60 + bm > nowMinsOfDay && !selfCheckedIn) {
+          // For supervised slots: still include if any junior on this booking has been checked in early
+          const anySupervisedEarly = (b.bookedMembers || []).some(m =>
+            m.membership_number && supervisedKeys.has(String(m.membership_number) + "|" + slotBk)
+          );
+          if (!anySupervisedEarly) continue;
+        }
       }
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || Number(key) === 1 || m.colour) continue;
         if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0, noshow_times: [], checkin_events: [] };
         memberMap[key].booked++;
+        // Supervised juniors require individual check-ins; adults get court-level party credit
+        const supervisorCheckedIn = supervisedKeys.has(String(key) + "|" + slotBk);
+        const wasCheckedIn = selfCheckedIn || supervisorCheckedIn;
         if (!wasCheckedIn) {
           memberMap[key].noshows++;
           memberMap[key].noshow_times.push(bookingTime);
         } else {
-          const bk = courtId ? (bookingTime + "|" + courtId) : bookingTime;
-          const selfType = memberCheckinTypeMap.get(String(key) + "|" + bk);
+          const selfType = memberCheckinTypeMap.get(String(key) + "|" + slotBk);
           memberMap[key].checkin_events.push({ time: bookingTime, type: selfType !== undefined ? selfType : "party" });
         }
       }
@@ -18854,7 +18865,9 @@ app.get("/api/portal/checkins/log", requireTenant, async (req, res) => {
     // time-only fallback for legacy check-ins that don't.
     const checkedInCourtSlots = new Set();
     const checkedInTimeSlots  = new Set();
-    for (const c of todayCheckins.filter(c => c.booking_time)) {
+    // Only non-supervised check-ins propagate "via booking" credit to court-mates.
+    // Supervised junior check-ins are individual — court-mates still need their own supervisor.
+    for (const c of todayCheckins.filter(c => c.booking_time && !c.supervisor_name)) {
       const t = String(c.booking_time).replace(" ", "T").slice(0, 16);
       if (c.booking_court_id) {
         checkedInCourtSlots.add(t + "|" + String(c.booking_court_id));

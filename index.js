@@ -8343,7 +8343,7 @@ async function getChatUsageThisMonth(tenantId) {
     .from("chat_logs")
     .select("conversation_id")
     .eq("tenant_id", tenantId)
-    .eq("sender", "user")
+    .eq("sender", "customer")
     .gte("created_at", start)
     .not("conversation_id", "is", null);
   const count = new Set((data || []).map(r => r.conversation_id)).size;

@@ -1305,6 +1305,9 @@
       .catch(function() {});
   }
 
+  var _checkinPage = 0;
+  var CHECKIN_PAGE_SIZE = 6;
+
   function renderCheckinLog() {
     fetch("/api/portal/checkins/log")
       .then(function(r) { return r.json(); })
@@ -1314,10 +1317,15 @@
         var today = new Date().toISOString().slice(0, 10);
         var todayLog = log.filter(function(c) { return c.checked_in_at.slice(0, 10) === today; });
         if (!todayLog.length) { el.innerHTML = '<div style="font-size:13px;color:#9ca3af;">No check-ins today yet.</div>'; return; }
-        el.innerHTML = '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
+
+        var totalPages = Math.ceil(todayLog.length / CHECKIN_PAGE_SIZE);
+        _checkinPage = Math.min(_checkinPage, totalPages - 1);
+        var pageItems = todayLog.slice(_checkinPage * CHECKIN_PAGE_SIZE, (_checkinPage + 1) * CHECKIN_PAGE_SIZE);
+
+        var html = '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
           + '<thead><tr style="color:#6b7280;text-align:left;border-bottom:1px solid #f3f4f6;">'
           + '<th style="padding:6px 8px;">Member</th><th style="padding:6px 8px;">Time</th><th style="padding:6px 8px;">GPS</th><th style="padding:6px 8px;"></th></tr></thead>'
-          + '<tbody>' + todayLog.map(function(c) {
+          + '<tbody>' + pageItems.map(function(c) {
             var t = new Date(c.checked_in_at).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
             var gpsCell = c.inferred ? '<span style="color:#9ca3af;font-size:12px;">via booking</span>'
               : (c.gps_verified ? '✅ ' + c.gps_distance_meters + 'm' : c.gps_lat ? '⚠️ unverified' : '—');
@@ -1330,11 +1338,66 @@
               + '<td style="padding:6px 8px;">' + actionCell + '</td>'
               + '</tr>';
           }).join("") + '</tbody></table>';
+
+        if (totalPages > 1) {
+          var pd = _checkinPage === 0, nd = _checkinPage >= totalPages - 1;
+          html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;">'
+            + '<button onclick="checkinPagePrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:4px 12px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:12px;cursor:pointer;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+            + '<span style="font-size:12px;color:#6b7280;">' + (_checkinPage + 1) + ' / ' + totalPages + '</span>'
+            + '<button onclick="checkinPageNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:4px 12px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:12px;cursor:pointer;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+            + '</div>';
+        }
+        el.innerHTML = html;
       })
       .catch(function() {});
   }
 
+  window.checkinPagePrev = function() { if (_checkinPage > 0) { _checkinPage--; renderCheckinLog(); } };
+  window.checkinPageNext = function() { _checkinPage++; renderCheckinLog(); };
+
   // ── Junior Supervisors Report ───────────────────────────────────────────────
+  var _supPage = 0;
+  var SUP_PAGE_SIZE = 6;
+  var _supRows = [];
+
+  function renderSupPage() {
+    var el = document.getElementById("supervisorLog");
+    if (!el) return;
+    var totalPages = Math.ceil(_supRows.length / SUP_PAGE_SIZE);
+    _supPage = Math.min(_supPage, totalPages - 1);
+    var pageItems = _supRows.slice(_supPage * SUP_PAGE_SIZE, (_supPage + 1) * SUP_PAGE_SIZE);
+
+    var html = '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
+      + '<thead><tr style="color:#6b7280;text-align:left;border-bottom:1px solid #f3f4f6;">'
+      + '<th style="padding:6px 8px;">Time</th>'
+      + '<th style="padding:6px 8px;">Supervisor</th>'
+      + '<th style="padding:6px 8px;">Phone</th>'
+      + '<th style="padding:6px 8px;">Junior Supervised</th>'
+      + '</tr></thead><tbody>'
+      + pageItems.map(function(r) {
+          var t = new Date(r.checked_in_at).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
+          return '<tr style="border-bottom:1px solid #f9fafb;">'
+            + '<td style="padding:6px 8px;color:#374151;">' + t + '</td>'
+            + '<td style="padding:6px 8px;font-weight:600;">' + esc(r.supervisor_name) + '</td>'
+            + '<td style="padding:6px 8px;">' + esc(r.supervisor_contact || "—") + '</td>'
+            + '<td style="padding:6px 8px;">' + esc(r.member_name) + ' <span style="color:#9ca3af;font-weight:400;">#' + r.membership_number + '</span></td>'
+            + '</tr>';
+        }).join("") + '</tbody></table>';
+
+    if (totalPages > 1) {
+      var pd = _supPage === 0, nd = _supPage >= totalPages - 1;
+      html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;">'
+        + '<button onclick="supPagePrev()" ' + (pd ? 'disabled ' : '') + 'style="padding:4px 12px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:12px;cursor:pointer;opacity:' + (pd ? '0.4' : '1') + ';">← Prev</button>'
+        + '<span style="font-size:12px;color:#6b7280;">' + (_supPage + 1) + ' / ' + totalPages + '</span>'
+        + '<button onclick="supPageNext()" ' + (nd ? 'disabled ' : '') + 'style="padding:4px 12px;border-radius:7px;border:1px solid #d1d5db;background:#fff;font-size:12px;cursor:pointer;opacity:' + (nd ? '0.4' : '1') + ';">Next →</button>'
+        + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  window.supPagePrev = function() { if (_supPage > 0) { _supPage--; renderSupPage(); } };
+  window.supPageNext = function() { _supPage++; renderSupPage(); };
+
   window.loadSupervisors = function() {
     var picker = document.getElementById("supDatePicker");
     var date = picker ? picker.value : "";
@@ -1349,22 +1412,9 @@
           el.innerHTML = '<div style="font-size:13px;color:#9ca3af;">No junior supervision check-ins for this date.</div>';
           return;
         }
-        el.innerHTML = '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
-          + '<thead><tr style="color:#6b7280;text-align:left;border-bottom:1px solid #f3f4f6;">'
-          + '<th style="padding:6px 8px;">Time</th>'
-          + '<th style="padding:6px 8px;">Supervisor</th>'
-          + '<th style="padding:6px 8px;">Phone</th>'
-          + '<th style="padding:6px 8px;">Junior Supervised</th>'
-          + '</tr></thead><tbody>'
-          + d.rows.map(function(r) {
-            var t = new Date(r.checked_in_at).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
-            return '<tr style="border-bottom:1px solid #f9fafb;">'
-              + '<td style="padding:6px 8px;color:#374151;">' + t + '</td>'
-              + '<td style="padding:6px 8px;font-weight:600;">' + esc(r.supervisor_name) + '</td>'
-              + '<td style="padding:6px 8px;">' + esc(r.supervisor_contact || "—") + '</td>'
-              + '<td style="padding:6px 8px;">' + esc(r.member_name) + ' <span style="color:#9ca3af;font-weight:400;">#' + r.membership_number + '</span></td>'
-              + '</tr>';
-          }).join("") + '</tbody></table>';
+        _supRows = d.rows;
+        _supPage = 0;
+        renderSupPage();
       })
       .catch(function() {
         if (el) el.innerHTML = '<div style="font-size:13px;color:#ef4444;">Failed to load supervisor log.</div>';

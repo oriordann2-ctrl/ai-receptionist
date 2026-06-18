@@ -1677,6 +1677,8 @@
     var name = sel && sel.selectedOptions[0] ? (sel.selectedOptions[0].dataset.name || "") : "";
     if (!mnum || !name) { showModalMsg("Please select a member.", "#ef4444"); return; }
     if (!reason) { showModalMsg("Please enter a reason for the manual check-in.", "#ef4444"); return; }
+    var btn = document.querySelector("#manualCheckinModal button[onclick=\"window.submitManualCheckin()\"]");
+    if (btn) { btn.disabled = true; btn.textContent = "Checking in…"; }
     fetch("/api/portal/checkins/manual", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1690,10 +1692,14 @@
         renderCheckinLog();
         renderCaptainDashboard();
       } else {
+        if (btn) { btn.disabled = false; btn.textContent = "Check In"; }
         showModalMsg(d.error || "Failed to check in.", "#ef4444");
       }
     })
-    .catch(function() { showModalMsg("Network error — please try again.", "#ef4444"); });
+    .catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = "Check In"; }
+      showModalMsg("Network error — please try again.", "#ef4444");
+    });
   };
 
   window.deleteCheckin = function(id) {

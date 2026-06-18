@@ -18730,7 +18730,7 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
     await loadEboConfigFromDb(tenantId);
     const [bookings, { data: checkins }] = await Promise.all([
       fetchEboBookingsPaged(tenantId, fromDate, toDate),
-      supabase.from("court_checkins").select("booking_time, booking_court_id")
+      supabase.from("court_checkins").select("membership_number, booking_time, booking_court_id, checked_in_by, is_delegate, supervisor_name, gps_verified, gps_lat")
         .eq("tenant_id", tenantId)
         .gte("booking_time", fromDate + " 00:00:00")
         .lte("booking_time", toDate + " 23:59:59")
@@ -18740,6 +18740,8 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
     // A null/empty court_id must NEVER spread across all courts — only exact court matches count
     const checkedInCourtKeys = new Set();
     const checkedInTimeOnly  = new Set();
+    // Per-member type map: "memberNum|bookingKey" → type string
+    const memberCheckinTypeMap = new Map();
     for (const c of (checkins || [])) {
       const t = String(c.booking_time || "").replace(" ", "T").slice(0, 16);
       if (!t) continue;
@@ -18747,6 +18749,14 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
         checkedInCourtKeys.add(t + "|" + String(c.booking_court_id));
       } else {
         checkedInTimeOnly.add(t);
+      }
+      if (c.membership_number) {
+        let type = "self";
+        if (c.supervisor_name) type = "supervised";
+        else if (c.is_delegate || c.checked_in_by) type = "party";
+        else if (!c.gps_verified && c.gps_lat == null) type = "manual";
+        const bk = c.booking_court_id ? (t + "|" + String(c.booking_court_id)) : t;
+        memberCheckinTypeMap.set(String(c.membership_number) + "|" + bk, type);
       }
     }
     console.log(`[noshow] ${tenantId}: ${checkedInCourtKeys.size} court-keyed check-ins, ${checkedInTimeOnly.size} time-only check-ins`);
@@ -18774,9 +18784,16 @@ app.get("/api/portal/checkins/noshow-report", requireTenant, async (req, res) =>
       for (const m of (b.bookedMembers || [])) {
         const key = m.membership_number;
         if (!key || Number(key) === 1 || m.colour) continue;
-        if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0, noshow_times: [] };
+        if (!memberMap[key]) memberMap[key] = { membership_number: key, name: m.name || `Member #${key}`, booked: 0, noshows: 0, noshow_times: [], checkin_events: [] };
         memberMap[key].booked++;
-        if (!wasCheckedIn) { memberMap[key].noshows++; memberMap[key].noshow_times.push(bookingTime); }
+        if (!wasCheckedIn) {
+          memberMap[key].noshows++;
+          memberMap[key].noshow_times.push(bookingTime);
+        } else {
+          const bk = courtId ? (bookingTime + "|" + courtId) : bookingTime;
+          const selfType = memberCheckinTypeMap.get(String(key) + "|" + bk);
+          memberMap[key].checkin_events.push({ time: bookingTime, type: selfType !== undefined ? selfType : "party" });
+        }
       }
     }
 

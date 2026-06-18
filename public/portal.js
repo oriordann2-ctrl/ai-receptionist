@@ -1828,6 +1828,31 @@
             var r = document.getElementById(id);
             if (r) r.style.display = r.style.display === "none" ? "table-row" : "none";
           };
+          var TYPE_LABEL = { self: "GPS Self", party: "Party", supervised: "Supervised", manual: "Manual" };
+          var TYPE_COLOR = {
+            self:       { bg: "#dbeafe", fg: "#1e40af" },
+            party:      { bg: "#ede9fe", fg: "#6d28d9" },
+            supervised: { bg: "#fef3c7", fg: "#92400e" },
+            manual:     { bg: "#f3f4f6", fg: "#374151" }
+          };
+
+          function checkinTypeBadge(type) {
+            var c = TYPE_COLOR[type] || TYPE_COLOR.self;
+            return '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:12px;white-space:nowrap;background:' + c.bg + ';color:' + c.fg + ';">' + (TYPE_LABEL[type] || type) + '</span>';
+          }
+
+          function checkinTypeSummary(events) {
+            if (!events || !events.length) return '<span style="color:#9ca3af;font-size:12px;">—</span>';
+            var counts = {};
+            events.forEach(function(e) { counts[e.type] = (counts[e.type] || 0) + 1; });
+            var types = Object.keys(counts);
+            return types.map(function(t) {
+              var c = TYPE_COLOR[t] || TYPE_COLOR.self;
+              var label = (TYPE_LABEL[t] || t) + (counts[t] > 1 ? " ×" + counts[t] : "");
+              return '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:12px;white-space:nowrap;background:' + c.bg + ';color:' + c.fg + ';display:inline-block;margin:1px;">' + label + '</span>';
+            }).join("");
+          }
+
           var rows = pageMembers.map(function(m, i) {
             var rank = start + i + 1;
             var badgeClass = m.rate >= 60 ? "noshow-badge-red" : m.rate >= 30 ? "noshow-badge-amber" : "noshow-badge-green";
@@ -1840,27 +1865,42 @@
               return d.toLocaleDateString("en-IE", { weekday:"short", day:"numeric", month:"short" }) + " at " +
                      d.toLocaleTimeString("en-IE", { hour:"2-digit", minute:"2-digit", hour12:false });
             });
-            var detailRow = hasNoshows
+            var checkinEventsHtml = (m.checkin_events || []).length > 0
+              ? '<div style="margin-top:8px;"><div style="font-size:11px;color:#9ca3af;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">Check-ins</div>'
+                + '<div style="display:flex;flex-wrap:wrap;gap:5px;">'
+                + (m.checkin_events || []).map(function(ev) {
+                    var d = new Date(ev.time);
+                    var label = isNaN(d) ? ev.time : (d.toLocaleDateString("en-IE", { weekday:"short", day:"numeric", month:"short" }) + " at " + d.toLocaleTimeString("en-IE", { hour:"2-digit", minute:"2-digit", hour12:false }));
+                    var c = TYPE_COLOR[ev.type] || TYPE_COLOR.self;
+                    return '<span style="font-size:12px;background:' + c.bg + ';color:' + c.fg + ';padding:3px 9px;border-radius:20px;">' + label + ' · ' + (TYPE_LABEL[ev.type] || ev.type) + '</span>';
+                  }).join("")
+                + '</div></div>'
+              : '';
+            var detailRow = (hasNoshows || checkinEventsHtml)
               ? '<tr id="' + detailId + '" style="display:none;background:#fafafa;">' +
-                  '<td></td><td colspan="4" style="padding:4px 8px 10px;">' +
-                  '<div style="font-size:11px;color:#9ca3af;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">No-show dates</div>' +
+                  '<td></td><td colspan="5" style="padding:4px 8px 10px;">' +
+                  (hasNoshows ? '<div style="font-size:11px;color:#9ca3af;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">No-show dates</div>' +
                   '<div style="display:flex;flex-wrap:wrap;gap:5px;">' +
                   times.map(function(t) { return '<span style="font-size:12px;background:#fee2e2;color:#991b1b;padding:3px 9px;border-radius:20px;">' + t + '</span>'; }).join("") +
-                  '</div></td></tr>'
+                  '</div>' : '') +
+                  checkinEventsHtml +
+                  '</td></tr>'
               : '';
-            var nameStyle = hasNoshows
+            var isExpendable = hasNoshows || (m.checkin_events || []).length > 0;
+            var nameStyle = isExpendable
               ? 'font-size:13px;font-weight:600;color:#1d4ed8;cursor:pointer;'
               : 'font-size:13px;font-weight:600;color:#111827;';
-            var nameOnClick = hasNoshows ? ' onclick="toggleNoshowDetail(\'' + detailId + '\')"' : '';
+            var nameOnClick = isExpendable ? ' onclick="toggleNoshowDetail(\'' + detailId + '\')"' : '';
             return '<tr style="border-bottom:1px solid #f3f4f6;">' +
               '<td style="padding:7px 6px;font-size:12px;color:#9ca3af;width:24px;">' + rank + '</td>' +
               '<td style="padding:7px 6px;">' +
-                '<div style="' + nameStyle + '"' + nameOnClick + '>' + m.name + (hasNoshows ? ' <span style="font-size:10px;">▾</span>' : '') + '</div>' +
+                '<div style="' + nameStyle + '"' + nameOnClick + '>' + m.name + (isExpendable ? ' <span style="font-size:10px;">▾</span>' : '') + '</div>' +
                 '<div style="height:4px;background:#f3f4f6;border-radius:2px;margin-top:4px;"><div style="height:4px;width:' + m.rate + '%;background:' + barColor + ';border-radius:2px;"></div></div>' +
               '</td>' +
               '<td style="padding:7px 6px;font-size:13px;color:#6b7280;text-align:right;">' + m.booked + '</td>' +
               '<td style="padding:7px 6px;font-size:13px;font-weight:600;color:#111827;text-align:right;">' + m.noshows + '</td>' +
               '<td style="padding:7px 6px;text-align:right;"><span class="noshow-badge ' + badgeClass + '">' + m.rate + '%</span></td>' +
+              '<td style="padding:7px 6px;text-align:right;">' + checkinTypeSummary(m.checkin_events) + '</td>' +
               '</tr>' + detailRow;
           }).join("");
           var pagination = totalPages > 1
@@ -1877,6 +1917,7 @@
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Booked</th>' +
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">No-shows</th>' +
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Rate</th>' +
+            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Check-in Type</th>' +
             '</tr></thead><tbody>' + rows + '</tbody></table>' + pagination;
         }
 

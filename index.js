@@ -11208,38 +11208,7 @@ app.delete("/api/portal/flagged-answers/:id", requireSeniorTenant, async (req, r
   res.json({ success: true });
 });
 
-// ── Portal: approved answers ───────────────────────────────────────────────────
-
-app.get("/api/portal/approved-answers", requireSeniorTenant, async (req, res) => {
-  const { data, error } = await supabase
-    .from("approved_answers")
-    .select("*")
-    .eq("tenant_id", req.tenant.tenantId)
-    .order("created_at", { ascending: false });
-  if (error) return res.status(500).json({ error: "Failed to load approved answers" });
-  res.json((data || []).map(r => ({
-    id: r.id, question: r.question, answer: r.answer,
-    category: r.category, createdAt: r.created_at
-  })));
-});
-
-app.post("/api/portal/approved-answers", requireSeniorTenant, async (req, res) => {
-  const { question, answer, category } = req.body;
-  if (!question || !answer) return res.status(400).json({ error: "Question and answer are required" });
-  const { error } = await supabase.from("approved_answers").insert({
-    tenant_id: req.tenant.tenantId,
-    question, answer,
-    category: category || "General"
-  });
-  if (error) return res.status(500).json({ error: "Failed to save approved answer" });
-  res.json({ success: true });
-});
-
-app.delete("/api/portal/approved-answers/:id", requireSeniorTenant, async (req, res) => {
-  await supabase.from("approved_answers").delete()
-    .eq("id", req.params.id).eq("tenant_id", req.tenant.tenantId);
-  res.json({ success: true });
-});
+// ── Portal: approved answers — see full CRUD below (line ~12640) ──────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Sprimal Billing API ───────────────────────────────────────────────────────

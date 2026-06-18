@@ -17709,6 +17709,7 @@ function showJuniorConfirm(supervisorName, supervisorContact, juniorNum, juniorN
     '<strong>Supervisor:</strong> ' + escHtml(supervisorName) + '<br>' +
     '<strong>Contact:</strong> ' + escHtml(supervisorContact) +
     '</div>' +
+    '<div id="supervisor-check-msg"></div>' +
     '<button class="btn btn-primary" id="confirm-junior-btn">Confirm & Check In</button>' +
     '<button class="btn btn-secondary" id="junior-back-btn2" style="margin-top:8px;font-size:13px;color:#6b7280;">← Search again</button>' +
     '<div id="msg"></div>';
@@ -17718,6 +17719,20 @@ function showJuniorConfirm(supervisorName, supervisorContact, juniorNum, juniorN
   document.getElementById('junior-back-btn2').addEventListener('click', function() {
     showJuniorSearch(supervisorName, supervisorContact);
   });
+
+  // Pre-check: is this junior already being supervised today?
+  fetch('/api/checkin/supervisor-check?tenant_id=' + encodeURIComponent(TENANT_ID) + '&membership_number=' + encodeURIComponent(juniorNum))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var msgEl = document.getElementById('supervisor-check-msg');
+      var btn = document.getElementById('confirm-junior-btn');
+      if (d.supervised && msgEl && btn) {
+        msgEl.innerHTML = '<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 14px;font-size:14px;color:#991b1b;margin-bottom:12px;">⚠️ <strong>' + escHtml(juniorName) + '</strong> is already being supervised today by <strong>' + escHtml(d.supervisor_name) + '</strong>.</div>';
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      }
+    })
+    .catch(function() {});
 }
 
 async function submitSupervisorCheckin(supervisorName, supervisorContact, juniorNum, juniorName, bookingTime, bookingCourtId) {
@@ -17990,6 +18005,21 @@ app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
   }
 });
 
+// GET /api/checkin/supervisor-check — check if a junior already has a supervisor today
+app.get("/api/checkin/supervisor-check", async (req, res) => {
+  const { tenant_id, membership_number } = req.query;
+  if (!tenant_id || !membership_number) return res.json({ supervised: false, supervisor_name: null });
+  const cutoff = new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase.from("court_checkins")
+    .select("supervisor_name")
+    .eq("tenant_id", tenant_id)
+    .eq("membership_number", parseInt(membership_number))
+    .not("supervisor_name", "is", null)
+    .gte("checked_in_at", cutoff)
+    .maybeSingle();
+  res.json({ supervised: !!data, supervisor_name: data?.supervisor_name || null });
+});
+
 // POST /api/checkin/validate-member — validate membership number against EBO
 app.post("/api/checkin/validate-member", async (req, res) => {
   const { tenant_id, membership_number } = req.body;
@@ -18231,6 +18261,21 @@ app.post("/api/checkin/submit", async (req, res) => {
       if (existing) {
         const t = String(booking_time).slice(11, 16);
         return res.status(409).json({ error: `Already checked in for Court ${booking_court_id} at ${t}.` });
+      }
+    }
+
+    // Supervisor duplicate check — catches both booking-matched and no-booking cases
+    if (is_delegate && supervisor_name) {
+      const cutoff = new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString();
+      const { data: existingSup } = await supabase.from("court_checkins")
+        .select("supervisor_name")
+        .eq("tenant_id", tenant_id)
+        .eq("membership_number", membership_number)
+        .not("supervisor_name", "is", null)
+        .gte("checked_in_at", cutoff)
+        .maybeSingle();
+      if (existingSup) {
+        return res.status(409).json({ error: `${member_name} is already being supervised today by ${existingSup.supervisor_name}.` });
       }
     }
 

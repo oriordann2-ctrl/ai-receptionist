@@ -9833,11 +9833,12 @@ app.get("/api/portal/analytics", requireTenant, async (req, res) => {
 
     const [{ data: rows, error }, { data: tenant }] = await Promise.all([
       supabase.from("chat_logs").select("id, conversation_id, sender, message, answer_source, created_at").eq("tenant_id", tenantId).gte("created_at", since.toISOString()),
-      supabase.from("tenants").select("business_type").eq("id", tenantId).maybeSingle()
+      supabase.from("tenants").select("name, business_type").eq("id", tenantId).maybeSingle()
     ]);
 
     if (error) throw error;
-    res.json(buildAnalytics(rows, tenant?.business_type));
+    const businessType = tenant?.business_type || nameToBusinessType(tenant?.name || '');
+    res.json(buildAnalytics(rows, businessType));
   } catch (err) {
     console.error("[portal-analytics]", err.message);
     res.status(500).json({ error: "Failed to fetch analytics." });
@@ -9867,7 +9868,9 @@ app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
       .from("tenants").select("id, name, business_type")
       .in("id", tids.length ? tids : ["__none__"]);
     const tenantMeta = {};
-    (tenantRows || []).forEach(t => { tenantMeta[t.id] = { name: t.name || t.id, business_type: t.business_type }; });
+    (tenantRows || []).forEach(t => {
+      tenantMeta[t.id] = { name: t.name || t.id, business_type: t.business_type || nameToBusinessType(t.name || '') };
+    });
 
     const tenantBuckets = {};
     (rows || []).forEach(row => {

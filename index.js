@@ -1631,7 +1631,7 @@ async function loadTwilioConfigFromDb(tenantId) {
 }
 
 // Keywords that trigger a live EBO lookup
-const EBO_TRIGGER = /\b(court|book|available|availab|free slot|session|tennis|reserve|tonight|today|tomorrow|when|slot|time|play)\b/i;
+const EBO_TRIGGER = /\b(court|book|available|availab|free slot|session|reserve|tonight|today|tomorrow|slot|play)\b/i;
 
 async function maybeGetEboContext(tenantId, message) {
   if (!EBO_TRIGGER.test(message)) return null;

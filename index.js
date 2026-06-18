@@ -17444,8 +17444,8 @@ function showPrivacyNotice(onContinue) {
       '<p style="margin-bottom:10px;">When you check in, we collect:</p>' +
       '<ul style="padding-left:18px;margin-bottom:12px;">' +
         '<li><strong>Your name &amp; membership number</strong> — to record your check-in</li>' +
-        '<li><strong>Your GPS location</strong> — verified once to confirm you\'re at the club, then discarded. We do not store your coordinates or track your movements.</li>' +
-        '<li><strong>Date &amp; time</strong> — kept as part of the club\'s attendance record</li>' +
+        '<li><strong>Your GPS location</strong> — verified once to confirm you are at the club, then discarded. We do not store your coordinates or track your movements.</li>' +
+        '<li><strong>Date &amp; time</strong> — kept as part of the club attendance record</li>' +
       '</ul>' +
       '<p style="margin-bottom:10px;">Check-in records are held for <strong>12 months</strong> and are only accessible to club administrators.</p>' +
       '<p style="margin-bottom:16px;">You have the right to access or request deletion of your data at any time. Contact the club secretary to exercise these rights.</p>' +
@@ -17535,7 +17535,7 @@ function showWelcomeBack() {
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
     '<div style="display:flex;align-items:flex-start;gap:8px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-bottom:4px;text-align:left;">' +
       '<span style="font-size:16px;line-height:1.3;">📍</span>' +
-      '<span style="font-size:13px;color:#0369a1;line-height:1.4;">We\'ll ask for your location when you check in — just to confirm you\'re at the club. We don\'t store or track it beyond that.</span>' +
+      '<span style="font-size:13px;color:#0369a1;line-height:1.4;">We will ask for your location when you check in — just to confirm you are at the club. We do not store or track it beyond that.</span>' +
     '</div>' +
     '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
     '<button class="btn btn-secondary" id="wb-supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' +
@@ -17614,7 +17614,7 @@ function showForm() {
     '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' +
     '<div style="display:flex;align-items:flex-start;gap:8px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-top:14px;text-align:left;">' +
       '<span style="font-size:16px;line-height:1.3;">📍</span>' +
-      '<span style="font-size:13px;color:#0369a1;line-height:1.4;">We\'ll ask for your location when you check in — just to confirm you\'re at the club. We don\'t store or track it beyond that.</span>' +
+      '<span style="font-size:13px;color:#0369a1;line-height:1.4;">We will ask for your location when you check in — just to confirm you are at the club. We do not store or track it beyond that.</span>' +
     '</div>' +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:12px;text-decoration:none;color:#5b21b6;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div id="msg"></div>' +

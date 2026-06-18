@@ -883,8 +883,8 @@
     <a href="#receptionist" data-nav="receptionist" class="nav-item" title="Receptionist">
       <span class="nav-icon">🤖</span><span class="nav-label">Receptionist</span>
     </a>
-    <a href="#analytics" data-nav="analytics" class="nav-item" title="Analytics">
-      <span class="nav-icon">📊</span><span class="nav-label">Analytics</span>
+    <a href="#analytics" data-nav="analytics" class="nav-item" title="Analytics" id="analyticsNavItem">
+      <span class="nav-icon" id="analyticsNavIcon">📊</span><span class="nav-label" id="analyticsNavLabel">Analytics</span>
     </a>
     <a href="#conversations" data-nav="conversations" class="nav-item" title="Conversations &amp; Leads">
       <span class="nav-icon">💬</span><span class="nav-label">Conversations</span>
@@ -1097,6 +1097,31 @@
     </div>
   </div>
 
+
+</section><!-- /receptionist -->
+
+<!-- ── View: Analytics ── -->
+<section data-view="analytics" hidden>
+  <div class="view-header">
+    <h1 class="view-title" id="analyticsSectionTitle">📊 Analytics</h1>
+    <p class="view-sub" id="analyticsSectionSub">Conversations, trends and top topics — last 30 days.</p>
+  </div>
+
+  <!-- No-Show Report (tennis clubs only — shown by portal.js loadCourts) -->
+  <div class="card" id="noshowCard" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+      <div class="card-title" style="margin-bottom:0;">No-Show Report</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;" id="noshow-period-btns">
+        <button class="noshow-period-btn active" onclick="setNoshowPeriod('day',this)">Today</button>
+        <button class="noshow-period-btn" onclick="setNoshowPeriod('week',this)">7 days</button>
+        <button class="noshow-period-btn" onclick="setNoshowPeriod('month',this)">Month</button>
+        <button class="noshow-period-btn" onclick="setNoshowPeriod('3m',this)">3 months</button>
+      </div>
+    </div>
+    <div id="noshow-metrics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;"></div>
+    <div id="noshow-table"></div>
+  </div>
+
   <!-- Club Check-In (tennis clubs only) -->
   <div class="card" id="courtsCard" style="display:none;">
     <div class="card-title">🎾 Club Check-In</div>
@@ -1221,31 +1246,16 @@
 
   </div>
 
-</section><!-- /receptionist -->
+</section><!-- /analytics -->
 
-<!-- ── View: Analytics ── -->
-<section data-view="analytics" hidden>
+<!-- ── View: Conversations & Leads ── -->
+<section data-view="conversations" hidden>
   <div class="view-header">
-    <h1 class="view-title">📊 Analytics</h1>
-    <p class="view-sub">Conversations, trends and top topics — last 30 days.</p>
+    <h1 class="view-title">💬 Conversations &amp; Leads</h1>
+    <p class="view-sub">Recent visitor exchanges, captured leads, and unanswered questions.</p>
   </div>
 
-  <!-- No-Show Report (tennis clubs only — shown by portal.js loadCourts) -->
-  <div class="card" id="noshowCard" style="display:none;">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-      <div class="card-title" style="margin-bottom:0;">No-Show Report</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;" id="noshow-period-btns">
-        <button class="noshow-period-btn active" onclick="setNoshowPeriod('day',this)">Today</button>
-        <button class="noshow-period-btn" onclick="setNoshowPeriod('week',this)">7 days</button>
-        <button class="noshow-period-btn" onclick="setNoshowPeriod('month',this)">Month</button>
-        <button class="noshow-period-btn" onclick="setNoshowPeriod('3m',this)">3 months</button>
-      </div>
-    </div>
-    <div id="noshow-metrics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;"></div>
-    <div id="noshow-table"></div>
-  </div>
-
-  <!-- Analytics -->
+  <!-- Analytics chart -->
   <div class="card" style="padding:0;">
     <details id="analyticsDetails">
       <summary class="analytics-summary">
@@ -1262,15 +1272,6 @@
         <div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading analytics…</div>
       </div>
     </details>
-  </div>
-
-</section><!-- /analytics -->
-
-<!-- ── View: Conversations & Leads ── -->
-<section data-view="conversations" hidden>
-  <div class="view-header">
-    <h1 class="view-title">💬 Conversations &amp; Leads</h1>
-    <p class="view-sub">Recent visitor exchanges, captured leads, and unanswered questions.</p>
   </div>
 
   <!-- Recent Conversations -->

@@ -1206,10 +1206,26 @@
     fetch("/api/portal/settings")
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (d.business_type !== "tennis_club") return;
+        var navItem = document.getElementById("analyticsNavItem");
+        var navIcon = document.getElementById("analyticsNavIcon");
+        var navLabel = document.getElementById("analyticsNavLabel");
+        var sectionTitle = document.getElementById("analyticsSectionTitle");
+        var sectionSub = document.getElementById("analyticsSectionSub");
+
+        if (d.business_type !== "tennis_club") {
+          if (navItem) navItem.style.display = "none";
+          return;
+        }
+
         card.style.display = "block";
         var noshowCard = document.getElementById("noshowCard");
         if (noshowCard) noshowCard.style.display = "block";
+
+        // Rename Analytics → Club Check-In for tennis clubs
+        if (navIcon) navIcon.textContent = "🎾";
+        if (navLabel) navLabel.textContent = "Club Check-In";
+        if (sectionTitle) sectionTitle.textContent = "🎾 Club Check-In";
+        if (sectionSub) sectionSub.textContent = "No-show report, member check-ins, QR code and GPS settings.";
 
         // Render club QR code
         var tenantId = window.tenantId;

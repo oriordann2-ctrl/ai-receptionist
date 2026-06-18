@@ -17427,6 +17427,37 @@ let clubInfo = null;
 let savedMember = null;
 let currentBooking = null;
 
+const PRIVACY_KEY = 'sprimal_privacy_' + TENANT_ID;
+
+function hasSeenPrivacyNotice() {
+  try { return !!localStorage.getItem(PRIVACY_KEY); } catch { return false; }
+}
+function markPrivacyNoticeSeen() {
+  try { localStorage.setItem(PRIVACY_KEY, '1'); } catch {}
+}
+
+function showPrivacyNotice(onContinue) {
+  document.getElementById('card').innerHTML =
+    '<div class="logo-emoji">🔒</div>' +
+    '<div class="club-name" style="font-size:16px;margin-bottom:16px;">How we use your data</div>' +
+    '<div style="text-align:left;font-size:13px;color:#374151;line-height:1.6;">' +
+      '<p style="margin-bottom:10px;">When you check in, we collect:</p>' +
+      '<ul style="padding-left:18px;margin-bottom:12px;">' +
+        '<li><strong>Your name &amp; membership number</strong> — to record your check-in</li>' +
+        '<li><strong>Your GPS location</strong> — verified once to confirm you\'re at the club, then discarded. We do not store your coordinates or track your movements.</li>' +
+        '<li><strong>Date &amp; time</strong> — kept as part of the club\'s attendance record</li>' +
+      '</ul>' +
+      '<p style="margin-bottom:10px;">Check-in records are held for <strong>12 months</strong> and are only accessible to club administrators.</p>' +
+      '<p style="margin-bottom:16px;">You have the right to access or request deletion of your data at any time. Contact the club secretary to exercise these rights.</p>' +
+      '<p style="font-size:12px;color:#6b7280;">Processing is carried out under legitimate interest as part of your club membership.</p>' +
+    '</div>' +
+    '<button class="btn btn-primary" id="privacy-ok-btn" style="margin-top:20px;">Got it — continue</button>';
+  document.getElementById('privacy-ok-btn').addEventListener('click', function() {
+    markPrivacyNoticeSeen();
+    onContinue();
+  });
+}
+
 async function init() {
   try {
     const ctrl = new AbortController();
@@ -17444,8 +17475,13 @@ async function init() {
     // ?forget=1 clears saved member — useful when browser cache prevents the forget button from showing
     if (params.get('forget') === '1') { localStorage.removeItem(LS_KEY); }
     savedMember = getSavedMember();
-    if (savedMember) showWelcomeBack();
-    else showForm();
+
+    function continueAfterPrivacy() {
+      if (savedMember) showWelcomeBack();
+      else showForm();
+    }
+    if (!hasSeenPrivacyNotice()) showPrivacyNotice(continueAfterPrivacy);
+    else continueAfterPrivacy();
   } catch(e) {
     document.getElementById('card').innerHTML =
       '<div class="logo-emoji">🎾</div>' +
@@ -18408,7 +18444,7 @@ app.post("/api/checkin/submit", async (req, res) => {
     console.log(`[checkin] attempting insert: ${member_name} (#${membership_number}) at ${tenant_id} — GPS ${gps_verified ? gps_distance_meters + "m" : "not verified"}, booking ${booking_time || "none"}`);
     const { error } = await supabase.from("court_checkins").insert({
       tenant_id, membership_number, member_name,
-      gps_lat, gps_lng, gps_distance_meters, gps_verified,
+      gps_lat: null, gps_lng: null, gps_distance_meters, gps_verified,
       booking_time: booking_time || null,
       booking_court_id: booking_court_id ? String(booking_court_id) : null,
       checked_in_by: checked_in_by || null,

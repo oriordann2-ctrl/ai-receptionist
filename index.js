@@ -12554,6 +12554,9 @@ app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
 
     const dismissedKeys = new Set((dismissed || []).map(d => d.question_key));
 
+    console.log("[unansw-debug] tenantId:", tenantId, "| logs:", (logs || []).length, "| dismissed:", dismissedKeys.size);
+    if ((logs || []).length > 0) console.log("[unansw-debug] sample log:", JSON.stringify(logs[0]));
+
     // Group messages by conversation, then find generic responses in one O(n) pass
     const convMsgMap = {};
     (logs || []).forEach(row => {
@@ -12580,6 +12583,7 @@ app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
       });
     });
 
+    console.log("[unansw-debug] questionMap size:", Object.keys(questionMap).length, "| keys:", Object.keys(questionMap).slice(0, 5));
     const questions = Object.values(questionMap)
       .sort((a, b) => b.count - a.count || new Date(b.last_asked) - new Date(a.last_asked))
       .slice(0, 50);

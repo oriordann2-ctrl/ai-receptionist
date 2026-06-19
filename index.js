@@ -4937,7 +4937,7 @@ async function findRelevantKnowledgeChunks(message, matchCount = 5, tenantId = "
       const { data: approvedMatches } = await supabase.rpc("match_approved_answers", {
         query_embedding: embeddings[0],
         match_tenant_id: tenantId,
-        match_threshold: 0.60,
+        match_threshold: 0.50,
         match_count: 3
       });
       if (approvedMatches?.length) {
@@ -10551,7 +10551,7 @@ app.post("/api/portal/knowledge-answer", requireTenant, async (req, res) => {
       const semanticMatch = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You are a semantic matching assistant. Given a question and a list of stored questions, return the INDEX of the best matching stored question if semantically equivalent. Return -1 if no good match. Return ONLY a single integer." },
+          { role: "system", content: "You are a semantic matching assistant. Given a question and a list of stored questions, return the INDEX of the best matching stored question if it is asking about the same topic or information (even if phrased differently). Return -1 only if no stored question is reasonably related. Return ONLY a single integer." },
           { role: "user", content: `Asked: "${question}"\n\nStored:\n${approvedAnswers.map((a, i) => `${i}: ${a.question}`).join("\n")}` }
         ],
         temperature: 0

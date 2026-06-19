@@ -3604,7 +3604,7 @@
               bot_message: step.bot_message || "",
               choices: (step.workflow_choices || []).slice()
                 .sort(function (a, b) { return a.choice_order - b.choice_order; })
-                .map(function (c) { return { label: c.label, action_type: c.action_type, action_value: c.action_value || "" }; })
+                .map(function (c) { return { label: c.label, action_type: c.action_type, action_value: c.action_value || "", is_logo: c.is_logo || false, logo_url: c.logo_url || "" }; })
             };
           })
         : [{ bot_message: "", choices: [] }];
@@ -3786,8 +3786,8 @@
           return {
             step_order:  i + 1,
             bot_message: step.bot_message || "",
-            choices:     step.choices.filter(function (c) { return c.label && c.label.trim(); }).map(function (c, ci) {
-              return { label: c.label.trim(), action_type: c.action_type || "message", action_value: c.action_value || null, choice_order: ci };
+            choices:     step.choices.filter(function (c) { return c.is_logo ? c.logo_url : (c.label && c.label.trim()); }).map(function (c, ci) {
+              return { label: c.is_logo ? (c.label || "") : c.label.trim(), action_type: c.action_type || "message", action_value: c.action_value || null, choice_order: ci, is_logo: c.is_logo || false, logo_url: c.logo_url || null };
             })
           };
         });

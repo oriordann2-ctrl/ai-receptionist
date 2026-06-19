@@ -12628,11 +12628,28 @@ app.post("/api/portal/approved-answers", requireTenant, async (req, res) => {
     const tenantId = req.tenant.tenantId;
     const { question, answer, source_question_key } = req.body;
     if (!question || !answer) return res.status(400).json({ error: "question and answer required" });
-    const embText = `Q: ${question.trim()}\nA: ${answer.trim()}`;
+
+    // Generalise the question so it covers a wider range of phrasings
+    let savedQuestion = question.trim();
+    try {
+      const gResp = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Rewrite the question below as a concise, general question that would match many different ways someone might ask the same thing. Under 15 words. Return ONLY the rewritten question, no explanation, no quotes." },
+          { role: "user", content: question.trim() }
+        ],
+        temperature: 0.3,
+        max_tokens: 60
+      });
+      const g = gResp.choices[0].message.content.trim().replace(/^["']|["']$/g, "");
+      if (g) savedQuestion = g;
+    } catch (e) { /* non-fatal — fall back to original */ }
+
+    const embText = `Q: ${savedQuestion}\nA: ${answer.trim()}`;
     const embResp = await openai.embeddings.create({ model: "text-embedding-3-small", input: embText });
     const embedding = embResp.data[0].embedding;
     const { data, error } = await supabase.from("approved_answers")
-      .insert({ tenant_id: tenantId, question: question.trim(), answer: answer.trim(),
+      .insert({ tenant_id: tenantId, question: savedQuestion, answer: answer.trim(),
         source_question_key: source_question_key ? source_question_key.trim().toLowerCase() : null,
         embedding, archived: false })
       .select("id, question, answer, source_question_key, archived, created_at").single();

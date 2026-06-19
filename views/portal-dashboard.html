@@ -2622,7 +2622,12 @@
         .then(function(r) { return r.json(); })
         .then(function(d) {
           if (!d.ok) throw new Error(d.error || "Failed");
-          // Remove from unanswered list
+          if (st && d.answer && d.answer.question) {
+            st.style.color = "#059669";
+            st.textContent = "Saved as: “" + d.answer.question + "”";
+          }
+          // Remove from unanswered list after a short delay so user sees the generalised question
+          setTimeout(function() {
           _unanswData = _unanswData.filter(function(q) { return q.question.trim().toLowerCase() !== key; });
           _unanswSelected.delete(key);
           _openAnswerRowIdx = null;
@@ -2634,6 +2639,7 @@
           }
           // Notify Approved Answers panel to reload if open
           if (typeof reloadApprovedAnswers === "function") reloadApprovedAnswers();
+          }, 2000);
         })
         .catch(function(err) {
           row.removeAttribute("data-saving");

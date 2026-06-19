@@ -1274,6 +1274,57 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
+## 💬 WhatsApp Group → Live KB Ingestion (via Twilio)
+
+**The problem:** Club secretaries already run WhatsApp groups for member updates. Getting that information into the bot requires manual duplication of effort.
+
+**The solution:** A Twilio WhatsApp number joins the club's WhatsApp group as a silent participant. Every message sent to the group is automatically received by Sprimal and processed into the KB — no behaviour change required from the secretary or members.
+
+**How it works:**
+1. Sprimal provisions a Twilio WhatsApp number per tenant
+2. That number is added to the club WhatsApp group
+3. Every message hits a Twilio webhook → Sprimal backend
+4. GPT classifies each message: event notice / important update / noise
+5. Substantive messages are chunked and embedded into the tenant KB with an auto-expiry date
+6. Images (event flyers) are processed via OpenAI Vision to extract text before storing
+
+**Key features:**
+- **Noise filtering** — "👍", banter, and replies are discarded automatically
+- **Auto-expiry** — GPT parses dates from the message ("match this Sunday") and sets a KB chunk expiry so stale info disappears automatically
+- **Deduplication** — follow-up reminders about the same event collapse into one KB entry
+- **Image support** — flyers and poster images are read via Vision and stored as text chunks
+
+**Why this is differentiated:**
+- Zero behaviour change for the club — they run their WhatsApp group exactly as before
+- Bot knows everything the group knows, in real time
+- No other AI receptionist product does this
+- Directly applicable to GAA clubs, tennis clubs, sports venues — any group-based comms
+
+**Dependencies:** Twilio WhatsApp Business API, OpenAI Vision
+
+**Status:** Idea. Raised during Monkstown onboarding discussion.
+
+---
+
+## 📅 Events Board — Portal Entry + Bot Awareness + WhatsApp Image Generation
+
+**The problem:** Sports clubs and venues communicate events via WhatsApp image posts. There's no easy way to keep the bot aware of upcoming events, and creating images takes time/design skill.
+
+**The solution:** An Events section in the portal where the secretary logs an event in 30 seconds. That single entry:
+1. **Feeds the bot** — "is there a tournament this weekend?" answered automatically
+2. **Generates a branded WhatsApp-ready image** — secretary copies it straight into the group, no design tool needed
+3. **Optionally includes a booking/info link** — members tap through to ebooking or a details page
+
+**Why this matters:**
+- Monkstown members already get all updates via WhatsApp — this fits their existing workflow
+- Secretary only enters the event once; bot and WhatsApp image both update automatically
+- WhatsApp doesn't have a public API so auto-sync isn't possible — this is the pragmatic alternative
+- Applicable to any sports club or venue with a regular events/fixtures calendar
+
+**Status:** Idea. Raised after Monkstown discussion about WhatsApp-based member comms.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

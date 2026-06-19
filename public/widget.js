@@ -766,6 +766,28 @@
       container.appendChild(aiBtn);
     }
 
+    // Back to main menu — show on every step except the root menu's own first step
+    var rootSteps = rootFlowId && wfFlowMap[rootFlowId];
+    var isRootFirstStep = rootSteps && wfSteps === rootSteps && step === rootSteps[0];
+    if (rootSteps && !isRootFirstStep) {
+      var backBtn = document.createElement("button");
+      backBtn.className = "sprimal-choice sprimal-choice-ai";
+      backBtn.textContent = "↩ Back to main menu";
+      allBtns.push(backBtn);
+      backBtn.addEventListener("click", function () {
+        selectAndProceed(backBtn, allBtns, function () {
+          clearChoices();
+          messages.innerHTML = "";
+          wfSteps = rootSteps;
+          wfMode  = true;
+          var footer = document.getElementById("sprimal-footer");
+          if (footer) footer.style.display = "none";
+          showWorkflowStep(rootSteps[0]);
+        });
+      });
+      container.appendChild(backBtn);
+    }
+
     // Append inside the scrollable messages area — flows inline like AOM
     messages.appendChild(container);
     scrollToBottom(100);

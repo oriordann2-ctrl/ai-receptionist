@@ -16711,7 +16711,7 @@ app.get("/api/portal/workflows", requireTenant, async (req, res) => {
   const clubId = req.tenant.tenantId;
   const { data, error } = await supabase
     .from("chat_workflows")
-    .select("id, name, is_active, created_at, updated_at, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value))")
+    .select("id, name, is_active, created_at, updated_at, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value, is_logo, logo_url))")
     .eq("club_id", clubId)
     .order("created_at", { ascending: false });
   if (error) return res.status(500).json({ error: error.message });
@@ -16830,7 +16830,7 @@ app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
             step_id:      newStep.id,
             choice_order: c.choice_order ?? i,
             label:        c.is_logo ? (c.label || "") : labelWithEmoji(c.label),
-            action_type:  c.is_logo ? "open_link" : (c.action_type || "message"),
+            action_type:  c.is_logo ? "url" : (c.action_type || "message"),
             action_value: c.action_value || null,
             is_logo:      c.is_logo ? true : false,
             logo_url:     c.logo_url || null

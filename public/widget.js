@@ -470,11 +470,7 @@
 
   function stripLeadingEmoji(label) {
     if (!label) return label;
-    var cp = label.codePointAt(0);
-    if (!cp || cp < 127) return label;
-    var emoji = String.fromCodePoint(cp);
-    if (!EMOJI_ICON[emoji]) return label;
-    return label.replace(emoji, '').replace(/^[\s️‍]+/, '').trim();
+    return label.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?⃣?\s*/u, '').trim();
   }
 
   function getPlatformLogo(actionType, actionValue) {
@@ -596,7 +592,7 @@
         a.style.cssText = "color:#2563eb;font-weight:600;text-decoration:underline;word-break:break-all;";
         div.appendChild(a);
       } else {
-        div.appendChild(document.createTextNode(part));
+        renderBotText(div, part);
       }
     });
     messages.appendChild(div);

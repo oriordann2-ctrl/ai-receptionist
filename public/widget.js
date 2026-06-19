@@ -472,6 +472,8 @@
     [/photo|gallery|image/i,                            'camera'],
     [/swim|pool/i,                                      'pool'],
     [/gym|fitness|workout/i,                            'dumbbell'],
+    [/follow|social|instagram|facebook|twitter/i,       'users'],
+    [/review|feedback|rate us|google/i,                 'star'],
     [/something else|other|more|question|help/i,        'message-circle'],
     [/building|venue|facility/i,                        'building'],
   ];

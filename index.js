@@ -16781,38 +16781,7 @@ app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
   const { data: wf } = await supabase.from("chat_workflows").select("id").eq("id", id).eq("club_id", clubId).single();
   if (!wf) return res.status(404).json({ error: "Workflow not found" });
 
-  // Helper — true if string starts with an emoji character
-  const startsWithEmoji = s => /^\p{Emoji}/u.test(s.trim());
-
   try {
-    // Auto-generate emojis for regular button labels only (skip logo/icon tiles)
-    const allLabels = (steps || []).flatMap(s => (s.choices || []).filter(c => !c.is_logo).map(c => c.label?.trim()).filter(Boolean));
-    const needsEmoji = allLabels.filter(l => !startsWithEmoji(l));
-    const emojiMap = {};
-    if (needsEmoji.length) {
-      try {
-        const prompt = needsEmoji.map((l, i) => `${i + 1}. ${l}`).join("\n");
-        const emojiResp = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: "You are given a numbered list of chat button labels for a business. Return ONLY a JSON object where each key is the label text and the value is a single emoji that best represents it. No explanation." },
-            { role: "user", content: prompt }
-          ],
-          temperature: 0,
-          max_tokens: 200
-        });
-        const raw = emojiResp.choices[0].message.content.trim().replace(/^```json|```$/g, "").trim();
-        Object.assign(emojiMap, JSON.parse(raw));
-      } catch (e) { /* non-fatal — save without emoji if GPT fails */ }
-    }
-
-    const labelWithEmoji = label => {
-      const t = label.trim();
-      if (startsWithEmoji(t)) return t;
-      const emoji = emojiMap[t];
-      return emoji ? `${emoji} ${t}` : t;
-    };
-
     // Delete existing steps (choices cascade automatically)
     await supabase.from("workflow_steps").delete().eq("workflow_id", id);
 
@@ -16830,7 +16799,7 @@ app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
           validChoices.map((c, i) => ({
             step_id:      newStep.id,
             choice_order: c.choice_order ?? i,
-            label:        c.is_logo ? (c.label || "") : labelWithEmoji(c.label),
+            label:        (c.label || "").trim(),
             action_type:  c.is_logo ? "url" : (c.action_type || "message"),
             action_value: c.action_value || null,
             is_logo:      c.is_logo ? true : false,

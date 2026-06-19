@@ -12538,24 +12538,35 @@ app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
     const tenantId = req.tenant.tenantId;
     const since = new Date(); since.setDate(since.getDate() - 30);
 
-    const [{ data: logs, error }, { data: dismissed }] = await Promise.all([
+    // Step 1: find conversations that have at least one generic bot response (much smaller set)
+    const [{ data: genericMsgs, error: genError }, { data: dismissed }] = await Promise.all([
       supabase
         .from("chat_logs")
-        .select("id, conversation_id, sender, message, answer_source, created_at")
+        .select("conversation_id")
         .eq("tenant_id", tenantId)
+        .eq("sender", "bot")
+        .eq("answer_source", "generic")
         .gte("created_at", since.toISOString())
-        .order("created_at", { ascending: true }),
+        .limit(500),
       supabase
         .from("dismissed_questions")
         .select("question_key")
         .eq("tenant_id", tenantId),
     ]);
-    if (error) throw error;
+    if (genError) throw genError;
 
     const dismissedKeys = new Set((dismissed || []).map(d => d.question_key));
 
-    console.log("[unansw-debug] tenantId:", tenantId, "| logs:", (logs || []).length, "| dismissed:", dismissedKeys.size);
-    if ((logs || []).length > 0) console.log("[unansw-debug] sample log:", JSON.stringify(logs[0]));
+    // Step 2: fetch all messages for those conversations so we can pair customer → generic bot
+    const convIds = [...new Set((genericMsgs || []).map(m => m.conversation_id).filter(Boolean))];
+    if (!convIds.length) return res.json([]);
+
+    const { data: logs, error } = await supabase
+      .from("chat_logs")
+      .select("id, conversation_id, sender, message, answer_source, created_at")
+      .eq("tenant_id", tenantId)
+      .in("conversation_id", convIds)
+      .order("created_at", { ascending: true });
 
     // Group messages by conversation, then find generic responses in one O(n) pass
     const convMsgMap = {};
@@ -12583,7 +12594,6 @@ app.get("/api/portal/unanswered-questions", requireTenant, async (req, res) => {
       });
     });
 
-    console.log("[unansw-debug] questionMap size:", Object.keys(questionMap).length, "| keys:", Object.keys(questionMap).slice(0, 5));
     const questions = Object.values(questionMap)
       .sort((a, b) => b.count - a.count || new Date(b.last_asked) - new Date(a.last_asked))
       .slice(0, 50);

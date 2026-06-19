@@ -821,7 +821,38 @@
 
     var allBtns = [];
 
-    choices.forEach(function (ch) {
+    // Split into logo tiles and regular buttons
+    var logoChoices   = choices.filter(function (ch) { return ch.is_logo && ch.logo_url; });
+    var buttonChoices = choices.filter(function (ch) { return !ch.is_logo; });
+
+    // Render sponsor logo tiles as a grid card
+    if (logoChoices.length) {
+      var grid = document.createElement("div");
+      grid.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;padding:4px 0 8px;align-self:stretch;max-width:92%;";
+      logoChoices.forEach(function (ch) {
+        var tile = document.createElement("a");
+        tile.href = ch.action_value || "#";
+        if (ch.action_value) tile.target = "_blank";
+        tile.rel = "noopener noreferrer";
+        tile.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 10px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;text-decoration:none;cursor:pointer;flex:1;min-width:80px;max-width:110px;transition:box-shadow 0.15s;";
+        tile.onmouseover = function () { this.style.boxShadow = "0 2px 8px rgba(0,0,0,0.10)"; this.style.borderColor = "#2563eb"; };
+        tile.onmouseout  = function () { this.style.boxShadow = ""; this.style.borderColor = "#e2e8f0"; };
+        var img = document.createElement("img");
+        img.src = ch.logo_url;
+        img.alt = ch.label || "";
+        img.style.cssText = "width:52px;height:40px;object-fit:contain;";
+        var name = document.createElement("span");
+        name.textContent = ch.label || "";
+        name.style.cssText = "font-size:11px;color:#374151;text-align:center;line-height:1.3;font-weight:500;";
+        tile.appendChild(img);
+        tile.appendChild(name);
+        grid.appendChild(tile);
+      });
+      container.appendChild(grid);
+    }
+
+    // Render regular buttons
+    buttonChoices.forEach(function (ch) {
       var btn = document.createElement("button");
       btn.className = "sprimal-choice";
       var platformLogo = getPlatformLogo(ch.action_type, ch.action_value);

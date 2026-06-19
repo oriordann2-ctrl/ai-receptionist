@@ -3447,6 +3447,7 @@
         html += renderChoiceHtml(si, ci, ch);
       });
       html += '<button onclick="wfAddChoice(' + si + ')" style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:7px;padding:6px 12px;font-size:12px;color:#64748b;cursor:pointer;font-family:inherit;margin-top:4px;">+ Add Button</button>';
+      html += '<button onclick="wfAddIconChoice(' + si + ')" style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:7px;padding:6px 12px;font-size:12px;color:#64748b;cursor:pointer;font-family:inherit;margin-top:4px;margin-left:6px;">+ Add Icon</button>';
 
       html += '</div>';
       return html;
@@ -3465,25 +3466,49 @@
     };
 
     function renderChoiceHtml(si, ci, ch) {
-      var placeholder = { next_step: "step number (e.g. 2)", url: "https://...", message: "message to show" }[ch.action_type] || "";
-
-      var html = '<div draggable="true" '
+      var dragAttrs = 'draggable="true" '
         + 'ondragstart="window._wfDragSi=' + si + ';window._wfDragCi=' + ci + ';event.dataTransfer.effectAllowed=\'move\'" '
         + 'ondragover="event.preventDefault();event.dataTransfer.dropEffect=\'move\';this.style.outline=\'2px dashed #2563eb\'" '
         + 'ondragleave="this.style.outline=\'\'" '
-        + 'ondrop="this.style.outline=\'\';wfDropChoice(' + si + ',' + ci + ',event)" '
-        + 'style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
+        + 'ondrop="this.style.outline=\'\';wfDropChoice(' + si + ',' + ci + ',event)"';
+      var removeBtn = '<button onclick="wfRemoveChoice(' + si + ',' + ci + ')" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;flex-shrink:0;" title="Remove">&times;</button>';
+      var dragHandle = '<span style="cursor:grab;color:#cbd5e1;font-size:16px;flex-shrink:0;padding:0 2px;user-select:none;" title="Drag to reorder">⠿</span>';
 
-      // Drag handle
-      html += '<span style="cursor:grab;color:#cbd5e1;font-size:16px;flex-shrink:0;padding:0 2px;user-select:none;" title="Drag to reorder">⠿</span>';
+      // ── Icon / logo tile row ─────────────────────────────────────────────────
+      if (ch.is_logo) {
+        var logoPreview = ch.logo_url
+          ? '<img src="' + esc(ch.logo_url) + '" style="width:40px;height:40px;object-fit:contain;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;" />'
+          : '<div style="width:40px;height:40px;border:1.5px dashed #cbd5e1;border-radius:6px;background:#f8fafc;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;color:#cbd5e1;">🖼</div>';
+        var uploadId = 'logo-upload-' + si + '-' + ci;
+        var html = '<div ' + dragAttrs + ' style="display:flex;gap:6px;align-items:center;margin-bottom:6px;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">';
+        html += dragHandle;
+        html += '<label for="' + uploadId + '" style="cursor:pointer;flex-shrink:0;" title="Click to upload logo">' + logoPreview + '</label>';
+        html += '<input id="' + uploadId + '" type="file" accept="image/*" style="display:none" onchange="wfUploadLogo(' + si + ',' + ci + ',this)" />';
+        html += '<div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">';
+        html += '<input type="text" placeholder="Sponsor name" value="' + esc(ch.label || '') + '" '
+          + 'oninput="editingSteps[' + si + '].choices[' + ci + '].label=this.value" '
+          + 'style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;" '
+          + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />';
+        html += '<input type="text" placeholder="Website URL (e.g. https://sponsor.ie)" value="' + esc(ch.action_value || '') + '" '
+          + 'oninput="editingSteps[' + si + '].choices[' + ci + '].action_value=this.value" '
+          + 'style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;" '
+          + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />';
+        html += '</div>';
+        html += removeBtn;
+        html += '</div>';
+        return html;
+      }
 
-      // Label
+      // ── Standard button row ──────────────────────────────────────────────────
+      var placeholder = { next_step: "step number (e.g. 2)", url: "https://...", message: "message to show" }[ch.action_type] || "";
+      var html = '<div ' + dragAttrs + ' style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
+      html += dragHandle;
+
       html += '<input type="text" class="wf-clabel" data-si="' + si + '" data-ci="' + ci + '" placeholder="Button label" value="' + esc(ch.label || '') + '" '
         + 'oninput="editingSteps[' + si + '].choices[' + ci + '].label=this.value" '
         + 'style="flex:2;min-width:100px;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;outline:none;" '
         + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />';
 
-      // Action type
       html += '<select class="wf-ctype" data-si="' + si + '" data-ci="' + ci + '" '
         + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_type=this.value;editingSteps[' + si + '].choices[' + ci + '].action_value=\'\';wfRerender()" '
         + 'style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
@@ -3493,9 +3518,7 @@
       });
       html += "</select>";
 
-      // Action value field — varies by type
       if (ch.action_type === "agent") {
-        // Dropdown of available agent definitions
         html += '<select class="wf-cval" data-si="' + si + '" data-ci="' + ci + '" '
           + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_value=this.value" '
           + 'style="flex:1;padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
@@ -3505,7 +3528,6 @@
         });
         html += '</select>';
       } else if (ch.action_type === "switch_flow") {
-        // Dropdown of other flows
         var otherFlows = workflows.filter(function (w) { return w.id !== editingId; });
         if (otherFlows.length === 0) {
           html += '<span style="font-size:12px;color:#9ca3af;padding:0 4px;white-space:nowrap;">No other flows yet</span>';
@@ -3518,7 +3540,6 @@
             html += '<option value="' + wf.id + '"' + (ch.action_value === wf.id ? " selected" : "") + ">" + esc(wf.name) + "</option>";
           });
           html += "</select>";
-          // Sync default selection into editingSteps if not yet set
           if (!ch.action_value && otherFlows.length) {
             ch.action_value = otherFlows[0].id;
             editingSteps[si].choices[ci].action_value = otherFlows[0].id;
@@ -3531,8 +3552,7 @@
           + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />';
       }
 
-      // Remove button
-      html += '<button onclick="wfRemoveChoice(' + si + ',' + ci + ')" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;flex-shrink:0;" title="Remove">&times;</button>';
+      html += removeBtn;
       html += '</div>';
       return html;
     }
@@ -3705,6 +3725,36 @@
       editingSteps[si].choices.push({ label: "", action_type: "message", action_value: "" });
       window.editingSteps = editingSteps;
       renderEditor();
+    };
+
+    window.wfAddIconChoice = function (si) {
+      editingSteps[si].choices.push({ is_logo: true, label: "", logo_url: "", action_value: "" });
+      window.editingSteps = editingSteps;
+      renderEditor();
+    };
+
+    window.wfUploadLogo = function (si, ci, input) {
+      var file = input.files[0];
+      if (!file) return;
+      var formData = new FormData();
+      formData.append("file", file);
+      var row = input.closest('div[draggable]');
+      var imgEl = row ? row.querySelector('img') : null;
+      var placeholderEl = row ? row.querySelector('div[style*="dashed"]') : null;
+      // Show loading state
+      if (placeholderEl) placeholderEl.textContent = '⏳';
+      fetch("/api/portal/upload-logo", { method: "POST", body: formData })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.url) {
+            editingSteps[si].choices[ci].logo_url = d.url;
+            window.editingSteps = editingSteps;
+            renderEditor();
+          } else {
+            alert(d.error || "Upload failed");
+          }
+        })
+        .catch(function () { alert("Upload failed — please try again"); });
     };
 
     window.wfRemoveChoice = function (si, ci) {

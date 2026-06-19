@@ -9395,6 +9395,32 @@ app.post(
   }
 );
 
+// POST /api/portal/upload-logo — upload sponsor/icon image to Supabase Storage
+app.post("/api/portal/upload-logo", requireTenant, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const tenantId = req.tenant.tenantId;
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp", "image/gif"];
+    if (!allowed.includes(req.file.mimetype)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: "Only image files are supported (PNG, JPG, SVG, WebP)" });
+    }
+    const ext = (req.file.originalname.split(".").pop() || "png").toLowerCase();
+    const storagePath = `logos/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const fileBuffer = fs.readFileSync(req.file.path);
+    fs.unlink(req.file.path, () => {});
+    const { error: uploadError } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(storagePath, fileBuffer, { contentType: req.file.mimetype, upsert: false });
+    if (uploadError) return res.status(500).json({ error: uploadError.message });
+    const { data: urlData } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
+    res.json({ url: urlData.publicUrl });
+  } catch (err) {
+    console.error("[upload-logo]", err.message);
+    res.status(500).json({ error: "Upload failed" });
+  }
+});
+
 // DELETE /api/portal/documents/:id — delete a single uploaded document + chunks
 app.delete("/api/portal/documents/:id", requireTenant, async (req, res) => {
   try {

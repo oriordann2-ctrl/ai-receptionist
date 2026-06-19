@@ -848,7 +848,8 @@
     if (!hasAiFallback) {
       var aiBtn = document.createElement("button");
       aiBtn.className = "sprimal-choice sprimal-choice-ai";
-      aiBtn.textContent = "🤖 Ask something else";
+      aiBtn.style.display = "inline-flex"; aiBtn.style.alignItems = "center"; aiBtn.style.gap = "10px";
+      aiBtn.innerHTML = makeIconSvg('message-circle') + '<span>Ask something else</span>';
       allBtns.push(aiBtn);
       aiBtn.addEventListener("click", function () {
         selectAndProceed(aiBtn, allBtns, function () { clearChoices(); enableTextInput(); });
@@ -926,7 +927,8 @@
         container.appendChild(restartBtn);
         var aiBtn2 = document.createElement("button");
         aiBtn2.className = "sprimal-choice sprimal-choice-ai";
-        aiBtn2.textContent = "🤖 Ask something else";
+        aiBtn2.style.display = "inline-flex"; aiBtn2.style.alignItems = "center"; aiBtn2.style.gap = "10px";
+        aiBtn2.innerHTML = makeIconSvg('message-circle') + '<span>Ask something else</span>';
         aiBtn2.addEventListener("click", function () { clearChoices(); enableTextInput(); });
         container.appendChild(aiBtn2);
         messages.appendChild(container);

@@ -438,7 +438,7 @@
     if (u.indexOf('linkedin.com') !== -1) return 'linkedin';
     if (u.indexOf('youtube.com') !== -1 || u.indexOf('youtu.be') !== -1) return 'youtube';
     if (u.indexOf('tiktok.com') !== -1) return 'tiktok';
-    if (u.indexOf('search.google.com/local/writereview') !== -1 || u.indexOf('g.page/r/') !== -1) return 'google';
+    if (u.indexOf('search.google.com/local/writereview') !== -1 || u.indexOf('g.page/r/') !== -1 || u.indexOf('google.com/maps') !== -1) return 'google';
     return null;
   }
 

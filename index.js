@@ -9406,14 +9406,15 @@ app.post("/api/portal/upload-logo", requireTenant, upload.single("file"), async 
       return res.status(400).json({ error: "Only image files are supported (PNG, JPG, SVG, WebP)" });
     }
     const ext = (req.file.originalname.split(".").pop() || "png").toLowerCase();
-    const storagePath = `logos/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const LOGOS_BUCKET = "logos";
+    const storagePath = `${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
     const fileBuffer = fs.readFileSync(req.file.path);
     fs.unlink(req.file.path, () => {});
     const { error: uploadError } = await supabase.storage
-      .from(SUPABASE_BUCKET)
+      .from(LOGOS_BUCKET)
       .upload(storagePath, fileBuffer, { contentType: req.file.mimetype, upsert: false });
     if (uploadError) return res.status(500).json({ error: uploadError.message });
-    const { data: urlData } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
+    const { data: urlData } = supabase.storage.from(LOGOS_BUCKET).getPublicUrl(storagePath);
     res.json({ url: urlData.publicUrl });
   } catch (err) {
     console.error("[upload-logo]", err.message);

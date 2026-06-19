@@ -3452,10 +3452,30 @@
       return html;
     }
 
+    // Drop handler for choice reordering
+    window.wfDropChoice = function(toSi, toCi, e) {
+      e.preventDefault();
+      var fromSi = window._wfDragSi, fromCi = window._wfDragCi;
+      if (fromSi == null || fromSi !== toSi || fromCi === toCi) return;
+      var choices = editingSteps[toSi].choices;
+      var moved = choices.splice(fromCi, 1)[0];
+      choices.splice(toCi, 0, moved);
+      window._wfDragSi = null; window._wfDragCi = null;
+      wfRerender();
+    };
+
     function renderChoiceHtml(si, ci, ch) {
       var placeholder = { next_step: "step number (e.g. 2)", url: "https://...", message: "message to show" }[ch.action_type] || "";
 
-      var html = '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
+      var html = '<div draggable="true" '
+        + 'ondragstart="window._wfDragSi=' + si + ';window._wfDragCi=' + ci + ';event.dataTransfer.effectAllowed=\'move\'" '
+        + 'ondragover="event.preventDefault();event.dataTransfer.dropEffect=\'move\';this.style.outline=\'2px dashed #2563eb\'" '
+        + 'ondragleave="this.style.outline=\'\'" '
+        + 'ondrop="this.style.outline=\'\';wfDropChoice(' + si + ',' + ci + ',event)" '
+        + 'style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
+
+      // Drag handle
+      html += '<span style="cursor:grab;color:#cbd5e1;font-size:16px;flex-shrink:0;padding:0 2px;user-select:none;" title="Drag to reorder">⠿</span>';
 
       // Label
       html += '<input type="text" class="wf-clabel" data-si="' + si + '" data-ci="' + ci + '" placeholder="Button label" value="' + esc(ch.label || '') + '" '

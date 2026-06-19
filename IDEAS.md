@@ -1325,6 +1325,22 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
+## 🎨 Chat Flow Buttons — SVG Icons Instead of Emojis
+
+**The problem:** Emojis render inconsistently across iOS, Android, and Windows — no control over size, weight, or colour.
+
+**The solution:** Replace emojis with a curated set of Lucide/Heroicon SVGs (free, MIT licensed). GPT picks an icon name from a predefined list of ~40-50 options on save. Widget renders the SVG inline, coloured to match the tenant's brand colour.
+
+**Why better:** Identical rendering everywhere. Matches brand colour. What Intercom, Drift, and Zendesk use. More professional for B2B clients.
+
+**Implementation:** Bundle small SVG set in widget.js. Backend: GPT picks icon name from allowed list. Frontend: render SVG inline left of label text.
+
+**Decision:** Sticking with emojis for now — revisit when visual polish becomes a priority.
+
+**Status:** Idea. Deferred.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

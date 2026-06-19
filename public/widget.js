@@ -390,40 +390,50 @@
     return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 
-  // Load Tabler icon webfont once per page
-  (function () {
-    if (!document.querySelector('link[data-sprimal-icons]')) {
-      var l = document.createElement('link');
-      l.rel = 'stylesheet';
-      l.href = 'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/tabler-icons.min.css';
-      l.setAttribute('data-sprimal-icons', '1');
-      document.head.appendChild(l);
-    }
-  })();
+  // Inline SVG icon library — no CDN, no font loading, renders instantly
+  var ICON_SVG = {
+    'calendar':       '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    'map-pin':        '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+    'trophy':         '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+    'users':          '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    'school':         '<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+    'message-circle': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    'star':           '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    'phone':          '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13 19.79 19.79 0 0 1 1.62 4.35 2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6.09 6.09l.89-.89a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>',
+    'clock':          '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    'info-circle':    '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+    'mail':           '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>',
+    'id-card':        '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M15 9h3M15 12h3M15 15h3"/>',
+    'credit-card':    '<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+    'bell':           '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    'camera':         '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+    'dumbbell':       '<path d="M2 12h1M21 12h1M6 8v8M18 8v8M2 9h4v6H2zM18 9h4v6h-4z"/>',
+    'pool':           '<path d="M2 12h20M7 4l5 8 5-8"/><path d="M2 17c1.5 2 3 2 4.5 0s3-2 4.5 0 3 2 4.5 0 3-2 4.5 0"/>',
+    'building':       '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M8 10h.01M16 10h.01M12 14h.01M8 14h.01M16 14h.01"/>',
+  };
 
-  // Emoji → Tabler icon name map
+  function makeIconSvg(name) {
+    var paths = ICON_SVG[name];
+    if (!paths) return '';
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">' + paths + '</svg>';
+  }
+
+  // Emoji → icon name (keys must match ICON_SVG)
   var EMOJI_ICON = {
-    '🎾':'ball-tennis','🏆':'trophy','📅':'calendar','🗓':'calendar','📍':'map-pin',
-    '🏫':'school','🎓':'school','💬':'message-circle','❓':'question-mark','⭐':'star',
-    '🌟':'star','📞':'phone','☎':'phone','📱':'device-mobile','🕐':'clock','⏰':'clock',
-    'ℹ':'info-circle','📧':'mail','✉':'mail','🏠':'home','🏡':'home','❤':'heart',
-    '💛':'heart','🏅':'medal','🥇':'medal','🏵':'award','🎗':'award','💳':'credit-card',
-    '💰':'currency-euro','🛡':'shield','🔒':'lock','🏋':'dumbbell','💪':'dumbbell',
-    '⛳':'golf','🎁':'gift','🎟':'ticket','🎫':'ticket','👥':'users','👤':'user',
-    '🏛':'building','🌐':'world','💡':'bulb','📰':'file-text','📄':'file-text',
-    '📸':'camera','📷':'camera','🔍':'search','🚗':'car','🎯':'target','🤝':'handshake',
-    '⚽':'ball-football','🏐':'ball-volleyball','🏀':'ball-basketball','🏊':'pool',
-    '🚴':'bike','🧘':'yoga','🏃':'run','⚙':'settings','🔑':'key','📋':'clipboard-list',
-    '📝':'notes','✏':'pencil','🌍':'globe','🤖':'robot','↩':'arrow-back','🍽':'tools-kitchen-2',
-    '☕':'coffee','🍺':'beer','🎵':'music','🎶':'music','🎙':'microphone','🏟':'building',
-    '🏢':'building','🏬':'building-store','🏪':'building-store','🗺':'map','📌':'map-pin',
-    '🛒':'shopping-cart','🎉':'confetti','🔔':'bell','📣':'speakerphone','✈':'plane',
-    '🚌':'bus','🚂':'train','🚀':'rocket','🏃‍♂️':'run','🤸':'man-sport','🧗':'mountain',
-    '⛷':'snowflake','🏂':'snowflake','🎿':'snowflake','🏄':'wave-sine','🤽':'pool'
+    '🎾':'trophy','🏆':'trophy','📅':'calendar','🗓':'calendar','📍':'map-pin',
+    '🏫':'school','🎓':'school','💬':'message-circle','❓':'message-circle','⭐':'star',
+    '🌟':'star','📞':'phone','☎':'phone','📱':'phone','🕐':'clock','⏰':'clock',
+    'ℹ':'info-circle','📧':'mail','✉':'mail','🏠':'building','🏡':'building',
+    '💳':'credit-card','💰':'credit-card','🏋':'dumbbell','💪':'dumbbell',
+    '⛳':'trophy','🎟':'calendar','🎫':'calendar','👥':'users','👤':'users',
+    '🏛':'building','🏢':'building','🏟':'building','📸':'camera','📷':'camera',
+    '🔔':'bell','📣':'bell','📌':'map-pin','🚗':'map-pin','🚌':'map-pin',
+    '🏅':'trophy','🥇':'trophy','🎉':'star','🏵':'trophy','🤝':'users',
+    '⚽':'trophy','🏊':'pool','🚴':'dumbbell','🧘':'dumbbell','🏃':'dumbbell',
   };
 
   var LABEL_ICON = [
-    [/member|join|registr|subscri|annual fee/i,         'id-badge'],
+    [/member|join|registr|subscri|annual fee/i,         'id-card'],
     [/coach|camp|lesson|class|train|junior|youth/i,     'school'],
     [/court|book|availab|reserv|slot|tee time/i,        'calendar'],
     [/event|league|tournam|competi|match|fixture|open week|open day/i, 'trophy'],
@@ -436,31 +446,26 @@
     [/price|cost|pay|fee|tariff/i,                      'credit-card'],
     [/news|update|announcement|notice/i,                'bell'],
     [/photo|gallery|image/i,                            'camera'],
-    [/social|facebook|instagram/i,                      'brand-instagram'],
     [/swim|pool/i,                                      'pool'],
-    [/golf/i,                                           'golf'],
-    [/gym|fitness|dumbbell|workout/i,                   'dumbbell'],
+    [/gym|fitness|workout/i,                            'dumbbell'],
     [/something else|other|more|question|help/i,        'message-circle'],
+    [/building|venue|facility/i,                        'building'],
   ];
 
   function getTablerIcon(label) {
     if (!label) return '';
     var iconName = '';
-    // 1. Try emoji prefix lookup
     var cp = label.codePointAt(0);
     if (cp && cp > 127) {
-      var emoji = String.fromCodePoint(cp);
-      iconName = EMOJI_ICON[emoji] || '';
+      iconName = EMOJI_ICON[String.fromCodePoint(cp)] || '';
     }
-    // 2. Fall back to keyword match on the plain text
     if (!iconName) {
       var clean = stripLeadingEmoji(label);
       for (var k = 0; k < LABEL_ICON.length; k++) {
         if (LABEL_ICON[k][0].test(clean)) { iconName = LABEL_ICON[k][1]; break; }
       }
     }
-    if (!iconName) return '';
-    return '<i class="ti ti-' + iconName + '" aria-hidden="true" style="font-size:17px;line-height:1;flex-shrink:0;"></i>';
+    return makeIconSvg(iconName);
   }
 
   function stripLeadingEmoji(label) {

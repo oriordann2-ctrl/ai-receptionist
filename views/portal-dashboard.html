@@ -2660,17 +2660,17 @@
     }
 
     details.addEventListener("toggle", function () {
-      if (!details.open || loaded) return;
+      if (!details.open) return;
       if (details.closest('[data-view]').hidden) return;
       doLoadUnansw();
     });
 
     window.addEventListener('hashchange', function () {
-      if (!details.open || loaded) return;
+      if (!details.open) return;
       doLoadUnansw();
     });
 
-    if (details.open && !loaded && !details.closest('[data-view]').hidden) {
+    if (details.open && !details.closest('[data-view]').hidden) {
       doLoadUnansw();
     }
   })();

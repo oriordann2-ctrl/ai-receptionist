@@ -16695,7 +16695,7 @@ app.get("/api/workflow/:clubId", async (req, res) => {
   try {
     const { data: flows } = await supabase
       .from("chat_workflows")
-      .select("id, name, is_active, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value))")
+      .select("id, name, is_active, workflow_steps(id, step_order, bot_message, workflow_choices(id, choice_order, label, action_type, action_value, is_logo, logo_url))")
       .eq("club_id", clubId)
       .order("created_at", { ascending: true });
     const allFlows   = flows || [];
@@ -16784,8 +16784,8 @@ app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
   const startsWithEmoji = s => /^\p{Emoji}/u.test(s.trim());
 
   try {
-    // Auto-generate emojis for any choice labels that don't already have one
-    const allLabels = (steps || []).flatMap(s => (s.choices || []).map(c => c.label?.trim()).filter(Boolean));
+    // Auto-generate emojis for regular button labels only (skip logo/icon tiles)
+    const allLabels = (steps || []).flatMap(s => (s.choices || []).filter(c => !c.is_logo).map(c => c.label?.trim()).filter(Boolean));
     const needsEmoji = allLabels.filter(l => !startsWithEmoji(l));
     const emojiMap = {};
     if (needsEmoji.length) {
@@ -16823,15 +16823,17 @@ app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
         .single();
       if (stepErr) throw stepErr;
 
-      const validChoices = (step.choices || []).filter(c => c.label && c.label.trim());
+      const validChoices = (step.choices || []).filter(c => c.is_logo ? c.logo_url : (c.label && c.label.trim()));
       if (newStep && validChoices.length) {
         const { error: chErr } = await supabase.from("workflow_choices").insert(
           validChoices.map((c, i) => ({
             step_id:      newStep.id,
             choice_order: c.choice_order ?? i,
-            label:        labelWithEmoji(c.label),
-            action_type:  c.action_type || "message",
-            action_value: c.action_value || null
+            label:        c.is_logo ? (c.label || "") : labelWithEmoji(c.label),
+            action_type:  c.is_logo ? "open_link" : (c.action_type || "message"),
+            action_value: c.action_value || null,
+            is_logo:      c.is_logo ? true : false,
+            logo_url:     c.logo_url || null
           }))
         );
         if (chErr) throw chErr;

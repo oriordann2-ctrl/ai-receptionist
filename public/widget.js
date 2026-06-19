@@ -885,7 +885,7 @@
 
   // Handle a button press in the workflow
   function handleChoice(choice) {
-    addMsg(choice.label, "user");  // echo the user's selection
+    addMsg(stripLeadingEmoji(choice.label), "user");  // echo the user's selection
     clearChoices();
 
     var type = choice.action_type;

@@ -390,6 +390,57 @@
     return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 
+  // Load Tabler icon webfont once per page
+  (function () {
+    if (!document.querySelector('link[data-sprimal-icons]')) {
+      var l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = 'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/tabler-icons.min.css';
+      l.setAttribute('data-sprimal-icons', '1');
+      document.head.appendChild(l);
+    }
+  })();
+
+  // Emoji → Tabler icon name map
+  var EMOJI_ICON = {
+    '🎾':'ball-tennis','🏆':'trophy','📅':'calendar','🗓':'calendar','📍':'map-pin',
+    '🏫':'school','🎓':'school','💬':'message-circle','❓':'question-mark','⭐':'star',
+    '🌟':'star','📞':'phone','☎':'phone','📱':'device-mobile','🕐':'clock','⏰':'clock',
+    'ℹ':'info-circle','📧':'mail','✉':'mail','🏠':'home','🏡':'home','❤':'heart',
+    '💛':'heart','🏅':'medal','🥇':'medal','🏵':'award','🎗':'award','💳':'credit-card',
+    '💰':'currency-euro','🛡':'shield','🔒':'lock','🏋':'dumbbell','💪':'dumbbell',
+    '⛳':'golf','🎁':'gift','🎟':'ticket','🎫':'ticket','👥':'users','👤':'user',
+    '🏛':'building','🌐':'world','💡':'bulb','📰':'file-text','📄':'file-text',
+    '📸':'camera','📷':'camera','🔍':'search','🚗':'car','🎯':'target','🤝':'handshake',
+    '⚽':'ball-football','🏐':'ball-volleyball','🏀':'ball-basketball','🏊':'pool',
+    '🚴':'bike','🧘':'yoga','🏃':'run','⚙':'settings','🔑':'key','📋':'clipboard-list',
+    '📝':'notes','✏':'pencil','🌍':'globe','🤖':'robot','↩':'arrow-back','🍽':'tools-kitchen-2',
+    '☕':'coffee','🍺':'beer','🎵':'music','🎶':'music','🎙':'microphone','🏟':'building',
+    '🏢':'building','🏬':'building-store','🏪':'building-store','🗺':'map','📌':'map-pin',
+    '🛒':'shopping-cart','🎉':'confetti','🔔':'bell','📣':'speakerphone','✈':'plane',
+    '🚌':'bus','🚂':'train','🚀':'rocket','🏃‍♂️':'run','🤸':'man-sport','🧗':'mountain',
+    '⛷':'snowflake','🏂':'snowflake','🎿':'snowflake','🏄':'wave-sine','🤽':'pool'
+  };
+
+  function getTablerIcon(label) {
+    if (!label) return '';
+    var cp = label.codePointAt(0);
+    if (!cp || cp < 127) return ''; // ASCII — not an emoji
+    var emoji = String.fromCodePoint(cp);
+    var name = EMOJI_ICON[emoji];
+    if (!name) return '';
+    return '<i class="ti ti-' + name + '" aria-hidden="true" style="font-size:17px;line-height:1;flex-shrink:0;"></i>';
+  }
+
+  function stripLeadingEmoji(label) {
+    if (!label) return label;
+    var cp = label.codePointAt(0);
+    if (!cp || cp < 127) return label;
+    var emoji = String.fromCodePoint(cp);
+    if (!EMOJI_ICON[emoji]) return label;
+    return label.replace(emoji, '').replace(/^[\s️‍]+/, '').trim();
+  }
+
   function getPlatformLogo(actionType, actionValue) {
     if (actionType !== "url" || !actionValue) return "";
     if (actionValue.indexOf("google.com/maps") !== -1 || actionValue.indexOf("maps.google.com") !== -1) {
@@ -738,11 +789,14 @@
       var btn = document.createElement("button");
       btn.className = "sprimal-choice";
       var platformLogo = getPlatformLogo(ch.action_type, ch.action_value);
-      if (platformLogo) {
+      var tablerIcon   = !platformLogo ? getTablerIcon(ch.label) : '';
+      if (platformLogo || tablerIcon) {
         btn.style.display = "inline-flex";
         btn.style.alignItems = "center";
-        btn.style.gap = "6px";
-        btn.innerHTML = platformLogo + escapeHtml(ch.label);
+        btn.style.gap = "10px";
+        var iconHtml  = platformLogo || tablerIcon;
+        var labelText = tablerIcon ? stripLeadingEmoji(ch.label) : ch.label;
+        btn.innerHTML = iconHtml + '<span>' + escapeHtml(labelText) + '</span>';
       } else {
         btn.textContent = ch.label;
       }

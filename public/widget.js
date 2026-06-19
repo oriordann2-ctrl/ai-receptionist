@@ -422,14 +422,45 @@
     '⛷':'snowflake','🏂':'snowflake','🎿':'snowflake','🏄':'wave-sine','🤽':'pool'
   };
 
+  var LABEL_ICON = [
+    [/member|join|registr|subscri|annual fee/i,         'id-badge'],
+    [/coach|camp|lesson|class|train|junior|youth/i,     'school'],
+    [/court|book|availab|reserv|slot|tee time/i,        'calendar'],
+    [/event|league|tournam|competi|match|fixture|open week|open day/i, 'trophy'],
+    [/find|location|address|direct|map|where|parking/i, 'map-pin'],
+    [/sponsor|partner/i,                                'star'],
+    [/contact|phone|call|reach/i,                       'phone'],
+    [/email|message|enquir/i,                           'mail'],
+    [/hour|opening time|when.*open/i,                   'clock'],
+    [/about|history|club info/i,                        'info-circle'],
+    [/price|cost|pay|fee|tariff/i,                      'credit-card'],
+    [/news|update|announcement|notice/i,                'bell'],
+    [/photo|gallery|image/i,                            'camera'],
+    [/social|facebook|instagram/i,                      'brand-instagram'],
+    [/swim|pool/i,                                      'pool'],
+    [/golf/i,                                           'golf'],
+    [/gym|fitness|dumbbell|workout/i,                   'dumbbell'],
+    [/something else|other|more|question|help/i,        'message-circle'],
+  ];
+
   function getTablerIcon(label) {
     if (!label) return '';
+    var iconName = '';
+    // 1. Try emoji prefix lookup
     var cp = label.codePointAt(0);
-    if (!cp || cp < 127) return ''; // ASCII — not an emoji
-    var emoji = String.fromCodePoint(cp);
-    var name = EMOJI_ICON[emoji];
-    if (!name) return '';
-    return '<i class="ti ti-' + name + '" aria-hidden="true" style="font-size:17px;line-height:1;flex-shrink:0;"></i>';
+    if (cp && cp > 127) {
+      var emoji = String.fromCodePoint(cp);
+      iconName = EMOJI_ICON[emoji] || '';
+    }
+    // 2. Fall back to keyword match on the plain text
+    if (!iconName) {
+      var clean = stripLeadingEmoji(label);
+      for (var k = 0; k < LABEL_ICON.length; k++) {
+        if (LABEL_ICON[k][0].test(clean)) { iconName = LABEL_ICON[k][1]; break; }
+      }
+    }
+    if (!iconName) return '';
+    return '<i class="ti ti-' + iconName + '" aria-hidden="true" style="font-size:17px;line-height:1;flex-shrink:0;"></i>';
   }
 
   function stripLeadingEmoji(label) {

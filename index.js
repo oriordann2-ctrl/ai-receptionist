@@ -16702,8 +16702,6 @@ app.get("/api/workflow/:clubId", async (req, res) => {
       .order("created_at", { ascending: true });
     const allFlows   = flows || [];
     const rootFlow   = allFlows.find(function (f) { return f.is_active; }) || null;
-    const rootLabels = rootFlow ? (rootFlow.workflow_steps || []).flatMap(s => (s.workflow_choices || []).map(c => c.label)).join(", ") : "none";
-    console.log(`[widget fetch] club=${clubId} activeFlow="${rootFlow ? rootFlow.name : "none"}" choices: ${rootLabels}`);
     res.json({ workflow: rootFlow, allFlows: allFlows });
   } catch (err) {
     res.json({ workflow: null, allFlows: [] });
@@ -16784,8 +16782,6 @@ app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
   // Verify the workflow belongs to this tenant
   const { data: wf } = await supabase.from("chat_workflows").select("id").eq("id", id).eq("club_id", clubId).single();
   if (!wf) return res.status(404).json({ error: "Workflow not found" });
-
-  console.log(`[workflow save] club=${clubId} wf=${id} steps=${(steps||[]).length} choices=${(steps||[]).flatMap(s=>s.choices||[]).map(c=>c.label).join(", ")}`);
 
   try {
     // Delete existing steps (choices cascade automatically)

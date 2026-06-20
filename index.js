@@ -16702,6 +16702,8 @@ app.get("/api/workflow/:clubId", async (req, res) => {
       .order("created_at", { ascending: true });
     const allFlows   = flows || [];
     const rootFlow   = allFlows.find(function (f) { return f.is_active; }) || null;
+    const rootLabels = rootFlow ? (rootFlow.workflow_steps || []).flatMap(s => (s.workflow_choices || []).map(c => c.label)).join(", ") : "none";
+    console.log(`[widget fetch] club=${clubId} activeFlow="${rootFlow ? rootFlow.name : "none"}" choices: ${rootLabels}`);
     res.json({ workflow: rootFlow, allFlows: allFlows });
   } catch (err) {
     res.json({ workflow: null, allFlows: [] });

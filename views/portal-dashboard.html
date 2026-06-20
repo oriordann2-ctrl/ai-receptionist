@@ -3772,6 +3772,8 @@
       var btn = document.getElementById("wfSaveBtn");
       if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
 
+      syncDom(); // flush any DOM values not yet captured by oninput
+
       var wf   = workflows.find(function (w) { return w.id === editingId; }) || {};
       var nameEl = document.getElementById("wfNameInput");
       var name = nameEl ? nameEl.value.trim() : (wf.name || "");
@@ -3805,12 +3807,14 @@
           loadWorkflows();
         } else {
           if (btn) { btn.disabled = false; btn.textContent = "Save Flow"; }
+          console.error("[wfSave] Steps save returned error:", data.error);
           alert("Save failed: " + (data.error || "Unknown error"));
         }
       })
-      .catch(function () {
+      .catch(function (err) {
         if (btn) { btn.disabled = false; btn.textContent = "Save Flow"; }
-        alert("Save failed. Please try again.");
+        console.error("[wfSave] Save error:", err);
+        alert("Save failed: " + (err.message || "Please try again."));
       });
     };
 

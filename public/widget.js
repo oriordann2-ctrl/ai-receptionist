@@ -281,7 +281,7 @@
 
   // Pre-fetch all flows in background (non-AOM only)
   if (clubId !== "aom") {
-    fetch(BACKEND + "/api/workflow/" + clubId)
+    fetch(BACKEND + "/api/workflow/" + clubId, { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         // Build lookup map for all flows

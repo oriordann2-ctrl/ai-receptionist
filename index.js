@@ -16692,6 +16692,7 @@ function startEmailPolling() {
 // and keeps all others in a lookup map for switch_flow navigation.
 app.get("/api/workflow/:clubId", async (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "no-store");
   const { clubId } = req.params;
   try {
     const { data: flows } = await supabase
@@ -16709,6 +16710,7 @@ app.get("/api/workflow/:clubId", async (req, res) => {
 
 // Portal: list all workflows for the logged-in tenant
 app.get("/api/portal/workflows", requireTenant, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   const clubId = req.tenant.tenantId;
   const { data, error } = await supabase
     .from("chat_workflows")

@@ -3308,8 +3308,8 @@
     function loadWorkflows() {
       body.innerHTML = '<div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>';
       Promise.all([
-        fetch("/api/portal/workflows").then(function(r){ return r.json(); }),
-        fetch("/api/portal/agent-definitions").then(function(r){ return r.json(); }).catch(function(){ return []; })
+        fetch("/api/portal/workflows", { cache: "no-store" }).then(function(r){ return r.json(); }),
+        fetch("/api/portal/agent-definitions", { cache: "no-store" }).then(function(r){ return r.json(); }).catch(function(){ return []; })
       ]).then(function(results) {
         workflows    = results[0].workflows || [];
         wfAgentDefs  = Array.isArray(results[1]) ? results[1] : [];
@@ -3781,7 +3781,8 @@
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name || wf.name })
       })
-      .then(function () {
+      .then(function (r) {
+        if (!r.ok) throw new Error("Name update failed (" + r.status + ")");
         var payload = editingSteps.map(function (step, i) {
           return {
             step_order:  i + 1,

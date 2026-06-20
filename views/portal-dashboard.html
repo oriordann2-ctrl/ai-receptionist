@@ -3794,6 +3794,7 @@
             })
           };
         });
+        console.log("[wfSave] sending payload:", JSON.stringify(payload, null, 2));
         return fetch("/api/portal/workflows/" + editingId + "/steps", {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ steps: payload })

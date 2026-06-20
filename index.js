@@ -16783,9 +16783,12 @@ app.put("/api/portal/workflows/:id/steps", requireTenant, async (req, res) => {
   const { data: wf } = await supabase.from("chat_workflows").select("id").eq("id", id).eq("club_id", clubId).single();
   if (!wf) return res.status(404).json({ error: "Workflow not found" });
 
+  console.log(`[workflow save] club=${clubId} wf=${id} steps=${(steps||[]).length} choices=${(steps||[]).flatMap(s=>s.choices||[]).map(c=>c.label).join(", ")}`);
+
   try {
     // Delete existing steps (choices cascade automatically)
-    await supabase.from("workflow_steps").delete().eq("workflow_id", id);
+    const { error: delErr } = await supabase.from("workflow_steps").delete().eq("workflow_id", id);
+    if (delErr) throw delErr;
 
     for (const step of (steps || [])) {
       const { data: newStep, error: stepErr } = await supabase

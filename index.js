@@ -16692,7 +16692,6 @@ function startEmailPolling() {
 // and keeps all others in a lookup map for switch_flow navigation.
 app.get("/api/workflow/:clubId", async (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
-  res.setHeader("Cache-Control", "no-store");
   const { clubId } = req.params;
   try {
     const { data: flows } = await supabase

@@ -134,6 +134,11 @@ const otpVerifyLimiter = rateLimit({
 
 // Redirect root to portal; admin is still accessible at /login or /admin
 app.get("/", (req, res) => res.redirect("/portal"));
+// portal.js changes frequently — always revalidate
+app.get("/portal.js", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.sendFile(path.join(__dirname, "public", "portal.js"));
+});
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/favicon.ico", (req, res) => res.status(204).end());
 

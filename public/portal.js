@@ -1870,7 +1870,7 @@
                 + (m.checkin_events || []).map(function(ev) {
                     var d = new Date(ev.time);
                     var label = isNaN(d) ? ev.time : (d.toLocaleDateString("en-IE", { weekday:"short", day:"numeric", month:"short" }) + " at " + d.toLocaleTimeString("en-IE", { hour:"2-digit", minute:"2-digit", hour12:false }));
-                    return '<span style="font-size:12px;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:20px;">' + label + ' · ' + (TYPE_LABEL[ev.type] || ev.type) + '</span>';
+                    return '<span style="font-size:12px;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:20px;">' + label + ' · <strong>' + (TYPE_LABEL[ev.type] || ev.type) + '</strong></span>';
                   }).join("")
                 + '</div></div>'
               : '';
@@ -1896,7 +1896,6 @@
               '</td>' +
               '<td style="padding:7px 6px;font-size:13px;text-align:right;"><span style="font-weight:600;color:#111827;">' + m.noshows + '</span><span style="color:#9ca3af;"> / ' + m.booked + '</span></td>' +
               '<td style="padding:7px 6px;text-align:right;"><span class="noshow-badge ' + badgeClass + '">' + m.rate + '%</span></td>' +
-              '<td style="padding:7px 6px;text-align:right;">' + checkinTypeSummary(m.checkin_events) + '</td>' +
               '</tr>' + detailRow;
           }).join("");
           var pagination = totalPages > 1
@@ -1912,7 +1911,6 @@
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;">Member</th>' +
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">No-shows / Booked</th>' +
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Rate</th>' +
-            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Check-in Type</th>' +
             '</tr></thead><tbody>' + rows + '</tbody></table>' + pagination;
         }
 

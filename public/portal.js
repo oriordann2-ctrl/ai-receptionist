@@ -1870,8 +1870,7 @@
                 + (m.checkin_events || []).map(function(ev) {
                     var d = new Date(ev.time);
                     var label = isNaN(d) ? ev.time : (d.toLocaleDateString("en-IE", { weekday:"short", day:"numeric", month:"short" }) + " at " + d.toLocaleTimeString("en-IE", { hour:"2-digit", minute:"2-digit", hour12:false }));
-                    var c = TYPE_COLOR[ev.type] || TYPE_COLOR.self;
-                    return '<span style="font-size:12px;background:' + c.bg + ';color:' + c.fg + ';padding:3px 9px;border-radius:20px;">' + label + ' · ' + (TYPE_LABEL[ev.type] || ev.type) + '</span>';
+                    return '<span style="font-size:12px;background:#dcfce7;color:#166534;padding:3px 9px;border-radius:20px;">' + label + ' · ' + (TYPE_LABEL[ev.type] || ev.type) + '</span>';
                   }).join("")
                 + '</div></div>'
               : '';

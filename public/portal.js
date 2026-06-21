@@ -1894,8 +1894,7 @@
               '<td style="padding:7px 6px;">' +
                 '<div style="' + nameStyle + '"' + nameOnClick + '>' + m.name + (isExpendable ? ' <span style="font-size:10px;">▾</span>' : '') + '</div>' +
               '</td>' +
-              '<td style="padding:7px 6px;font-size:13px;color:#6b7280;text-align:right;">' + m.booked + '</td>' +
-              '<td style="padding:7px 6px;font-size:13px;font-weight:600;color:#111827;text-align:right;">' + m.noshows + '</td>' +
+              '<td style="padding:7px 6px;font-size:13px;text-align:right;"><span style="font-weight:600;color:#111827;">' + m.noshows + '</span><span style="color:#9ca3af;"> / ' + m.booked + '</span></td>' +
               '<td style="padding:7px 6px;text-align:right;"><span class="noshow-badge ' + badgeClass + '">' + m.rate + '%</span></td>' +
               '<td style="padding:7px 6px;text-align:right;">' + checkinTypeSummary(m.checkin_events) + '</td>' +
               '</tr>' + detailRow;
@@ -1911,8 +1910,7 @@
             '<thead><tr style="border-bottom:1.5px solid #e5e7eb;">' +
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;width:24px;"></th>' +
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:left;">Member</th>' +
-            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Booked</th>' +
-            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">No-shows</th>' +
+            '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">No-shows / Booked</th>' +
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Rate</th>' +
             '<th style="padding:5px 6px;font-size:11px;color:#9ca3af;font-weight:500;text-align:right;">Check-in Type</th>' +
             '</tr></thead><tbody>' + rows + '</tbody></table>' + pagination;

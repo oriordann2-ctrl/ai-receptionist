@@ -1856,7 +1856,6 @@
           var rows = pageMembers.map(function(m, i) {
             var rank = start + i + 1;
             var badgeClass = m.rate >= 60 ? "noshow-badge-red" : m.rate >= 30 ? "noshow-badge-amber" : "noshow-badge-green";
-            var barColor = m.rate >= 60 ? "#ef4444" : m.rate >= 30 ? "#f59e0b" : "#22c55e";
             var detailId = "ns-detail-" + rank;
             var hasNoshows = m.noshows > 0;
             var times = (m.noshow_times || []).map(function(t) {
@@ -1895,7 +1894,6 @@
               '<td style="padding:7px 6px;font-size:12px;color:#9ca3af;width:24px;">' + rank + '</td>' +
               '<td style="padding:7px 6px;">' +
                 '<div style="' + nameStyle + '"' + nameOnClick + '>' + m.name + (isExpendable ? ' <span style="font-size:10px;">▾</span>' : '') + '</div>' +
-                '<div style="height:4px;background:#f3f4f6;border-radius:2px;margin-top:4px;"><div style="height:4px;width:' + m.rate + '%;background:' + barColor + ';border-radius:2px;"></div></div>' +
               '</td>' +
               '<td style="padding:7px 6px;font-size:13px;color:#6b7280;text-align:right;">' + m.booked + '</td>' +
               '<td style="padding:7px 6px;font-size:13px;font-weight:600;color:#111827;text-align:right;">' + m.noshows + '</td>' +

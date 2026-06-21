@@ -19180,18 +19180,24 @@ app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
     let booking_court_id = null;
     try {
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(new Date());
-      await loadEboConfigFromDb(tenantId);
-      const bookings = await fetchEboBookings(tenantId, today, today, 500);
-      const match = bookings.find(b =>
-        Array.isArray(b.bookedMembers) &&
-        b.bookedMembers.some(m => Number(m.membership_number) === Number(membership_number))
-      );
+      const timeout = new Promise(resolve => setTimeout(() => resolve(null), 5000));
+      const match = await Promise.race([
+        (async () => {
+          await loadEboConfigFromDb(tenantId);
+          const bookings = await fetchEboBookings(tenantId, today, today, 500);
+          return bookings.find(b =>
+            Array.isArray(b.bookedMembers) &&
+            b.bookedMembers.some(m => Number(m.membership_number) === Number(membership_number))
+          ) || null;
+        })(),
+        timeout
+      ]);
       if (match) {
         booking_time = match.time || null;
         booking_court_id = match.court_id ? String(match.court_id) : null;
         console.log(`[checkin] manual EBO match keys: ${Object.keys(match).join(", ")} | court_id=${match.court_id} | resource_id=${match.resource_id}`);
       } else {
-        console.log(`[checkin] manual: no EBO booking found for #${membership_number} on ${today} (${bookings.length} bookings fetched)`);
+        console.log(`[checkin] manual: no EBO booking found for #${membership_number} on ${today}`);
       }
     } catch (e) {
       console.warn(`[checkin] manual: could not resolve booking time for #${membership_number}:`, e.message);

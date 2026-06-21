@@ -1228,9 +1228,9 @@
         homeAnalyticsTiles.forEach(function(t) { if (t.id !== "homeCheckinTile") t.style.display = "none"; });
 
         // Rename Analytics → Club Check-In for tennis clubs
-        if (navIcon) navIcon.textContent = "🎾";
+        if (navIcon) navIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h3l3 -9l4 18l3 -9h3"/></svg>';
         if (navLabel) navLabel.textContent = "Club Check-In";
-        if (sectionTitle) sectionTitle.textContent = "🎾 Club Check-In";
+        if (sectionTitle) sectionTitle.textContent = "Club Check-In";
         if (sectionSub) sectionSub.textContent = "No-show report, member check-ins, QR code and GPS settings.";
 
         // Render club QR code

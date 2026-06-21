@@ -18208,10 +18208,10 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
 function showSupervisorSuccess(supervisorName, supervisorContact) {
   var time = new Date().toLocaleTimeString('en-IE', {hour:'2-digit', minute:'2-digit'});
   var listHtml = _supervisedJuniors.map(function(n) {
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0fdf4;font-size:14px;color:#166534;">✅ ' + escHtml(n) + '</div>';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0fdf4;font-size:14px;color:#166534;"><svg xmlns=\'http://www.w3.org/2000/svg\' width=\'15\' height=\'15\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'#166534\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'flex-shrink:0;\'><path stroke=\'none\' d=\'M0 0h24v24H0z\' fill=\'none\'/><circle cx=\'12\' cy=\'12\' r=\'9\'/><path d=\'M9 12l2 2l4 -4\'/></svg>' + escHtml(n) + '</div>';
   }).join('');
   document.getElementById('card').innerHTML =
-    '<div class="success-icon">👶</div>' +
+    '<div class="success-icon"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0 -3 -3.85"/></svg></div>' +
     '<div class="success-title">Junior' + (_supervisedJuniors.length > 1 ? 's' : '') + ' Checked In</div>' +
     '<div class="success-sub">' + clubInfo.club_name + ' · ' + time + '</div>' +
     '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin:16px 0;">' +

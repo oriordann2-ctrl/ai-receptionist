@@ -17706,13 +17706,8 @@ function gpsDistance(lat1, lng1, lat2, lng2) {
 }
 
 // GET /checkin/:tenantId — mobile club check-in page
-app.get("/checkin/:tenantId", async (req, res) => {
+app.get("/checkin/:tenantId", (req, res) => {
   const { tenantId } = req.params;
-  // If check-in is disabled, redirect to the chat widget instead
-  const { data: t } = await supabase.from("tenants").select("checkin_enabled").eq("id", tenantId).maybeSingle();
-  if (t && t.checkin_enabled === false) {
-    return res.redirect(302, "/chat/" + tenantId);
-  }
   res.setHeader("Content-Type", "text/html");
   res.setHeader("Cache-Control", "no-store");
   res.send(`<!DOCTYPE html>
@@ -17889,10 +17884,6 @@ async function init() {
     const timeout = setTimeout(function() { ctrl.abort(); }, 10000);
     const r = await fetch('/api/checkin/club-info/' + TENANT_ID, { signal: ctrl.signal });
     clearTimeout(timeout);
-    if (r.status === 403) {
-      window.location.href = '/chat/' + TENANT_ID;
-      return;
-    }
     if (!r.ok) throw new Error('Club not found (' + r.status + ')');
     clubInfo = await r.json();
     if (!clubInfo.ebo_enabled) { showNoEbo(); return; }
@@ -17956,21 +17947,24 @@ function showNoEbo() {
 function showWelcomeBack() {
   var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
   var assistantName = clubInfo.assistant_name || 'Maeve';
+  var checkinOn = clubInfo.checkin_enabled !== false;
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
-    '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' +
-    '<button class="btn btn-secondary" id="wb-supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' +
-    privacyCheckboxHtml() +
+    (checkinOn ? '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' : '') +
+    (checkinOn ? '<button class="btn btn-secondary" id="wb-supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' : '') +
+    (checkinOn ? privacyCheckboxHtml() : '') +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:12px;text-decoration:none;color:#5b21b6;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div style="text-align:center;margin-top:12px;"><button id="wb-switch-btn" style="background:none;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;margin-right:12px;">Not you?</button><button id="wb-forget-btn" style="background:none;border:none;color:#9ca3af;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;">Forget this device</button></div>' +
     '<div id="msg"></div>';
-  document.getElementById('wb-checkin-btn').addEventListener('click', function() {
-    requestGpsOrBlock(function() { validateBookingThenCheckin(savedMember.membership_number, savedMember.name); });
-  });
-  document.getElementById('wb-supervisor-btn').addEventListener('click', function() {
-    requestGpsOrBlock(showSupervisorForm);
-  });
-  wirePrivacyCheckbox(['wb-checkin-btn', 'wb-supervisor-btn']);
+  if (checkinOn) {
+    document.getElementById('wb-checkin-btn').addEventListener('click', function() {
+      requestGpsOrBlock(function() { validateBookingThenCheckin(savedMember.membership_number, savedMember.name); });
+    });
+    document.getElementById('wb-supervisor-btn').addEventListener('click', function() {
+      requestGpsOrBlock(showSupervisorForm);
+    });
+    wirePrivacyCheckbox(['wb-checkin-btn', 'wb-supervisor-btn']);
+  }
   document.getElementById('wb-switch-btn').addEventListener('click', showForm);
   document.getElementById('wb-forget-btn').addEventListener('click', function() {
     localStorage.removeItem(LS_KEY);
@@ -18043,20 +18037,23 @@ function showNoBooking(membershipNumber, memberName, message) {
 function showForm() {
   var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
   var assistantName = clubInfo.assistant_name || 'Maeve';
+  var checkinOn = clubInfo.checkin_enabled !== false;
   document.getElementById('card').innerHTML = header() +
-    '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Check In to Play</button>' +
-    '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' +
-    privacyCheckboxHtml() +
+    (checkinOn ? '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Check In to Play</button>' : '') +
+    (checkinOn ? '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' : '') +
+    (checkinOn ? privacyCheckboxHtml() : '') +
     '<a href="' + chatUrl + '" target="_blank" rel="noopener" style="display:block;margin-top:10px;padding:14px;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:12px;text-decoration:none;color:#5b21b6;font-size:15px;font-weight:600;text-align:center;">💬 Chat with ' + assistantName + '</a>' +
     '<div id="msg"></div>' +
     '<div class="time" id="clock"></div>';
-  document.getElementById('member-btn').addEventListener('click', function() {
-    requestGpsOrBlock(showMemberSearch);
-  });
-  document.getElementById('supervisor-btn').addEventListener('click', function() {
-    requestGpsOrBlock(showSupervisorForm);
-  });
-  wirePrivacyCheckbox(['member-btn', 'supervisor-btn']);
+  if (checkinOn) {
+    document.getElementById('member-btn').addEventListener('click', function() {
+      requestGpsOrBlock(showMemberSearch);
+    });
+    document.getElementById('supervisor-btn').addEventListener('click', function() {
+      requestGpsOrBlock(showSupervisorForm);
+    });
+    wirePrivacyCheckbox(['member-btn', 'supervisor-btn']);
+  }
   updateClock();
   setInterval(updateClock, 1000);
 }
@@ -18524,7 +18521,6 @@ app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
     const { data: tenant, error } = tenantResult;
     if (error || !tenant) return res.status(404).json({ error: "Not found" });
     if (tenant.business_type !== "tennis_club") return res.status(403).json({ error: "Check-in is only available for tennis clubs" });
-    if (tenant.checkin_enabled === false) return res.status(403).json({ error: "Check-in is currently disabled" });
     const assistantName = nameResult?.data?.assistant_name || "Maeve";
     res.json({
       club_name: tenant.name,
@@ -18532,7 +18528,8 @@ app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
       assistant_name: assistantName,
       has_gps: !!(tenant.checkin_lat && tenant.checkin_lng),
       gps_radius: tenant.checkin_radius_meters || 150,
-      ebo_enabled: !!EBO_CONFIG[tenantId]
+      ebo_enabled: !!EBO_CONFIG[tenantId],
+      checkin_enabled: tenant.checkin_enabled !== false
     });
   } catch(err) {
     console.error("[club-info]", err.message);

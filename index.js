@@ -17706,8 +17706,10 @@ function gpsDistance(lat1, lng1, lat2, lng2) {
 }
 
 // GET /checkin/:tenantId — mobile club check-in page
-app.get("/checkin/:tenantId", (req, res) => {
+app.get("/checkin/:tenantId", async (req, res) => {
   const { tenantId } = req.params;
+  const { data: t } = await supabase.from("tenants").select("checkin_enabled").eq("id", tenantId).maybeSingle().catch(() => ({ data: null }));
+  const checkinEnabled = t?.checkin_enabled !== false;
   res.setHeader("Content-Type", "text/html");
   res.setHeader("Cache-Control", "no-store");
   res.send(`<!DOCTYPE html>
@@ -17762,6 +17764,7 @@ app.get("/checkin/:tenantId", (req, res) => {
 </div>
 <script>
 const TENANT_ID = ${JSON.stringify(tenantId)};
+const CHECKIN_ENABLED = ${JSON.stringify(checkinEnabled)};
 const LS_KEY = 'sprimal_member_' + TENANT_ID;
 
 let clubInfo = null;
@@ -17947,7 +17950,7 @@ function showNoEbo() {
 function showWelcomeBack() {
   var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
   var assistantName = clubInfo.assistant_name || 'Maeve';
-  var checkinOn = clubInfo.checkin_enabled !== false;
+  var checkinOn = CHECKIN_ENABLED;
   document.getElementById('card').innerHTML = header() +
     '<div class="welcome"><div class="welcome-name">Welcome back, ' + savedMember.name + '!</div><div class="welcome-sub">Membership #' + savedMember.membership_number + '</div></div>' +
     (checkinOn ? '<button class="btn btn-success" id="wb-checkin-btn">✅ Check In</button>' : '') +
@@ -18037,7 +18040,7 @@ function showNoBooking(membershipNumber, memberName, message) {
 function showForm() {
   var chatUrl = 'https://app.sprimal.com/chat/' + TENANT_ID;
   var assistantName = clubInfo.assistant_name || 'Maeve';
-  var checkinOn = clubInfo.checkin_enabled !== false;
+  var checkinOn = CHECKIN_ENABLED;
   document.getElementById('card').innerHTML = header() +
     (checkinOn ? '<button class="btn btn-primary" id="member-btn" style="margin-top:8px;">🎾 Check In to Play</button>' : '') +
     (checkinOn ? '<button class="btn btn-secondary" id="supervisor-btn" style="margin-top:12px;background:#f0fdf4;color:#166534;border:2px solid #bbf7d0;">👶 Supervising a Junior (not playing)</button>' : '') +
@@ -18513,7 +18516,7 @@ app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
     // Run all three operations in parallel to minimise latency
     const [tenantResult, nameResult] = await Promise.all([
       supabase.from("tenants")
-        .select("name, business_type, checkin_enabled, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
+        .select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
         .eq("id", tenantId).single(),
       supabase.from("tenants").select("assistant_name").eq("id", tenantId).single(),
       loadEboConfigFromDb(tenantId)
@@ -18528,8 +18531,7 @@ app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
       assistant_name: assistantName,
       has_gps: !!(tenant.checkin_lat && tenant.checkin_lng),
       gps_radius: tenant.checkin_radius_meters || 150,
-      ebo_enabled: !!EBO_CONFIG[tenantId],
-      checkin_enabled: tenant.checkin_enabled !== false
+      ebo_enabled: !!EBO_CONFIG[tenantId]
     });
   } catch(err) {
     console.error("[club-info]", err.message);

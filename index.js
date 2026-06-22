@@ -17886,7 +17886,7 @@ async function init() {
     clearTimeout(timeout);
     if (r.status === 403) {
       const errData = await r.json().catch(function(){return {};});
-      showMsg(errData.error || 'Check-in is currently disabled.', 'error');
+      document.getElementById('card').innerHTML = '<div class="logo-emoji">🎾</div><div class="status status-error">' + (errData.error || 'Check-in is currently disabled.') + '</div>';
       return;
     }
     if (!r.ok) throw new Error('Club not found (' + r.status + ')');

@@ -135,6 +135,16 @@
     .new-banner-title { font-size: 15px; font-weight: 700; color: #1e40af; margin-bottom: 4px; }
     .new-banner-sub { font-size: 13px; color: #3b82f6; line-height: 1.5; }
 
+    /* ── KB Stats Strip ── */
+    .kb-stat-chip {
+      display: flex; align-items: center; gap: 10px;
+      background: white; border-radius: 12px; padding: 14px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06); flex: 1; min-width: 140px;
+    }
+    .kb-stat-icon { font-size: 20px; flex-shrink: 0; }
+    .kb-stat-value { font-size: 22px; font-weight: 700; color: #111827; line-height: 1; }
+    .kb-stat-label { font-size: 12px; color: #6b7280; font-weight: 500; }
+
     /* ── Cards ── */
     .card {
       background: white;
@@ -1448,6 +1458,25 @@
   <div class="view-header">
     <h1 class="view-title">Knowledge Base</h1>
     <p class="view-sub">Documents, website content, and AI training data for your assistant.</p>
+  </div>
+
+  <!-- KB Summary Strip -->
+  <div id="kbStatsStrip" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+    <div class="kb-stat-chip" id="kbStatWebsites">
+      <span class="kb-stat-icon">🌐</span>
+      <span class="kb-stat-value" id="kbStatWebsitesVal">—</span>
+      <span class="kb-stat-label">Websites</span>
+    </div>
+    <div class="kb-stat-chip" id="kbStatDocs">
+      <span class="kb-stat-icon">📄</span>
+      <span class="kb-stat-value" id="kbStatDocsVal">—</span>
+      <span class="kb-stat-label">Documents</span>
+    </div>
+    <div class="kb-stat-chip" id="kbStatApproved">
+      <span class="kb-stat-icon">✅</span>
+      <span class="kb-stat-value" id="kbStatApprovedVal">—</span>
+      <span class="kb-stat-label">Approved Answers</span>
+    </div>
   </div>
 
   <!-- Knowledge Base Documents -->

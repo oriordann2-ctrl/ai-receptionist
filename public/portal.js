@@ -157,6 +157,10 @@
         _kbUploadedData = uploaded;
         _kbUploadedPage = 0;
         renderKbDocs();
+        var wEl = document.getElementById("kbStatWebsitesVal");
+        var dEl = document.getElementById("kbStatDocsVal");
+        if (wEl) wEl.textContent = _kbWebsiteData.length;
+        if (dEl) dEl.textContent = _kbUploadedData.length;
       })
       .catch(function() {
         if (el) el.innerHTML = '<div class="empty-state" style="margin-top:24px;">Could not load documents.</div>';
@@ -1190,6 +1194,8 @@
     fetch("/api/portal/approved-answers")
       .then(function(r) { return r.json(); })
       .then(function(items) {
+        var aEl = document.getElementById("kbStatApprovedVal");
+        if (aEl) aEl.textContent = items.length;
         if (!items.length) {
           body.innerHTML = '<div style="text-align:center;padding:16px;font-size:14px;color:#9ca3af;">No approved answers yet.</div>';
           return;

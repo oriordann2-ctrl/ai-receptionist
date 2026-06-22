@@ -904,7 +904,10 @@
       <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1"/></svg></span><span class="nav-label">Conversations</span>
     </a>
     <div class="nav-divider"></div>
-    <a href="#knowledge" data-nav="knowledge" class="nav-item" title="Knowledge &amp; Agents">
+    <a href="#automation" data-nav="automation" class="nav-item" title="Automation">
+      <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M13 3l-7 9h6l-1 9l7 -9h-6z"/></svg></span><span class="nav-label">Automation</span>
+    </a>
+    <a href="#knowledge" data-nav="knowledge" class="nav-item" title="Knowledge Base">
       <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><line x1="3" y1="6" x2="3" y2="19"/><line x1="12" y1="6" x2="12" y2="19"/><line x1="21" y1="6" x2="21" y2="19"/></svg></span><span class="nav-label">Knowledge</span>
     </a>
     <a href="#requests" data-nav="requests" data-sports-only class="nav-item" title="Member Requests">
@@ -1021,7 +1024,7 @@
       </a>
       <a href="#knowledge" onclick="location.hash='knowledge'" style="display:flex;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
         <span style="display:flex;align-items:center;justify-content:center;width:48px;height:48px;background:#faf5ff;border-radius:12px;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><line x1="3" y1="6" x2="3" y2="19"/><line x1="12" y1="6" x2="12" y2="19"/><line x1="21" y1="6" x2="21" y2="19"/></svg></span>
-        <div><div style="font-size:14px;font-weight:700;color:#111827;">Knowledge</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Documents &amp; agents</div></div>
+        <div><div style="font-size:14px;font-weight:700;color:#111827;">Knowledge</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">Documents &amp; KB</div></div>
       </a>
       <a id="homeCheckinTile" href="#analytics" onclick="location.hash='analytics'" style="display:none;align-items:center;gap:16px;background:white;border-radius:14px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-decoration:none;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
         <span style="display:flex;align-items:center;justify-content:center;width:48px;height:48px;background:#fff7ed;border-radius:12px;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h3l3 -9l4 18l3 -9h3"/></svg></span>
@@ -1358,11 +1361,11 @@
 
 </section><!-- /conversations -->
 
-<!-- ── View: Knowledge & Agents ── -->
-<section data-view="knowledge" hidden>
+<!-- ── View: Automation ── -->
+<section data-view="automation" hidden>
   <div class="view-header">
-    <h1 class="view-title">Knowledge &amp; Agents</h1>
-    <p class="view-sub">Chat flows, agent library, integrations, and your knowledge base documents.</p>
+    <h1 class="view-title">Automation</h1>
+    <p class="view-sub">Build chat flows and activate AI agents that run multi-step workflows in your widget.</p>
   </div>
 
   <!-- ── Chat Flows ── -->
@@ -1438,47 +1441,13 @@
     </div>
   </div>
 
-  <!-- ── Section: Integrations ── -->
-  <div class="section-group-label">Integrations</div>
+</section><!-- /automation -->
 
-  <div class="card">
-    <details class="analytics-details" id="integrationsDetails">
-      <summary class="analytics-summary" style="cursor:pointer;">
-        <div style="display:flex;align-items:center;gap:14px;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-2 2"/><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l2 -2"/></svg>
-          <div>
-            <div class="card-title" style="margin-bottom:2px;">Connected Services</div>
-            <div style="font-size:13px;color:#6b7280;">Connect third-party systems — used by agents and AI chat automatically</div>
-          </div>
-        </div>
-        <span class="analytics-chevron">▾</span>
-      </summary>
-      <div class="analytics-body" id="integrationsBody">
-        <div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>
-      </div>
-    </details>
-  </div>
-
-  <!-- Integration configure modal -->
-  <div id="integrationConfigOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:16px;padding:32px;max-width:480px;width:94%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
-        <div id="integrationConfigLogo"></div>
-        <div style="flex:1;">
-          <div id="integrationConfigTitle" style="font-size:17px;font-weight:700;color:#111827;"></div>
-          <div id="integrationConfigSub" style="font-size:13px;color:#6b7280;margin-top:2px;"></div>
-        </div>
-        <button onclick="closeIntegrationConfig()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;line-height:1;">&times;</button>
-      </div>
-      <div id="integrationConfigFields" style="display:flex;flex-direction:column;gap:14px;"></div>
-      <div style="margin-top:24px;display:flex;gap:10px;justify-content:space-between;align-items:center;">
-        <button id="integrationDisconnectBtn" onclick="disconnectIntegration()" style="display:none;padding:9px 16px;border-radius:9px;border:1.5px solid #fca5a5;background:#fff;color:#dc2626;font-size:13px;font-weight:600;cursor:pointer;">Disconnect</button>
-        <div style="display:flex;gap:10px;margin-left:auto;">
-          <button onclick="closeIntegrationConfig()" style="padding:9px 20px;border-radius:9px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;cursor:pointer;color:#374151;">Cancel</button>
-          <button id="integrationSaveBtn" onclick="saveIntegration()" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Save</button>
-        </div>
-      </div>
-    </div>
+<!-- ── View: Knowledge ── -->
+<section data-view="knowledge" hidden>
+  <div class="view-header">
+    <h1 class="view-title">Knowledge Base</h1>
+    <p class="view-sub">Documents, website content, and AI training data for your assistant.</p>
   </div>
 
   <!-- ── Section: Knowledge & Insights ── -->
@@ -1973,6 +1942,49 @@
     <div id="chatUsageMeter"></div>
   </div>
 
+  <!-- ── Section: Connected Services ── -->
+  <div class="section-group-label">Connected Services</div>
+
+  <div class="card">
+    <details class="analytics-details" id="integrationsDetails">
+      <summary class="analytics-summary" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-2 2"/><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l2 -2"/></svg>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;">Connected Services</div>
+            <div style="font-size:13px;color:#6b7280;">Connect third-party systems — used by agents and AI chat automatically</div>
+          </div>
+        </div>
+        <span class="analytics-chevron">▾</span>
+      </summary>
+      <div class="analytics-body" id="integrationsBody">
+        <div style="text-align:center;padding:24px;font-size:14px;color:#9ca3af;">Loading…</div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Integration configure modal -->
+  <div id="integrationConfigOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:32px;max-width:480px;width:94%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+        <div id="integrationConfigLogo"></div>
+        <div style="flex:1;">
+          <div id="integrationConfigTitle" style="font-size:17px;font-weight:700;color:#111827;"></div>
+          <div id="integrationConfigSub" style="font-size:13px;color:#6b7280;margin-top:2px;"></div>
+        </div>
+        <button onclick="closeIntegrationConfig()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;line-height:1;">&times;</button>
+      </div>
+      <div id="integrationConfigFields" style="display:flex;flex-direction:column;gap:14px;"></div>
+      <div style="margin-top:24px;display:flex;gap:10px;justify-content:space-between;align-items:center;">
+        <button id="integrationDisconnectBtn" onclick="disconnectIntegration()" style="display:none;padding:9px 16px;border-radius:9px;border:1.5px solid #fca5a5;background:#fff;color:#dc2626;font-size:13px;font-weight:600;cursor:pointer;">Disconnect</button>
+        <div style="display:flex;gap:10px;margin-left:auto;">
+          <button onclick="closeIntegrationConfig()" style="padding:9px 20px;border-radius:9px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;cursor:pointer;color:#374151;">Cancel</button>
+          <button id="integrationSaveBtn" onclick="saveIntegration()" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Section: Settings ── -->
   <div class="section-group-label">Settings</div>
 
@@ -2041,7 +2053,7 @@
     <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:#374151;line-height:1.6;">
       <div><span style="font-weight:700;">Uploading documents</span> — Go to Knowledge → Knowledge Base → drag and drop PDFs or Word documents. Each document is processed and made searchable within a few seconds.</div>
       <div><span style="font-weight:700;">Website crawl</span> — If you have a website, Sprimal can automatically import its content. Use the crawl option in Knowledge Base and enter your URL.</div>
-      <div><span style="font-weight:700;">Chat Flows</span> — Create scripted conversation paths for common queries (e.g. "Book a class", "Get directions"). Go to Knowledge → Chat Flows → New Flow.</div>
+      <div><span style="font-weight:700;">Chat Flows</span> — Create scripted conversation paths for common queries (e.g. "Book a class", "Get directions"). Go to Automation → Chat Flows → New Flow.</div>
       <div><span style="font-weight:700;">Flagged answers</span> — Review answers your assistant got wrong in Knowledge → Flagged. Add correct answers to improve future responses.</div>
     </div>
   </div>
@@ -2099,8 +2111,8 @@
   <a href="#conversations" data-nav="conversations" class="tab-item">
     <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1"/></svg></span><span>Chats</span>
   </a>
-  <a href="#knowledge" data-nav="knowledge" class="tab-item">
-    <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><line x1="3" y1="6" x2="3" y2="19"/><line x1="12" y1="6" x2="12" y2="19"/><line x1="21" y1="6" x2="21" y2="19"/></svg></span><span>Knowledge</span>
+  <a href="#automation" data-nav="automation" class="tab-item">
+    <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M13 3l-7 9h6l-1 9l7 -9h-6z"/></svg></span><span>Automation</span>
   </a>
   <a href="#settings" data-nav="settings" class="tab-item">
     <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z"/><circle cx="12" cy="12" r="3"/></svg></span><span>More</span>
@@ -2169,10 +2181,10 @@
 <script>
   // ── Hash router & sidebar collapse ───────────────────────────────────────────
   (function () {
-    var VIEWS  = ['home','receptionist','analytics','conversations','knowledge','requests','settings','help'];
+    var VIEWS  = ['home','receptionist','analytics','conversations','automation','knowledge','requests','settings','help'];
     var TITLES = {
       home: 'Home', receptionist: 'Receptionist', analytics: 'Analytics',
-      conversations: 'Conversations', knowledge: 'Knowledge',
+      conversations: 'Conversations', automation: 'Automation', knowledge: 'Knowledge Base',
       requests: 'Member Requests', settings: 'Settings', help: 'Help & Tutorials'
     };
     var _inited = {};

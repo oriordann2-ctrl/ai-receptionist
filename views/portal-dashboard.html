@@ -3559,14 +3559,23 @@
       html += "</select>";
 
       if (ch.action_type === "agent") {
-        html += '<select class="wf-cval" data-si="' + si + '" data-ci="' + ci + '" '
-          + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_value=this.value" '
+        var colonIdx = (ch.action_value || "").indexOf(":");
+        var agentBaseId = colonIdx !== -1 ? ch.action_value.slice(0, colonIdx) : (ch.action_value || "");
+        var agentPresel = colonIdx !== -1 ? ch.action_value.slice(colonIdx + 1) : "";
+        var agentSelId  = "wf-agent-" + si + "-" + ci;
+        var agentPreId  = "wf-agpre-" + si + "-" + ci;
+        html += '<select id="' + agentSelId + '" class="wf-cval" data-si="' + si + '" data-ci="' + ci + '" '
+          + 'onchange="wfSetAgentVal(\'' + agentSelId + '\',\'' + agentPreId + '\',' + si + ',' + ci + ')" '
           + 'style="flex:1;padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
         html += '<option value="">— select agent —</option>';
         wfAgentDefs.forEach(function(def) {
-          html += '<option value="' + esc(def.id) + '"' + (ch.action_value === def.id ? " selected" : "") + ">" + esc(def.name) + "</option>";
+          html += '<option value="' + esc(def.id) + '"' + (agentBaseId === def.id ? " selected" : "") + ">" + esc(def.name) + "</option>";
         });
         html += '</select>';
+        html += '<input id="' + agentPreId + '" type="text" placeholder="Pre-select (optional)" value="' + esc(agentPresel) + '" '
+          + 'oninput="wfSetAgentVal(\'' + agentSelId + '\',\'' + agentPreId + '\',' + si + ',' + ci + ')" '
+          + 'style="width:120px;padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:11px;font-family:inherit;outline:none;color:#6b7280;" '
+          + 'onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e2e8f0\'" />';
       } else if (ch.action_type === "switch_flow") {
         var otherFlows = workflows.filter(function (w) { return w.id !== editingId; });
         if (otherFlows.length === 0) {
@@ -3616,6 +3625,12 @@
           alert("Something went wrong. Please try again.");
           if (btn) { btn.disabled = false; btn.textContent = 'Generate template flows from my website'; }
         });
+    };
+
+    window.wfSetAgentVal = function(agentSelId, agentPreId, si, ci) {
+      var agentId    = document.getElementById(agentSelId).value;
+      var preselected = document.getElementById(agentPreId).value.trim();
+      editingSteps[si].choices[ci].action_value = preselected ? agentId + ":" + preselected : agentId;
     };
 
     // ── Public actions (called by inline onclick) ────────────────────────────

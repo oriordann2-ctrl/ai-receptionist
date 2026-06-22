@@ -473,7 +473,8 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
     { step_id: sMain, choice_order: 3, label: "📅 Court availability",  action_type: "switch_flow", action_value: fBook  },
     { step_id: sMain, choice_order: 4, label: "🏆 Events & leagues",    action_type: "switch_flow", action_value: fEvt   },
     { step_id: sMain, choice_order: 5, label: "📍 Find us",             action_type: "switch_flow", action_value: fLoc   },
-    { step_id: sMain, choice_order: 6, label: "💬 Something else",      action_type: "switch_flow",  action_value: fOther },
+    { step_id: sMain, choice_order: 6, label: "💬 Ask a question",      action_type: "ai_fallback", action_value: null   },
+    { step_id: sMain, choice_order: 7, label: "Something else",         action_type: "switch_flow", action_value: fOther },
     // Membership — one button per form if found, otherwise website link + lead capture
     ...(membershipForms.length
       ? [

@@ -17884,6 +17884,11 @@ async function init() {
     const timeout = setTimeout(function() { ctrl.abort(); }, 10000);
     const r = await fetch('/api/checkin/club-info/' + TENANT_ID, { signal: ctrl.signal });
     clearTimeout(timeout);
+    if (r.status === 403) {
+      const errData = await r.json().catch(function(){return {};});
+      showMsg(errData.error || 'Check-in is currently disabled.', 'error');
+      return;
+    }
     if (!r.ok) throw new Error('Club not found (' + r.status + ')');
     clubInfo = await r.json();
     if (!clubInfo.ebo_enabled) { showNoEbo(); return; }
@@ -18507,7 +18512,7 @@ app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
     // Run all three operations in parallel to minimise latency
     const [tenantResult, nameResult] = await Promise.all([
       supabase.from("tenants")
-        .select("name, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
+        .select("name, business_type, checkin_enabled, checkin_lat, checkin_lng, checkin_radius_meters, logo_url")
         .eq("id", tenantId).single(),
       supabase.from("tenants").select("assistant_name").eq("id", tenantId).single(),
       loadEboConfigFromDb(tenantId)
@@ -18515,6 +18520,7 @@ app.get("/api/checkin/club-info/:tenantId", async (req, res) => {
     const { data: tenant, error } = tenantResult;
     if (error || !tenant) return res.status(404).json({ error: "Not found" });
     if (tenant.business_type !== "tennis_club") return res.status(403).json({ error: "Check-in is only available for tennis clubs" });
+    if (tenant.checkin_enabled === false) return res.status(403).json({ error: "Check-in is currently disabled" });
     const assistantName = nameResult?.data?.assistant_name || "Maeve";
     res.json({
       club_name: tenant.name,

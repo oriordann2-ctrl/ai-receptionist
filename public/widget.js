@@ -897,8 +897,10 @@
       container.appendChild(grid);
     }
 
-    // Render regular buttons
-    buttonChoices.forEach(function (ch) {
+    // Render regular buttons — show first VISIBLE_LIMIT, collapse the rest behind "More options"
+    var VISIBLE_LIMIT = 5;
+
+    function makeBtnEl(ch) {
       var btn = document.createElement("button");
       btn.className = "sprimal-choice";
       var platformLogo = getPlatformLogo(ch.action_type, ch.action_value);
@@ -917,13 +919,21 @@
       btn.addEventListener("click", function () {
         selectAndProceed(btn, allBtns, function () { handleChoice(ch); });
       });
-      container.appendChild(btn);
+      return btn;
+    }
+
+    var visibleChoices = buttonChoices.slice(0, VISIBLE_LIMIT);
+    var hiddenChoices  = buttonChoices.slice(VISIBLE_LIMIT);
+
+    visibleChoices.forEach(function (ch) {
+      container.appendChild(makeBtnEl(ch));
     });
 
     // Only add AI fallback button if no configured choice already handles it
     var hasAiFallback = choices.some(function (ch) { return ch.action_type === "ai_fallback"; });
+    var aiBtn = null;
     if (!hasAiFallback) {
-      var aiBtn = document.createElement("button");
+      aiBtn = document.createElement("button");
       aiBtn.className = "sprimal-choice sprimal-choice-ai";
       aiBtn.style.display = "inline-flex"; aiBtn.style.alignItems = "center"; aiBtn.style.gap = "10px";
       aiBtn.innerHTML = makeIconSvg('message-circle') + '<span>Ask something else</span>';
@@ -931,7 +941,24 @@
       aiBtn.addEventListener("click", function () {
         selectAndProceed(aiBtn, allBtns, function () { clearChoices(); enableTextInput(); });
       });
-      container.appendChild(aiBtn);
+    }
+
+    if (hiddenChoices.length) {
+      var moreBtn = document.createElement("button");
+      moreBtn.className = "sprimal-choice sprimal-choice-ai";
+      moreBtn.style.display = "inline-flex"; moreBtn.style.alignItems = "center"; moreBtn.style.gap = "10px";
+      moreBtn.innerHTML = makeIconSvg('chevrons-down') + '<span>More options</span>';
+      moreBtn.addEventListener("click", function () {
+        container.removeChild(moreBtn);
+        hiddenChoices.forEach(function (ch) {
+          container.appendChild(makeBtnEl(ch));
+        });
+        if (aiBtn) container.appendChild(aiBtn);
+        scrollToBottom(80);
+      });
+      container.appendChild(moreBtn);
+    } else {
+      if (aiBtn) container.appendChild(aiBtn);
     }
 
     // Back to main menu — show on every step except the root menu's own first step

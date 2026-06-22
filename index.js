@@ -11585,6 +11585,47 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     }
   }
 
+  // ── SMS → coach(es) via global Twilio env vars ───────────────────────────
+  // Sends to preferred coach if selected, otherwise all coaches in the config.
+  // Fires if TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_PHONE_NUMBER are set.
+  const smsSid   = process.env.TWILIO_ACCOUNT_SID;
+  const smsToken = process.env.TWILIO_AUTH_TOKEN;
+  const smsFrom  = process.env.TWILIO_PHONE_NUMBER;
+  if (smsSid && smsToken && smsFrom) {
+    const smsTargets = [];
+    if (coachPhone) {
+      smsTargets.push({ name: coachFirstName, phone: coachPhone });
+    } else if (agentConfig.coaches) {
+      agentConfig.coaches.split("\n").forEach(line => {
+        const parts = line.trim().split("|");
+        if (parts.length >= 2) {
+          const phone = parts.pop().trim();
+          const name  = parts.join("|").trim().split(" ")[0];
+          if (phone.startsWith("+")) smsTargets.push({ name, phone });
+        }
+      });
+    }
+    if (smsTargets.length) {
+      const SKIP_SMS = new Set(["preferred_coach", "preferred_slots", "preferred_slot", "booking_date"]);
+      const detailLines = Object.entries(collected)
+        .filter(([k, v]) => v && !k.startsWith("_") && !SKIP_SMS.has(k))
+        .map(([k, v]) => `${fmtKey(k)}: ${v}`)
+        .join("\n");
+      const rawSlots = collected.preferred_slots || collected.preferred_slot || "";
+      const slotsLine = rawSlots ? `\nPreferred slots: ${rawSlots.split(" | ").map(s => s.trim()).join(", ")}` : "";
+      try {
+        const twilioClient = require("twilio")(smsSid, smsToken);
+        for (const { name, phone } of smsTargets) {
+          const smsBody = `New ${agentName} - ${clubName}\nHi ${name}!\n\n${detailLines}${slotsLine}\n\nVia Sprimal`;
+          await twilioClient.messages.create({ from: smsFrom, to: phone, body: smsBody });
+          console.log(`[SMS] Sent to ${phone} for tenant ${tenantId}`);
+        }
+      } catch (smsErr) {
+        console.error(`[SMS] Send failed for ${tenantId}:`, smsErr.message);
+      }
+    }
+  }
+
   // ── Email → coach (if email address configured) ───────────────────────────
   if (coachEmail) {
     const coachSubject = fillTemplate(`New ${agentName} enquiry from {{name}}`, collected);

@@ -10912,7 +10912,7 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name, founded_year, phone")
+    .select("ai_enabled, train_staff_enabled, checkin_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name, founded_year, phone")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
@@ -10951,6 +10951,7 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   const updates = {};
   if (typeof req.body.ai_enabled           === "boolean") updates.ai_enabled           = req.body.ai_enabled;
   if (typeof req.body.train_staff_enabled  === "boolean") updates.train_staff_enabled  = req.body.train_staff_enabled;
+  if (typeof req.body.checkin_enabled      === "boolean") updates.checkin_enabled      = req.body.checkin_enabled;
   if (typeof req.body.business_description === "string")  updates.business_description = req.body.business_description.slice(0, 300);
   if (typeof req.body.facebook_url         === "string")  updates.facebook_url         = req.body.facebook_url.slice(0, 500);
   if (typeof req.body.instagram_handle     === "string") {

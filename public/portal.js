@@ -648,6 +648,16 @@
       + '<input type="checkbox" id="tog-ai" ' + (d.ai_enabled ? 'checked' : '') + ' onchange="portalToggleSetting(\'ai_enabled\', this.checked)">'
       + '<span class="toggle-track"></span></label>'
       + '</div>'
+      // Club Check-In toggle — tennis clubs only
+      + (d.business_type === 'tennis_club' ? (
+          '<div class="toggle-row">'
+        + '<div class="toggle-info"><div class="toggle-label">Club Check-In</div>'
+        + '<div class="toggle-sub">Members scan a QR code to check in on-site. Turn off to hide the check-in system entirely.</div></div>'
+        + '<label class="toggle-switch">'
+        + '<input type="checkbox" id="tog-checkin" ' + (d.checkin_enabled !== false ? 'checked' : '') + ' onchange="portalToggleSetting(\'checkin_enabled\', this.checked)">'
+        + '<span class="toggle-track"></span></label>'
+        + '</div>'
+      ) : '')
       // Train Staff toggle — not shown for tennis clubs
       + (d.business_type !== 'tennis_club' ? (
           '<div class="toggle-row">'
@@ -735,10 +745,22 @@
           if (staffSec) staffSec.style.display = value ? "block" : "none";
           if (value) loadStaff();
         }
+        if (key === "checkin_enabled") {
+          var show = value ? "block" : "none";
+          var courtsCard = document.getElementById("courtsCard");
+          if (courtsCard) courtsCard.style.display = show;
+          var noshowCard = document.getElementById("noshowCard");
+          if (noshowCard) noshowCard.style.display = show;
+          var captainDashboardCard = document.getElementById("captainDashboardCard");
+          if (captainDashboardCard) captainDashboardCard.style.display = show;
+          var homeCheckinTile = document.getElementById("homeCheckinTile");
+          if (homeCheckinTile) homeCheckinTile.style.display = value ? "flex" : "none";
+        }
       })
       .catch(function(err) {
         // Revert toggle on failure
-        var el = document.getElementById(key === "ai_enabled" ? "tog-ai" : "tog-train");
+        var togId = key === "ai_enabled" ? "tog-ai" : key === "checkin_enabled" ? "tog-checkin" : "tog-train";
+        var el = document.getElementById(togId);
         if (el) el.checked = !value;
         alert("Could not save setting: " + err.message);
       });
@@ -1215,15 +1237,16 @@
           return;
         }
 
-        card.style.display = "block";
+        var checkinOn = d.checkin_enabled !== false;
+        card.style.display = checkinOn ? "block" : "none";
         var noshowCard = document.getElementById("noshowCard");
-        if (noshowCard) noshowCard.style.display = "block";
+        if (noshowCard) noshowCard.style.display = checkinOn ? "block" : "none";
         var captainDashboardCard = document.getElementById("captainDashboardCard");
-        if (captainDashboardCard) captainDashboardCard.style.display = "block";
+        if (captainDashboardCard) captainDashboardCard.style.display = checkinOn ? "block" : "none";
 
         // Show Club Check-In home tile, hide generic Analytics tile
         var homeCheckinTile = document.getElementById("homeCheckinTile");
-        if (homeCheckinTile) homeCheckinTile.style.display = "flex";
+        if (homeCheckinTile) homeCheckinTile.style.display = checkinOn ? "flex" : "none";
         var homeAnalyticsTiles = document.querySelectorAll('#homeOverview a[href="#analytics"]');
         homeAnalyticsTiles.forEach(function(t) { if (t.id !== "homeCheckinTile") t.style.display = "none"; });
 

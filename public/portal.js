@@ -161,6 +161,13 @@
         var dEl = document.getElementById("kbStatDocsVal");
         if (wEl) wEl.textContent = _kbWebsiteData.length;
         if (dEl) dEl.textContent = _kbUploadedData.length;
+        fetch("/api/portal/approved-answers")
+          .then(function(r) { return r.json(); })
+          .then(function(items) {
+            var aEl = document.getElementById("kbStatApprovedVal");
+            if (aEl) aEl.textContent = Array.isArray(items) ? items.length : 0;
+          })
+          .catch(function() {});
       })
       .catch(function() {
         if (el) el.innerHTML = '<div class="empty-state" style="margin-top:24px;">Could not load documents.</div>';

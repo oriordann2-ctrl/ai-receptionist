@@ -17708,8 +17708,11 @@ function gpsDistance(lat1, lng1, lat2, lng2) {
 // GET /checkin/:tenantId — mobile club check-in page
 app.get("/checkin/:tenantId", async (req, res) => {
   const { tenantId } = req.params;
-  const { data: t } = await supabase.from("tenants").select("checkin_enabled").eq("id", tenantId).maybeSingle().catch(() => ({ data: null }));
-  const checkinEnabled = t?.checkin_enabled !== false;
+  let checkinEnabled = true;
+  try {
+    const { data: t } = await supabase.from("tenants").select("checkin_enabled").eq("id", tenantId).maybeSingle();
+    checkinEnabled = t?.checkin_enabled !== false;
+  } catch {}
   res.setHeader("Content-Type", "text/html");
   res.setHeader("Cache-Control", "no-store");
   res.send(`<!DOCTYPE html>

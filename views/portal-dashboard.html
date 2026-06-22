@@ -2394,7 +2394,7 @@
         + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Name</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Email</th>'
-        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Message</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Source</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Date</th>'
         + '</tr></thead><tbody>';
@@ -2503,7 +2503,7 @@
         + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
         + '<thead><tr style="border-bottom:2px solid #f3f4f6;">'
         + '<th style="padding:6px 10px;width:32px;"><input type="checkbox" id="unanswSelectAll" title="Select all on this page" ' + (allChecked ? 'checked' : '') + ' onchange="unanswToggleAll(this.checked)"></th>'
-        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Question</th>'
+        + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Message</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Asked</th>'
         + '<th style="text-align:left;padding:6px 10px;color:#6b7280;font-weight:600;">Last seen</th>'
         + '<th style="padding:6px 10px;width:90px;"></th>'
@@ -3561,8 +3561,8 @@
       html += '<select class="wf-ctype" data-si="' + si + '" data-ci="' + ci + '" '
         + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_type=this.value;editingSteps[' + si + '].choices[' + ci + '].action_value=\'\';wfRerender()" '
         + 'style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
-      var typeLabels = { next_step: "→ Next step", message: "Show message", url: "Open link", switch_flow: "Switch flow", ai_fallback: "Ask AI", agent: "Run Agent" };
-      ["next_step", "message", "url", "switch_flow", "ai_fallback", "agent"].forEach(function (t) {
+      var typeLabels = { next_step: "→ Next step", message: "Show message", url: "Open link", switch_flow: "Switch flow", ai_fallback: "Ask AI", agent: "Run Agent", collect_lead: "Collect contact details", collect_feedback: "Collect feedback" };
+      ["next_step", "message", "url", "switch_flow", "ai_fallback", "agent", "collect_lead", "collect_feedback"].forEach(function (t) {
         html += '<option value="' + t + '"' + (ch.action_type === t ? " selected" : "") + ">" + typeLabels[t] + "</option>";
       });
       html += "</select>";

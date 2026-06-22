@@ -1112,31 +1112,50 @@
           enableTextInput();
         });
 
-    } else if (type === "collect_lead") {
-      // Inline name + email capture form
-      addMsg("Great! Just leave your details and the team will be in touch:", "bot");
+    } else if (type === "collect_lead" || type === "collect_feedback") {
+      var isFeedback = type === "collect_feedback";
+      addMsg(isFeedback
+        ? "We'd love to hear from you! Leave your details and feedback below:"
+        : "Great! Just leave your details and the team will be in touch:",
+        "bot");
       var formEl = document.createElement("div");
       formEl.id = "sprimal-lead-form";
       var nameInput = document.createElement("input");
       nameInput.type = "text"; nameInput.placeholder = "Your name (optional)"; nameInput.className = "sprimal-lead-input";
       var emailInput = document.createElement("input");
       emailInput.type = "email"; emailInput.placeholder = "Your email address *"; emailInput.className = "sprimal-lead-input";
+      var msgInput = null;
+      if (isFeedback) {
+        msgInput = document.createElement("textarea");
+        msgInput.placeholder = "Your feedback *";
+        msgInput.className = "sprimal-lead-input";
+        msgInput.rows = 3;
+        msgInput.style.resize = "none";
+      }
       var submitBtn = document.createElement("button");
-      submitBtn.textContent = "Send my details →"; submitBtn.className = "sprimal-lead-submit";
+      submitBtn.textContent = isFeedback ? "Send feedback →" : "Send my details →";
+      submitBtn.className = "sprimal-lead-submit";
       submitBtn.addEventListener("click", function () {
         var leadName  = nameInput.value.trim();
         var leadEmail = emailInput.value.trim();
+        var leadMsg   = msgInput ? msgInput.value.trim() : "";
         if (!leadEmail || !leadEmail.includes("@")) {
           emailInput.style.borderColor = "#ef4444"; emailInput.focus(); return;
+        }
+        if (isFeedback && !leadMsg) {
+          msgInput.style.borderColor = "#ef4444"; msgInput.focus(); return;
         }
         submitBtn.disabled = true; submitBtn.textContent = "Sending…";
         fetch(BACKEND + "/api/chat/lead", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clubId: clubId, name: leadName, email: leadEmail, source: val || "widget" })
+          body: JSON.stringify({ clubId: clubId, name: leadName, email: leadEmail, source: isFeedback ? "feedback" : (val || "widget"), message: leadMsg || undefined })
         }).then(function (r) { return r.json(); }).then(function () {
           if (formEl.parentNode) formEl.parentNode.removeChild(formEl);
-          addMsg("✅ Thanks" + (leadName ? " " + leadName : "") + "! The team will be in touch soon.", "bot");
+          addMsg(isFeedback
+            ? "✅ Thanks" + (leadName ? " " + leadName : "") + "! Your feedback means a lot to us."
+            : "✅ Thanks" + (leadName ? " " + leadName : "") + "! The team will be in touch soon.",
+            "bot");
           setTimeout(function () {
             var c = document.createElement("div"); c.id = "sprimal-choices";
             var backBtn = document.createElement("button");
@@ -1154,11 +1173,14 @@
             c.appendChild(backBtn); messages.appendChild(c); scrollToBottom(100);
           }, 300);
         }).catch(function () {
-          submitBtn.disabled = false; submitBtn.textContent = "Send my details →";
+          submitBtn.disabled = false; submitBtn.textContent = isFeedback ? "Send feedback →" : "Send my details →";
           addMsg("Sorry, something went wrong. Please try again.", "bot");
         });
       });
-      formEl.appendChild(nameInput); formEl.appendChild(emailInput); formEl.appendChild(submitBtn);
+      formEl.appendChild(nameInput);
+      formEl.appendChild(emailInput);
+      if (msgInput) formEl.appendChild(msgInput);
+      formEl.appendChild(submitBtn);
       messages.appendChild(formEl); scrollToBottom(100);
       setTimeout(function () { nameInput.focus(); }, 300);
     }

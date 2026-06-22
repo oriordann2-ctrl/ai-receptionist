@@ -488,9 +488,10 @@ async function seedTennisClubFlows(tenantId, name, websiteUrl, info) {
           { step_id: sMemb, choice_order: 3, label: "← Back to menu",         action_type: "switch_flow",  action_value: fMain          }
         ]
     ),
-    // Coaching — mirrors Monkstown: agent handles the booking conversation
-    { step_id: sCoach, choice_order: 1, label: "✅ I'd like to book", action_type: "agent",       action_value: "coaching_enquiry_agent" },
-    { step_id: sCoach, choice_order: 2, label: "← Back to menu",     action_type: "switch_flow", action_value: fMain                   },
+    // Coaching — two session-type buttons, each pre-selects session_type in the agent
+    { step_id: sCoach, choice_order: 1, label: "Coaching 1-to-1", action_type: "agent",       action_value: "coaching_enquiry_agent:1-to-1" },
+    { step_id: sCoach, choice_order: 2, label: "Summer Camps",    action_type: "agent",       action_value: "coaching_enquiry_agent:Camps"  },
+    { step_id: sCoach, choice_order: 3, label: "← Back to menu", action_type: "switch_flow", action_value: fMain                           },
     // Court availability — clean link, back button only
     { step_id: sBook, choice_order: 1, label: "📅 Book now",      action_type: "url",         action_value: bookingUrl },
     { step_id: sBook, choice_order: 2, label: "← Back to menu",   action_type: "switch_flow", action_value: fMain      },
@@ -11801,8 +11802,14 @@ async function backfillEmptyAgentFields(tenantId) {
 // ── Agent state machine ───────────────────────────────────────────────────────
 
 // Start a new agent session for this user. Called when agentTrigger is received.
-async function startAgent(userId, agentId, tenantId) {
+// agentTrigger may include a pre-selected value: "coaching_enquiry_agent:1-to-1"
+async function startAgent(userId, agentTrigger, tenantId) {
   const convo = ensureConversation(userId);
+
+  // Parse optional pre-selection suffix: "agentId:preselected_value"
+  const colonIdx = agentTrigger.indexOf(":");
+  const agentId     = colonIdx !== -1 ? agentTrigger.slice(0, colonIdx) : agentTrigger;
+  const preselected = colonIdx !== -1 ? agentTrigger.slice(colonIdx + 1) : null;
 
   // Load agent definition
   const { data: agentDef, error: agentErr } = await supabase
@@ -11834,23 +11841,41 @@ async function startAgent(userId, agentId, tenantId) {
   const skillMap = {};
   (skillDefs || []).forEach(s => { skillMap[s.id] = s; });
 
-  // Set initial agent state
   const firstStep = (agentDef.steps || [])[0];
+  const collected = {};
+  let startStepId = firstStep?.id || null;
+  let introPrefix = null;
+
+  // If a session type was pre-selected via button, skip the greeting step
+  if (preselected && firstStep && firstStep.type === "greeting" && firstStep.collect_field) {
+    collected[firstStep.collect_field] = preselected;
+    let nextId = firstStep.default_next;
+    const lower = preselected.toLowerCase();
+    for (const branch of (firstStep.branches || [])) {
+      if (lower.includes(branch.if_value_contains.toLowerCase())) { nextId = branch.next; break; }
+    }
+    startStepId = nextId;
+    introPrefix = fillTemplate(config[firstStep.message_key] || "", collected) || null;
+  }
+
+  // Set initial agent state
   convo.agentState = {
     agentId,
-    tenantAgentInstanceId: tenantAgent.id,  // UUID of tenant_agents row — used for lead storage
+    tenantAgentInstanceId: tenantAgent.id,
     agentName:  agentDef.name,
     agentDef,
     tenantConfig: config,
     skillMap,
-    stepId:     firstStep?.id || null,
-    collected:  {},
+    stepId:     startStepId,
+    collected,
     skillState: null,
     tenantId
   };
 
-  // Run the first step immediately (greeting)
-  return runCurrentStep(convo, null);
+  // Run the first step immediately (greeting or first collect if pre-selected)
+  const result = await runCurrentStep(convo, null);
+  if (introPrefix && result.reply) result.reply = `${introPrefix}\n\n${result.reply}`;
+  return result;
 }
 
 // Process a user message against the active agent state.

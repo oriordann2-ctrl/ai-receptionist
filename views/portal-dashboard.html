@@ -3360,7 +3360,7 @@
         fetch("/api/portal/workflows", { cache: "no-store" }).then(function(r){ return r.json(); }),
         fetch("/api/portal/agent-definitions", { cache: "no-store" }).then(function(r){ return r.json(); }).catch(function(){ return []; })
       ]).then(function(results) {
-        workflows    = results[0].workflows || [];
+        workflows    = (results[0].workflows || []).sort(function(a, b) { return (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0); });
         wfAgentDefs  = Array.isArray(results[1]) ? results[1] : [];
         _wfPage      = 0;
         renderList();

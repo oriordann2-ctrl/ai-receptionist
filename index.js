@@ -19258,6 +19258,15 @@ app.listen(PORT, async () => {
   startEmailPolling();
   if (process.env.MORNING_DIGEST_ENABLED === "true") scheduleMorningDigest();
 
+  // Make session_types optional in coaching_enquiry_agent so clubs can skip asking
+  try {
+    const { data: caDef } = await supabase.from("agent_definitions").select("config_schema").eq("id", "coaching_enquiry_agent").maybeSingle();
+    if (caDef?.config_schema?.fields) {
+      const fields = caDef.config_schema.fields.map(f => f.key === "session_types" ? { ...f, required: false } : f);
+      await supabase.from("agent_definitions").update({ config_schema: { ...caDef.config_schema, fields } }).eq("id", "coaching_enquiry_agent");
+    }
+  } catch {}
+
   // Ensure public bucket exists for social/profile images (img tags need public URLs)
   try {
     await supabase.storage.createBucket("social-images", { public: true });

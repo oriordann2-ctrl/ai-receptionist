@@ -3564,7 +3564,7 @@
         var agentPresel = colonIdx !== -1 ? ch.action_value.slice(colonIdx + 1) : "";
         var agentSelId  = "wf-agent-" + si + "-" + ci;
         var agentPreId  = "wf-agpre-" + si + "-" + ci;
-        html += '<select id="' + agentSelId + '" class="wf-cval" data-si="' + si + '" data-ci="' + ci + '" '
+        html += '<select id="' + agentSelId + '" data-si="' + si + '" data-ci="' + ci + '" '
           + 'onchange="wfSetAgentVal(\'' + agentSelId + '\',\'' + agentPreId + '\',' + si + ',' + ci + ')" '
           + 'style="flex:1;padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
         html += '<option value="">— select agent —</option>';

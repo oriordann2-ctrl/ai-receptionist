@@ -9872,10 +9872,14 @@ function buildAnalytics(rows, businessType) {
     .slice(0, 5)
     .map(([topic, count]) => ({ topic, count }));
 
-  // Answer rate — bot messages only
-  const botMsgs     = (rows || []).filter(r => r.sender === "bot" && r.answer_source);
-  const answeredCount = botMsgs.filter(r => ["kb","approved","ebo"].includes(r.answer_source)).length;
-  const fallbackCount = botMsgs.filter(r => r.answer_source === "generic").length;
+  // Answer rate — per conversation (answered = at least one KB/approved/ebo reply; unanswered = only generic replies)
+  let answeredCount = 0, fallbackCount = 0;
+  convs.forEach(c => {
+    const botMsgs = c.messages.filter(m => m.sender === "bot" && m.answer_source);
+    if (!botMsgs.length) return;
+    const hasAnswer = botMsgs.some(m => ["kb","approved","ebo"].includes(m.answer_source));
+    if (hasAnswer) answeredCount++; else fallbackCount++;
+  });
   const answerRate  = (answeredCount + fallbackCount) > 0
     ? Math.round((answeredCount / (answeredCount + fallbackCount)) * 100)
     : null;
@@ -10514,13 +10518,13 @@ app.get("/api/portal/chat-logs", requireTenant, async (req, res) => {
   try {
     const tenantId = req.tenant.tenantId;
 
-    // Fetch last 100 messages for this tenant, newest first
+    // Fetch last 600 messages — needed to reconstruct 20 conversations at ~13 msgs/conv avg
     const { data, error } = await supabase
       .from("chat_logs")
       .select("id, conversation_id, sender, message, answer_source, created_at")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
-      .limit(100);
+      .limit(600);
 
     if (error) throw error;
 

@@ -17706,8 +17706,13 @@ function gpsDistance(lat1, lng1, lat2, lng2) {
 }
 
 // GET /checkin/:tenantId — mobile club check-in page
-app.get("/checkin/:tenantId", (req, res) => {
+app.get("/checkin/:tenantId", async (req, res) => {
   const { tenantId } = req.params;
+  // If check-in is disabled, redirect to the chat widget instead
+  const { data: t } = await supabase.from("tenants").select("checkin_enabled").eq("id", tenantId).maybeSingle();
+  if (t && t.checkin_enabled === false) {
+    return res.redirect(302, "/chat/" + tenantId);
+  }
   res.setHeader("Content-Type", "text/html");
   res.setHeader("Cache-Control", "no-store");
   res.send(`<!DOCTYPE html>
@@ -17885,8 +17890,7 @@ async function init() {
     const r = await fetch('/api/checkin/club-info/' + TENANT_ID, { signal: ctrl.signal });
     clearTimeout(timeout);
     if (r.status === 403) {
-      const errData = await r.json().catch(function(){return {};});
-      document.getElementById('card').innerHTML = '<div class="logo-emoji">🎾</div><div class="status status-error">' + (errData.error || 'Check-in is currently disabled.') + '</div>';
+      window.location.href = '/chat/' + TENANT_ID;
       return;
     }
     if (!r.ok) throw new Error('Club not found (' + r.status + ')');

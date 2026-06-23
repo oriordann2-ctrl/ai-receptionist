@@ -8635,7 +8635,8 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
                 amount:          price ? price.unit_amount : null,
                 currency:        price ? price.currency : null,
                 billingInterval: price && price.recurring ? price.recurring.interval : null,
-                periodEnd:       sub.current_period_end || null,
+                periodEnd:       sub.current_period_end   || null,
+                periodStart:     sub.current_period_start || null,
                 memberName:      request.member_name || null,
                 memberEmail:     request.member_email || null,
               }
@@ -8871,35 +8872,82 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
             .toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
           const changeType = (request.requested_type || "").toLowerCase();
 
-          if (/cancel/i.test(changeType)) {
-            // Use the member's requested effective date if provided, otherwise fall back to period end
-            let cancelBody;
-            let cancelDateLabel;
-            if (request.effective_date) {
-              const cancelTs = Math.floor(new Date(request.effective_date).getTime() / 1000);
-              cancelBody = { cancel_at: String(cancelTs) };
-              cancelDateLabel = new Date(request.effective_date).toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
-            } else {
-              cancelBody = { cancel_at_period_end: "true" };
-              cancelDateLabel = periodEnd;
-            }
-
-            const cancelResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id, {
-              method: "POST",
-              headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
-              body: new URLSearchParams(cancelBody).toString()
+          // Look up original paid charge for potential refund
+          let currentChargeId = null;
+          try {
+            const paidInvResp = await fetch(
+              "https://api.stripe.com/v1/invoices?subscription=" + sub.id + "&limit=20",
+              { headers: { Authorization: authHeader } }
+            );
+            const paidInvData = await paidInvResp.json();
+            const paidInvoice = (paidInvData.data || []).find(function(inv) {
+              return inv.status === "paid" && inv.charge && inv.amount_paid > 0;
             });
-            const cancelData = await cancelResp.json();
-            if (cancelData.cancel_at || cancelData.cancel_at_period_end) {
-              stripeResult = {
-                ok: true,
-                action: "cancelled_at_date",
-                message: `✅ Subscription set to cancel on ${cancelDateLabel}. Member retains access until then.`,
-                subscriptionId: sub.id,
-                customerId: customer.id
-              };
+            currentChargeId = paidInvoice ? paidInvoice.charge : null;
+          } catch (e) { /* non-fatal */ }
+
+          if (/cancel/i.test(changeType)) {
+            const { immediateCancel } = req.body || {};
+
+            if (immediateCancel) {
+              // Immediate cancellation with pro-rata refund
+              const nowTs = Math.floor(Date.now() / 1000);
+              const periodStart = sub.current_period_start;
+              const periodEndTs  = sub.current_period_end;
+              const totalSecs    = periodEndTs - periodStart;
+              const remainSecs   = Math.max(0, periodEndTs - nowTs);
+              const refundAmount = amount ? Math.round(amount * (remainSecs / totalSecs)) : 0;
+
+              // Cancel immediately
+              const cancelResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id + "/cancel", {
+                method: "POST",
+                headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ prorate: "false" }).toString()
+              });
+              const cancelData = await cancelResp.json();
+              if (cancelData.status !== "canceled") {
+                stripeResult = { ok: false, message: "Stripe immediate cancel failed.", raw: cancelData };
+              } else if (refundAmount > 0 && currentChargeId) {
+                // Issue pro-rata refund
+                const refundResp = await fetch("https://api.stripe.com/v1/refunds", {
+                  method: "POST",
+                  headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
+                  body: new URLSearchParams({ charge: currentChargeId, amount: String(refundAmount), reason: "requested_by_customer" }).toString()
+                });
+                const refundData = await refundResp.json();
+                const refundFmt  = (refundAmount / 100).toFixed(2);
+                if (refundData.id) {
+                  stripeResult = { ok: true, action: "cancelled_immediately_refunded", message: `✅ Subscription cancelled immediately. Refund of €${refundFmt} issued to the original payment method.`, subscriptionId: sub.id, customerId: customer.id };
+                } else {
+                  stripeResult = { ok: true, action: "cancelled_immediately_refund_failed", message: `⚠️ Subscription cancelled but refund of €${refundFmt} failed — issue manually in Stripe Dashboard.`, subscriptionId: sub.id, customerId: customer.id, stripeDashboardUrl: "https://dashboard.stripe.com/customers/" + customer.id };
+                }
+              } else {
+                stripeResult = { ok: true, action: "cancelled_immediately", message: "✅ Subscription cancelled immediately. No refund issued (no charge found or zero balance).", subscriptionId: sub.id, customerId: customer.id };
+              }
             } else {
-              stripeResult = { ok: false, message: "Stripe cancel API call failed.", raw: cancelData };
+              // Cancel at period end (default)
+              let cancelBody;
+              let cancelDateLabel;
+              if (request.effective_date) {
+                const cancelTs = Math.floor(new Date(request.effective_date).getTime() / 1000);
+                cancelBody = { cancel_at: String(cancelTs) };
+                cancelDateLabel = new Date(request.effective_date).toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
+              } else {
+                cancelBody = { cancel_at_period_end: "true" };
+                cancelDateLabel = periodEnd;
+              }
+
+              const cancelResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id, {
+                method: "POST",
+                headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams(cancelBody).toString()
+              });
+              const cancelData = await cancelResp.json();
+              if (cancelData.cancel_at || cancelData.cancel_at_period_end) {
+                stripeResult = { ok: true, action: "cancelled_at_date", message: `✅ Subscription set to cancel on ${cancelDateLabel}. Member retains access until then.`, subscriptionId: sub.id, customerId: customer.id };
+              } else {
+                stripeResult = { ok: false, message: "Stripe cancel API call failed.", raw: cancelData };
+              }
             }
 
           } else {

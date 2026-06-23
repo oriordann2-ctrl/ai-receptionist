@@ -4968,14 +4968,44 @@
         if (cancellation.planName)   rows += '<div><span style="color:#6b7280;">Plan:</span> <strong>' + esc(cancellation.planName) + '</strong></div>';
         if (amtStr)                  rows += '<div><span style="color:#6b7280;">Subscription:</span> <strong>' + esc(amtStr) + '</strong></div>';
         if (periodEndStr)            rows += '<div><span style="color:#6b7280;">Access until:</span> <strong>' + esc(periodEndStr) + '</strong></div>';
-        body.innerHTML = '<div style="margin-bottom:10px;font-size:13px;color:#374151;">This will cancel the following Stripe subscription at period end:</div>'
-          + '<div style="padding:12px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;line-height:2;margin-bottom:4px;">' + rows + '</div>'
-          + '<div style="font-size:12px;color:#6b7280;margin-top:8px;">The member will not be charged again. Their access continues until the date shown above.</div>';
-        var btn = document.createElement("button");
-        btn.textContent = "✓ Confirm Cancellation";
-        btn.style.cssText = "background:#dc2626;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
-        btn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
-        btns.appendChild(btn);
+
+        // Calculate estimated immediate refund
+        var immediateRefundStr = null;
+        if (cancellation.amount && cancellation.periodStart && cancellation.periodEnd) {
+          var nowSec    = Math.floor(Date.now() / 1000);
+          var totalSec  = cancellation.periodEnd - cancellation.periodStart;
+          var remainSec = Math.max(0, cancellation.periodEnd - nowSec);
+          var refundAmt = Math.round(cancellation.amount * (remainSec / totalSec));
+          var sym = (cancellation.currency || "eur").toUpperCase() === "EUR" ? "€" : (cancellation.currency || "").toUpperCase() + " ";
+          immediateRefundStr = sym + (refundAmt / 100).toFixed(2);
+        }
+
+        body.innerHTML = '<div style="margin-bottom:10px;font-size:13px;color:#374151;">How would you like to cancel this subscription?</div>'
+          + '<div style="padding:12px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;line-height:2;margin-bottom:12px;">' + rows + '</div>';
+
+        // Button 1: Cancel at period end
+        var btnPeriodEnd = document.createElement("button");
+        btnPeriodEnd.textContent = "✓ Cancel at Period End";
+        btnPeriodEnd.style.cssText = "background:#dc2626;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:6px;";
+        btnPeriodEnd.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0, null, false); };
+        btns.appendChild(btnPeriodEnd);
+
+        var periodEndNote = document.createElement("div");
+        periodEndNote.style.cssText = "font-size:11px;color:#6b7280;text-align:center;margin-bottom:10px;";
+        periodEndNote.textContent = "Member keeps access until " + (periodEndStr || "period end") + ". No refund.";
+        btns.appendChild(periodEndNote);
+
+        // Button 2: Cancel immediately with refund
+        var btnImmediate = document.createElement("button");
+        btnImmediate.textContent = immediateRefundStr ? "Cancel Now & Refund " + immediateRefundStr : "Cancel Immediately";
+        btnImmediate.style.cssText = "background:white;color:#dc2626;border:2px solid #dc2626;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:4px;";
+        btnImmediate.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0, null, true); };
+        btns.appendChild(btnImmediate);
+
+        var immediateNote = document.createElement("div");
+        immediateNote.style.cssText = "font-size:11px;color:#6b7280;text-align:center;";
+        immediateNote.textContent = "Access ends immediately." + (immediateRefundStr ? " Pro-rata refund of " + immediateRefundStr + " issued." : "");
+        btns.appendChild(immediateNote);
       } else if (!proration) {
         // No info — simple approve
         title.textContent = "Approve Membership Change";
@@ -5038,11 +5068,11 @@
       modal.style.display = "flex";
     }
 
-    function executeApprove(id, refundNow, prorationAmount, chargeId) {
+    function executeApprove(id, refundNow, prorationAmount, chargeId, immediateCancel) {
       fetch("/api/portal/membership-requests/" + id + "/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refundNow: refundNow, prorationAmount: prorationAmount, chargeId: chargeId || null })
+        body: JSON.stringify({ refundNow: refundNow, prorationAmount: prorationAmount, chargeId: chargeId || null, immediateCancel: !!immediateCancel })
       })
         .then(function(r) { return r.json(); })
         .then(function(data) {

@@ -21,6 +21,10 @@
     loadDocuments();
     loadChatUsage();
     reorderKnowledgeSection();
+
+    window.addEventListener('hashchange', function() {
+      if ((location.hash || '').toLowerCase() === '#analytics') loadPortalAnalytics();
+    });
   }
 
   function reorderKnowledgeSection() {

@@ -10076,9 +10076,14 @@ function classifyTopic(message, businessType) {
   return "General Enquiry";
 }
 
+function irishDayStart(date) {
+  const dateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin" }).format(date);
+  return new Date(dateStr + "T00:00:00Z");
+}
+
 function buildAnalytics(rows, businessType) {
   const now = new Date();
-  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+  const todayStart = irishDayStart(now);
 
   // Group messages into conversations keyed by conversation_id
   const convMap = {};
@@ -10093,12 +10098,13 @@ function buildAnalytics(rows, businessType) {
   // Conversations today
   const todayCount = convs.filter(c => new Date(c.firstAt) >= todayStart).length;
 
-  // 7-day trend
+  // 7-day trend (use Irish calendar dates so days don't shift near midnight)
   const trend = [];
   for (let i = 6; i >= 0; i--) {
-    const dayStart = new Date(now); dayStart.setDate(dayStart.getDate() - i); dayStart.setHours(0, 0, 0, 0);
-    const dayEnd   = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
-    const label    = i === 0 ? "Today" : dayStart.toLocaleDateString("en-IE", { weekday: "short" });
+    const dayRef   = new Date(now.getTime() - i * 86400000);
+    const dayStart = irishDayStart(dayRef);
+    const dayEnd   = new Date(dayStart.getTime() + 86400000);
+    const label    = i === 0 ? "Today" : dayStart.toLocaleDateString("en-IE", { timeZone: "Europe/Dublin", weekday: "short" });
     const count    = convs.filter(c => { const d = new Date(c.firstAt); return d >= dayStart && d < dayEnd; }).length;
     trend.push({ label, count });
   }

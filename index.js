@@ -8984,8 +8984,8 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
               const refundAmount = amount ? Math.round(amount * (remainSecs / totalSecs)) : 0;
 
               // Cancel immediately
-              const cancelResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id + "/cancel", {
-                method: "POST",
+              const cancelResp = await fetch("https://api.stripe.com/v1/subscriptions/" + sub.id, {
+                method: "DELETE",
                 headers: { Authorization: authHeader, "Content-Type": "application/x-www-form-urlencoded" },
                 body: new URLSearchParams({ prorate: "false" }).toString()
               });

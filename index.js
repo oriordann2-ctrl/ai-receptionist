@@ -18034,6 +18034,28 @@ let cachedGpsPos = null;
 
 const PRIVACY_KEY = 'sprimal_privacy_' + TENANT_ID;
 
+function showLocationDeniedMsg() {
+  var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIos) {
+    showMsg(
+      'Location access is blocked. To fix this on iPhone:\n\n' +
+      '1. Open the Settings app\n' +
+      '2. Tap Privacy & Security → Location Services\n' +
+      '3. Make sure Location Services is ON\n' +
+      '4. Scroll down to Safari → set to "While Using"\n' +
+      '5. Come back here and tap Check In again',
+      'error'
+    );
+  } else {
+    showMsg(
+      'Location access is blocked. Please enable it:\n\n' +
+      '• Android: Settings → Apps → Browser → Permissions → Location → Allow\n' +
+      '• Then return here and tap Check In again',
+      'error'
+    );
+  }
+}
+
 function requestGpsOrBlock(onSuccess) {
   if (!navigator.geolocation) {
     showMsg('Location is not supported by this browser.', 'error');
@@ -18047,10 +18069,17 @@ function requestGpsOrBlock(onSuccess) {
       onSuccess();
     },
     function(e) {
-      // High-accuracy failed — retry with network/cell location (faster, works indoors)
+      if (e.code === 1) { // PERMISSION_DENIED
+        showLocationDeniedMsg();
+        return;
+      }
+      // Timeout or unavailable — retry with network/cell location (works indoors)
       navigator.geolocation.getCurrentPosition(
         function(pos) { cachedGpsPos = pos; showMsg('', ''); onSuccess(); },
-        function() { showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error'); },
+        function(e2) {
+          if (e2.code === 1) { showLocationDeniedMsg(); }
+          else { showMsg('Could not get your location. Please step outside briefly and try again.', 'error'); }
+        },
         { timeout: 10000, maximumAge: 60000, enableHighAccuracy: false }
       );
     },
@@ -18548,11 +18577,12 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
 
   navigator.geolocation.getCurrentPosition(
     function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); },
-    function() {
+    function(e) {
+      if (e.code === 1) { showLocationDeniedMsg(); if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; } return; }
       navigator.geolocation.getCurrentPosition(
         function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); },
-        function() {
-          showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error');
+        function(e2) {
+          if (e2.code === 1) { showLocationDeniedMsg(); } else { showMsg('Could not get your location. Please step outside briefly and try again.', 'error'); }
           if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
         },
         { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
@@ -18768,10 +18798,14 @@ async function submitCheckin(membershipNumber, memberName) {
   showMsg('Getting your location...', 'info');
   navigator.geolocation.getCurrentPosition(
     function(pos) { cachedGpsPos = pos; doSubmit(pos); },
-    function() {
+    function(e) {
+      if (e.code === 1) { showLocationDeniedMsg(); resetCheckinBtn(); return; }
       navigator.geolocation.getCurrentPosition(
         function(pos) { cachedGpsPos = pos; doSubmit(pos); },
-        function() { showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error'); resetCheckinBtn(); },
+        function(e2) {
+          if (e2.code === 1) { showLocationDeniedMsg(); } else { showMsg('Could not get your location. Please step outside briefly and try again.', 'error'); }
+          resetCheckinBtn();
+        },
         { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
       );
     },

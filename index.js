@@ -8580,7 +8580,8 @@ app.post("/api/camp-booking", async (req, res) => {
   const {
     tenantId, childName, childDob, campWeek, isMember, membershipNumber, price,
     parentName, parentEmail, parentPhone, medicalInfo,
-    emergencyContactName, emergencyContactPhone, photoConsent, termsAccepted
+    additionalContactName, additionalContactPhone,
+    photoConsent, dataSharingConsent, contactConsent, codeOfConductConsent, termsAccepted
   } = req.body || {};
 
   if (!tenantId || !childName || !parentName || !parentEmail) {
@@ -8589,27 +8590,30 @@ app.post("/api/camp-booking", async (req, res) => {
 
   // Persist booking
   const { error: dbErr } = await supabase.from("camp_bookings").insert({
-    tenant_id:              tenantId,
-    child_name:             childName,
-    child_dob:              childDob             || null,
-    camp_week:              campWeek             || null,
-    is_member:              !!isMember,
-    membership_number:      membershipNumber     || null,
-    price:                  price                || null,
-    parent_name:            parentName,
-    parent_email:           parentEmail,
-    parent_phone:           parentPhone          || null,
-    medical_info:           medicalInfo          || null,
-    emergency_contact_name: emergencyContactName || null,
-    emergency_contact_phone:emergencyContactPhone|| null,
-    photo_consent:          !!photoConsent,
-    terms_accepted:         !!termsAccepted
+    tenant_id:                tenantId,
+    child_name:               childName,
+    child_dob:                childDob               || null,
+    camp_week:                campWeek               || null,
+    is_member:                !!isMember,
+    membership_number:        membershipNumber       || null,
+    price:                    price                  || null,
+    parent_name:              parentName,
+    parent_email:             parentEmail,
+    parent_phone:             parentPhone            || null,
+    medical_info:             medicalInfo            || null,
+    additional_contact_name:  additionalContactName  || null,
+    additional_contact_phone: additionalContactPhone || null,
+    photo_consent:            !!photoConsent,
+    data_sharing_consent:     !!dataSharingConsent,
+    contact_consent:          !!contactConsent,
+    code_of_conduct_consent:  !!codeOfConductConsent,
+    terms_accepted:           !!termsAccepted
   });
   if (dbErr) { console.error("[camp-booking]", dbErr.message); return res.status(500).json({ error: dbErr.message }); }
 
   const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", tenantId).maybeSingle();
-  const clubName   = tenant?.name  || "Your club";
-  const adminEmail = tenant?.email || null;
+  const clubName    = tenant?.name  || "Your club";
+  const adminEmail  = tenant?.email || null;
   const memberBadge = isMember ? `✅ Member (€${price})` : `Non-member (€${price})`;
 
   if (process.env.RESEND_API_KEY) {
@@ -8635,10 +8639,13 @@ app.post("/api/camp-booking", async (req, res) => {
             <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Parent/Guardian</td><td style="padding:12px 0 8px;font-weight:600;">${parentName}</td></tr>
             <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;"><a href="mailto:${parentEmail}">${parentEmail}</a></td></tr>
             <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;">${parentPhone || "—"}</td></tr>
-            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Emergency contact</td><td style="padding:12px 0 8px;">${emergencyContactName || "—"}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Emergency phone</td><td style="padding:8px 0;">${emergencyContactPhone || "—"}</td></tr>
-            ${medicalInfo ? `<tr><td style="padding:8px 0;color:#6b7280;">Medical info</td><td style="padding:8px 0;">${medicalInfo}</td></tr>` : ""}
+            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Medical info</td><td style="padding:12px 0 8px;">${medicalInfo || "—"}</td></tr>
+            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Additional contact</td><td style="padding:12px 0 8px;">${additionalContactName || "—"}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Additional phone</td><td style="padding:8px 0;">${additionalContactPhone || "—"}</td></tr>
             <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Photo consent</td><td style="padding:12px 0 8px;">${photoConsent ? "Yes" : "No"}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Health data sharing</td><td style="padding:8px 0;">${dataSharingConsent ? "Consented" : "Not consented"}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Contact permission</td><td style="padding:8px 0;">${contactConsent ? "Permitted" : "Not permitted"}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Code of conduct</td><td style="padding:8px 0;">${codeOfConductConsent ? "Agreed" : "Not agreed"}</td></tr>
           </table>
           <p style="font-size:12px;color:#9ca3af;margin-top:24px;">Submitted via Sprimal chat widget</p>
         </div>`

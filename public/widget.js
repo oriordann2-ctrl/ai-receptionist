@@ -1564,10 +1564,16 @@
     var child = f.data.childName;
     switch (f.step) {
       case 1:
-        addMsg("Which week would you like to book for " + child + "?", "bot");
-        _mbrInlineInput("e.g. Week 1: 7–11 July", function(val) {
-          f.data.campWeek = val.trim(); f.step++; _runCampStep();
-        });
+        addMsg("Which session would you like to book for " + child + "?", "bot");
+        setTimeout(function() {
+          _mbrInlineButtons([
+            { label: "5–9 years  (9:30–11:30am)" },
+            { label: "10 years+  (12:00–2:00pm)" }
+          ], function(val) {
+            f.data.campWeek = "Summer Camp 2026 — " + val + "  |  July 20–24";
+            f.step++; _runCampStep();
+          });
+        }, 300);
         break;
       case 2:
         addMsg("What's your name (parent or guardian)?", "bot");
@@ -1595,55 +1601,70 @@
         });
         break;
       case 6:
-        if (f.data.isMember) {
-          addMsg("Do you have " + child + "'s EBO membership number? (optional)", "bot");
-          _mbrInlineInput("Membership number", function(val) {
-            f.data.membershipNumber = val.trim() || null; f.step++; _runCampStep();
-          }, true);
-        } else {
-          f.step++; _runCampStep();
-        }
+        addMsg("What is " + child + "'s membership number?", "bot");
+        _mbrInlineInput("Membership number *", function(val) {
+          f.data.membershipNumber = val.trim(); f.step++; _runCampStep();
+        });
         break;
       case 7:
-        addMsg("Any medical conditions, allergies, or things the camp team should know about " + child + "? (optional)", "bot");
-        _mbrInlineInput("Medical info / allergies", function(val) {
-          f.data.medicalInfo = val.trim() || null; f.step++; _runCampStep();
-        }, true);
+        addMsg("Please share any relevant medical information — inhalers, allergies, disabilities, or any additional support needed from coaches:", "bot");
+        _mbrInlineInput("Medical info *", function(val) {
+          f.data.medicalInfo = val.trim(); f.step++; _runCampStep();
+        });
         break;
       case 8:
-        addMsg("Emergency contact name?", "bot");
-        _mbrInlineInput("Emergency contact name *", function(val) {
-          f.data.emergencyName = val.trim(); f.step++; _runCampStep();
-        });
+        addMsg("Do you consent to your child's health information being shared with coaches solely for the purpose of their safe participation in camp?", "bot");
+        setTimeout(function() {
+          _mbrInlineButtons([{ label: "I consent" }, { label: "I do not consent" }], function(val) {
+            if (val === "I do not consent") {
+              addMsg("This consent is required to process the booking. Please contact the club directly if you have concerns.", "bot");
+              _campFlow = null; return;
+            }
+            f.data.dataSharingConsent = true; f.step++; _runCampStep();
+          });
+        }, 300);
         break;
       case 9:
-        addMsg("Emergency contact phone number?", "bot");
-        _mbrInlineInput("Emergency contact phone *", function(val) {
-          f.data.emergencyPhone = val.trim(); f.step++; _runCampStep();
-        });
+        addMsg("Do you permit the club to contact you using the details provided above?", "bot");
+        setTimeout(function() {
+          _mbrInlineButtons([{ label: "Yes, I permit this" }, { label: "No" }], function(val) {
+            f.data.contactConsent = (val === "Yes, I permit this"); f.step++; _runCampStep();
+          });
+        }, 300);
         break;
       case 10:
-        addMsg("Can we include " + child + " in club social media photos and videos?", "bot");
-        setTimeout(function() {
-          _mbrInlineButtons([{ label: "Yes, that's fine" }, { label: "No, please exclude them" }], function(val) {
-            f.data.photoConsent = (val === "Yes, that's fine"); f.step++; _runCampStep();
-          });
-        }, 300);
+        addMsg("Additional contact name (e.g. other parent or guardian)?", "bot");
+        _mbrInlineInput("Additional contact name *", function(val) {
+          f.data.additionalContactName = val.trim(); f.step++; _runCampStep();
+        });
         break;
       case 11:
-        addMsg("By proceeding you confirm all information is accurate and you agree to the club's summer camp terms and conditions.", "bot");
+        addMsg("Additional contact phone number?", "bot");
+        _mbrInlineInput("Additional contact phone *", function(val) {
+          f.data.additionalContactPhone = val.trim(); f.step++; _runCampStep();
+        });
+        break;
+      case 12:
+        addMsg("Do you consent to photographs or film of " + child + " being taken during camp and used in club reporting or promotion?", "bot");
         setTimeout(function() {
-          _mbrInlineButtons([{ label: "I Agree — Submit Booking" }, { label: "Cancel" }], function(val) {
-            if (val === "Cancel") {
-              addMsg("No problem — your booking has not been submitted.", "bot");
-              _campFlow = null;
-              return;
-            }
-            f.step++; _runCampStep();
+          _mbrInlineButtons([{ label: "Yes, I consent" }, { label: "No, please exclude them" }], function(val) {
+            f.data.photoConsent = (val === "Yes, I consent"); f.step++; _runCampStep();
           });
         }, 300);
         break;
-      case 12:
+      case 13:
+        addMsg("Finally — do you agree to the club's Code of Conduct for Juniors and Parents/Guardians?", "bot");
+        setTimeout(function() {
+          _mbrInlineButtons([{ label: "I agree" }, { label: "Cancel" }], function(val) {
+            if (val === "Cancel") {
+              addMsg("No problem — your booking has not been submitted.", "bot");
+              _campFlow = null; return;
+            }
+            f.data.codeOfConductConsent = true; f.step++; _runCampStep();
+          });
+        }, 300);
+        break;
+      case 14:
         _submitCampFlow();
         break;
     }
@@ -1657,21 +1678,24 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        tenantId:             clubId,
-        childName:            f.data.childName,
-        childDob:             f.data.childDob,
-        campWeek:             f.data.campWeek,
-        isMember:             f.data.isMember,
-        membershipNumber:     f.data.membershipNumber || null,
-        price:                f.data.price,
-        parentName:           f.data.parentName,
-        parentEmail:          f.data.parentEmail,
-        parentPhone:          f.data.parentPhone,
-        medicalInfo:          f.data.medicalInfo || null,
-        emergencyContactName: f.data.emergencyName,
-        emergencyContactPhone:f.data.emergencyPhone,
-        photoConsent:         f.data.photoConsent,
-        termsAccepted:        true
+        tenantId:                clubId,
+        childName:               f.data.childName,
+        childDob:                f.data.childDob,
+        campWeek:                f.data.campWeek,
+        isMember:                f.data.isMember,
+        membershipNumber:        f.data.membershipNumber || null,
+        price:                   f.data.price,
+        parentName:              f.data.parentName,
+        parentEmail:             f.data.parentEmail,
+        parentPhone:             f.data.parentPhone,
+        medicalInfo:             f.data.medicalInfo || null,
+        additionalContactName:   f.data.additionalContactName,
+        additionalContactPhone:  f.data.additionalContactPhone,
+        photoConsent:            f.data.photoConsent,
+        dataSharingConsent:      f.data.dataSharingConsent,
+        contactConsent:          f.data.contactConsent,
+        codeOfConductConsent:    f.data.codeOfConductConsent,
+        termsAccepted:           true
       })
     }).then(function(r) { return r.json(); }).then(function() {
       _campFlow = null;

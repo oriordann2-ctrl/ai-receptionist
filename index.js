@@ -9086,10 +9086,7 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
       .replace("CHAT_LOGS_PLACEHOLDER",          chatLogsHtml)
       .replace("AUTO_REFRESH_PLACEHOLDER",       autoRefresh)
       .replace("MORTGAGE_APPS_JSON_PLACEHOLDER", mortgageAppsScript)
-      .replace("BUSINESS_TYPE_PLACEHOLDER",      bizType)
-      .replace("STRIPE_MODE_PLACEHOLDER",       ((process.env.STRIPE_SECRET_KEY || "").startsWith("sk_test_") || (process.env.SPRIMAL_STRIPE_KEY || "").startsWith("sk_test_"))
-        ? '<span style="font-size:9px;font-weight:700;background:#f59e0b;color:#000;border-radius:4px;padding:2px 6px;white-space:nowrap;flex-shrink:0;">TEST</span>'
-        : '');
+      .replace("BUSINESS_TYPE_PLACEHOLDER",      bizType);
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
@@ -12312,7 +12309,7 @@ const result = INTEGRATION_CATALOG
         Object.entries(decConfig).forEach(([k, v]) => {
           if (!INTG_SENSITIVE_FIELDS.includes(k)) publicConfig[k] = v;
         });
-        return {
+        const entry = {
           provider:     i.provider,
           name:         i.name,
           logo_html:    i.logo_html,
@@ -12323,6 +12320,11 @@ const result = INTEGRATION_CATALOG
           updated_at:   connMap[i.provider]?.updated_at || null,
           saved_config: publicConfig   // no credentials — only non-sensitive values
         };
+        if (i.provider === 'stripe') {
+          entry.stripe_test_mode = (process.env.STRIPE_SECRET_KEY || "").startsWith("sk_test_")
+            || (process.env.SPRIMAL_STRIPE_KEY || "").startsWith("sk_test_");
+        }
+        return entry;
       });
 
     res.json(result);

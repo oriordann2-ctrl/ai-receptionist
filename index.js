@@ -8664,7 +8664,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
         if (customer) {
           const sResp = await fetch("https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&limit=10", { headers: { Authorization: authC } });
           const sData = await sResp.json();
-          const sub = (sData.data || []).find(s => ["active", "trialing", "past_due"].includes(s.status));
+          const sub = (sData.data || []).filter(s => ["active", "trialing", "past_due"].includes(s.status)).sort((a, b) => b.created - a.created)[0];
           if (sub) {
             const item = sub.items && sub.items.data && sub.items.data[0];
             const price = item && item.price;
@@ -8738,9 +8738,9 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
       { headers: { Authorization: authHeader } }
     );
     const subData = await subResp.json();
-    const sub = (subData.data || []).find(function(s) {
+    const sub = (subData.data || []).filter(function(s) {
       return ["active", "trialing", "past_due"].indexOf(s.status) !== -1;
-    });
+    }).sort(function(a, b) { return b.created - a.created; })[0];
     if (!sub) return res.json({ proration: null });
 
     const currentItem = sub.items && sub.items.data && sub.items.data[0];
@@ -8915,7 +8915,7 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
         if (!actionableSubs.length) {
           stripeResult = { ok: false, message: "No active subscription found for " + request.member_email + " (customer " + customer.id + ")" };
         } else {
-          const sub      = actionableSubs[0];
+          const sub      = actionableSubs.sort(function(a, b) { return b.created - a.created; })[0];
           const item     = sub.items && sub.items.data && sub.items.data[0];
           const price    = item && item.price;
           const amount   = price && price.unit_amount;

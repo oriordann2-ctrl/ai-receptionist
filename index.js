@@ -8575,7 +8575,8 @@ app.post("/api/ebo/check-junior-member", async (req, res) => {
 });
 
 // ── Summer Camp Booking ───────────────────────────────────────────────────────
-// Public endpoint — stores booking in camp_bookings and emails club + parent
+// Saves pending booking then creates a Stripe Checkout session for payment.
+// Emails are sent from /camp-booking/success after Stripe confirms payment.
 app.post("/api/camp-booking", async (req, res) => {
   const {
     tenantId, childName, childDob, campWeek, isMember, membershipNumber, price,
@@ -8588,8 +8589,8 @@ app.post("/api/camp-booking", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  // Persist booking
-  const { error: dbErr } = await supabase.from("camp_bookings").insert({
+  // Save pending booking first
+  const { data: booking, error: dbErr } = await supabase.from("camp_bookings").insert({
     tenant_id:                tenantId,
     child_name:               childName,
     child_dob:                childDob               || null,
@@ -8607,64 +8608,214 @@ app.post("/api/camp-booking", async (req, res) => {
     data_sharing_consent:     !!dataSharingConsent,
     contact_consent:          !!contactConsent,
     code_of_conduct_consent:  !!codeOfConductConsent,
-    terms_accepted:           !!termsAccepted
-  });
+    terms_accepted:           !!termsAccepted,
+    status:                   "pending"
+  }).select("id").single();
+
   if (dbErr) { console.error("[camp-booking]", dbErr.message); return res.status(500).json({ error: dbErr.message }); }
 
-  const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", tenantId).maybeSingle();
-  const clubName    = tenant?.name  || "Your club";
-  const adminEmail  = tenant?.email || null;
-  const memberBadge = isMember ? `✅ Member (€${price})` : `Non-member (€${price})`;
+  // Load tenant's live Stripe key
+  let stripeKey = null;
+  try {
+    const { data: intg } = await supabase.from("tenant_integrations")
+      .select("config, is_active").eq("tenant_id", tenantId).eq("provider", "stripe").maybeSingle();
+    if (intg?.is_active && intg.config) {
+      const cfg = decryptIntgConfig(intg.config);
+      stripeKey = cfg.secret_key || null;
+    }
+  } catch (e) { console.error("[camp-booking] Stripe key load:", e.message); }
 
-  if (process.env.RESEND_API_KEY) {
-    const sendEmail = (to, subject, html) =>
-      fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "Sprimal <hello@sprimal.com>", to, subject, html })
-      }).catch(e => console.error("[camp-booking email]", e.message));
+  if (!stripeKey) return res.status(500).json({ error: "Stripe not configured for this club" });
 
-    // Club notification
-    if (adminEmail) {
-      await sendEmail(adminEmail, `New summer camp booking — ${childName}`,
-        `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
-          <h2 style="font-size:20px;color:#111827;margin-bottom:4px;">New Summer Camp Booking</h2>
-          <p style="font-size:14px;color:#6b7280;margin-top:0;">${clubName}</p>
-          <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;">
-            <tr><td style="padding:8px 0;color:#6b7280;width:180px;">Child</td><td style="padding:8px 0;font-weight:600;">${childName}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Date of birth</td><td style="padding:8px 0;">${childDob || "—"}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Camp week</td><td style="padding:8px 0;">${campWeek || "—"}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Membership</td><td style="padding:8px 0;">${memberBadge}</td></tr>
-            ${membershipNumber ? `<tr><td style="padding:8px 0;color:#6b7280;">EBO Number</td><td style="padding:8px 0;">${membershipNumber}</td></tr>` : ""}
-            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Parent/Guardian</td><td style="padding:12px 0 8px;font-weight:600;">${parentName}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;"><a href="mailto:${parentEmail}">${parentEmail}</a></td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;">${parentPhone || "—"}</td></tr>
-            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Medical info</td><td style="padding:12px 0 8px;">${medicalInfo || "—"}</td></tr>
-            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Additional contact</td><td style="padding:12px 0 8px;">${additionalContactName || "—"}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Additional phone</td><td style="padding:8px 0;">${additionalContactPhone || "—"}</td></tr>
-            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Photo consent</td><td style="padding:12px 0 8px;">${photoConsent ? "Yes" : "No"}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Health data sharing</td><td style="padding:8px 0;">${dataSharingConsent ? "Consented" : "Not consented"}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Contact permission</td><td style="padding:8px 0;">${contactConsent ? "Permitted" : "Not permitted"}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;">Code of conduct</td><td style="padding:8px 0;">${codeOfConductConsent ? "Agreed" : "Not agreed"}</td></tr>
+  // Create Stripe Checkout session
+  const amountCents = Math.round((price || 75) * 100);
+  const baseUrl     = "https://app.sprimal.com";
+  const successUrl  = `${baseUrl}/camp-booking/success?booking_id=${booking.id}&session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl   = `${baseUrl}/camp-booking/cancel`;
+
+  const params = new URLSearchParams();
+  params.append("payment_method_types[]", "card");
+  params.append("line_items[0][price_data][currency]", "eur");
+  params.append("line_items[0][price_data][product_data][name]", campWeek || "Summer Camp 2026");
+  params.append("line_items[0][price_data][product_data][description]",
+    `Booking for ${childName} — ${isMember ? "Member" : "Non-member"} rate`);
+  params.append("line_items[0][price_data][unit_amount]", String(amountCents));
+  params.append("line_items[0][quantity]", "1");
+  params.append("mode", "payment");
+  params.append("customer_email", parentEmail);
+  params.append("success_url", successUrl);
+  params.append("cancel_url", cancelUrl);
+  params.append("metadata[booking_id]", booking.id);
+  params.append("metadata[tenant_id]", tenantId);
+
+  const stripeResp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${stripeKey}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString()
+  });
+
+  if (!stripeResp.ok) {
+    const err = await stripeResp.json();
+    console.error("[camp-booking] Stripe error:", err);
+    return res.status(500).json({ error: "Failed to create payment session" });
+  }
+
+  const session = await stripeResp.json();
+  res.json({ url: session.url });
+});
+
+// ── Camp booking: payment success ─────────────────────────────────────────────
+// Stripe redirects here after successful payment. Verifies with Stripe API,
+// marks booking paid, then sends emails.
+app.get("/camp-booking/success", async (req, res) => {
+  const { booking_id, session_id } = req.query;
+  if (!booking_id || !session_id) return res.status(400).send("Invalid request");
+
+  const { data: booking } = await supabase.from("camp_bookings").select("*").eq("id", booking_id).maybeSingle();
+  if (!booking) return res.status(404).send("Booking not found");
+
+  // Load Stripe key for this tenant
+  let stripeKey = null;
+  try {
+    const { data: intg } = await supabase.from("tenant_integrations")
+      .select("config, is_active").eq("tenant_id", booking.tenant_id).eq("provider", "stripe").maybeSingle();
+    if (intg?.is_active && intg.config) {
+      const cfg = decryptIntgConfig(intg.config);
+      stripeKey = cfg.secret_key || null;
+    }
+  } catch (e) {}
+
+  // Verify payment with Stripe
+  let paid = false;
+  if (stripeKey) {
+    try {
+      const sessResp = await fetch(`https://api.stripe.com/v1/checkout/sessions/${session_id}`, {
+        headers: { Authorization: `Bearer ${stripeKey}` }
+      });
+      const sess = await sessResp.json();
+      paid = sess.payment_status === "paid";
+    } catch (e) { console.error("[camp-success] Stripe verify:", e.message); }
+  }
+
+  if (!paid) {
+    return res.send(`<!DOCTYPE html><html><head><title>Payment not confirmed</title>
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <style>body{font-family:sans-serif;text-align:center;padding:60px 24px;color:#374151;}
+      h1{color:#dc2626;}</style></head><body>
+      <h1>Payment not confirmed</h1>
+      <p>We couldn't verify your payment. If you believe this is an error please contact the club directly.</p>
+      </body></html>`);
+  }
+
+  // Mark paid (idempotent)
+  if (booking.status !== "paid") {
+    await supabase.from("camp_bookings")
+      .update({ status: "paid", stripe_session_id: session_id })
+      .eq("id", booking_id);
+
+    // Send emails now that payment is confirmed
+    if (process.env.RESEND_API_KEY) {
+      const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", booking.tenant_id).maybeSingle();
+      const clubName   = tenant?.name  || "The club";
+      const adminEmail = tenant?.email || null;
+      const memberBadge = booking.is_member ? `✅ Member (€${booking.price})` : `Non-member (€${booking.price})`;
+
+      const sendEmail = (to, subject, html) =>
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: "Sprimal <hello@sprimal.com>", to, subject, html })
+        }).catch(e => console.error("[camp-success email]", e.message));
+
+      if (adminEmail) {
+        await sendEmail(adminEmail, `Summer camp booking paid — ${booking.child_name}`,
+          `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
+            <h2 style="font-size:20px;color:#16a34a;margin-bottom:4px;">✅ Summer Camp Booking — Payment Received</h2>
+            <p style="font-size:14px;color:#6b7280;margin-top:0;">${clubName}</p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;">
+              <tr><td style="padding:8px 0;color:#6b7280;width:180px;">Child</td><td style="padding:8px 0;font-weight:600;">${booking.child_name}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Date of birth</td><td style="padding:8px 0;">${booking.child_dob || "—"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Session</td><td style="padding:8px 0;">${booking.camp_week || "—"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Membership</td><td style="padding:8px 0;">${memberBadge}</td></tr>
+              ${booking.membership_number ? `<tr><td style="padding:8px 0;color:#6b7280;">Membership No.</td><td style="padding:8px 0;">${booking.membership_number}</td></tr>` : ""}
+              <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Parent/Guardian</td><td style="padding:12px 0 8px;font-weight:600;">${booking.parent_name}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;"><a href="mailto:${booking.parent_email}">${booking.parent_email}</a></td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;">${booking.parent_phone || "—"}</td></tr>
+              <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Medical info</td><td style="padding:12px 0 8px;">${booking.medical_info || "—"}</td></tr>
+              <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Additional contact</td><td style="padding:12px 0 8px;">${booking.additional_contact_name || "—"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Additional phone</td><td style="padding:8px 0;">${booking.additional_contact_phone || "—"}</td></tr>
+              <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Photo consent</td><td style="padding:12px 0 8px;">${booking.photo_consent ? "Yes" : "No"}</td></tr>
+            </table>
+            <p style="font-size:12px;color:#9ca3af;margin-top:24px;">Paid via Sprimal — Stripe session ${session_id}</p>
+          </div>`
+        );
+      }
+
+      await sendEmail(booking.parent_email, `Summer camp booking confirmed — ${booking.child_name}`,
+        `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+          <h2 style="font-size:20px;color:#111827;">Booking confirmed ✅</h2>
+          <p style="font-size:15px;color:#374151;">Hi ${booking.parent_name},</p>
+          <p style="font-size:15px;color:#374151;">Your payment of <strong>€${booking.price}</strong> has been received and your place at summer camp is confirmed.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;margin:20px 0;background:#f9fafb;border-radius:8px;padding:16px;">
+            <tr><td style="padding:6px 12px;color:#6b7280;">Child</td><td style="padding:6px 12px;font-weight:600;">${booking.child_name}</td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280;">Session</td><td style="padding:6px 12px;">${booking.camp_week || "—"}</td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280;">Amount paid</td><td style="padding:6px 12px;">€${booking.price}</td></tr>
           </table>
-          <p style="font-size:12px;color:#9ca3af;margin-top:24px;">Submitted via Sprimal chat widget</p>
+          <p style="font-size:14px;color:#374151;">We look forward to seeing ${booking.child_name} at camp!</p>
+          <p style="font-size:14px;color:#6b7280;margin-top:24px;">— ${clubName}</p>
         </div>`
       );
     }
-
-    // Parent confirmation
-    await sendEmail(parentEmail, `Summer camp booking received — ${childName}`,
-      `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
-        <h2 style="font-size:20px;color:#111827;">Booking received ✅</h2>
-        <p style="font-size:15px;color:#374151;">Hi ${parentName},</p>
-        <p style="font-size:15px;color:#374151;">We've received your summer camp booking for <strong>${childName}</strong>${campWeek ? " — " + campWeek : ""}.</p>
-        <p style="font-size:15px;color:#374151;">The ${isMember ? "member" : "non-member"} rate of <strong>€${price}</strong> applies. A member of the team will be in touch shortly to confirm your place and arrange payment.</p>
-        <p style="font-size:14px;color:#6b7280;margin-top:24px;">— ${clubName}</p>
-      </div>`
-    );
   }
 
-  res.json({ ok: true });
+  const { data: tenant } = await supabase.from("tenants").select("name, website").eq("id", booking.tenant_id).maybeSingle();
+  const clubName   = tenant?.name    || "The club";
+  const websiteUrl = tenant?.website || null;
+
+  res.send(`<!DOCTYPE html><html><head><title>Booking Confirmed</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0;}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+      .card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:480px;width:100%;padding:40px 36px;text-align:center;}
+      .icon{font-size:48px;margin-bottom:16px;}
+      h1{font-size:24px;color:#111827;margin-bottom:8px;}
+      p{font-size:15px;color:#6b7280;line-height:1.6;margin-bottom:8px;}
+      .detail{background:#f0fdf4;border-radius:8px;padding:16px;margin:20px 0;text-align:left;font-size:14px;color:#374151;}
+      .detail div{padding:4px 0;}
+      .btn{display:inline-block;margin-top:24px;padding:12px 28px;background:#111827;color:#fff;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;}
+    </style></head><body>
+    <div class="card">
+      <div class="icon">🎾</div>
+      <h1>You're booked in!</h1>
+      <p>Payment confirmed for <strong>${booking.child_name}</strong>.</p>
+      <div class="detail">
+        <div><strong>Session:</strong> ${booking.camp_week || "—"}</div>
+        <div><strong>Amount paid:</strong> €${booking.price}</div>
+        <div><strong>Confirmation sent to:</strong> ${booking.parent_email}</div>
+      </div>
+      <p>We'll see ${booking.child_name} at camp! A confirmation email has been sent to you.</p>
+      ${websiteUrl ? `<a class="btn" href="${websiteUrl}">← Back to ${clubName}</a>` : ""}
+    </div>
+  </body></html>`);
+});
+
+// ── Camp booking: payment cancelled ──────────────────────────────────────────
+app.get("/camp-booking/cancel", (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><title>Payment cancelled</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+      .card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:420px;width:100%;padding:40px 36px;text-align:center;}
+      h1{font-size:22px;color:#111827;margin-bottom:12px;}
+      p{font-size:15px;color:#6b7280;line-height:1.6;}
+    </style></head><body>
+    <div class="card">
+      <div style="font-size:40px;margin-bottom:16px;">↩</div>
+      <h1>Payment cancelled</h1>
+      <p>No payment was taken. You can close this tab and try again from the chat widget.</p>
+    </div>
+  </body></html>`);
 });
 
 // ── Membership Types ──────────────────────────────────────────────────────────

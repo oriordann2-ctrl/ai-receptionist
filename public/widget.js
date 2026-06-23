@@ -1697,25 +1697,11 @@
         codeOfConductConsent:    f.data.codeOfConductConsent,
         termsAccepted:           true
       })
-    }).then(function(r) { return r.json(); }).then(function() {
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.error) { addMsg("Sorry, something went wrong: " + d.error + ". Please try again.", "bot"); return; }
       _campFlow = null;
-      addMsg("✅ Booking submitted! Thanks " + f.data.parentName + ". We'll be in touch to confirm your place and arrange payment of €" + f.data.price + ". A confirmation has been sent to " + f.data.parentEmail + ".", "bot");
-      setTimeout(function() {
-        var c = document.createElement("div"); c.id = "sprimal-choices";
-        var backBtn = document.createElement("button");
-        backBtn.className = "sprimal-choice sprimal-choice-ai"; backBtn.textContent = "↩ Back to main menu";
-        backBtn.addEventListener("click", function() {
-          clearChoices();
-          if (rootFlowId && wfFlowMap[rootFlowId]) {
-            messages.innerHTML = "";
-            wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
-            var f2 = document.getElementById("sprimal-footer");
-            if (f2) f2.style.display = "none";
-            showWorkflowStep(wfSteps[0]);
-          }
-        });
-        c.appendChild(backBtn); messages.appendChild(c); scrollToBottom(100);
-      }, 400);
+      addMsg("Details saved ✅ Redirecting you to secure payment…", "bot");
+      setTimeout(function() { window.top.location.href = d.url; }, 800);
     }).catch(function() {
       addMsg("Sorry, something went wrong. Please try again or contact the club directly.", "bot");
     });

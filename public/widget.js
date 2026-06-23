@@ -1601,10 +1601,14 @@
         });
         break;
       case 6:
-        addMsg("What is " + child + "'s membership number?", "bot");
-        _mbrInlineInput("Membership number *", function(val) {
-          f.data.membershipNumber = val.trim(); f.step++; _runCampStep();
-        });
+        if (f.data.isMember) {
+          addMsg("What is " + child + "'s membership number?", "bot");
+          _mbrInlineInput("Membership number *", function(val) {
+            f.data.membershipNumber = val.trim(); f.step++; _runCampStep();
+          });
+        } else {
+          f.step++; _runCampStep();
+        }
         break;
       case 7:
         addMsg("Please share any relevant medical information — inhalers, allergies, disabilities, or any additional support needed from coaches:", "bot");

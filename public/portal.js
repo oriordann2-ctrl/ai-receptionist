@@ -104,11 +104,17 @@
                   : ext === "docx" ? '<span class="doc-type-badge badge-docx">DOCX</span>'
                   : '<span class="doc-type-badge badge-txt">TXT</span>';
         var date  = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString("en-IE", { day:"numeric", month:"short", year:"numeric" }) : "";
+        var downloadBtn = doc.storage_path
+          ? '<a class="btn-download" href="/api/portal/documents/' + esc(doc.id) + '/download" download>Download</a>'
+          : '';
         html += '<div class="doc-row" id="doc-' + esc(doc.id) + '">'
           + badge
           + '<div class="doc-info"><div class="doc-name">' + esc(doc.original_filename || "Untitled") + '</div>'
           + '<div class="doc-meta">Uploaded ' + date + '</div></div>'
+          + '<div style="display:flex;gap:8px;flex-shrink:0;">'
+          + downloadBtn
           + '<button class="btn-delete" onclick="portalDeleteDoc(\'' + esc(doc.id) + '\',\'' + esc(doc.original_filename || "") + '\')">Delete</button>'
+          + '</div>'
           + '</div>';
       });
       if (totalPages > 1) {

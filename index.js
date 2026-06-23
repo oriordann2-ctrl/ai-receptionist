@@ -8697,7 +8697,9 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
         if (customer) {
           const sResp = await fetch("https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&limit=10", { headers: { Authorization: authC } });
           const sData = await sResp.json();
-          const sub = (sData.data || []).filter(s => ["active", "trialing", "past_due"].includes(s.status)).sort((a, b) => b.created - a.created)[0];
+          const activeSubs = (sData.data || []).filter(s => ["active", "trialing", "past_due"].includes(s.status));
+          const genuinelyActive = activeSubs.filter(s => !s.cancel_at_period_end).sort((a, b) => b.created - a.created);
+          const sub = (genuinelyActive.length ? genuinelyActive : activeSubs.sort((a, b) => b.created - a.created))[0];
           if (sub) {
             const item = sub.items && sub.items.data && sub.items.data[0];
             const price = item && item.price;
@@ -8937,7 +8939,7 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
 
         // Fetch all subscriptions for this customer, filter to actionable statuses client-side
         const subResp = await fetch(
-          "https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&limit=10",
+          "https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&limit=10&expand[]=data.items.data.price.product",
           { headers: { Authorization: authHeader } }
         );
         const subData = await subResp.json();
@@ -8945,10 +8947,20 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
           return ["active", "trialing", "past_due"].indexOf(s.status) !== -1;
         });
 
+        console.error("[Approve] Active subs for customer", customer.id, ":", actionableSubs.map(function(s) {
+          const prod = s.items && s.items.data && s.items.data[0] && s.items.data[0].price && s.items.data[0].price.product;
+          return { id: s.id, created: s.created, product: (prod && prod.name) || prod };
+        }));
+
         if (!actionableSubs.length) {
           stripeResult = { ok: false, message: "No active subscription found for " + request.member_email + " (customer " + customer.id + ")" };
         } else {
-          const sub      = actionableSubs.sort(function(a, b) { return b.created - a.created; })[0];
+          // If multiple active subs, prefer the one NOT already scheduled to cancel
+          const genuinelySorted = actionableSubs
+            .filter(function(s) { return !s.cancel_at_period_end; })
+            .sort(function(a, b) { return b.created - a.created; });
+          const sub = (genuinelySorted.length ? genuinelySorted : actionableSubs.sort(function(a, b) { return b.created - a.created; }))[0];
+          console.error("[Approve] Selected sub:", sub.id, "cancel_at_period_end:", sub.cancel_at_period_end);
           const item     = sub.items && sub.items.data && sub.items.data[0];
           const price    = item && item.price;
           const amount   = price && price.unit_amount;
@@ -9448,7 +9460,7 @@ app.get("/api/portal/me", requireTenant, (req, res) => {
 app.get("/api/portal/documents", requireTenant, async (req, res) => {
   let query = supabase
     .from("documents")
-    .select("id, original_filename, stored_filename, mimetype, document_type, audience, description, uploaded_at")
+    .select("id, original_filename, stored_filename, mimetype, document_type, audience, description, uploaded_at, storage_path")
     .eq("tenant_id", req.tenant.tenantId)
     .order("uploaded_at", { ascending: false });
 

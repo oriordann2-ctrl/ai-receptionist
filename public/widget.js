@@ -1699,7 +1699,8 @@
         dataSharingConsent:      f.data.dataSharingConsent,
         contactConsent:          f.data.contactConsent,
         codeOfConductConsent:    f.data.codeOfConductConsent,
-        termsAccepted:           true
+        termsAccepted:           true,
+        returnUrl:               (window.top || window).location.href.split('?')[0]
       })
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.error) { addMsg("Sorry, something went wrong: " + d.error + ". Please try again.", "bot"); return; }

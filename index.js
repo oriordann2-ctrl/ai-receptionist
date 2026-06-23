@@ -8582,7 +8582,8 @@ app.post("/api/camp-booking", async (req, res) => {
     tenantId, childName, childDob, campWeek, isMember, membershipNumber, price,
     parentName, parentEmail, parentPhone, medicalInfo,
     additionalContactName, additionalContactPhone,
-    photoConsent, dataSharingConsent, contactConsent, codeOfConductConsent, termsAccepted
+    photoConsent, dataSharingConsent, contactConsent, codeOfConductConsent, termsAccepted,
+    returnUrl
   } = req.body || {};
 
   if (!tenantId || !childName || !parentName || !parentEmail) {
@@ -8628,10 +8629,12 @@ app.post("/api/camp-booking", async (req, res) => {
   if (!stripeKey) return res.status(500).json({ error: "Stripe not configured for this club" });
 
   // Create Stripe Checkout session
-  const amountCents = Math.round((price || 75) * 100);
-  const baseUrl     = "https://app.sprimal.com";
-  const successUrl  = `${baseUrl}/camp-booking/success?booking_id=${booking.id}&session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl   = `${baseUrl}/camp-booking/cancel`;
+  const amountCents  = Math.round((price || 75) * 100);
+  const baseUrl      = "https://app.sprimal.com";
+  const safeReturn   = returnUrl && returnUrl.startsWith("http") ? returnUrl : null;
+  const returnParam  = safeReturn ? "&return=" + encodeURIComponent(safeReturn) : "";
+  const successUrl   = `${baseUrl}/camp-booking/success?booking_id=${booking.id}&session_id={CHECKOUT_SESSION_ID}${returnParam}`;
+  const cancelUrl    = safeReturn ? safeReturn : `${baseUrl}/camp-booking/cancel`;
 
   const params = new URLSearchParams();
   params.append("payment_method_types[]", "card");
@@ -8647,6 +8650,16 @@ app.post("/api/camp-booking", async (req, res) => {
   params.append("cancel_url", cancelUrl);
   params.append("metadata[booking_id]", booking.id);
   params.append("metadata[tenant_id]", tenantId);
+  params.append("metadata[child_name]", childName || "");
+  params.append("metadata[parent_name]", parentName || "");
+  params.append("metadata[camp_week]", campWeek || "");
+  params.append("metadata[is_member]", isMember ? "yes" : "no");
+  params.append("metadata[booking_type]", "summer_camp");
+  params.append("payment_intent_data[description]",
+    `Summer Camp — ${childName} (${isMember ? "Member" : "Non-member"})`);
+  params.append("payment_intent_data[metadata][booking_id]", booking.id);
+  params.append("payment_intent_data[metadata][tenant_id]", tenantId);
+  params.append("payment_intent_data[metadata][booking_type]", "summer_camp");
 
   const stripeResp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
@@ -8770,7 +8783,9 @@ app.get("/camp-booking/success", async (req, res) => {
 
   const { data: tenant } = await supabase.from("tenants").select("name, website").eq("id", booking.tenant_id).maybeSingle();
   const clubName   = tenant?.name    || "The club";
-  const websiteUrl = tenant?.website || null;
+  const backUrl    = req.query.return && req.query.return.startsWith("http")
+    ? req.query.return
+    : (tenant?.website || null);
 
   res.send(`<!DOCTYPE html><html><head><title>Booking Confirmed</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -8795,7 +8810,7 @@ app.get("/camp-booking/success", async (req, res) => {
         <div><strong>Confirmation sent to:</strong> ${booking.parent_email}</div>
       </div>
       <p>We'll see ${booking.child_name} at camp! A confirmation email has been sent to you.</p>
-      ${websiteUrl ? `<a class="btn" href="${websiteUrl}">← Back to ${clubName}</a>` : ""}
+      ${backUrl ? `<a class="btn" href="${backUrl}">← Back to ${clubName}</a>` : ""}
     </div>
   </body></html>`);
 });

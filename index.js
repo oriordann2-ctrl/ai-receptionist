@@ -8721,6 +8721,11 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
     });
     if (!targetProduct) return res.json({ proration: null });
 
+    // Look up current plan name from the product list
+    const currentProductId = currentItem && currentItem.price && currentItem.price.product;
+    const currentProduct = (productsData.data || []).find(function(p) { return p.id === currentProductId; });
+    const currentPlanName = (currentProduct && currentProduct.name) || request.current_type || "Current plan";
+
     const pricesResp = await fetch(
       "https://api.stripe.com/v1/prices?product=" + targetProduct.id + "&active=true&limit=5",
       { headers: { Authorization: authHeader } }
@@ -8771,8 +8776,8 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
         currency,
         isDowngrade,
         isUpgrade,
-        fromPlan:       request.current_type || request.requested_type,
-        toPlan:         request.target_membership_type,
+        fromPlan:       currentPlanName,
+        toPlan:         request.requested_type || targetProduct.name,
         memberName:     request.member_name,
         latestInvoice:  sub.latest_invoice,
         chargeId:       currentChargeId,

@@ -9086,7 +9086,10 @@ app.get("/portal/dashboard", requireTenant, async (req, res) => {
       .replace("CHAT_LOGS_PLACEHOLDER",          chatLogsHtml)
       .replace("AUTO_REFRESH_PLACEHOLDER",       autoRefresh)
       .replace("MORTGAGE_APPS_JSON_PLACEHOLDER", mortgageAppsScript)
-      .replace("BUSINESS_TYPE_PLACEHOLDER",      bizType);
+      .replace("BUSINESS_TYPE_PLACEHOLDER",      bizType)
+      .replace("STRIPE_MODE_PLACEHOLDER",       (process.env.STRIPE_SECRET_KEY || "").startsWith("sk_test_")
+        ? '<span style="font-size:9px;font-weight:700;background:#f59e0b;color:#000;border-radius:4px;padding:2px 6px;white-space:nowrap;flex-shrink:0;">TEST</span>'
+        : '');
 
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");

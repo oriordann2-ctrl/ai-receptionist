@@ -4837,13 +4837,14 @@
             + '<div style="font-size:14px;font-weight:700;color:#166534;">' + esc(r.pro_rata_note || "€" + r.pro_rata_amount) + '</div></div>'
           : "";
         var isCancel     = /cancel/i.test(r.requested_type || "");
-        var isPlanChange = !isCancel && !!r.target_membership_type;
+        var isPlanChange = !isCancel && !!r.requested_type;
         var stripeActions = "";
         if (isCancel) {
           stripeActions += "<li>Cancel subscription" + (r.effective_date ? " on " + fmtDate(r.effective_date) : " at period end") + "</li>";
         } else if (isPlanChange) {
           var fromLabel = r.current_type ? "<strong>" + esc(r.current_type) + "</strong> → " : "";
-          stripeActions += "<li>Switch subscription from " + fromLabel + "<strong>" + esc(r.target_membership_type) + "</strong></li>";
+          stripeActions += "<li>Switch subscription " + fromLabel + "to <strong>" + esc(r.requested_type) + "</strong></li>";
+          stripeActions += "<li>Effective: " + (r.effective_date ? fmtDate(r.effective_date) : "immediately on approval") + "</li>";
           stripeActions += "<li>Pro-rata adjustment — you will choose refund or credit on approval</li>";
         } else {
           stripeActions += "<li>" + esc(r.requested_type || "Update") + "</li>";

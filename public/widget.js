@@ -1185,95 +1185,211 @@
       setTimeout(function () { nameInput.focus(); }, 300);
 
     } else if (type === "collect_membership_cancel" || type === "collect_membership_change") {
-      var isChange = type === "collect_membership_change";
-      addMsg(isChange
-        ? "Sure! Please fill in your details below and we'll process your membership change:"
-        : "We're sorry to hear that. Please leave your details and we'll process your cancellation:",
-        "bot");
-      var formEl = document.createElement("div");
-      formEl.id = "sprimal-lead-form";
-
-      var nameInput = document.createElement("input");
-      nameInput.type = "text"; nameInput.placeholder = "Your name *"; nameInput.className = "sprimal-lead-input";
-
-      var memNoInput = document.createElement("input");
-      memNoInput.type = "text"; memNoInput.placeholder = "Membership number (optional)"; memNoInput.className = "sprimal-lead-input";
-
-      var emailInput = document.createElement("input");
-      emailInput.type = "email"; emailInput.placeholder = "Your email address *"; emailInput.className = "sprimal-lead-input";
-
-      var changeToInput = null;
-      if (isChange) {
-        changeToInput = document.createElement("input");
-        changeToInput.type = "text"; changeToInput.placeholder = "Change to what type? (e.g. Single, Junior) *"; changeToInput.className = "sprimal-lead-input";
-      }
-
-      var reasonInput = document.createElement("textarea");
-      reasonInput.placeholder = "Reason (optional)"; reasonInput.className = "sprimal-lead-input"; reasonInput.rows = 2; reasonInput.style.resize = "none";
-
-      var submitBtn = document.createElement("button");
-      submitBtn.textContent = isChange ? "Submit change request →" : "Submit cancellation →";
-      submitBtn.className = "sprimal-lead-submit";
-
-      submitBtn.addEventListener("click", function () {
-        var mName  = nameInput.value.trim();
-        var mEmail = emailInput.value.trim();
-        var mMemNo = memNoInput.value.trim();
-        var mReason = reasonInput.value.trim();
-        var mChangeTo = changeToInput ? changeToInput.value.trim() : "";
-        if (!mName) { nameInput.style.borderColor = "#ef4444"; nameInput.focus(); return; }
-        if (!mEmail || !mEmail.includes("@")) { emailInput.style.borderColor = "#ef4444"; emailInput.focus(); return; }
-        if (isChange && !mChangeTo) { changeToInput.style.borderColor = "#ef4444"; changeToInput.focus(); return; }
-        submitBtn.disabled = true; submitBtn.textContent = "Sending…";
-        fetch(BACKEND + "/api/membership-request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tenantId:        clubId,
-            memberName:      mName,
-            memberEmail:     mEmail,
-            membershipNumber: mMemNo || undefined,
-            requestedType:   isChange ? mChangeTo : "cancel",
-            reason:          mReason || undefined
-          })
-        }).then(function(r) { return r.json(); }).then(function() {
-          if (formEl.parentNode) formEl.parentNode.removeChild(formEl);
-          addMsg(isChange
-            ? "✅ Thanks " + mName + "! Your membership change request has been submitted. The team will be in touch to confirm."
-            : "✅ Thanks " + mName + ". Your cancellation request has been submitted. The team will be in touch to confirm.",
-            "bot");
-          setTimeout(function () {
-            var c = document.createElement("div"); c.id = "sprimal-choices";
-            var backBtn = document.createElement("button");
-            backBtn.className = "sprimal-choice sprimal-choice-ai"; backBtn.textContent = "↩ Back to main menu";
-            backBtn.addEventListener("click", function () {
-              clearChoices();
-              if (rootFlowId && wfFlowMap[rootFlowId]) {
-                messages.innerHTML = "";
-                wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
-                var f = document.getElementById("sprimal-footer");
-                if (f) f.style.display = "none";
-                showWorkflowStep(wfSteps[0]);
-              }
-            });
-            c.appendChild(backBtn); messages.appendChild(c); scrollToBottom(100);
-          }, 300);
-        }).catch(function() {
-          submitBtn.disabled = false; submitBtn.textContent = isChange ? "Submit change request →" : "Submit cancellation →";
-          addMsg("Sorry, something went wrong. Please try again.", "bot");
-        });
-      });
-
-      formEl.appendChild(nameInput);
-      formEl.appendChild(memNoInput);
-      formEl.appendChild(emailInput);
-      if (changeToInput) formEl.appendChild(changeToInput);
-      formEl.appendChild(reasonInput);
-      formEl.appendChild(submitBtn);
-      messages.appendChild(formEl); scrollToBottom(100);
-      setTimeout(function () { nameInput.focus(); }, 300);
+      startMembershipFlow(type);
     }
   }
+
+  // ── Step-by-step membership flow ──────────────────────────────────────────
+  var _mbrFlow = null;
+
+  function startMembershipFlow(actionType) {
+    _mbrFlow = { type: actionType, step: 0, data: {} };
+    _runMbrStep();
+  }
+
+  function _mbrInlineButtons(options, onPick) {
+    clearChoices();
+    var c = document.createElement("div"); c.id = "sprimal-choices";
+    options.forEach(function(opt) {
+      var btn = document.createElement("button");
+      btn.className = "sprimal-choice";
+      btn.textContent = opt.label;
+      btn.addEventListener("click", function() {
+        clearChoices();
+        addMsg(opt.label, "user");
+        onPick(opt.value !== undefined ? opt.value : opt.label);
+      });
+      c.appendChild(btn);
+    });
+    messages.appendChild(c); scrollToBottom(100);
+  }
+
+  function _mbrInlineInput(placeholder, onSubmit, optional) {
+    clearChoices();
+    var wrap = document.createElement("div");
+    wrap.id = "sprimal-choices";
+    wrap.style.cssText = "display:flex;flex-direction:column;gap:8px;align-self:stretch;max-width:92%;";
+
+    var inp = document.createElement("input");
+    inp.type = "text"; inp.placeholder = placeholder;
+    inp.style.cssText = "border:1.5px solid #e2e8f0;border-radius:10px;padding:9px 12px;font-size:13px;font-family:" + FONT + ";outline:none;background:#fff;color:#1f2937;width:100%;box-sizing:border-box;";
+
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;";
+
+    var sendBtn = document.createElement("button");
+    sendBtn.className = "sprimal-choice";
+    sendBtn.style.cssText = "flex:1;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;";
+    sendBtn.textContent = "Continue →";
+
+    var doSubmit = function() {
+      var val = inp.value.trim();
+      if (!val && !optional) { inp.style.borderColor = "#ef4444"; inp.focus(); return; }
+      clearChoices();
+      if (val) addMsg(val, "user");
+      onSubmit(val);
+    };
+    sendBtn.addEventListener("click", doSubmit);
+    inp.addEventListener("keydown", function(e) { if (e.key === "Enter") doSubmit(); });
+
+    if (optional) {
+      var skipBtn = document.createElement("button");
+      skipBtn.className = "sprimal-choice sprimal-choice-ai";
+      skipBtn.style.cssText = "border-radius:10px;padding:9px 12px;font-size:13px;";
+      skipBtn.textContent = "Skip";
+      skipBtn.addEventListener("click", function() { clearChoices(); onSubmit(""); });
+      row.appendChild(sendBtn); row.appendChild(skipBtn);
+    } else {
+      row.appendChild(sendBtn);
+    }
+
+    wrap.appendChild(inp); wrap.appendChild(row);
+    messages.appendChild(wrap); scrollToBottom(100);
+    setTimeout(function() { inp.focus(); }, 200);
+  }
+
+  function _runMbrStep() {
+    var f = _mbrFlow;
+    if (!f) return;
+    var isChange = f.type === "collect_membership_change";
+
+    // Steps differ by flow type
+    if (isChange) {
+      // Change membership flow
+      switch (f.step) {
+        case 0:
+          addMsg("Sure! What type of membership would you like to change to?", "bot");
+          _mbrInlineInput("e.g. Single, Family, Junior…", function(val) {
+            f.data.changeTo = val; f.step++; _runMbrStep();
+          });
+          break;
+        case 1:
+          addMsg("When would you like the change to take effect?", "bot");
+          _mbrInlineButtons([
+            { label: "Immediately" },
+            { label: "At next renewal" }
+          ], function(val) { f.data.effectiveDate = val; f.step++; _runMbrStep(); });
+          break;
+        case 2:
+          addMsg("What's your name?", "bot");
+          _mbrInlineInput("Your name *", function(val) {
+            f.data.name = val; f.step++; _runMbrStep();
+          });
+          break;
+        case 3:
+          addMsg("And your email address?", "bot");
+          _mbrInlineInput("Your email address *", function(val) {
+            f.data.email = val; f.step++; _runMbrStep();
+          });
+          break;
+        case 4:
+          addMsg("Any reason for the change? (optional)", "bot");
+          _mbrInlineInput("Reason…", function(val) {
+            f.data.reason = val; f.step++; _runMbrStep();
+          }, true);
+          break;
+        case 5:
+          _submitMbrFlow();
+          break;
+      }
+    } else {
+      // Cancel membership flow
+      switch (f.step) {
+        case 0:
+          addMsg("Sorry to hear that. When would you like your cancellation to take effect?", "bot");
+          _mbrInlineButtons([
+            { label: "At end of current period" },
+            { label: "Immediately" }
+          ], function(val) { f.data.effectiveDate = val; f.step++; _runMbrStep(); });
+          break;
+        case 1:
+          addMsg("What's your name?", "bot");
+          _mbrInlineInput("Your name *", function(val) {
+            f.data.name = val; f.step++; _runMbrStep();
+          });
+          break;
+        case 2:
+          addMsg("And your email address?", "bot");
+          _mbrInlineInput("Your email address *", function(val) {
+            f.data.email = val; f.step++; _runMbrStep();
+          });
+          break;
+        case 3:
+          addMsg("Is there anything you'd like to tell us about why you're cancelling? (optional)", "bot");
+          _mbrInlineInput("Reason…", function(val) {
+            f.data.reason = val; f.step++; _runMbrStep();
+          }, true);
+          break;
+        case 4:
+          _submitMbrFlow();
+          break;
+      }
+    }
+  }
+
+  function _submitMbrFlow() {
+    var f = _mbrFlow;
+    if (!f) return;
+    var isChange = f.type === "collect_membership_change";
+
+    addMsg("Got it — submitting your request…", "bot");
+
+    // Map effective date label to a value the backend understands
+    var effectiveDateVal = null;
+    if (f.data.effectiveDate === "Immediately") {
+      effectiveDateVal = new Date().toISOString().slice(0, 10);
+    } else if (f.data.effectiveDate === "At next renewal" || f.data.effectiveDate === "At end of current period") {
+      effectiveDateVal = null; // backend defaults to period end
+    }
+
+    fetch(BACKEND + "/api/membership-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenantId:      clubId,
+        memberName:    f.data.name,
+        memberEmail:   f.data.email,
+        requestedType: isChange ? f.data.changeTo : "cancel",
+        effectiveDate: effectiveDateVal,
+        reason:        f.data.reason || undefined
+      })
+    }).then(function(r) { return r.json(); }).then(function() {
+      _mbrFlow = null;
+      addMsg(isChange
+        ? "✅ Thanks " + f.data.name + "! Your membership change request has been submitted. The team will be in touch to confirm."
+        : "✅ Thanks " + f.data.name + ". Your cancellation request has been submitted. The team will be in touch to confirm.",
+        "bot");
+      setTimeout(function() {
+        var c = document.createElement("div"); c.id = "sprimal-choices";
+        var backBtn = document.createElement("button");
+        backBtn.className = "sprimal-choice sprimal-choice-ai"; backBtn.textContent = "↩ Back to main menu";
+        backBtn.addEventListener("click", function() {
+          clearChoices();
+          if (rootFlowId && wfFlowMap[rootFlowId]) {
+            messages.innerHTML = "";
+            wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
+            var f2 = document.getElementById("sprimal-footer");
+            if (f2) f2.style.display = "none";
+            showWorkflowStep(wfSteps[0]);
+          }
+        });
+        c.appendChild(backBtn); messages.appendChild(c); scrollToBottom(100);
+      }, 400);
+    }).catch(function() {
+      addMsg("Sorry, something went wrong. Please try again.", "bot");
+    });
+  }
+  // ── End membership flow ────────────────────────────────────────────────────
 
   // Persists across day-switches so selections accumulate across dates
   var agentSelectedSlots = [];

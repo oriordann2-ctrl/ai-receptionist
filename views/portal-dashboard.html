@@ -4945,15 +4945,39 @@
     ].join("");
     document.body.appendChild(prorationModal);
 
-    function showProrationModal(id, proration) {
+    function showProrationModal(id, proration, cancellation) {
       var modal = document.getElementById("prorationModal");
       var title = document.getElementById("proModalTitle");
       var body  = document.getElementById("proModalBody");
       var btns  = document.getElementById("proModalBtns");
       btns.innerHTML = "";
 
-      if (!proration) {
-        // No proration info — simple approve
+      if (!proration && cancellation) {
+        // Cancellation with Stripe details
+        title.textContent = "Cancel Membership";
+        var periodEndStr = cancellation.periodEnd
+          ? new Date(cancellation.periodEnd * 1000).toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" })
+          : null;
+        var amtStr = (cancellation.amount != null && cancellation.currency)
+          ? (cancellation.currency.toUpperCase() === "EUR" ? "€" : cancellation.currency.toUpperCase() + " ")
+            + (cancellation.amount / 100).toFixed(2)
+            + (cancellation.billingInterval ? " / " + cancellation.billingInterval : "")
+          : null;
+        var rows = "";
+        if (cancellation.memberName) rows += '<div><span style="color:#6b7280;">Member:</span> <strong>' + esc(cancellation.memberName) + '</strong></div>';
+        if (cancellation.planName)   rows += '<div><span style="color:#6b7280;">Plan:</span> <strong>' + esc(cancellation.planName) + '</strong></div>';
+        if (amtStr)                  rows += '<div><span style="color:#6b7280;">Subscription:</span> <strong>' + esc(amtStr) + '</strong></div>';
+        if (periodEndStr)            rows += '<div><span style="color:#6b7280;">Access until:</span> <strong>' + esc(periodEndStr) + '</strong></div>';
+        body.innerHTML = '<div style="margin-bottom:10px;font-size:13px;color:#374151;">This will cancel the following Stripe subscription at period end:</div>'
+          + '<div style="padding:12px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;line-height:2;margin-bottom:4px;">' + rows + '</div>'
+          + '<div style="font-size:12px;color:#6b7280;margin-top:8px;">The member will not be charged again. Their access continues until the date shown above.</div>';
+        var btn = document.createElement("button");
+        btn.textContent = "✓ Confirm Cancellation";
+        btn.style.cssText = "background:#dc2626;color:#fff;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;";
+        btn.onclick = function() { modal.style.display = "none"; executeApprove(id, false, 0); };
+        btns.appendChild(btn);
+      } else if (!proration) {
+        // No info — simple approve
         title.textContent = "Approve Membership Change";
         body.textContent  = "Execute Stripe actions for this request?";
         var btn = document.createElement("button");
@@ -5042,8 +5066,8 @@
       // First fetch proration preview, then show appropriate modal
       fetch("/api/portal/membership-requests/" + id + "/preview")
         .then(function(r) { return r.json(); })
-        .then(function(data) { showProrationModal(id, data.proration || null); })
-        .catch(function() { showProrationModal(id, null); });
+        .then(function(data) { showProrationModal(id, data.proration || null, data.cancellation || null); })
+        .catch(function() { showProrationModal(id, null, null); });
     };
 
     window.rejectMemberRequest = function(id) {

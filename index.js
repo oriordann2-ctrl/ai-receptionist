@@ -8584,9 +8584,71 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
     .maybeSingle();
   if (reqErr || !request) return res.status(404).json({ error: "Request not found" });
 
-  // Only relevant for plan changes with a target type
   const changeType = (request.requested_type || "").toLowerCase();
-  if (/cancel/i.test(changeType) || !request.target_membership_type || !request.member_email) {
+  const isCancel = /cancel/i.test(changeType);
+
+  // For cancellations, look up the Stripe subscription details to show in the confirmation modal
+  if (isCancel && request.member_email) {
+    let stripeKeyC = null;
+    try {
+      const { data: intgC } = await supabase
+        .from("tenant_integrations")
+        .select("config, is_active")
+        .eq("tenant_id", tenantId)
+        .eq("provider", "stripe")
+        .maybeSingle();
+      if (intgC?.is_active && intgC.config) {
+        const cfgC = decryptIntgConfig(intgC.config);
+        stripeKeyC = cfgC.secret_key || null;
+      }
+    } catch (e) {}
+
+    if (stripeKeyC) {
+      try {
+        const authC = "Basic " + Buffer.from(stripeKeyC + ":").toString("base64");
+        const cResp = await fetch("https://api.stripe.com/v1/customers?email=" + encodeURIComponent(request.member_email) + "&limit=1", { headers: { Authorization: authC } });
+        const cData = await cResp.json();
+        const customer = cData.data && cData.data[0];
+        if (customer) {
+          const sResp = await fetch("https://api.stripe.com/v1/subscriptions?customer=" + customer.id + "&limit=10", { headers: { Authorization: authC } });
+          const sData = await sResp.json();
+          const sub = (sData.data || []).find(s => ["active", "trialing", "past_due"].includes(s.status));
+          if (sub) {
+            const item = sub.items && sub.items.data && sub.items.data[0];
+            const price = item && item.price;
+            const product = item && item.price && item.price.product;
+            // Fetch product name
+            let planName = price && price.nickname || null;
+            if (!planName && product && typeof product === "string") {
+              try {
+                const pResp = await fetch("https://api.stripe.com/v1/products/" + product, { headers: { Authorization: authC } });
+                const pData = await pResp.json();
+                planName = pData.name || null;
+              } catch (e) {}
+            } else if (!planName && product && typeof product === "object") {
+              planName = product.name || null;
+            }
+            return res.json({
+              proration: null,
+              cancellation: {
+                planName:        planName || "Current Plan",
+                amount:          price ? price.unit_amount : null,
+                currency:        price ? price.currency : null,
+                billingInterval: price && price.recurring ? price.recurring.interval : null,
+                periodEnd:       sub.current_period_end || null,
+                memberName:      request.member_name || null,
+                memberEmail:     request.member_email || null,
+              }
+            });
+          }
+        }
+      } catch (e) {}
+    }
+    return res.json({ proration: null, cancellation: null });
+  }
+
+  // Non-cancel: only relevant for plan changes with a target type
+  if (!request.target_membership_type || !request.member_email) {
     return res.json({ proration: null });
   }
 

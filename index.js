@@ -18047,9 +18047,14 @@ function requestGpsOrBlock(onSuccess) {
       onSuccess();
     },
     function(e) {
-      showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error');
+      // High-accuracy failed — retry with network/cell location (faster, works indoors)
+      navigator.geolocation.getCurrentPosition(
+        function(pos) { cachedGpsPos = pos; showMsg('', ''); onSuccess(); },
+        function() { showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error'); },
+        { timeout: 10000, maximumAge: 60000, enableHighAccuracy: false }
+      );
     },
-    { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+    { timeout: 8000, maximumAge: 60000, enableHighAccuracy: true }
   );
 }
 
@@ -18544,8 +18549,14 @@ async function submitSupervisorCheckin(supervisorName, supervisorContact, junior
   navigator.geolocation.getCurrentPosition(
     function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); },
     function() {
-      showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error');
-      if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
+      navigator.geolocation.getCurrentPosition(
+        function(pos) { doSubmit(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); },
+        function() {
+          showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error');
+          if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Check In'; }
+        },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      );
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
@@ -18757,7 +18768,13 @@ async function submitCheckin(membershipNumber, memberName) {
   showMsg('Getting your location...', 'info');
   navigator.geolocation.getCurrentPosition(
     function(pos) { cachedGpsPos = pos; doSubmit(pos); },
-    function(e) { showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error'); resetCheckinBtn(); },
+    function() {
+      navigator.geolocation.getCurrentPosition(
+        function(pos) { cachedGpsPos = pos; doSubmit(pos); },
+        function() { showMsg('To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again.', 'error'); resetCheckinBtn(); },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      );
+    },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
 }
@@ -19100,9 +19117,10 @@ app.post("/api/checkin/submit", async (req, res) => {
       return res.status(403).json({ error: "To check in, we need to confirm you are at the club. Your exact location is never stored — we only verify you are nearby. Please enable location in your phone settings and try again." });
     }
 
-    // Reject if GPS accuracy is too poor to be meaningful (>300m = no real fix)
+    // Reject if GPS accuracy is too poor to be meaningful (>500m = no real fix)
+    // 500m allows indoor use where GPS relies on cell towers rather than satellites
     const gps_accuracy = typeof req.body.gps_accuracy === 'number' ? req.body.gps_accuracy : null;
-    if (gps_accuracy !== null && gps_accuracy > 300) {
+    if (gps_accuracy !== null && gps_accuracy > 500) {
       return res.status(403).json({ error: "GPS signal is too weak to verify your location. Please step outside for a better signal and try again." });
     }
 

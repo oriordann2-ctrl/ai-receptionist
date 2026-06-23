@@ -1205,8 +1205,19 @@
     options.forEach(function(opt) {
       var btn = document.createElement("button");
       btn.className = "sprimal-choice";
-      btn.textContent = opt.label;
+      if (opt.disabled) {
+        btn.disabled = true;
+        btn.style.opacity = "0.45";
+        btn.style.cursor = "not-allowed";
+      }
+      if (opt.sublabel) {
+        btn.innerHTML = '<span style="display:block">' + opt.label + '</span>'
+          + '<small style="color:#6b7280;font-size:11px;font-weight:400">' + opt.sublabel + '</small>';
+      } else {
+        btn.textContent = opt.label;
+      }
       btn.addEventListener("click", function() {
+        if (opt.disabled) return;
         clearChoices();
         addMsg(opt.label, "user");
         onPick(opt.value !== undefined ? opt.value : opt.label);
@@ -1553,8 +1564,23 @@
         }, 300);
       })
       .catch(function() {
-        addMsg("Sorry, I couldn't check membership right now. Please try again in a moment.", "bot");
-        _campFlow = null;
+        _campFlow.data.isMember = false;
+        _campFlow.data.price    = CAMP_NONMEMBER_PRICE;
+        addMsg("I wasn't able to check membership right now — we'll apply the non-member rate of €" + CAMP_NONMEMBER_PRICE + " and the club can adjust it if needed.", "bot");
+        setTimeout(function() {
+          _mbrInlineButtons([
+            { label: "Continue booking" },
+            { label: "Cancel" }
+          ], function(choice) {
+            if (choice === "Cancel") {
+              addMsg("No problem — feel free to come back anytime.", "bot");
+              _campFlow = null;
+            } else {
+              _campFlow.step = 1;
+              _runCampStep();
+            }
+          });
+        }, 300);
       });
   }
 
@@ -1565,15 +1591,40 @@
     switch (f.step) {
       case 1:
         addMsg("Which session would you like to book for " + child + "?", "bot");
-        setTimeout(function() {
-          _mbrInlineButtons([
-            { label: "5–9 years  (9:30–11:30am)" },
-            { label: "10 years+  (12:00–2:00pm)" }
-          ], function(val) {
-            f.data.campWeek = "Summer Camp 2026 — " + val + "  |  July 20–24";
-            f.step++; _runCampStep();
+        fetch(BACKEND + "/api/camp-sessions?tenantId=" + encodeURIComponent(clubId))
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            var sessions = d.sessions || [];
+            var buttons = sessions.map(function(s) {
+              var avail = s.available;
+              var sublabel = avail <= 0 ? "No places remaining" :
+                             avail === 1 ? "1 place left" :
+                             avail + " places remaining";
+              return {
+                label:    s.display_label || s.session_name,
+                value:    s.session_name,
+                sublabel: sublabel,
+                disabled: avail <= 0
+              };
+            });
+            if (!buttons.length) {
+              buttons = [
+                { label: "5–9 years  (9:30–11:30am)",  value: "Summer Camp 2026 — 5–9 years  (9:30–11:30am)  |  July 20–24" },
+                { label: "10 years+  (12:00–2:00pm)", value: "Summer Camp 2026 — 10 years+  (12:00–2:00pm)  |  July 20–24" }
+              ];
+            }
+            _mbrInlineButtons(buttons, function(val) {
+              f.data.campWeek = val; f.step++; _runCampStep();
+            });
+          })
+          .catch(function() {
+            _mbrInlineButtons([
+              { label: "5–9 years  (9:30–11:30am)",  value: "Summer Camp 2026 — 5–9 years  (9:30–11:30am)  |  July 20–24" },
+              { label: "10 years+  (12:00–2:00pm)", value: "Summer Camp 2026 — 10 years+  (12:00–2:00pm)  |  July 20–24" }
+            ], function(val) {
+              f.data.campWeek = val; f.step++; _runCampStep();
+            });
           });
-        }, 300);
         break;
       case 2:
         addMsg("What's your name (parent or guardian)?", "bot");
@@ -1702,7 +1753,14 @@
         termsAccepted:           true,
         returnUrl:               (window.top || window).location.href.split('?')[0]
       })
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r) {
+      return r.json().then(function(d) { return { status: r.status, data: d }; });
+    }).then(function(res) {
+      var d = res.data;
+      if (res.status === 409) {
+        addMsg("⚠️ " + (d.error || "This session is now full.") + " Please contact the club directly.", "bot");
+        _campFlow = null; return;
+      }
       if (d.error) { addMsg("Sorry, something went wrong: " + d.error + ". Please try again.", "bot"); return; }
       _campFlow = null;
       addMsg("Details saved ✅ Redirecting you to secure payment…", "bot");

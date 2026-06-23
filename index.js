@@ -8574,6 +8574,40 @@ app.post("/api/ebo/check-junior-member", async (req, res) => {
   }
 });
 
+// GET /api/camp-sessions — returns sessions with live availability
+app.get("/api/camp-sessions", async (req, res) => {
+  const { tenantId } = req.query;
+  if (!tenantId) return res.status(400).json({ error: "Missing tenantId" });
+
+  const { data: sessions } = await supabase
+    .from("camp_sessions")
+    .select("id, session_name, display_label, capacity")
+    .eq("tenant_id", tenantId)
+    .order("session_name");
+
+  if (!sessions?.length) return res.json({ sessions: [] });
+
+  const { data: bookings } = await supabase
+    .from("camp_bookings")
+    .select("camp_week")
+    .eq("tenant_id", tenantId)
+    .eq("status", "paid");
+
+  const booked = {};
+  (bookings || []).forEach(b => { booked[b.camp_week] = (booked[b.camp_week] || 0) + 1; });
+
+  res.json({
+    sessions: sessions.map(s => ({
+      id:            s.id,
+      session_name:  s.session_name,
+      display_label: s.display_label || s.session_name,
+      capacity:      s.capacity,
+      booked:        booked[s.session_name] || 0,
+      available:     s.capacity - (booked[s.session_name] || 0)
+    }))
+  });
+});
+
 // ── Summer Camp Booking ───────────────────────────────────────────────────────
 // Saves pending booking then creates a Stripe Checkout session for payment.
 // Emails are sent from /camp-booking/success after Stripe confirms payment.
@@ -8588,6 +8622,29 @@ app.post("/api/camp-booking", async (req, res) => {
 
   if (!tenantId || !childName || !parentName || !parentEmail) {
     return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  // Capacity check
+  if (campWeek) {
+    const { data: session } = await supabase
+      .from("camp_sessions")
+      .select("capacity")
+      .eq("tenant_id", tenantId)
+      .eq("session_name", campWeek)
+      .maybeSingle();
+
+    if (session) {
+      const { count } = await supabase
+        .from("camp_bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("camp_week", campWeek)
+        .eq("status", "paid");
+
+      if ((count || 0) >= session.capacity) {
+        return res.status(409).json({ error: "This session is now full. Please contact the club directly." });
+      }
+    }
   }
 
   // Save pending booking first

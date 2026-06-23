@@ -1546,8 +1546,8 @@
                 _campCheckMember(val.trim());
               });
             } else {
-              addMsg("Great — I'll get the rest of the booking details shortly. For now, note that the price for " + childName + " is €" + _campFlow.data.price + ".", "bot");
-              _campFlow = null;
+              _campFlow.step = 1;
+              _runCampStep();
             }
           });
         }, 300);
@@ -1556,6 +1556,145 @@
         addMsg("Sorry, I couldn't check membership right now. Please try again in a moment.", "bot");
         _campFlow = null;
       });
+  }
+
+  function _runCampStep() {
+    var f = _campFlow;
+    if (!f) return;
+    var child = f.data.childName;
+    switch (f.step) {
+      case 1:
+        addMsg("Which week would you like to book for " + child + "?", "bot");
+        _mbrInlineInput("e.g. Week 1: 7–11 July", function(val) {
+          f.data.campWeek = val.trim(); f.step++; _runCampStep();
+        });
+        break;
+      case 2:
+        addMsg("What's your name (parent or guardian)?", "bot");
+        _mbrInlineInput("Your full name *", function(val) {
+          f.data.parentName = val.trim(); f.step++; _runCampStep();
+        });
+        break;
+      case 3:
+        addMsg("What's your email address?", "bot");
+        _mbrInlineInput("Your email *", function(val) {
+          if (!val.includes("@")) { addMsg("Please enter a valid email address.", "bot"); _runCampStep(); return; }
+          f.data.parentEmail = val.trim(); f.step++; _runCampStep();
+        });
+        break;
+      case 4:
+        addMsg("And your phone number?", "bot");
+        _mbrInlineInput("Phone number *", function(val) {
+          f.data.parentPhone = val.trim(); f.step++; _runCampStep();
+        });
+        break;
+      case 5:
+        addMsg("What is " + child + "'s date of birth?", "bot");
+        _mbrInlineInput("DD/MM/YYYY", function(val) {
+          f.data.childDob = val.trim(); f.step++; _runCampStep();
+        });
+        break;
+      case 6:
+        if (f.data.isMember) {
+          addMsg("Do you have " + child + "'s EBO membership number? (optional)", "bot");
+          _mbrInlineInput("Membership number", function(val) {
+            f.data.membershipNumber = val.trim() || null; f.step++; _runCampStep();
+          }, true);
+        } else {
+          f.step++; _runCampStep();
+        }
+        break;
+      case 7:
+        addMsg("Any medical conditions, allergies, or things the camp team should know about " + child + "? (optional)", "bot");
+        _mbrInlineInput("Medical info / allergies", function(val) {
+          f.data.medicalInfo = val.trim() || null; f.step++; _runCampStep();
+        }, true);
+        break;
+      case 8:
+        addMsg("Emergency contact name?", "bot");
+        _mbrInlineInput("Emergency contact name *", function(val) {
+          f.data.emergencyName = val.trim(); f.step++; _runCampStep();
+        });
+        break;
+      case 9:
+        addMsg("Emergency contact phone number?", "bot");
+        _mbrInlineInput("Emergency contact phone *", function(val) {
+          f.data.emergencyPhone = val.trim(); f.step++; _runCampStep();
+        });
+        break;
+      case 10:
+        addMsg("Can we include " + child + " in club social media photos and videos?", "bot");
+        setTimeout(function() {
+          _mbrInlineButtons([{ label: "Yes, that's fine" }, { label: "No, please exclude them" }], function(val) {
+            f.data.photoConsent = (val === "Yes, that's fine"); f.step++; _runCampStep();
+          });
+        }, 300);
+        break;
+      case 11:
+        addMsg("By proceeding you confirm all information is accurate and you agree to the club's summer camp terms and conditions.", "bot");
+        setTimeout(function() {
+          _mbrInlineButtons([{ label: "I Agree — Submit Booking" }, { label: "Cancel" }], function(val) {
+            if (val === "Cancel") {
+              addMsg("No problem — your booking has not been submitted.", "bot");
+              _campFlow = null;
+              return;
+            }
+            f.step++; _runCampStep();
+          });
+        }, 300);
+        break;
+      case 12:
+        _submitCampFlow();
+        break;
+    }
+  }
+
+  function _submitCampFlow() {
+    var f = _campFlow;
+    if (!f) return;
+    addMsg("Submitting your booking…", "bot");
+    fetch(BACKEND + "/api/camp-booking", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenantId:             clubId,
+        childName:            f.data.childName,
+        childDob:             f.data.childDob,
+        campWeek:             f.data.campWeek,
+        isMember:             f.data.isMember,
+        membershipNumber:     f.data.membershipNumber || null,
+        price:                f.data.price,
+        parentName:           f.data.parentName,
+        parentEmail:          f.data.parentEmail,
+        parentPhone:          f.data.parentPhone,
+        medicalInfo:          f.data.medicalInfo || null,
+        emergencyContactName: f.data.emergencyName,
+        emergencyContactPhone:f.data.emergencyPhone,
+        photoConsent:         f.data.photoConsent,
+        termsAccepted:        true
+      })
+    }).then(function(r) { return r.json(); }).then(function() {
+      _campFlow = null;
+      addMsg("✅ Booking submitted! Thanks " + f.data.parentName + ". We'll be in touch to confirm your place and arrange payment of €" + f.data.price + ". A confirmation has been sent to " + f.data.parentEmail + ".", "bot");
+      setTimeout(function() {
+        var c = document.createElement("div"); c.id = "sprimal-choices";
+        var backBtn = document.createElement("button");
+        backBtn.className = "sprimal-choice sprimal-choice-ai"; backBtn.textContent = "↩ Back to main menu";
+        backBtn.addEventListener("click", function() {
+          clearChoices();
+          if (rootFlowId && wfFlowMap[rootFlowId]) {
+            messages.innerHTML = "";
+            wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
+            var f2 = document.getElementById("sprimal-footer");
+            if (f2) f2.style.display = "none";
+            showWorkflowStep(wfSteps[0]);
+          }
+        });
+        c.appendChild(backBtn); messages.appendChild(c); scrollToBottom(100);
+      }, 400);
+    }).catch(function() {
+      addMsg("Sorry, something went wrong. Please try again or contact the club directly.", "bot");
+    });
   }
   // ── End summer camp flow ───────────────────────────────────────────────────
 

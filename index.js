@@ -8574,6 +8574,92 @@ app.post("/api/ebo/check-junior-member", async (req, res) => {
   }
 });
 
+// ── Summer Camp Booking ───────────────────────────────────────────────────────
+// Public endpoint — stores booking in camp_bookings and emails club + parent
+app.post("/api/camp-booking", async (req, res) => {
+  const {
+    tenantId, childName, childDob, campWeek, isMember, membershipNumber, price,
+    parentName, parentEmail, parentPhone, medicalInfo,
+    emergencyContactName, emergencyContactPhone, photoConsent, termsAccepted
+  } = req.body || {};
+
+  if (!tenantId || !childName || !parentName || !parentEmail) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  // Persist booking
+  const { error: dbErr } = await supabase.from("camp_bookings").insert({
+    tenant_id:              tenantId,
+    child_name:             childName,
+    child_dob:              childDob             || null,
+    camp_week:              campWeek             || null,
+    is_member:              !!isMember,
+    membership_number:      membershipNumber     || null,
+    price:                  price                || null,
+    parent_name:            parentName,
+    parent_email:           parentEmail,
+    parent_phone:           parentPhone          || null,
+    medical_info:           medicalInfo          || null,
+    emergency_contact_name: emergencyContactName || null,
+    emergency_contact_phone:emergencyContactPhone|| null,
+    photo_consent:          !!photoConsent,
+    terms_accepted:         !!termsAccepted
+  });
+  if (dbErr) { console.error("[camp-booking]", dbErr.message); return res.status(500).json({ error: dbErr.message }); }
+
+  const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", tenantId).maybeSingle();
+  const clubName   = tenant?.name  || "Your club";
+  const adminEmail = tenant?.email || null;
+  const memberBadge = isMember ? `✅ Member (€${price})` : `Non-member (€${price})`;
+
+  if (process.env.RESEND_API_KEY) {
+    const sendEmail = (to, subject, html) =>
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "Sprimal <hello@sprimal.com>", to, subject, html })
+      }).catch(e => console.error("[camp-booking email]", e.message));
+
+    // Club notification
+    if (adminEmail) {
+      await sendEmail(adminEmail, `New summer camp booking — ${childName}`,
+        `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
+          <h2 style="font-size:20px;color:#111827;margin-bottom:4px;">New Summer Camp Booking</h2>
+          <p style="font-size:14px;color:#6b7280;margin-top:0;">${clubName}</p>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;">
+            <tr><td style="padding:8px 0;color:#6b7280;width:180px;">Child</td><td style="padding:8px 0;font-weight:600;">${childName}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Date of birth</td><td style="padding:8px 0;">${childDob || "—"}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Camp week</td><td style="padding:8px 0;">${campWeek || "—"}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Membership</td><td style="padding:8px 0;">${memberBadge}</td></tr>
+            ${membershipNumber ? `<tr><td style="padding:8px 0;color:#6b7280;">EBO Number</td><td style="padding:8px 0;">${membershipNumber}</td></tr>` : ""}
+            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Parent/Guardian</td><td style="padding:12px 0 8px;font-weight:600;">${parentName}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;"><a href="mailto:${parentEmail}">${parentEmail}</a></td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;">${parentPhone || "—"}</td></tr>
+            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Emergency contact</td><td style="padding:12px 0 8px;">${emergencyContactName || "—"}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;">Emergency phone</td><td style="padding:8px 0;">${emergencyContactPhone || "—"}</td></tr>
+            ${medicalInfo ? `<tr><td style="padding:8px 0;color:#6b7280;">Medical info</td><td style="padding:8px 0;">${medicalInfo}</td></tr>` : ""}
+            <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Photo consent</td><td style="padding:12px 0 8px;">${photoConsent ? "Yes" : "No"}</td></tr>
+          </table>
+          <p style="font-size:12px;color:#9ca3af;margin-top:24px;">Submitted via Sprimal chat widget</p>
+        </div>`
+      );
+    }
+
+    // Parent confirmation
+    await sendEmail(parentEmail, `Summer camp booking received — ${childName}`,
+      `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+        <h2 style="font-size:20px;color:#111827;">Booking received ✅</h2>
+        <p style="font-size:15px;color:#374151;">Hi ${parentName},</p>
+        <p style="font-size:15px;color:#374151;">We've received your summer camp booking for <strong>${childName}</strong>${campWeek ? " — " + campWeek : ""}.</p>
+        <p style="font-size:15px;color:#374151;">The ${isMember ? "member" : "non-member"} rate of <strong>€${price}</strong> applies. A member of the team will be in touch shortly to confirm your place and arrange payment.</p>
+        <p style="font-size:14px;color:#6b7280;margin-top:24px;">— ${clubName}</p>
+      </div>`
+    );
+  }
+
+  res.json({ ok: true });
+});
+
 // ── Membership Types ──────────────────────────────────────────────────────────
 // Public endpoint — returns active Stripe product names for the tenant
 app.get("/api/membership-types", async (req, res) => {

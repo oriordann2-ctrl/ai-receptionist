@@ -8537,6 +8537,39 @@ app.get("/api/portal/reindex-status", requireSeniorTenant, (req, res) => {
   });
 });
 
+// ── Membership Types ──────────────────────────────────────────────────────────
+// Public endpoint — returns active Stripe product names for the tenant
+app.get("/api/membership-types", async (req, res) => {
+  const tenantId = req.query.tenantId;
+  if (!tenantId) return res.status(400).json({ error: "Missing tenantId" });
+
+  let stripeKey = null;
+  try {
+    const { data: intg } = await supabase
+      .from("tenant_integrations")
+      .select("config, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "stripe")
+      .maybeSingle();
+    if (intg?.is_active && intg.config) {
+      const cfg = decryptIntgConfig(intg.config);
+      stripeKey = cfg.secret_key || null;
+    }
+  } catch (e) {}
+
+  if (!stripeKey) return res.json({ types: [] });
+
+  try {
+    const authHeader = "Basic " + Buffer.from(stripeKey + ":").toString("base64");
+    const resp = await fetch("https://api.stripe.com/v1/products?limit=100&active=true", { headers: { Authorization: authHeader } });
+    const data = await resp.json();
+    const types = (data.data || []).map(function(p) { return p.name; }).sort();
+    return res.json({ types });
+  } catch (e) {
+    return res.json({ types: [] });
+  }
+});
+
 // ── Membership OTP ────────────────────────────────────────────────────────────
 const _otpStore = new Map(); // email.toLowerCase() → { code, expiry }
 

@@ -1353,9 +1353,25 @@
       switch (f.step) {
         case 0:
           addMsg("Sure! What type of membership would you like to change to?", "bot");
-          _mbrInlineInput("e.g. Single, Family, Junior…", function(val) {
-            f.data.changeTo = val; f.step++; _runMbrStep();
-          });
+          fetch(BACKEND + "/api/membership-types?tenantId=" + encodeURIComponent(clubId))
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              var types = d.types || [];
+              if (types.length) {
+                _mbrInlineButtons(types.map(function(t) { return { label: t }; }), function(val) {
+                  f.data.changeTo = val; f.step++; _runMbrStep();
+                });
+              } else {
+                _mbrInlineInput("e.g. Single, Family, Junior…", function(val) {
+                  f.data.changeTo = val; f.step++; _runMbrStep();
+                });
+              }
+            })
+            .catch(function() {
+              _mbrInlineInput("e.g. Single, Family, Junior…", function(val) {
+                f.data.changeTo = val; f.step++; _runMbrStep();
+              });
+            });
           break;
         case 1:
           addMsg("When would you like the change to take effect?", "bot");

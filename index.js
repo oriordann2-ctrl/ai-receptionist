@@ -8648,7 +8648,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
   }
 
   // Non-cancel: only relevant for plan changes with a target type
-  if (!request.target_membership_type || !request.member_email) {
+  if (!request.requested_type || !request.member_email) {
     return res.json({ proration: null });
   }
 
@@ -8717,7 +8717,7 @@ app.get("/api/portal/membership-requests/:id/preview", requireTenant, async (req
     );
     const productsData = await productsResp.json();
     const targetProduct = (productsData.data || []).find(function(p) {
-      return p.name.toLowerCase() === request.target_membership_type.toLowerCase();
+      return p.name.toLowerCase() === request.requested_type.toLowerCase();
     });
     if (!targetProduct) return res.json({ proration: null });
 
@@ -8899,7 +8899,7 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
 
           } else {
             // Plan change — look up target plan in Stripe by name and switch subscription
-            const targetType = request.target_membership_type;
+            const targetType = request.requested_type;
 
             if (!targetType) {
               stripeResult = {

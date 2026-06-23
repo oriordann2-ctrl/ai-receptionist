@@ -467,7 +467,6 @@
     fetch("/api/portal/analytics")
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        console.log('[analytics]', JSON.stringify(d));
         if (d.error) { el.innerHTML = '<p style="color:#dc2626;font-size:13px;">Could not load analytics.</p>'; return; }
 
         var maxBar = Math.max.apply(null, d.trend.map(function(t) { return t.count; })) || 1;

@@ -10141,9 +10141,7 @@ function buildAnalytics(rows, businessType) {
     ? Math.round((answeredCount / (answeredCount + fallbackCount)) * 100)
     : null;
 
-  const recentFirstAts = convs.map(c => c.firstAt).sort().slice(-5);
-  return { todayCount, totalConversations: convs.length, avgMessages, trend, topTopics, answeredCount, fallbackCount, answerRate,
-    _debug: { todayStart: todayStart.toISOString(), rowCount: (rows||[]).length, recentFirstAts } };
+  return { todayCount, totalConversations: convs.length, avgMessages, trend, topTopics, answeredCount, fallbackCount, answerRate };
 }
 
 // ── Portal: analytics ─────────────────────────────────────────────────────────
@@ -10153,7 +10151,7 @@ app.get("/api/portal/analytics", requireTenant, async (req, res) => {
     const since = new Date(); since.setDate(since.getDate() - 30);
 
     const [{ data: rows, error }, { data: tenant }] = await Promise.all([
-      supabase.from("chat_logs").select("id, conversation_id, sender, message, answer_source, created_at").eq("tenant_id", tenantId).gte("created_at", since.toISOString()),
+      supabase.from("chat_logs").select("id, conversation_id, sender, message, answer_source, created_at").eq("tenant_id", tenantId).gte("created_at", since.toISOString()).order("created_at", { ascending: false }),
       supabase.from("tenants").select("name, business_type").eq("id", tenantId).maybeSingle()
     ]);
 

@@ -10141,7 +10141,9 @@ function buildAnalytics(rows, businessType) {
     ? Math.round((answeredCount / (answeredCount + fallbackCount)) * 100)
     : null;
 
-  return { todayCount, totalConversations: convs.length, avgMessages, trend, topTopics, answeredCount, fallbackCount, answerRate };
+  const recentFirstAts = convs.map(c => c.firstAt).sort().slice(-5);
+  return { todayCount, totalConversations: convs.length, avgMessages, trend, topTopics, answeredCount, fallbackCount, answerRate,
+    _debug: { todayStart: todayStart.toISOString(), rowCount: (rows||[]).length, recentFirstAts } };
 }
 
 // ── Portal: analytics ─────────────────────────────────────────────────────────

@@ -1183,6 +1183,95 @@
       formEl.appendChild(submitBtn);
       messages.appendChild(formEl); scrollToBottom(100);
       setTimeout(function () { nameInput.focus(); }, 300);
+
+    } else if (type === "collect_membership_cancel" || type === "collect_membership_change") {
+      var isChange = type === "collect_membership_change";
+      addMsg(isChange
+        ? "Sure! Please fill in your details below and we'll process your membership change:"
+        : "We're sorry to hear that. Please leave your details and we'll process your cancellation:",
+        "bot");
+      var formEl = document.createElement("div");
+      formEl.id = "sprimal-lead-form";
+
+      var nameInput = document.createElement("input");
+      nameInput.type = "text"; nameInput.placeholder = "Your name *"; nameInput.className = "sprimal-lead-input";
+
+      var memNoInput = document.createElement("input");
+      memNoInput.type = "text"; memNoInput.placeholder = "Membership number (optional)"; memNoInput.className = "sprimal-lead-input";
+
+      var emailInput = document.createElement("input");
+      emailInput.type = "email"; emailInput.placeholder = "Your email address *"; emailInput.className = "sprimal-lead-input";
+
+      var changeToInput = null;
+      if (isChange) {
+        changeToInput = document.createElement("input");
+        changeToInput.type = "text"; changeToInput.placeholder = "Change to what type? (e.g. Single, Junior) *"; changeToInput.className = "sprimal-lead-input";
+      }
+
+      var reasonInput = document.createElement("textarea");
+      reasonInput.placeholder = "Reason (optional)"; reasonInput.className = "sprimal-lead-input"; reasonInput.rows = 2; reasonInput.style.resize = "none";
+
+      var submitBtn = document.createElement("button");
+      submitBtn.textContent = isChange ? "Submit change request →" : "Submit cancellation →";
+      submitBtn.className = "sprimal-lead-submit";
+
+      submitBtn.addEventListener("click", function () {
+        var mName  = nameInput.value.trim();
+        var mEmail = emailInput.value.trim();
+        var mMemNo = memNoInput.value.trim();
+        var mReason = reasonInput.value.trim();
+        var mChangeTo = changeToInput ? changeToInput.value.trim() : "";
+        if (!mName) { nameInput.style.borderColor = "#ef4444"; nameInput.focus(); return; }
+        if (!mEmail || !mEmail.includes("@")) { emailInput.style.borderColor = "#ef4444"; emailInput.focus(); return; }
+        if (isChange && !mChangeTo) { changeToInput.style.borderColor = "#ef4444"; changeToInput.focus(); return; }
+        submitBtn.disabled = true; submitBtn.textContent = "Sending…";
+        fetch(BACKEND + "/api/membership-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tenantId:        clubId,
+            memberName:      mName,
+            memberEmail:     mEmail,
+            membershipNumber: mMemNo || undefined,
+            requestedType:   isChange ? mChangeTo : "cancel",
+            reason:          mReason || undefined
+          })
+        }).then(function(r) { return r.json(); }).then(function() {
+          if (formEl.parentNode) formEl.parentNode.removeChild(formEl);
+          addMsg(isChange
+            ? "✅ Thanks " + mName + "! Your membership change request has been submitted. The team will be in touch to confirm."
+            : "✅ Thanks " + mName + ". Your cancellation request has been submitted. The team will be in touch to confirm.",
+            "bot");
+          setTimeout(function () {
+            var c = document.createElement("div"); c.id = "sprimal-choices";
+            var backBtn = document.createElement("button");
+            backBtn.className = "sprimal-choice sprimal-choice-ai"; backBtn.textContent = "↩ Back to main menu";
+            backBtn.addEventListener("click", function () {
+              clearChoices();
+              if (rootFlowId && wfFlowMap[rootFlowId]) {
+                messages.innerHTML = "";
+                wfSteps = wfFlowMap[rootFlowId]; wfMode = true;
+                var f = document.getElementById("sprimal-footer");
+                if (f) f.style.display = "none";
+                showWorkflowStep(wfSteps[0]);
+              }
+            });
+            c.appendChild(backBtn); messages.appendChild(c); scrollToBottom(100);
+          }, 300);
+        }).catch(function() {
+          submitBtn.disabled = false; submitBtn.textContent = isChange ? "Submit change request →" : "Submit cancellation →";
+          addMsg("Sorry, something went wrong. Please try again.", "bot");
+        });
+      });
+
+      formEl.appendChild(nameInput);
+      formEl.appendChild(memNoInput);
+      formEl.appendChild(emailInput);
+      if (changeToInput) formEl.appendChild(changeToInput);
+      formEl.appendChild(reasonInput);
+      formEl.appendChild(submitBtn);
+      messages.appendChild(formEl); scrollToBottom(100);
+      setTimeout(function () { nameInput.focus(); }, 300);
     }
   }
 

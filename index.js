@@ -10921,6 +10921,7 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
   res.json({
     ai_enabled:            data?.ai_enabled           ?? true,
     train_staff_enabled:   data?.train_staff_enabled  ?? false,
+    checkin_enabled:       data?.checkin_enabled      ?? true,
     business_description:  data?.business_description ?? "",
     facebook_url:          data?.facebook_url         ?? "",
     instagram_handle:      data?.instagram_handle     ?? "",

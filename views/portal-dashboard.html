@@ -3596,8 +3596,8 @@
       html += '<select class="wf-ctype" data-si="' + si + '" data-ci="' + ci + '" '
         + 'onchange="editingSteps[' + si + '].choices[' + ci + '].action_type=this.value;editingSteps[' + si + '].choices[' + ci + '].action_value=\'\';wfRerender()" '
         + 'style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;background:white;outline:none;cursor:pointer;">';
-      var typeLabels = { next_step: "→ Next step", message: "Show message", url: "Open link", switch_flow: "Switch flow", ai_fallback: "Ask AI", agent: "Run Agent", collect_lead: "Collect contact details", collect_feedback: "Collect feedback", collect_membership_cancel: "Cancel membership form", collect_membership_change: "Change membership form" };
-      ["next_step", "message", "url", "switch_flow", "ai_fallback", "agent", "collect_lead", "collect_feedback", "collect_membership_cancel", "collect_membership_change"].forEach(function (t) {
+      var typeLabels = { next_step: "→ Next step", message: "Show message", url: "Open link", switch_flow: "Switch flow", ai_fallback: "Ask AI", agent: "Run Agent", collect_lead: "Collect contact details", collect_feedback: "Collect feedback", collect_membership_cancel: "Cancel membership form", collect_membership_change: "Change membership form", collect_summer_camp: "Summer camp booking" };
+      ["next_step", "message", "url", "switch_flow", "ai_fallback", "agent", "collect_lead", "collect_feedback", "collect_membership_cancel", "collect_membership_change", "collect_summer_camp"].forEach(function (t) {
         html += '<option value="' + t + '"' + (ch.action_type === t ? " selected" : "") + ">" + typeLabels[t] + "</option>";
       });
       html += "</select>";

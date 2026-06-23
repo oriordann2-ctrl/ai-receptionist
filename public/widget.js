@@ -1186,6 +1186,8 @@
 
     } else if (type === "collect_membership_cancel" || type === "collect_membership_change") {
       startMembershipFlow(type);
+    } else if (type === "collect_summer_camp") {
+      startCampFlow();
     }
   }
 
@@ -1493,6 +1495,69 @@
     });
   }
   // ── End membership flow ────────────────────────────────────────────────────
+
+  // ── Summer camp booking flow ───────────────────────────────────────────────
+  var _campFlow = null;
+  var CAMP_MEMBER_PRICE    = 75;
+  var CAMP_NONMEMBER_PRICE = 85;
+
+  function startCampFlow() {
+    _campFlow = { step: 0, data: {} };
+    addMsg("Happy to help with that! What's your child's name?", "bot");
+    _mbrInlineInput("Child's first and last name *", function(val) {
+      if (val.trim().split(/\s+/).length < 2) {
+        addMsg("Please enter both first and last name so I can check membership.", "bot");
+        startCampFlow();
+        return;
+      }
+      _campFlow.data.childName = val.trim();
+      _campCheckMember(val.trim());
+    });
+  }
+
+  function _campCheckMember(childName) {
+    addMsg("Checking membership…", "bot");
+    fetch(BACKEND + "/api/ebo/check-junior-member", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ childName: childName, tenantId: clubId })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var isMember = !!d.found;
+        _campFlow.data.isMember = isMember;
+        _campFlow.data.price    = isMember ? CAMP_MEMBER_PRICE : CAMP_NONMEMBER_PRICE;
+
+        if (isMember) {
+          addMsg("✅ " + childName + " is a club member — the member rate of €" + CAMP_MEMBER_PRICE + " applies.", "bot");
+        } else {
+          addMsg("We couldn't find " + childName + " as a junior member. The non-member rate of €" + CAMP_NONMEMBER_PRICE + " applies.", "bot");
+        }
+
+        setTimeout(function() {
+          _mbrInlineButtons([
+            { label: "Continue booking" },
+            { label: "That's not right" }
+          ], function(choice) {
+            if (choice === "That's not right") {
+              addMsg("No problem — what's the correct name?", "bot");
+              _mbrInlineInput("Child's first and last name *", function(val) {
+                _campFlow.data.childName = val.trim();
+                _campCheckMember(val.trim());
+              });
+            } else {
+              addMsg("Great — I'll get the rest of the booking details shortly. For now, note that the price for " + childName + " is €" + _campFlow.data.price + ".", "bot");
+              _campFlow = null;
+            }
+          });
+        }, 300);
+      })
+      .catch(function() {
+        addMsg("Sorry, I couldn't check membership right now. Please try again in a moment.", "bot");
+        _campFlow = null;
+      });
+  }
+  // ── End summer camp flow ───────────────────────────────────────────────────
 
   // Persists across day-switches so selections accumulate across dates
   var agentSelectedSlots = [];

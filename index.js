@@ -8537,6 +8537,43 @@ app.get("/api/portal/reindex-status", requireSeniorTenant, (req, res) => {
   });
 });
 
+// ── EBO Junior Member Lookup ──────────────────────────────────────────────────
+// Public endpoint — checks whether a child is a junior EBO member by name.
+// Used by the widget summer camp booking flow to determine member vs non-member price.
+// Junior members: (type_id=1 AND admin_type_id=5) OR type_id=5
+// The full member list never reaches the browser — matching is server-side only.
+app.post("/api/ebo/check-junior-member", async (req, res) => {
+  const { childName, tenantId } = req.body || {};
+  if (!childName || !tenantId) return res.status(400).json({ error: "Missing childName or tenantId" });
+
+  try {
+    await loadEboConfigFromDb(tenantId);
+    if (!EBO_CONFIG[tenantId]) return res.json({ found: false, reason: "no_ebo" });
+
+    const members = await getAllEboMembers(tenantId);
+    const juniors = members.filter(m =>
+      (m.type_id === 1 && m.admin_type_id === 5) || m.type_id === 5
+    );
+
+    const normalize = s => String(s || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+    const input = normalize(childName);
+
+    const match = juniors.find(m => {
+      const full = normalize(`${m.first_name} ${m.last_name}`);
+      const first = normalize(m.first_name);
+      const last = normalize(m.last_name);
+      return full === input
+        || full.includes(input)
+        || input.includes(first) && input.includes(last);
+    });
+
+    return res.json({ found: !!match });
+  } catch (err) {
+    console.error("[EBO] check-junior-member error:", err.message);
+    return res.json({ found: false, reason: "error" });
+  }
+});
+
 // ── Membership Types ──────────────────────────────────────────────────────────
 // Public endpoint — returns active Stripe product names for the tenant
 app.get("/api/membership-types", async (req, res) => {

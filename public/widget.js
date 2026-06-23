@@ -1258,14 +1258,98 @@
     setTimeout(function() { inp.focus(); }, 200);
   }
 
+  function _mbrSendAndVerifyOtp(email, onVerified) {
+    addMsg("Sending a verification code to " + email + "…", "bot");
+    fetch(BACKEND + "/api/membership-otp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, tenantId: clubId })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.ok) { addMsg("Sorry, we couldn't send the code. Please check your email address and try again.", "bot"); return; }
+      addMsg("We've sent a 6-digit code to " + email + ". Please enter it below:", "bot");
+      _mbrShowOtpInput(email, onVerified);
+    }).catch(function() {
+      addMsg("Something went wrong sending the code. Please try again.", "bot");
+    });
+  }
+
+  function _mbrShowOtpInput(email, onVerified) {
+    clearChoices();
+    var wrap = document.createElement("div");
+    wrap.id = "sprimal-choices";
+    wrap.style.cssText = "display:flex;flex-direction:column;gap:8px;align-self:stretch;max-width:92%;";
+
+    var inp = document.createElement("input");
+    inp.type = "text"; inp.placeholder = "6-digit code"; inp.maxLength = 6;
+    inp.style.cssText = "border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:22px;font-family:" + FONT + ";outline:none;background:#fff;color:#1f2937;width:100%;box-sizing:border-box;letter-spacing:8px;text-align:center;";
+
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;";
+
+    var verifyBtn = document.createElement("button");
+    verifyBtn.className = "sprimal-choice";
+    verifyBtn.style.cssText = "flex:1;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;";
+    verifyBtn.textContent = "Verify →";
+
+    var resendBtn = document.createElement("button");
+    resendBtn.className = "sprimal-choice sprimal-choice-ai";
+    resendBtn.style.cssText = "border-radius:10px;padding:9px 12px;font-size:12px;white-space:nowrap;";
+    resendBtn.textContent = "Resend code";
+
+    var doVerify = function() {
+      var code = inp.value.replace(/\s/g, "");
+      if (code.length !== 6) { inp.style.borderColor = "#ef4444"; inp.focus(); return; }
+      verifyBtn.disabled = true; verifyBtn.textContent = "Verifying…";
+      fetch(BACKEND + "/api/membership-otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, code: code })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.ok) {
+          clearChoices();
+          addMsg("✓ Verified", "user");
+          onVerified();
+        } else {
+          verifyBtn.disabled = false; verifyBtn.textContent = "Verify →";
+          inp.style.borderColor = "#ef4444"; inp.value = ""; inp.focus();
+          var msg = d.reason === "expired"
+            ? "That code has expired. Please tap Resend to get a new one."
+            : "That code doesn't match. Please try again.";
+          addMsg(msg, "bot");
+        }
+      }).catch(function() {
+        verifyBtn.disabled = false; verifyBtn.textContent = "Verify →";
+        addMsg("Something went wrong. Please try again.", "bot");
+      });
+    };
+
+    verifyBtn.addEventListener("click", doVerify);
+    inp.addEventListener("keydown", function(e) { if (e.key === "Enter") doVerify(); });
+
+    resendBtn.addEventListener("click", function() {
+      clearChoices();
+      fetch(BACKEND + "/api/membership-otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, tenantId: clubId })
+      }).then(function() {
+        addMsg("New code sent to " + email + ". Please check your inbox.", "bot");
+        _mbrShowOtpInput(email, onVerified);
+      });
+    });
+
+    row.appendChild(verifyBtn); row.appendChild(resendBtn);
+    wrap.appendChild(inp); wrap.appendChild(row);
+    messages.appendChild(wrap); scrollToBottom(100);
+    setTimeout(function() { inp.focus(); }, 200);
+  }
+
   function _runMbrStep() {
     var f = _mbrFlow;
     if (!f) return;
     var isChange = f.type === "collect_membership_change";
 
-    // Steps differ by flow type
     if (isChange) {
-      // Change membership flow
       switch (f.step) {
         case 0:
           addMsg("Sure! What type of membership would you like to change to?", "bot");
@@ -1289,7 +1373,9 @@
         case 3:
           addMsg("And your email address?", "bot");
           _mbrInlineInput("Your email address *", function(val) {
-            f.data.email = val; f.step++; _runMbrStep();
+            if (!val.includes("@")) { addMsg("Please enter a valid email address.", "bot"); f.step--; f.step++; _runMbrStep(); return; }
+            f.data.email = val;
+            _mbrSendAndVerifyOtp(val, function() { f.step++; _runMbrStep(); });
           });
           break;
         case 4:
@@ -1303,7 +1389,6 @@
           break;
       }
     } else {
-      // Cancel membership flow
       switch (f.step) {
         case 0:
           addMsg("Sorry to hear that. When would you like your cancellation to take effect?", "bot");
@@ -1321,7 +1406,9 @@
         case 2:
           addMsg("And your email address?", "bot");
           _mbrInlineInput("Your email address *", function(val) {
-            f.data.email = val; f.step++; _runMbrStep();
+            if (!val.includes("@")) { addMsg("Please enter a valid email address.", "bot"); f.step--; f.step++; _runMbrStep(); return; }
+            f.data.email = val;
+            _mbrSendAndVerifyOtp(val, function() { f.step++; _runMbrStep(); });
           });
           break;
         case 3:

@@ -8537,6 +8537,58 @@ app.get("/api/portal/reindex-status", requireSeniorTenant, (req, res) => {
   });
 });
 
+// ── Membership OTP ────────────────────────────────────────────────────────────
+const _otpStore = new Map(); // email.toLowerCase() → { code, expiry }
+
+app.post("/api/membership-otp/send", async (req, res) => {
+  const { email, tenantId } = req.body || {};
+  if (!email || !tenantId) return res.status(400).json({ error: "Missing fields" });
+
+  const code   = String(Math.floor(100000 + Math.random() * 900000));
+  const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+  _otpStore.set(email.toLowerCase(), { code, expiry });
+
+  const { data: tenant } = await supabase.from("tenants").select("name").eq("id", tenantId).maybeSingle();
+  const clubName = tenant?.name || "Your club";
+
+  if (!process.env.RESEND_API_KEY) return res.status(500).json({ error: "Email not configured" });
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Sprimal <hello@sprimal.com>",
+        to:   email,
+        subject: `Your verification code — ${clubName}`,
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+          <p style="font-size:15px;color:#374151;margin-bottom:8px;">Hi,</p>
+          <p style="font-size:15px;color:#374151;">Use this code to verify your identity for your ${clubName} membership request:</p>
+          <div style="font-size:36px;font-weight:800;letter-spacing:10px;color:#111827;text-align:center;padding:20px 0;">${code}</div>
+          <p style="font-size:13px;color:#9ca3af;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+        </div>`
+      })
+    });
+    if (!r.ok) throw new Error("Resend error");
+  } catch (e) {
+    return res.status(500).json({ error: "Failed to send email" });
+  }
+
+  res.json({ ok: true });
+});
+
+app.post("/api/membership-otp/verify", async (req, res) => {
+  const { email, code } = req.body || {};
+  if (!email || !code) return res.status(400).json({ error: "Missing fields" });
+
+  const entry = _otpStore.get(email.toLowerCase());
+  if (!entry)                      return res.json({ ok: false, reason: "no_code" });
+  if (Date.now() > entry.expiry) { _otpStore.delete(email.toLowerCase()); return res.json({ ok: false, reason: "expired" }); }
+  if (entry.code !== String(code).trim()) return res.json({ ok: false, reason: "wrong_code" });
+
+  _otpStore.delete(email.toLowerCase()); // single use
+  res.json({ ok: true });
+});
+
 // ── Membership Requests ───────────────────────────────────────────────────────
 // Public endpoint — called by bot to submit a membership change request
 app.post("/api/membership-request", async (req, res) => {

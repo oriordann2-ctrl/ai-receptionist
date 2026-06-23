@@ -8990,8 +8990,10 @@ app.post("/api/portal/membership-requests/:id/approve", requireTenant, async (re
                 body: new URLSearchParams({ prorate: "false" }).toString()
               });
               const cancelData = await cancelResp.json();
+              console.error("[Cancel] Stripe cancel response:", JSON.stringify(cancelData));
               if (cancelData.status !== "canceled") {
-                stripeResult = { ok: false, message: "Stripe immediate cancel failed.", raw: cancelData };
+                const stripeErr = cancelData.error ? cancelData.error.message : JSON.stringify(cancelData);
+                stripeResult = { ok: false, message: "Stripe immediate cancel failed: " + stripeErr, raw: cancelData };
               } else if (refundAmount > 0 && currentChargeId) {
                 // Issue pro-rata refund
                 const refundResp = await fetch("https://api.stripe.com/v1/refunds", {

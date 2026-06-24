@@ -4359,6 +4359,10 @@
         if (ev.date_range) html += '<div style="font-size:13px;color:#6b7280;margin-top:2px;">' + jEsc(ev.date_range) + '</div>';
         html += '<div style="font-size:13px;color:#374151;margin-top:6px;">Member €' + jEsc(ev.member_price) + ' &nbsp;|&nbsp; Non-member €' + jEsc(ev.non_member_price) + '</div>';
         html += '<div style="font-size:12px;color:#6b7280;margin-top:2px;">Booked: ' + totalBooked + ' / ' + totalCapacity + '</div>';
+        var qBlocks = ev.question_blocks || [];
+        if (qBlocks.length) {
+          html += '<div style="font-size:12px;color:#6b7280;margin-top:4px;">Questions: ' + qBlocks.map(function(b){ return jEsc(b.label); }).join(', ') + '</div>';
+        }
         html += '</div>';
         html += '<div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">';
         html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#6b7280;cursor:pointer;">'

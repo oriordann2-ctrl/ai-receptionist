@@ -13105,7 +13105,8 @@ async function runCurrentStep(convo, userInput) {
             return line;
           })
         : [];
-      return { reply: step.prompt, choices };
+      const prompt = fillTemplate(step.prompt || "", state.tenantConfig);
+      return { reply: prompt, choices };
     }
 
     // Validate and store
@@ -20579,14 +20580,24 @@ app.listen(PORT, async () => {
   } catch (e) { console.error("[migration] lead_capture phone:", e.message); }
 
   // Remove reply_time from membership_application_agent config (not relevant for membership)
+  // Add codes_of_conduct_url field and update consent step prompt to include the URL
   try {
-    const { data: memDef } = await supabase.from("agent_definitions").select("config_schema").eq("id", "membership_application_agent").maybeSingle();
-    if (memDef?.config_schema?.fields?.some(f => f.key === "reply_time")) {
-      const fields = memDef.config_schema.fields.filter(f => f.key !== "reply_time");
-      await supabase.from("agent_definitions").update({ config_schema: { ...memDef.config_schema, fields } }).eq("id", "membership_application_agent");
-      console.log("[migration] Removed reply_time from membership_application_agent config_schema");
+    const { data: memDef } = await supabase.from("agent_definitions").select("config_schema, steps").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef) {
+      let fields = memDef.config_schema.fields.filter(f => f.key !== "reply_time");
+      if (!fields.find(f => f.key === "codes_of_conduct_url")) {
+        fields.push({ key: "codes_of_conduct_url", label: "Codes of Conduct URL", type: "text", required: false, placeholder: "https://yourclub.com/codes-of-conduct", hint: "Shown to applicants in the consent step." });
+      }
+      const steps = memDef.steps.map(s =>
+        s.id === "consent"
+          ? { ...s, prompt: "Before we submit your application, please read the club's Codes of Conduct: {{codes_of_conduct_url}}\n\nType 'I agree' to confirm you have read and accept them." }
+          : s
+      );
+      const { error } = await supabase.from("agent_definitions").update({ config_schema: { ...memDef.config_schema, fields }, steps }).eq("id", "membership_application_agent");
+      if (error) console.error("[migration] membership codes_of_conduct_url:", error.message);
+      else console.log("[migration] Added codes_of_conduct_url to membership_application_agent");
     }
-  } catch (e) { console.error("[migration] remove reply_time:", e.message); }
+  } catch (e) { console.error("[migration] membership codes_of_conduct_url:", e.message); }
 
   // Add EBO member validation to proposer/seconder steps in membership_application_agent
   try {

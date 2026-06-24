@@ -182,6 +182,7 @@ INSERT INTO agent_definitions (id, name, description, version, skill_ids, config
       {"key": "intro_message",        "label": "Greeting message",                  "type": "textarea",  "required": true,  "placeholder": "Hi! I can help you apply for membership. Let me take a few details."},
       {"key": "membership_types",     "label": "Membership types (one per line)",   "type": "multiline", "required": true,  "placeholder": "Family Membership - €300\nSingle Membership - €180\nStudent Membership - €80\nJunior Membership - €70", "hint": "Each line becomes a button option."},
       {"key": "notification_email",   "label": "Email to receive applications",     "type": "email",     "required": true,  "placeholder": "secretary@yourclub.com"},
+      {"key": "codes_of_conduct_url",  "label": "Codes of Conduct URL",             "type": "text",      "required": false, "placeholder": "https://yourclub.com/codes-of-conduct", "hint": "Shown to applicants in the consent step."},
       {"key": "confirmation_message", "label": "Confirmation message to applicant", "type": "textarea",  "required": false, "placeholder": "Thanks {{name}}! Your application has been received and will be reviewed soon.", "hint": "Use {{name}}, {{membership_type}} as placeholders."}
     ]
   }',
@@ -194,7 +195,7 @@ INSERT INTO agent_definitions (id, name, description, version, skill_ids, config
     {"id": "other_club",       "type": "collect",  "prompt": "Are you a member of another tennis club? (Type the club name, or ''skip'')", "collect_field": "other_club", "required": false, "next": "proposer"},
     {"id": "proposer",         "type": "collect",  "prompt": "Your proposer''s name — they must be an existing club member.", "collect_field": "proposer", "required": true,  "validation_type": "ebo_member", "next": "seconder"},
     {"id": "seconder",         "type": "collect",  "prompt": "And your seconder''s name — also an existing club member.", "collect_field": "seconder",  "required": true,  "validation_type": "ebo_member", "next": "consent"},
-    {"id": "consent",          "type": "collect",  "prompt": "Finally, by typing ''I agree'' you confirm that you have read and agree to be bound by the club''s Codes of Conduct.", "collect_field": "consent", "required": true, "next": "notify"},
+    {"id": "consent",          "type": "collect",  "prompt": "Before we submit your application, please read the club''s Codes of Conduct: {{codes_of_conduct_url}}\n\nType ''I agree'' to confirm you have read and accept them.", "collect_field": "consent", "required": true, "next": "notify"},
     {"id": "notify",           "type": "skill",    "skill_id": "notify_and_confirm", "next": null}
   ]',
   'Guide the applicant warmly through the form one question at a time. Make it clear their application will be reviewed by the club committee.',

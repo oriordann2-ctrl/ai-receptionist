@@ -13120,6 +13120,31 @@ async function runCurrentStep(convo, userInput) {
       }
       return { reply: `Could you share ${step.collect_field.replace(/_/g, " ")}? It helps us get things set up for you.`, choices: [] };
     }
+    // EBO member validation — check proposer/seconder against club membership list
+    if (step.validation_type === "ebo_member") {
+      try {
+        const tenantId = convo.tenantId;
+        await loadEboConfigFromDb(tenantId);
+        if (EBO_CONFIG[tenantId]) {
+          const members = await getAllEboMembers(tenantId);
+          const normalize = s => String(s || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+          const input = normalize(trimmed);
+          const match = members.find(m => {
+            const full  = normalize(`${m.first_name} ${m.last_name}`);
+            const first = normalize(m.first_name);
+            const last  = normalize(m.last_name);
+            return full === input || (input.includes(first) && input.includes(last));
+          });
+          if (!match) {
+            return { reply: `We couldn't find "${trimmed}" as a current member of the club. Please check the spelling and try again.`, choices: [] };
+          }
+        }
+      } catch (e) {
+        console.error("[agent] EBO member validation error:", e.message);
+        // Non-fatal — proceed without validation if EBO is unavailable
+      }
+    }
+
     state.collected[step.collect_field] = trimmed;
     state.stepId     = step.next;
     state.skillState = null;
@@ -20552,6 +20577,22 @@ app.listen(PORT, async () => {
       else console.log("[migration] lead_capture phone set to required");
     }
   } catch (e) { console.error("[migration] lead_capture phone:", e.message); }
+
+  // Add EBO member validation to proposer/seconder steps in membership_application_agent
+  try {
+    const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef) {
+      const needsUpdate = memDef.steps.some(s => (s.id === "proposer" || s.id === "seconder") && !s.validation_type);
+      if (needsUpdate) {
+        const newSteps = memDef.steps.map(s =>
+          (s.id === "proposer" || s.id === "seconder") ? { ...s, validation_type: "ebo_member" } : s
+        );
+        const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
+        if (error) console.error("[migration] ebo_member validation:", error.message);
+        else console.log("[migration] Added ebo_member validation to proposer/seconder steps");
+      }
+    }
+  } catch (e) { console.error("[migration] ebo_member validation:", e.message); }
 
   // Add consent step to membership_application_agent if not already present
   try {

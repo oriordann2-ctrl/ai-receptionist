@@ -193,8 +193,8 @@ INSERT INTO agent_definitions (id, name, description, version, skill_ids, config
     {"id": "lead_capture",     "type": "skill",    "skill_id": "lead_capture", "next": "address"},
     {"id": "address",          "type": "collect",  "prompt": "What''s your home address?",                              "collect_field": "address",          "required": true,  "next": "other_club"},
     {"id": "other_club",       "type": "collect",  "prompt": "Are you a member of another tennis club? (Type the club name, or ''skip'')", "collect_field": "other_club", "required": false, "next": "proposer"},
-    {"id": "proposer",         "type": "collect",  "prompt": "Your proposer''s name — they must be an existing club member.", "collect_field": "proposer", "required": true,  "next": "seconder"},
-    {"id": "seconder",         "type": "collect",  "prompt": "And your seconder''s name — also an existing club member.", "collect_field": "seconder",  "required": true,  "next": "consent"},
+    {"id": "proposer",         "type": "collect",  "prompt": "Your proposer''s name — they must be an existing club member.", "collect_field": "proposer", "required": true,  "validation_type": "ebo_member", "next": "seconder"},
+    {"id": "seconder",         "type": "collect",  "prompt": "And your seconder''s name — also an existing club member.", "collect_field": "seconder",  "required": true,  "validation_type": "ebo_member", "next": "consent"},
     {"id": "consent",          "type": "collect",  "prompt": "Finally, by typing ''I agree'' you confirm that you have read and agree to be bound by the club''s Codes of Conduct.", "collect_field": "consent", "required": true, "next": "notify"},
     {"id": "notify",           "type": "skill",    "skill_id": "notify_and_confirm", "next": null}
   ]',

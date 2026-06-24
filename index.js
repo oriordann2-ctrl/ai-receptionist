@@ -20414,6 +20414,17 @@ app.listen(PORT, async () => {
     }
   } catch {}
 
+  // Make phone required in lead_capture skill (court booking and others)
+  try {
+    const { data: lcDef } = await supabase.from("agent_definitions").select("config_schema").eq("id", "lead_capture").maybeSingle();
+    if (lcDef?.config_schema?.fields) {
+      const fields = lcDef.config_schema.fields.map(f =>
+        f.key === "phone" ? { ...f, required: true, prompt: "And your phone number?" } : f
+      );
+      await supabase.from("agent_definitions").update({ config_schema: { ...lcDef.config_schema, fields } }).eq("id", "lead_capture");
+    }
+  } catch {}
+
   // Ensure public bucket exists for social/profile images (img tags need public URLs)
   try {
     await supabase.storage.createBucket("social-images", { public: true });

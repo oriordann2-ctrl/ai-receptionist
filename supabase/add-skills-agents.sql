@@ -14,16 +14,19 @@ CREATE TABLE IF NOT EXISTS skill_definitions (
 
 -- Agent library (seeded by Sprimal, immutable by tenants)
 CREATE TABLE IF NOT EXISTS agent_definitions (
-  id          TEXT PRIMARY KEY,
-  name        TEXT NOT NULL UNIQUE,
-  description TEXT NOT NULL,
-  version     TEXT DEFAULT '1.0',
-  skill_ids   TEXT[] NOT NULL,
-  config_schema JSONB NOT NULL,
-  steps       JSONB NOT NULL,
-  instructions  TEXT,
-  created_at  TIMESTAMPTZ DEFAULT now()
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL UNIQUE,
+  description    TEXT NOT NULL,
+  version        TEXT DEFAULT '1.0',
+  skill_ids      TEXT[] NOT NULL,
+  config_schema  JSONB NOT NULL,
+  steps          JSONB NOT NULL,
+  instructions   TEXT,
+  business_types TEXT[],   -- null = universal; otherwise only shown to matching tenant business_type
+  created_at     TIMESTAMPTZ DEFAULT now()
 );
+-- Add business_types to existing tables (safe to run if column already exists, will error silently)
+ALTER TABLE agent_definitions ADD COLUMN IF NOT EXISTS business_types TEXT[];
 
 -- Per-tenant agent instances (club activates + configures an agent)
 CREATE TABLE IF NOT EXISTS tenant_agents (
@@ -82,7 +85,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- ── Seed: Agent definitions ───────────────────────────────────────────────────
 
-INSERT INTO agent_definitions (id, name, description, version, skill_ids, config_schema, steps, instructions) VALUES
+INSERT INTO agent_definitions (id, name, description, version, skill_ids, config_schema, steps, instructions, business_types) VALUES
 (
   'coaching_enquiry_agent',
   'Coaching Enquiry',
@@ -165,7 +168,8 @@ INSERT INTO agent_definitions (id, name, description, version, skill_ids, config
       "next": null
     }
   ]',
-  'Be warm and friendly. Keep questions short and clear. Thank the user by name in the confirmation.'
+  'Be warm and friendly. Keep questions short and clear. Thank the user by name in the confirmation.',
+  ARRAY['tennis_club', 'squash_club', 'badminton_club']
 ),
 (
   'membership_application_agent',
@@ -193,6 +197,7 @@ INSERT INTO agent_definitions (id, name, description, version, skill_ids, config
     {"id": "seconder",         "type": "collect",  "prompt": "And your seconder''s name — also an existing club member.", "collect_field": "seconder",  "required": true,  "next": "notify"},
     {"id": "notify",           "type": "skill",    "skill_id": "notify_and_confirm", "next": null}
   ]',
-  'Guide the applicant warmly through the form one question at a time. Make it clear their application will be reviewed by the club committee.'
+  'Guide the applicant warmly through the form one question at a time. Make it clear their application will be reviewed by the club committee.',
+  ARRAY['tennis_club', 'squash_club', 'badminton_club']
 )
 ON CONFLICT (id) DO NOTHING;

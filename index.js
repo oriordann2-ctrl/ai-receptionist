@@ -20553,6 +20553,20 @@ app.listen(PORT, async () => {
     }
   } catch (e) { console.error("[migration] lead_capture phone:", e.message); }
 
+  // Tag tennis-specific agents with business_types so they only show for racket sport clubs
+  try {
+    const TENNIS_TYPES = ["tennis_club", "squash_club", "badminton_club"];
+    const TENNIS_AGENTS = ["coaching_enquiry_agent", "membership_application_agent"];
+    for (const agentId of TENNIS_AGENTS) {
+      const { data: ag } = await supabase.from("agent_definitions").select("id, business_types").eq("id", agentId).maybeSingle();
+      if (ag && (!ag.business_types || ag.business_types.length === 0)) {
+        const { error: btErr } = await supabase.from("agent_definitions").update({ business_types: TENNIS_TYPES }).eq("id", agentId);
+        if (btErr) console.error(`[migration] business_types for ${agentId}:`, btErr.message);
+        else console.log(`[migration] Set business_types on ${agentId}:`, TENNIS_TYPES.join(", "));
+      }
+    }
+  } catch (e) { console.error("[migration] business_types:", e.message); }
+
   // Ensure public bucket exists for social/profile images (img tags need public URLs)
   try {
     await supabase.storage.createBucket("social-images", { public: true });

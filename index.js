@@ -8972,8 +8972,10 @@ app.get("/junior-booking/success", async (req, res) => {
         if (twilioCfg) {
           const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
           const smsBody = `Booking confirmed ✅\n${booking.child_name} — ${booking.camp_week || "event"}\nAmount paid: €${booking.price}\n\n— ${clubName}`;
-          await twilio.messages.create({ from: twilioCfg.from, to: booking.parent_phone, body: smsBody });
-          console.log(`[junior-sms] Sent to ${booking.parent_phone}`);
+          const rawPhone = booking.parent_phone.replace(/\s+/g, "");
+          const e164Phone = rawPhone.startsWith("+") ? rawPhone : rawPhone.startsWith("0") ? "+353" + rawPhone.slice(1) : "+" + rawPhone;
+          await twilio.messages.create({ from: twilioCfg.from, to: e164Phone, body: smsBody });
+          console.log(`[junior-sms] Sent to ${e164Phone}`);
         }
       } catch (smsErr) {
         console.error("[junior-sms] Failed:", smsErr.message);

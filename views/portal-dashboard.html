@@ -4399,6 +4399,62 @@
       document.getElementById("juniorEventsOverlay").style.display = "none";
     };
 
+    window.jeAddCustomQ = function(prefix) {
+      var container = document.getElementById("je" + prefix + "CustomQ");
+      if (!container) return;
+      var idx = Date.now();
+      var rowId = "jeCQRow_" + prefix + "_" + idx;
+      var row = document.createElement("div");
+      row.id = rowId;
+      row.style.cssText = "display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;";
+      row.innerHTML = '<input type="text" placeholder="Question text" style="flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;box-sizing:border-box;">'
+        + '<select style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;background:white;">'
+        + '<option value="text">Text answer</option>'
+        + '<option value="boolean">Yes / No</option>'
+        + '<option value="acknowledge">Acknowledgement</option>'
+        + '</select>'
+        + '<button type="button" onclick="document.getElementById(\'' + rowId + '\').remove()" style="padding:4px 10px;border-radius:6px;border:1px solid #fca5a5;background:#fff0f0;color:#dc2626;font-size:13px;cursor:pointer;">×</button>';
+      container.appendChild(row);
+    };
+
+    function _jeCollectCustomQ(prefix) {
+      var container = document.getElementById("je" + prefix + "CustomQ");
+      if (!container) return [];
+      var rows = container.querySelectorAll("[id^='jeCQRow_']");
+      var result = [];
+      var i = 0;
+      rows.forEach(function(row) {
+        var inputs  = row.querySelectorAll("input, select");
+        var label   = (inputs[0] ? inputs[0].value : "").trim();
+        var type    = inputs[1] ? inputs[1].value : "text";
+        if (label) {
+          result.push({ key: "custom_" + i, type: type, label: label, description: label, required: true, prompt: label });
+          i++;
+        }
+      });
+      return result;
+    }
+
+    function _jeCustomQSection(prefix, existingCustom) {
+      var rows = (existingCustom || []).map(function(b, i) {
+        var rowId = "jeCQRow_" + prefix + "_existing_" + i;
+        return '<div id="' + rowId + '" style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;">'
+          + '<input type="text" value="' + jEsc(b.label) + '" placeholder="Question text" style="flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;box-sizing:border-box;">'
+          + '<select style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;background:white;">'
+          + '<option value="text"' + (b.type === "text" ? " selected" : "") + '>Text answer</option>'
+          + '<option value="boolean"' + (b.type === "boolean" ? " selected" : "") + '>Yes / No</option>'
+          + '<option value="acknowledge"' + (b.type === "acknowledge" ? " selected" : "") + '>Acknowledgement</option>'
+          + '</select>'
+          + '<button type="button" onclick="document.getElementById(\'' + rowId + '\').remove()" style="padding:4px 10px;border-radius:6px;border:1px solid #fca5a5;background:#fff0f0;color:#dc2626;font-size:13px;cursor:pointer;">×</button>'
+          + '</div>';
+      }).join("");
+      return '<div style="margin-top:16px;">'
+        + '<label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Custom Questions</label>'
+        + '<div id="je' + prefix + 'CustomQ">' + rows + '</div>'
+        + '<button type="button" onclick="jeAddCustomQ(\'' + prefix + '\')" style="margin-top:8px;padding:6px 14px;border-radius:7px;border:1.5px dashed #cbd5e1;background:transparent;color:#475569;font-size:13px;cursor:pointer;">+ Add question</button>'
+        + '</div>';
+    }
+
     window.showNewEventForm = function() {
       var body = document.getElementById("juniorEventsBody");
       var blocksHtml = _juniorQBlockDefs.map(function(b) {
@@ -4431,6 +4487,7 @@
         + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Question Blocks</label>'
         + blocksHtml
         + '</div>'
+        + _jeCustomQSection('New', [])
         + '</div>'
         + '<div style="display:flex;gap:10px;margin-top:20px;">'
         + '<button onclick="saveNewJuniorEvent()" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Create Event</button>'
@@ -4458,7 +4515,8 @@
         });
       });
 
-      var lookupType = (document.getElementById("jeNewLookup").value) || "ebo";
+      var lookupType   = (document.getElementById("jeNewLookup").value) || "ebo";
+      var customBlocks = _jeCollectCustomQ("New");
       fetch("/api/portal/junior-events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -4467,7 +4525,7 @@
           date_range:         dateRange || null,
           member_price:       mPrice,
           non_member_price:   nmPrice,
-          question_blocks:    blocks,
+          question_blocks:    blocks.concat(customBlocks),
           member_lookup_type: lookupType,
           active:             true
         })
@@ -4532,6 +4590,7 @@
         + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Question Blocks</label>'
         + blocksHtml
         + '</div>'
+        + _jeCustomQSection('Edit', (ev.question_blocks || []).filter(function(b){ return b.key && b.key.startsWith('custom_'); }))
         + '</div>'
         + '<div style="display:flex;gap:10px;margin-top:20px;">'
         + '<button onclick="saveEditJuniorEvent(\'' + jEsc(ev.id) + '\')" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Save Changes</button>'
@@ -4559,7 +4618,8 @@
         });
       });
 
-      var lookupType = (document.getElementById("jeEditLookup").value) || "ebo";
+      var lookupType   = (document.getElementById("jeEditLookup").value) || "ebo";
+      var customBlocks = _jeCollectCustomQ("Edit");
       fetch("/api/portal/junior-events/" + eventId, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -4568,7 +4628,7 @@
           date_range:         dateRange || null,
           member_price:       mPrice,
           non_member_price:   nmPrice,
-          question_blocks:    blocks,
+          question_blocks:    blocks.concat(customBlocks),
           member_lookup_type: lookupType
         })
       }).then(function(r){ return r.json(); }).then(function(d) {

@@ -4412,60 +4412,64 @@
       setTimeout(function(){ t.style.opacity = "0"; setTimeout(function(){ t.remove(); }, 250); }, 2500);
     }
 
-    window.jeAddCustomQ = function(prefix) {
-      var container = document.getElementById("je" + prefix + "CustomQ");
-      if (!container) return;
-      var idx = Date.now();
-      var rowId = "jeCQRow_" + prefix + "_" + idx;
-      var row = document.createElement("div");
-      row.id = rowId;
-      row.style.cssText = "display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;";
-      row.innerHTML = '<input type="text" placeholder="Question text" style="flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;box-sizing:border-box;">'
-        + '<select style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;background:white;">'
-        + '<option value="text">Text answer</option>'
+    var _jeCBTypeLabels = { text: "Text answer", boolean: "Yes / No", acknowledge: "Acknowledgement" };
+
+    window.jeAddCustomQInline = function(prefix) {
+      var labelEl = document.getElementById("je" + prefix + "CustomLabel");
+      var typeEl  = document.getElementById("je" + prefix + "CustomType");
+      var label = (labelEl ? labelEl.value : "").trim();
+      var type  = typeEl ? typeEl.value : "text";
+      if (!label) { if (labelEl) labelEl.focus(); return; }
+      var cbName = prefix === "New" ? "qblock" : "qblockEdit";
+      var idx    = Date.now();
+      var rowId  = "jeCQRow_" + prefix + "_" + idx;
+      var el = document.createElement("label");
+      el.id = rowId;
+      el.style.cssText = "display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;cursor:pointer;";
+      el.innerHTML =
+        '<input type="checkbox" name="' + cbName + '" value="custom_' + idx + '" '
+        + 'data-type="' + jEsc(type) + '" data-label="' + jEsc(label) + '" data-desc="' + jEsc(label) + '" '
+        + 'checked style="margin-top:2px;width:16px;height:16px;flex-shrink:0;">'
+        + '<span style="flex:1;"><span style="font-size:14px;font-weight:600;color:#111827;">' + jEsc(label) + '</span>'
+        + '<br><span style="font-size:12px;color:#6b7280;">' + jEsc(_jeCBTypeLabels[type] || type) + '</span></span>'
+        + '<button type="button" onclick="document.getElementById(\'' + rowId + '\').remove()" '
+        + 'style="padding:2px 8px;border-radius:5px;border:1px solid #fca5a5;background:#fff0f0;color:#dc2626;font-size:12px;cursor:pointer;flex-shrink:0;margin-top:2px;">×</button>';
+      var container = document.getElementById("je" + prefix + "BlocksContainer");
+      var addRow    = document.getElementById("je" + prefix + "CustomAddRow");
+      if (container && addRow) container.insertBefore(el, addRow);
+      labelEl.value = "";
+      labelEl.focus();
+    };
+
+    function _jeCustomAddForm(prefix) {
+      return '<div id="je' + prefix + 'CustomAddRow" style="display:flex;gap:8px;align-items:center;padding:10px 0;flex-wrap:wrap;">'
+        + '<input id="je' + prefix + 'CustomLabel" type="text" placeholder="Add a custom question…" '
+        + 'style="flex:1;min-width:180px;padding:6px 10px;border:1.5px dashed #cbd5e1;border-radius:7px;font-size:13px;" '
+        + 'onkeydown="if(event.key===\'Enter\'){event.preventDefault();jeAddCustomQInline(\'' + prefix + '\');}">'
+        + '<select id="je' + prefix + 'CustomType" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;background:white;">'
+        + '<option value="text">Text</option>'
         + '<option value="boolean">Yes / No</option>'
         + '<option value="acknowledge">Acknowledgement</option>'
         + '</select>'
-        + '<button type="button" onclick="document.getElementById(\'' + rowId + '\').remove()" style="padding:4px 10px;border-radius:6px;border:1px solid #fca5a5;background:#fff0f0;color:#dc2626;font-size:13px;cursor:pointer;">×</button>';
-      container.appendChild(row);
-    };
-
-    function _jeCollectCustomQ(prefix) {
-      var container = document.getElementById("je" + prefix + "CustomQ");
-      if (!container) return [];
-      var rows = container.querySelectorAll("[id^='jeCQRow_']");
-      var result = [];
-      var i = 0;
-      rows.forEach(function(row) {
-        var inputs  = row.querySelectorAll("input, select");
-        var label   = (inputs[0] ? inputs[0].value : "").trim();
-        var type    = inputs[1] ? inputs[1].value : "text";
-        if (label) {
-          result.push({ key: "custom_" + i, type: type, label: label, description: label, required: true, prompt: label });
-          i++;
-        }
-      });
-      return result;
+        + '<button type="button" onclick="jeAddCustomQInline(\'' + prefix + '\')" '
+        + 'style="padding:6px 12px;border-radius:7px;border:none;background:#e0e7ff;color:#3730a3;font-size:13px;font-weight:500;cursor:pointer;">+ Add</button>'
+        + '</div>';
     }
 
-    function _jeCustomQSection(prefix, existingCustom) {
-      var rows = (existingCustom || []).map(function(b, i) {
-        var rowId = "jeCQRow_" + prefix + "_existing_" + i;
-        return '<div id="' + rowId + '" style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;">'
-          + '<input type="text" value="' + jEsc(b.label) + '" placeholder="Question text" style="flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;box-sizing:border-box;">'
-          + '<select style="padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;background:white;">'
-          + '<option value="text"' + (b.type === "text" ? " selected" : "") + '>Text answer</option>'
-          + '<option value="boolean"' + (b.type === "boolean" ? " selected" : "") + '>Yes / No</option>'
-          + '<option value="acknowledge"' + (b.type === "acknowledge" ? " selected" : "") + '>Acknowledgement</option>'
-          + '</select>'
-          + '<button type="button" onclick="document.getElementById(\'' + rowId + '\').remove()" style="padding:4px 10px;border-radius:6px;border:1px solid #fca5a5;background:#fff0f0;color:#dc2626;font-size:13px;cursor:pointer;">×</button>'
-          + '</div>';
+    function _jeExistingCustomHtml(prefix, existingCustom) {
+      return (existingCustom || []).map(function(b, i) {
+        var cbName = prefix === "New" ? "qblock" : "qblockEdit";
+        var rowId  = "jeCQRow_" + prefix + "_existing_" + i;
+        return '<label id="' + rowId + '" style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;cursor:pointer;">'
+          + '<input type="checkbox" name="' + cbName + '" value="' + jEsc(b.key) + '" '
+          + 'data-type="' + jEsc(b.type) + '" data-label="' + jEsc(b.label) + '" data-desc="' + jEsc(b.description || b.label) + '" '
+          + 'checked style="margin-top:2px;width:16px;height:16px;flex-shrink:0;">'
+          + '<span style="flex:1;"><span style="font-size:14px;font-weight:600;color:#111827;">' + jEsc(b.label) + '</span>'
+          + '<br><span style="font-size:12px;color:#6b7280;">' + jEsc(_jeCBTypeLabels[b.type] || b.type) + '</span></span>'
+          + '<button type="button" onclick="document.getElementById(\'' + rowId + '\').remove()" '
+          + 'style="padding:2px 8px;border-radius:5px;border:1px solid #fca5a5;background:#fff0f0;color:#dc2626;font-size:12px;cursor:pointer;flex-shrink:0;margin-top:2px;">×</button>'
+          + '</label>';
       }).join("");
-      return '<div style="margin-top:16px;">'
-        + '<label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Custom Questions</label>'
-        + '<div id="je' + prefix + 'CustomQ">' + rows + '</div>'
-        + '<button type="button" onclick="jeAddCustomQ(\'' + prefix + '\')" style="margin-top:8px;padding:6px 14px;border-radius:7px;border:1.5px dashed #cbd5e1;background:transparent;color:#475569;font-size:13px;cursor:pointer;">+ Add question</button>'
-        + '</div>';
     }
 
     window.showNewEventForm = function() {
@@ -4498,9 +4502,10 @@
         + '<option value="none">None — non-member price for everyone</option>'
         + '</select></div>'
         + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Question Blocks</label>'
+        + '<div id="jeNewBlocksContainer">'
         + blocksHtml
-        + '</div>'
-        + _jeCustomQSection('New', [])
+        + _jeCustomAddForm('New')
+        + '</div></div>'
         + '</div>'
         + '<div style="display:flex;gap:10px;margin-top:20px;">'
         + '<button onclick="saveNewJuniorEvent()" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Create Event</button>'
@@ -4528,8 +4533,7 @@
         });
       });
 
-      var lookupType   = (document.getElementById("jeNewLookup").value) || "ebo";
-      var customBlocks = _jeCollectCustomQ("New");
+      var lookupType = (document.getElementById("jeNewLookup").value) || "ebo";
       fetch("/api/portal/junior-events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -4538,7 +4542,7 @@
           date_range:         dateRange || null,
           member_price:       mPrice,
           non_member_price:   nmPrice,
-          question_blocks:    blocks.concat(customBlocks),
+          question_blocks:    blocks,
           member_lookup_type: lookupType,
           active:             true
         })
@@ -4602,9 +4606,11 @@
         + '<option value="none"' + (ev.member_lookup_type === "none" ? " selected" : "") + '>None — non-member price for everyone</option>'
         + '</select></div>'
         + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Question Blocks</label>'
+        + '<div id="jeEditBlocksContainer">'
         + blocksHtml
-        + '</div>'
-        + _jeCustomQSection('Edit', (ev.question_blocks || []).filter(function(b){ return b.key && b.key.startsWith('custom_'); }))
+        + _jeExistingCustomHtml('Edit', (ev.question_blocks || []).filter(function(b){ return b.key && b.key.startsWith('custom_'); }))
+        + _jeCustomAddForm('Edit')
+        + '</div></div>'
         + '</div>'
         + '<div style="display:flex;gap:10px;margin-top:20px;">'
         + '<button onclick="saveEditJuniorEvent(\'' + jEsc(ev.id) + '\')" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Save Changes</button>'
@@ -4632,8 +4638,7 @@
         });
       });
 
-      var lookupType   = (document.getElementById("jeEditLookup").value) || "ebo";
-      var customBlocks = _jeCollectCustomQ("Edit");
+      var lookupType = (document.getElementById("jeEditLookup").value) || "ebo";
       fetch("/api/portal/junior-events/" + eventId, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -4642,7 +4647,7 @@
           date_range:         dateRange || null,
           member_price:       mPrice,
           non_member_price:   nmPrice,
-          question_blocks:    blocks.concat(customBlocks),
+          question_blocks:    blocks,
           member_lookup_type: lookupType
         })
       }).then(function(r){ return r.json(); }).then(function(d) {

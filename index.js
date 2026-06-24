@@ -20440,6 +20440,42 @@ app.listen(PORT, async () => {
     }
   } catch {}
 
+  // Seed membership_application_agent definition if not already present
+  try {
+    const { data: existing } = await supabase.from("agent_definitions").select("id").eq("id", "membership_application_agent").maybeSingle();
+    if (!existing) {
+      await supabase.from("agent_definitions").insert({
+        id: "membership_application_agent",
+        name: "Membership Application",
+        description: "Guides a visitor through a membership application, collects their details, emails the club, and confirms receipt.",
+        version: "1.0",
+        skill_ids: ["lead_capture", "notify_and_confirm"],
+        config_schema: {
+          fields: [
+            { key: "intro_message",       label: "Greeting message",                    type: "textarea",  required: true,  placeholder: "Hi! I can help you apply for membership. Let me take a few details." },
+            { key: "membership_types",    label: "Membership types (one per line)",     type: "multiline", required: true,  placeholder: "Family Membership - €300\nSingle Membership - €180\nStudent Membership - €80\nJunior Membership - €70", hint: "Each line becomes a button option." },
+            { key: "notification_email",  label: "Email to receive applications",       type: "email",     required: true,  placeholder: "secretary@yourclub.com" },
+            { key: "reply_time",          label: "Response time promise",               type: "text",      required: false, placeholder: "3-5 working days" },
+            { key: "confirmation_message",label: "Confirmation message to applicant",   type: "textarea",  required: false, placeholder: "Thanks {{name}}! Your application has been received and will be reviewed within {{reply_time}}. We'll be in touch soon.", hint: "Use {{name}}, {{membership_type}}, {{reply_time}} as placeholders." }
+          ]
+        },
+        steps: [
+          { id: "greeting",         type: "greeting", message_key: "intro_message", prompt: "What type of membership are you applying for?", choices_key: "membership_types", collect_field: "membership_type", branches: [{ if_value_contains: "family", next: "children_details" }, { if_value_contains: "junior", next: "dob" }], default_next: "lead_capture" },
+          { id: "children_details", type: "collect",  prompt: "Please provide the name and date of birth of each child.", collect_field: "children_details", required: true,  next: "lead_capture" },
+          { id: "dob",              type: "collect",  prompt: "Please provide their date of birth.",                      collect_field: "date_of_birth",    required: true,  next: "lead_capture" },
+          { id: "lead_capture",     type: "skill",    skill_id: "lead_capture", next: "address" },
+          { id: "address",          type: "collect",  prompt: "What's your home address?",                               collect_field: "address",          required: true,  next: "other_club" },
+          { id: "other_club",       type: "collect",  prompt: "Are you a member of another tennis club? (Type the club name, or 'skip')", collect_field: "other_club", required: false, next: "proposer" },
+          { id: "proposer",         type: "collect",  prompt: "Your proposer's name — they must be an existing club member.", collect_field: "proposer",    required: true,  next: "seconder" },
+          { id: "seconder",         type: "collect",  prompt: "And your seconder's name — also an existing club member.", collect_field: "seconder",        required: true,  next: "notify" },
+          { id: "notify",           type: "skill",    skill_id: "notify_and_confirm", next: null }
+        ],
+        instructions: "Guide the applicant warmly through the form one question at a time. Make it clear their application will be reviewed by the club committee."
+      });
+      console.log("[migration] Seeded membership_application_agent");
+    }
+  } catch (e) { console.error("[migration] membership_application_agent:", e.message); }
+
   // Add optional game_focus step to coaching_enquiry_agent (between lead_capture and notify)
   try {
     const { data: ceDef } = await supabase.from("agent_definitions").select("steps").eq("id", "coaching_enquiry_agent").maybeSingle();

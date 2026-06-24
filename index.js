@@ -12642,16 +12642,20 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     }
     if (smsTargets.length) {
       const SKIP_SMS = new Set(["preferred_coach", "preferred_slots", "preferred_slot", "booking_date"]);
+      const fieldEmojis = { name: "👤", email: "📧", phone: "📱", session_type: "🎓", child_age: "👶", game_focus: "💬" };
       const detailLines = Object.entries(collected)
-        .filter(([k, v]) => v && !k.startsWith("_") && !SKIP_SMS.has(k))
-        .map(([k, v]) => `${fmtKey(k)}: ${v}`)
+        .filter(([k, v]) => v && !k.startsWith("_") && !SKIP_SMS.has(k) && k !== "game_focus")
+        .map(([k, v]) => `${fieldEmojis[k] || "•"} ${v}`)
         .join("\n");
       const rawSlots = collected.preferred_slots || collected.preferred_slot || "";
-      const slotsLine = rawSlots ? `\nPreferred slots: ${rawSlots.split(" | ").map(s => s.trim()).join(", ")}` : "";
+      const slotsLine = rawSlots
+        ? "\n\n📅 " + rawSlots.split(" | ").map(s => s.trim()).join("\n   ")
+        : "";
+      const focusLine = collected.game_focus ? `\n\n💬 ${collected.game_focus}` : "";
       try {
         const twilioClient = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
         for (const { name, phone } of smsTargets) {
-          const smsBody = `New ${agentName} - ${clubName}\nHi ${name}!\n\n${detailLines}${slotsLine}\n\nVia Sprimal`;
+          const smsBody = `🎾 New ${agentName}\n${clubName}\n\n${detailLines}${slotsLine}${focusLine}`;
           await twilioClient.messages.create({ from: twilioCfg.from, to: phone, body: smsBody });
           console.log(`[coaching-sms] Sent to ${phone} for tenant ${tenantId}`);
         }

@@ -182,8 +182,7 @@ INSERT INTO agent_definitions (id, name, description, version, skill_ids, config
       {"key": "intro_message",        "label": "Greeting message",                  "type": "textarea",  "required": true,  "placeholder": "Hi! I can help you apply for membership. Let me take a few details."},
       {"key": "membership_types",     "label": "Membership types (one per line)",   "type": "multiline", "required": true,  "placeholder": "Family Membership - €300\nSingle Membership - €180\nStudent Membership - €80\nJunior Membership - €70", "hint": "Each line becomes a button option."},
       {"key": "notification_email",   "label": "Email to receive applications",     "type": "email",     "required": true,  "placeholder": "secretary@yourclub.com"},
-      {"key": "reply_time",           "label": "Response time promise",             "type": "text",      "required": false, "placeholder": "3-5 working days"},
-      {"key": "confirmation_message", "label": "Confirmation message to applicant", "type": "textarea",  "required": false, "placeholder": "Thanks {{name}}! Your application has been received and will be reviewed within {{reply_time}}.", "hint": "Use {{name}}, {{membership_type}}, {{reply_time}} as placeholders."}
+      {"key": "confirmation_message", "label": "Confirmation message to applicant", "type": "textarea",  "required": false, "placeholder": "Thanks {{name}}! Your application has been received and will be reviewed soon.", "hint": "Use {{name}}, {{membership_type}} as placeholders."}
     ]
   }',
   '[

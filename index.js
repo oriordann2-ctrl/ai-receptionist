@@ -12724,7 +12724,7 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     const memberSubject = `Your enquiry — ${clubName}`;
     const memberHtml = `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
       <h2 style="font-size:20px;color:#111827;">Thanks, ${memberName}!</h2>
-      <p style="font-size:15px;color:#374151;">We've received your enquiry and ${coachName ? coachName : "the team"} will be in touch within ${replyTime} to confirm.</p>
+      <p style="font-size:15px;color:#374151;">We've received your enquiry and ${coachName ? coachName : "the team"} will be in touch${replyTime && replyTime !== "soon" ? " within " + replyTime : " soon"}.</p>
       ${emailFooter}
     </div>`;
     fetch("https://api.resend.com/emails", {
@@ -20577,6 +20577,16 @@ app.listen(PORT, async () => {
       else console.log("[migration] lead_capture phone set to required");
     }
   } catch (e) { console.error("[migration] lead_capture phone:", e.message); }
+
+  // Remove reply_time from membership_application_agent config (not relevant for membership)
+  try {
+    const { data: memDef } = await supabase.from("agent_definitions").select("config_schema").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef?.config_schema?.fields?.some(f => f.key === "reply_time")) {
+      const fields = memDef.config_schema.fields.filter(f => f.key !== "reply_time");
+      await supabase.from("agent_definitions").update({ config_schema: { ...memDef.config_schema, fields } }).eq("id", "membership_application_agent");
+      console.log("[migration] Removed reply_time from membership_application_agent config_schema");
+    }
+  } catch (e) { console.error("[migration] remove reply_time:", e.message); }
 
   // Add EBO member validation to proposer/seconder steps in membership_application_agent
   try {

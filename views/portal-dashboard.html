@@ -4403,6 +4403,15 @@
       document.getElementById("juniorEventsOverlay").style.display = "none";
     };
 
+    function _jeToast(msg) {
+      var t = document.createElement("div");
+      t.textContent = msg;
+      t.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 22px;border-radius:10px;font-size:14px;font-weight:500;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.18);opacity:0;transition:opacity 0.2s;";
+      document.body.appendChild(t);
+      setTimeout(function(){ t.style.opacity = "1"; }, 10);
+      setTimeout(function(){ t.style.opacity = "0"; setTimeout(function(){ t.remove(); }, 250); }, 2500);
+    }
+
     window.jeAddCustomQ = function(prefix) {
       var container = document.getElementById("je" + prefix + "CustomQ");
       if (!container) return;
@@ -4536,6 +4545,7 @@
       }).then(function(r){ return r.json(); }).then(function(d) {
         if (d.error) { alert("Error: " + d.error); return; }
         openJuniorEvents();
+        _jeToast("✓ Event created");
       }).catch(function() { alert("Something went wrong."); });
     };
 
@@ -4638,6 +4648,7 @@
       }).then(function(r){ return r.json(); }).then(function(d) {
         if (d.error) { alert("Error: " + d.error); return; }
         openJuniorEvents();
+        _jeToast("✓ Event saved");
       }).catch(function() { alert("Something went wrong."); });
     };
 

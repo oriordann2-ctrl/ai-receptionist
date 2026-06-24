@@ -1595,12 +1595,13 @@ async function loadEboConfigFromDb(tenantId) {
       const cfg = decryptIntgConfig(data.config);
       if (!cfg.username || !cfg.password) return; // incomplete credentials
       EBO_CONFIG[tenantId] = {
-        clubId:      cfg.club_id,
-        username:    cfg.username,
-        password:    cfg.password,
-        openTime:    cfg.open_time    || "08:00",
-        closeTime:   cfg.close_time   || "22:00",
-        slotMinutes: parseInt(cfg.slot_minutes || "60", 10)
+        clubId:        cfg.club_id,
+        username:      cfg.username,
+        password:      cfg.password,
+        openTime:      cfg.open_time    || "08:00",
+        closeTime:     cfg.close_time   || "22:00",
+        slotMinutes:   parseInt(cfg.slot_minutes || "60", 10),
+        juniorTypeIds: Array.isArray(cfg.junior_type_ids) ? cfg.junior_type_ids : null
       };
       console.log(`[EBO] Config loaded from DB for ${tenantId}`);
     }
@@ -8551,8 +8552,11 @@ app.post("/api/ebo/check-junior-member", async (req, res) => {
     if (!EBO_CONFIG[tenantId]) return res.json({ found: false, reason: "no_ebo" });
 
     const members = await getAllEboMembers(tenantId);
+    const juniorTypeIds = EBO_CONFIG[tenantId]?.juniorTypeIds;
     const juniors = members.filter(m =>
-      (m.type_id === 1 && m.admin_type_id === 5) || m.type_id === 5
+      juniorTypeIds
+        ? juniorTypeIds.includes(m.type_id)
+        : (m.type_id === 1 && m.admin_type_id === 5) || m.type_id === 5
     );
 
     const normalize = s => String(s || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
@@ -8622,15 +8626,16 @@ app.get("/api/portal/junior-events", requireTenant, async (req, res) => {
 // Portal: create event
 app.post("/api/portal/junior-events", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
-  const { name, date_range, member_price, non_member_price, question_blocks, active } = req.body || {};
+  const { name, date_range, member_price, non_member_price, question_blocks, member_lookup_type, active } = req.body || {};
   if (!name) return res.status(400).json({ error: "name is required" });
   const { data, error } = await supabase.from("junior_events").insert({
     tenant_id: tenantId,
     name,
     date_range: date_range || null,
-    member_price:     member_price     ?? 0,
-    non_member_price: non_member_price ?? 0,
-    question_blocks:  question_blocks  || [],
+    member_price:       member_price       ?? 0,
+    non_member_price:   non_member_price   ?? 0,
+    question_blocks:    question_blocks    || [],
+    member_lookup_type: member_lookup_type || "ebo",
     active: active !== false
   }).select().single();
   if (error) return res.status(500).json({ error: error.message });
@@ -8640,14 +8645,15 @@ app.post("/api/portal/junior-events", requireTenant, async (req, res) => {
 // Portal: update event
 app.put("/api/portal/junior-events/:id", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
-  const { name, date_range, member_price, non_member_price, question_blocks, active } = req.body || {};
+  const { name, date_range, member_price, non_member_price, question_blocks, member_lookup_type, active } = req.body || {};
   const updates = {};
-  if (name              !== undefined) updates.name              = name;
-  if (date_range        !== undefined) updates.date_range        = date_range;
-  if (member_price      !== undefined) updates.member_price      = member_price;
-  if (non_member_price  !== undefined) updates.non_member_price  = non_member_price;
-  if (question_blocks   !== undefined) updates.question_blocks   = question_blocks;
-  if (active            !== undefined) updates.active            = active;
+  if (name               !== undefined) updates.name               = name;
+  if (date_range         !== undefined) updates.date_range         = date_range;
+  if (member_price       !== undefined) updates.member_price       = member_price;
+  if (non_member_price   !== undefined) updates.non_member_price   = non_member_price;
+  if (question_blocks    !== undefined) updates.question_blocks    = question_blocks;
+  if (member_lookup_type !== undefined) updates.member_lookup_type = member_lookup_type;
+  if (active             !== undefined) updates.active             = active;
   const { data, error } = await supabase.from("junior_events")
     .update(updates)
     .eq("id", req.params.id)

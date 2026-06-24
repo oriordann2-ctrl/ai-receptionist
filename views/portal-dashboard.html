@@ -4422,6 +4422,12 @@
         + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Non-member Price (€)</label>'
         + '<input id="jeNewNMPrice" type="number" min="0" step="0.01" placeholder="0" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
         + '</div>'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Member Lookup</label>'
+        + '<select id="jeNewLookup" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;background:white;">'
+        + '<option value="ebo">EBO — automatic lookup by child\'s name</option>'
+        + '<option value="self_declare">Self-declare — ask parent Yes / No</option>'
+        + '<option value="none">None — non-member price for everyone</option>'
+        + '</select></div>'
         + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Question Blocks</label>'
         + blocksHtml
         + '</div>'
@@ -4452,16 +4458,18 @@
         });
       });
 
+      var lookupType = (document.getElementById("jeNewLookup").value) || "ebo";
       fetch("/api/portal/junior-events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name:             name,
-          date_range:       dateRange || null,
-          member_price:     mPrice,
-          non_member_price: nmPrice,
-          question_blocks:  blocks,
-          active:           true
+          name:               name,
+          date_range:         dateRange || null,
+          member_price:       mPrice,
+          non_member_price:   nmPrice,
+          question_blocks:    blocks,
+          member_lookup_type: lookupType,
+          active:             true
         })
       }).then(function(r){ return r.json(); }).then(function(d) {
         if (d.error) { alert("Error: " + d.error); return; }
@@ -4515,6 +4523,12 @@
         + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Non-member Price (€)</label>'
         + '<input id="jeEditNMPrice" type="number" min="0" step="0.01" value="' + jEsc(ev.non_member_price) + '" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
         + '</div>'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Member Lookup</label>'
+        + '<select id="jeEditLookup" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;background:white;">'
+        + '<option value="ebo"' + (ev.member_lookup_type === "ebo" || !ev.member_lookup_type ? " selected" : "") + '>EBO — automatic lookup by child\'s name</option>'
+        + '<option value="self_declare"' + (ev.member_lookup_type === "self_declare" ? " selected" : "") + '>Self-declare — ask parent Yes / No</option>'
+        + '<option value="none"' + (ev.member_lookup_type === "none" ? " selected" : "") + '>None — non-member price for everyone</option>'
+        + '</select></div>'
         + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Question Blocks</label>'
         + blocksHtml
         + '</div>'
@@ -4545,15 +4559,17 @@
         });
       });
 
+      var lookupType = (document.getElementById("jeEditLookup").value) || "ebo";
       fetch("/api/portal/junior-events/" + eventId, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name:             name,
-          date_range:       dateRange || null,
-          member_price:     mPrice,
-          non_member_price: nmPrice,
-          question_blocks:  blocks
+          name:               name,
+          date_range:         dateRange || null,
+          member_price:       mPrice,
+          non_member_price:   nmPrice,
+          question_blocks:    blocks,
+          member_lookup_type: lookupType
         })
       }).then(function(r){ return r.json(); }).then(function(d) {
         if (d.error) { alert("Error: " + d.error); return; }

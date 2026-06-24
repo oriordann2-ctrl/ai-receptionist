@@ -1554,16 +1554,48 @@
 
   function _beginJuniorFlow(event) {
     _juniorFlow = { event: event, step: 0, data: {} };
+    var lookupType = event.member_lookup_type || "ebo";
+    var needsFullName = lookupType === "ebo";
     addMsg("Happy to help you book " + event.name + "! What's your child's name?", "bot");
     _mbrInlineInput("Child's first and last name *", function(val) {
-      if (val.trim().split(/\s+/).length < 2) {
+      if (needsFullName && val.trim().split(/\s+/).length < 2) {
         addMsg("Please enter both first and last name so I can check membership.", "bot");
         _beginJuniorFlow(event);
         return;
       }
       _juniorFlow.data.childName = val.trim();
-      _juniorCheckMember(val.trim());
+      if (lookupType === "self_declare") {
+        _juniorSelfDeclare(val.trim());
+      } else if (lookupType === "none") {
+        _juniorFlow.data.isMember = false;
+        _juniorFlow.data.price = Number(event.non_member_price);
+        _juniorFlow.step = 1;
+        _runJuniorStep();
+      } else {
+        _juniorCheckMember(val.trim());
+      }
     });
+  }
+
+  function _juniorSelfDeclare(childName) {
+    var f = _juniorFlow;
+    if (!f) return;
+    var event = f.event;
+    addMsg("Is " + childName + " a junior member of the club?", "bot");
+    setTimeout(function() {
+      _mbrInlineButtons([
+        { label: "Yes, member" },
+        { label: "No, non-member" }
+      ], function(choice) {
+        var isMember = choice === "Yes, member";
+        f.data.isMember = isMember;
+        f.data.price = isMember ? Number(event.member_price) : Number(event.non_member_price);
+        addMsg(isMember
+          ? "Great — the member rate of €" + f.data.price + " applies."
+          : "No problem — the non-member rate of €" + f.data.price + " applies.", "bot");
+        setTimeout(function() { f.step = 1; _runJuniorStep(); }, 300);
+      });
+    }, 300);
   }
 
   function _juniorCheckMember(childName) {

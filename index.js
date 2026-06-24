@@ -20465,9 +20465,11 @@ app.listen(PORT, async () => {
       const fields = lcDef.config_schema.fields.map(f =>
         f.key === "phone" ? { ...f, required: true, prompt: "And your phone number?" } : f
       );
-      await supabase.from("agent_definitions").update({ config_schema: { ...lcDef.config_schema, fields } }).eq("id", "lead_capture");
+      const { error: lcErr } = await supabase.from("agent_definitions").update({ config_schema: { ...lcDef.config_schema, fields } }).eq("id", "lead_capture");
+      if (lcErr) console.error("[migration] lead_capture phone required:", lcErr.message);
+      else console.log("[migration] lead_capture phone set to required");
     }
-  } catch {}
+  } catch (e) { console.error("[migration] lead_capture phone:", e.message); }
 
   // Ensure public bucket exists for social/profile images (img tags need public URLs)
   try {

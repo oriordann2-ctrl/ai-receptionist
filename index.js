@@ -8963,6 +8963,22 @@ app.get("/junior-booking/success", async (req, res) => {
         </div>`
       );
     }
+
+    // SMS confirmation to parent
+    if (booking.parent_phone) {
+      try {
+        await loadTwilioConfigFromDb(booking.tenant_id);
+        const twilioCfg = TWILIO_CONFIG[booking.tenant_id];
+        if (twilioCfg) {
+          const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
+          const smsBody = `Booking confirmed ✅\n${booking.child_name} — ${booking.camp_week || "event"}\nAmount paid: €${booking.price}\n\n— ${clubName}`;
+          await twilio.messages.create({ from: twilioCfg.from, to: booking.parent_phone, body: smsBody });
+          console.log(`[junior-sms] Sent to ${booking.parent_phone}`);
+        }
+      } catch (smsErr) {
+        console.error("[junior-sms] Failed:", smsErr.message);
+      }
+    }
   }
 
   const { data: tenant } = await supabase.from("tenants").select("name, website").eq("id", booking.tenant_id).maybeSingle();

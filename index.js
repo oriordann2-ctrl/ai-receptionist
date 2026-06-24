@@ -11958,12 +11958,13 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
 });
 
 // ── Shared: send a portal staff email via Resend ─────────────────────────────
-function sendStaffEmail(to, subject, html) {
+function sendStaffEmail(to, subject, html, fromName) {
   if (!process.env.RESEND_API_KEY) return;
+  const from = fromName ? `${fromName} <noreply@sprimal.com>` : "Sprimal <hello@sprimal.com>";
   fetch("https://api.resend.com/emails", {
     method:  "POST",
     headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: "Sprimal <hello@sprimal.com>", to, subject, html })
+    body: JSON.stringify({ from, to, subject, html })
   }).catch(err => console.error("[staff-email] Send error:", err.message));
 }
 
@@ -12512,11 +12513,16 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
   const replyTime   = agentConfig.reply_time || "soon";
 
   // ── Fetch tenant branding (used in both WhatsApp footer and email) ────────
-  let clubName    = agentName;
-  let clubWebsite = null;
+  let clubName      = agentName;
+  let clubWebsite   = null;
+  let assistantName = "Maeve";
   try {
-    const { data: tenantRow } = await supabase.from("tenants").select("name, website").eq("id", tenantId).maybeSingle();
-    if (tenantRow) { clubName = tenantRow.name || clubName; clubWebsite = tenantRow.website || null; }
+    const { data: tenantRow } = await supabase.from("tenants").select("name, website, assistant_name").eq("id", tenantId).maybeSingle();
+    if (tenantRow) {
+      clubName      = tenantRow.name           || clubName;
+      clubWebsite   = tenantRow.website        || null;
+      assistantName = tenantRow.assistant_name || assistantName;
+    }
   } catch (_) {}
 
   // ── Extract coach contact (phone → WhatsApp, email → email) ─────────────────
@@ -12669,7 +12675,7 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
   if (coachEmail) {
     const coachSubject = fillTemplate(`New ${agentName} enquiry from {{name}}`, collected);
     const coachHtml    = buildEmailHtml(`New ${agentName}`, `Hi ${coachName}, a new enquiry has come in via the club website.`, collected);
-    sendStaffEmail(coachEmail, coachSubject, coachHtml);
+    sendStaffEmail(coachEmail, coachSubject, coachHtml, assistantName);
   }
 
   const emailFooter = `
@@ -12715,7 +12721,7 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     { ...collected, reply_time: replyTime }
   );
   const htmlBody = buildEmailHtml(`New ${agentName}`, "Via your Sprimal chat widget", collected);
-  if (notifyEmail) sendStaffEmail(notifyEmail, subject, htmlBody);
+  if (notifyEmail) sendStaffEmail(notifyEmail, subject, htmlBody, assistantName);
 
   // ── Confirmation email → member ──────────────────────────────────────────
   const memberEmail = collected.email || collected.email_address;

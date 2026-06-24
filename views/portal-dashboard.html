@@ -4172,13 +4172,25 @@
       if (!btn || !ta) return;
 
       btn.disabled = true; btn.textContent = "Loading…";
-      // Use the same LLM-based suggest-field endpoint as the signup crawl
+      function showKbHint(msg, isError) {
+        var old = document.getElementById("kbHint_" + fieldKey);
+        if (old) old.remove();
+        var hint = document.createElement("div");
+        hint.id = "kbHint_" + fieldKey;
+        hint.style.cssText = "font-size:12px;margin-top:5px;color:" + (isError ? "#dc2626" : "#16a34a") + ";";
+        hint.textContent = msg;
+        btn.parentNode.appendChild(hint);
+        setTimeout(function() { hint.remove(); }, 6000);
+      }
       fetch("/api/portal/agents/" + activeTenantAgentId + "/suggest-field", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ field: fieldKey })
       })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+          if (!r.ok) return r.text().then(function(t) { throw new Error(r.status + ": " + t.slice(0, 120)); });
+          return r.json();
+        })
         .then(function(data) {
           btn.disabled = false; btn.textContent = "Load from Knowledge Base";
           if (data.suggestion) {
@@ -4186,15 +4198,12 @@
             ta.style.borderColor = "#16a34a";
             setTimeout(function() { ta.style.borderColor = "#e2e8f0"; }, 2000);
           } else {
-            var hint = document.createElement("span");
-            hint.style.cssText = "font-size:11px;color:#dc2626;margin-left:8px;";
-            hint.textContent = data.message || "No matching content found in your knowledge base.";
-            btn.parentNode.insertBefore(hint, btn.nextSibling);
-            setTimeout(function() { hint.remove(); }, 4000);
+            showKbHint(data.message || "No matching content found in your knowledge base.", true);
           }
         })
-        .catch(function() {
+        .catch(function(err) {
           btn.disabled = false; btn.textContent = "Load from Knowledge Base";
+          showKbHint("Error: " + (err.message || "Something went wrong"), true);
         });
     };
 

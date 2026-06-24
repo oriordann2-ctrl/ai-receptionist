@@ -12595,6 +12595,21 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     `_Powered by Sprimal · sprimal.com_`
   ].filter(s => s !== undefined).join("\n");
 
+  // ── AI summarise game_focus if provided ──────────────────────────────────
+  if (collected.game_focus) {
+    try {
+      const summaryResp = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Summarise the following coaching focus note in 1-2 concise sentences, as if passing it to a tennis coach. Be direct and clear." },
+          { role: "user", content: collected.game_focus }
+        ],
+        max_tokens: 80
+      });
+      collected.game_focus = summaryResp.choices[0].message.content.trim();
+    } catch (_) {}
+  }
+
   // ── Load per-tenant Twilio config once (used for both WhatsApp and SMS) ──
   await loadTwilioConfigFromDb(tenantId);
   const twilioCfg = TWILIO_CONFIG[tenantId];
@@ -13048,7 +13063,14 @@ async function runCurrentStep(convo, userInput) {
 
     // Validate and store
     const trimmed = userInput.trim();
-    if (!trimmed) {
+    const isSkip  = trimmed.toLowerCase() === "skip";
+    if (!trimmed || isSkip) {
+      if (step.required === false) {
+        state.collected[step.collect_field] = null;
+        state.stepId     = step.next;
+        state.skillState = null;
+        return runCurrentStep(convo, null);
+      }
       return { reply: `Could you share ${step.collect_field.replace(/_/g, " ")}? It helps us get things set up for you.`, choices: [] };
     }
     state.collected[step.collect_field] = trimmed;
@@ -20413,6 +20435,28 @@ app.listen(PORT, async () => {
       await supabase.from("agent_definitions").update({ config_schema: { ...caDef.config_schema, fields } }).eq("id", "coaching_enquiry_agent");
     }
   } catch {}
+
+  // Add optional game_focus step to coaching_enquiry_agent (between lead_capture and notify)
+  try {
+    const { data: ceDef } = await supabase.from("agent_definitions").select("steps").eq("id", "coaching_enquiry_agent").maybeSingle();
+    if (ceDef?.steps && !ceDef.steps.find(s => s.id === "game_focus")) {
+      const steps = ceDef.steps.map(s =>
+        s.id === "lead_capture" ? { ...s, next: "game_focus" } : s
+      );
+      const gameFocusStep = {
+        id: "game_focus",
+        type: "collect",
+        prompt: "Are there particular aspects of your game that you would like to focus on? (optional — or type 'skip')",
+        collect_field: "game_focus",
+        required: false,
+        next: "notify"
+      };
+      const notifyIdx = steps.findIndex(s => s.id === "notify");
+      steps.splice(notifyIdx, 0, gameFocusStep);
+      await supabase.from("agent_definitions").update({ steps }).eq("id", "coaching_enquiry_agent");
+      console.log("[migration] Added game_focus step to coaching_enquiry_agent");
+    }
+  } catch (e) { console.error("[migration] game_focus step:", e.message); }
 
   // Make phone required in lead_capture skill (court booking and others)
   try {

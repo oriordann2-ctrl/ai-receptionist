@@ -13124,10 +13124,12 @@ async function runCurrentStep(convo, userInput) {
     // EBO member validation — check proposer/seconder against club membership list
     if (step.validation_type === "ebo_member") {
       try {
-        const tenantId = convo.tenantId;
+        const tenantId = state.tenantId;
         await loadEboConfigFromDb(tenantId);
+        console.log(`[EBO validate] step=${step.id} tenantId=${tenantId} hasConfig=${!!EBO_CONFIG[tenantId]} name="${trimmed}"`);
         if (EBO_CONFIG[tenantId]) {
           const members = await getAllEboMembers(tenantId);
+          console.log(`[EBO validate] ${members.length} members loaded`);
           const normalize = s => String(s || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
           const input = normalize(trimmed);
           const match = members.find(m => {
@@ -13136,13 +13138,15 @@ async function runCurrentStep(convo, userInput) {
             const last  = normalize(m.last_name);
             return full === input || (input.includes(first) && input.includes(last));
           });
+          console.log(`[EBO validate] match=${!!match} for "${trimmed}"`);
           if (!match) {
             return { reply: `We couldn't find "${trimmed}" as a current member of the club. Please check the spelling and try again.`, choices: [] };
           }
+        } else {
+          console.warn(`[EBO validate] No EBO config for ${tenantId} — skipping member check`);
         }
       } catch (e) {
         console.error("[agent] EBO member validation error:", e.message);
-        // Non-fatal — proceed without validation if EBO is unavailable
       }
     }
 

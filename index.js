@@ -8925,7 +8925,7 @@ app.get("/junior-booking/success", async (req, res) => {
         fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: `${clubName} <noreply@sprimal.com>`, reply_to: adminEmail || undefined, to, subject, html })
+          body: JSON.stringify({ from: `${clubName} <noreply@sprimal.com>`, to, subject, html })
         }).catch(e => console.error("[junior-success email]", e.message));
 
       if (adminEmail) {
@@ -9240,7 +9240,7 @@ app.get("/camp-booking/success", async (req, res) => {
         fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: `${clubName} <noreply@sprimal.com>`, reply_to: adminEmail || undefined, to, subject, html })
+          body: JSON.stringify({ from: `${clubName} <noreply@sprimal.com>`, to, subject, html })
         }).catch(e => console.error("[camp-success email]", e.message));
 
       if (adminEmail) {

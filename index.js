@@ -8964,27 +8964,28 @@ app.get("/junior-booking/success", async (req, res) => {
       );
     }
 
-    // SMS confirmation to parent
-    if (booking.parent_phone) {
-      try {
-        await loadTwilioConfigFromDb(booking.tenant_id);
-        const twilioCfg = TWILIO_CONFIG[booking.tenant_id];
-        if (twilioCfg) {
-          const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
-          const smsBody = `Booking confirmed ✅\n${booking.child_name} — ${booking.camp_week || "event"}\nAmount paid: €${booking.price}\n\n— ${clubName}`;
-          const rawPhone = booking.parent_phone.replace(/\s+/g, "");
-          const e164Phone = rawPhone.startsWith("+") ? rawPhone : rawPhone.startsWith("0") ? "+353" + rawPhone.slice(1) : "+" + rawPhone;
-          await twilio.messages.create({ from: twilioCfg.from, to: e164Phone, body: smsBody });
-          console.log(`[junior-sms] Sent to ${e164Phone}`);
-        }
-      } catch (smsErr) {
-        console.error("[junior-sms] Failed:", smsErr.message);
-      }
-    }
   }
 
   const { data: tenant } = await supabase.from("tenants").select("name, website").eq("id", booking.tenant_id).maybeSingle();
   const clubName = tenant?.name    || "The club";
+
+  // SMS confirmation to parent (only on first successful payment)
+  if (booking.status !== "paid" && booking.parent_phone) {
+    try {
+      await loadTwilioConfigFromDb(booking.tenant_id);
+      const twilioCfg = TWILIO_CONFIG[booking.tenant_id];
+      if (twilioCfg) {
+        const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
+        const smsBody = `Booking confirmed ✅\n${booking.child_name} — ${booking.camp_week || "event"}\nAmount paid: €${booking.price}\n\n— ${clubName}`;
+        const rawPhone = booking.parent_phone.replace(/\s+/g, "");
+        const e164Phone = rawPhone.startsWith("+") ? rawPhone : rawPhone.startsWith("0") ? "+353" + rawPhone.slice(1) : "+" + rawPhone;
+        await twilio.messages.create({ from: twilioCfg.from, to: e164Phone, body: smsBody });
+        console.log(`[junior-sms] Sent to ${e164Phone}`);
+      }
+    } catch (smsErr) {
+      console.error("[junior-sms] Failed:", smsErr.message);
+    }
+  }
   const backUrl  = req.query.return && req.query.return.startsWith("http")
     ? req.query.return
     : (tenant?.website || null);

@@ -12601,7 +12601,7 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
       const summaryResp = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "Summarise the following coaching focus note in 1-2 concise sentences, as if passing it to a tennis coach. Be direct and clear." },
+          { role: "system", content: `Summarise this coaching focus note in one short punchy sentence in third person, using the player's first name (${(collected.name || "The player").split(" ")[0]}). Example: "Dan wants to work on his backhand and net play." Keep it under 20 words.` },
           { role: "user", content: collected.game_focus }
         ],
         max_tokens: 80

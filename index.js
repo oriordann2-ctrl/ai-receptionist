@@ -12595,28 +12595,23 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     `_Powered by Sprimal · sprimal.com_`
   ].filter(s => s !== undefined).join("\n");
 
+  // ── Load per-tenant Twilio config once (used for both WhatsApp and SMS) ──
+  await loadTwilioConfigFromDb(tenantId);
+  const twilioCfg = TWILIO_CONFIG[tenantId];
+
   // ── WhatsApp → coach (if phone number configured) ─────────────────────────
-  if (coachPhone) {
-    await loadTwilioConfigFromDb(tenantId);
-    const twilioCfg = TWILIO_CONFIG[tenantId];
-    if (twilioCfg) {
-      try {
-        const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
-        await twilio.messages.create({ from: twilioCfg.from, to: `whatsapp:${coachPhone}`, body: waBody });
-        console.log(`[Twilio] WhatsApp sent to ${coachPhone} for tenant ${tenantId}`);
-      } catch (err) {
-        console.error(`[Twilio] WhatsApp send failed for ${tenantId}:`, err.message);
-      }
+  if (coachPhone && twilioCfg) {
+    try {
+      const twilio = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
+      await twilio.messages.create({ from: twilioCfg.from, to: `whatsapp:${coachPhone}`, body: waBody });
+      console.log(`[Twilio] WhatsApp sent to ${coachPhone} for tenant ${tenantId}`);
+    } catch (err) {
+      console.error(`[Twilio] WhatsApp send failed for ${tenantId}:`, err.message);
     }
   }
 
-  // ── SMS → coach(es) via global Twilio env vars ───────────────────────────
-  // Sends to preferred coach if selected, otherwise all coaches in the config.
-  // Fires if TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_PHONE_NUMBER are set.
-  const smsSid   = process.env.TWILIO_ACCOUNT_SID;
-  const smsToken = process.env.TWILIO_AUTH_TOKEN;
-  const smsFrom  = process.env.TWILIO_PHONE_NUMBER;
-  if (smsSid && smsToken && smsFrom) {
+  // ── SMS → coach(es) via per-tenant Twilio config ──────────────────────────
+  if (twilioCfg) {
     const smsTargets = [];
     if (coachPhone) {
       smsTargets.push({ name: coachFirstName, phone: coachPhone });
@@ -12639,14 +12634,14 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
       const rawSlots = collected.preferred_slots || collected.preferred_slot || "";
       const slotsLine = rawSlots ? `\nPreferred slots: ${rawSlots.split(" | ").map(s => s.trim()).join(", ")}` : "";
       try {
-        const twilioClient = require("twilio")(smsSid, smsToken);
+        const twilioClient = require("twilio")(twilioCfg.accountSid, twilioCfg.authToken);
         for (const { name, phone } of smsTargets) {
           const smsBody = `New ${agentName} - ${clubName}\nHi ${name}!\n\n${detailLines}${slotsLine}\n\nVia Sprimal`;
-          await twilioClient.messages.create({ from: smsFrom, to: phone, body: smsBody });
-          console.log(`[SMS] Sent to ${phone} for tenant ${tenantId}`);
+          await twilioClient.messages.create({ from: twilioCfg.from, to: phone, body: smsBody });
+          console.log(`[coaching-sms] Sent to ${phone} for tenant ${tenantId}`);
         }
       } catch (smsErr) {
-        console.error(`[SMS] Send failed for ${tenantId}:`, smsErr.message);
+        console.error(`[coaching-sms] Failed for ${tenantId}:`, smsErr.message);
       }
     }
   }
@@ -12702,6 +12697,23 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
   );
   const htmlBody = buildEmailHtml(`New ${agentName}`, "Via your Sprimal chat widget", collected);
   if (notifyEmail) sendStaffEmail(notifyEmail, subject, htmlBody);
+
+  // ── Confirmation email → member ──────────────────────────────────────────
+  const memberEmail = collected.email || collected.email_address;
+  const memberName  = collected.name  || collected.full_name || "there";
+  if (memberEmail && process.env.RESEND_API_KEY) {
+    const memberSubject = `Your enquiry — ${clubName}`;
+    const memberHtml = `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+      <h2 style="font-size:20px;color:#111827;">Thanks, ${memberName}!</h2>
+      <p style="font-size:15px;color:#374151;">We've received your enquiry and ${coachName ? coachName : "the team"} will be in touch within ${replyTime} to confirm.</p>
+      ${emailFooter}
+    </div>`;
+    fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: `${clubName} <noreply@sprimal.com>`, reply_to: agentConfig.notification_email || undefined, to: memberEmail, subject: memberSubject, html: memberHtml })
+    }).catch(err => console.error("[coaching-member-email]", err.message));
+  }
 
   // Store lead in skill_leads — keyed by tenant_agent instance UUID so leads panel can filter
   await supabase.from("skill_leads").insert({

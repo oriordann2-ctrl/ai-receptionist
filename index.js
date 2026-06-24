@@ -9009,7 +9009,7 @@ app.get("/junior-booking/success", async (req, res) => {
         <div><strong>Amount paid:</strong> €${booking.price}</div>
         <div><strong>Confirmation sent to:</strong> ${booking.parent_email}</div>
       </div>
-      <p>A confirmation email has been sent to you.</p>
+      <p>A confirmation email${booking.parent_phone ? " and SMS" : ""} has been sent to you.</p>
       ${backUrl ? `<a class="btn" href="${backUrl}">← Back to ${clubName}</a>` : ""}
     </div>
   </body></html>`);

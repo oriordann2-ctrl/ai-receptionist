@@ -1186,8 +1186,8 @@
 
     } else if (type === "collect_membership_cancel" || type === "collect_membership_change") {
       startMembershipFlow(type);
-    } else if (type === "collect_summer_camp") {
-      startCampFlow();
+    } else if (type === "collect_summer_camp" || type === "collect_junior_event") {
+      startJuniorEventFlow(null);
     }
   }
 
@@ -1507,26 +1507,69 @@
   }
   // ── End membership flow ────────────────────────────────────────────────────
 
-  // ── Summer camp booking flow ───────────────────────────────────────────────
+  // ── Summer camp booking flow (legacy — kept for backward compat) ──────────
   var _campFlow = null;
-  var CAMP_MEMBER_PRICE    = 75;
-  var CAMP_NONMEMBER_PRICE = 85;
 
   function startCampFlow() {
-    _campFlow = { step: 0, data: {} };
-    addMsg("Happy to help with that! What's your child's name?", "bot");
+    // Delegate to the new generic junior event flow
+    startJuniorEventFlow(null);
+  }
+  // ── End summer camp flow (legacy stub) ────────────────────────────────────
+
+  // ── Junior Event Booking flow (generic multi-tenant) ──────────────────────
+  var _juniorFlow = null;
+
+  function startJuniorEventFlow(preloadedEvent) {
+    if (preloadedEvent) {
+      _beginJuniorFlow(preloadedEvent);
+      return;
+    }
+    // Fetch active events and pick (auto-select if only one)
+    fetch(BACKEND + "/api/junior-events?tenantId=" + encodeURIComponent(clubId))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var events = d.events || [];
+        if (!events.length) {
+          addMsg("There are no events available for booking at the moment. Please contact the club directly.", "bot");
+          return;
+        }
+        if (events.length === 1) {
+          _beginJuniorFlow(events[0]);
+          return;
+        }
+        addMsg("Which event would you like to book?", "bot");
+        setTimeout(function() {
+          _mbrInlineButtons(events.map(function(ev) {
+            return { label: ev.name + (ev.date_range ? " (" + ev.date_range + ")" : ""), value: ev.id };
+          }), function(eventId) {
+            var chosen = events.find(function(ev) { return ev.id === eventId; });
+            if (chosen) _beginJuniorFlow(chosen);
+          });
+        }, 300);
+      })
+      .catch(function() {
+        addMsg("Sorry, I couldn't load events right now. Please try again or contact the club directly.", "bot");
+      });
+  }
+
+  function _beginJuniorFlow(event) {
+    _juniorFlow = { event: event, step: 0, data: {} };
+    addMsg("Happy to help you book " + event.name + "! What's your child's name?", "bot");
     _mbrInlineInput("Child's first and last name *", function(val) {
       if (val.trim().split(/\s+/).length < 2) {
         addMsg("Please enter both first and last name so I can check membership.", "bot");
-        startCampFlow();
+        _beginJuniorFlow(event);
         return;
       }
-      _campFlow.data.childName = val.trim();
-      _campCheckMember(val.trim());
+      _juniorFlow.data.childName = val.trim();
+      _juniorCheckMember(val.trim());
     });
   }
 
-  function _campCheckMember(childName) {
+  function _juniorCheckMember(childName) {
+    var f = _juniorFlow;
+    if (!f) return;
+    var event = f.event;
     addMsg("Checking membership…", "bot");
     fetch(BACKEND + "/api/ebo/check-junior-member", {
       method: "POST",
@@ -1536,15 +1579,13 @@
       .then(function(r) { return r.json(); })
       .then(function(d) {
         var isMember = !!d.found;
-        _campFlow.data.isMember = isMember;
-        _campFlow.data.price    = isMember ? CAMP_MEMBER_PRICE : CAMP_NONMEMBER_PRICE;
-
+        f.data.isMember = isMember;
+        f.data.price    = isMember ? Number(event.member_price) : Number(event.non_member_price);
         if (isMember) {
-          addMsg("✅ " + childName + " is a club member — the member rate of €" + CAMP_MEMBER_PRICE + " applies.", "bot");
+          addMsg("✅ " + childName + " is a club member — the member rate of €" + f.data.price + " applies.", "bot");
         } else {
-          addMsg("We couldn't find " + childName + " as a junior member. The non-member rate of €" + CAMP_NONMEMBER_PRICE + " applies.", "bot");
+          addMsg("We couldn't find " + childName + " as a junior member. The non-member rate of €" + f.data.price + " applies.", "bot");
         }
-
         setTimeout(function() {
           _mbrInlineButtons([
             { label: "Continue booking" },
@@ -1553,20 +1594,20 @@
             if (choice === "That's not right") {
               addMsg("No problem — what's the correct name?", "bot");
               _mbrInlineInput("Child's first and last name *", function(val) {
-                _campFlow.data.childName = val.trim();
-                _campCheckMember(val.trim());
+                f.data.childName = val.trim();
+                _juniorCheckMember(val.trim());
               });
             } else {
-              _campFlow.step = 1;
-              _runCampStep();
+              f.step = 1;
+              _runJuniorStep();
             }
           });
         }, 300);
       })
       .catch(function() {
-        _campFlow.data.isMember = false;
-        _campFlow.data.price    = CAMP_NONMEMBER_PRICE;
-        addMsg("I wasn't able to check membership right now — we'll apply the non-member rate of €" + CAMP_NONMEMBER_PRICE + " and the club can adjust it if needed.", "bot");
+        f.data.isMember = false;
+        f.data.price    = Number(event.non_member_price);
+        addMsg("I wasn't able to check membership right now — we'll apply the non-member rate of €" + f.data.price + " and the club can adjust it if needed.", "bot");
         setTimeout(function() {
           _mbrInlineButtons([
             { label: "Continue booking" },
@@ -1574,177 +1615,171 @@
           ], function(choice) {
             if (choice === "Cancel") {
               addMsg("No problem — feel free to come back anytime.", "bot");
-              _campFlow = null;
+              _juniorFlow = null;
             } else {
-              _campFlow.step = 1;
-              _runCampStep();
+              f.step = 1;
+              _runJuniorStep();
             }
           });
         }, 300);
       });
   }
 
-  function _runCampStep() {
-    var f = _campFlow;
+  function _runJuniorStep() {
+    var f = _juniorFlow;
     if (!f) return;
-    var child = f.data.childName;
+    var child  = f.data.childName;
+    var blocks = f.event.question_blocks || [];
+
+    if (f.step >= 6) {
+      var blockIndex = f.step - 6;
+      if (blockIndex >= blocks.length) {
+        _submitJuniorFlow();
+        return;
+      }
+      _runJuniorBlock(blocks[blockIndex], function() {
+        f.step++;
+        _runJuniorStep();
+      });
+      return;
+    }
+
     switch (f.step) {
       case 1:
         addMsg("Which session would you like to book for " + child + "?", "bot");
-        fetch(BACKEND + "/api/camp-sessions?tenantId=" + encodeURIComponent(clubId))
+        // Fetch fresh availability
+        fetch(BACKEND + "/api/junior-events?tenantId=" + encodeURIComponent(clubId))
           .then(function(r) { return r.json(); })
           .then(function(d) {
-            var sessions = d.sessions || [];
+            var events  = d.events || [];
+            var matched = events.find(function(ev) { return ev.id === f.event.id; });
+            var sessions = matched ? (matched.junior_event_sessions || []) : (f.event.junior_event_sessions || []);
             var buttons = sessions.map(function(s) {
-              var avail = s.available;
+              var avail = s.available !== undefined ? s.available : (s.capacity - (s.booked || 0));
               var sublabel = avail <= 0 ? "No places remaining" :
                              avail === 1 ? "1 place left" :
                              avail + " places remaining";
               return {
-                label:    s.display_label || s.session_name,
-                value:    s.session_name,
+                label:    s.session_name,
+                value:    JSON.stringify({ id: s.id, name: s.session_name }),
                 sublabel: sublabel,
                 disabled: avail <= 0
               };
             });
             if (!buttons.length) {
-              buttons = [
-                { label: "5–9 years  (9:30–11:30am)",  value: "Summer Camp 2026 — 5–9 years  (9:30–11:30am)  |  July 20–24" },
-                { label: "10 years+  (12:00–2:00pm)", value: "Summer Camp 2026 — 10 years+  (12:00–2:00pm)  |  July 20–24" }
-              ];
+              addMsg("There are no sessions available for this event. Please contact the club directly.", "bot");
+              _juniorFlow = null; return;
             }
             _mbrInlineButtons(buttons, function(val) {
-              f.data.campWeek = val; f.step++; _runCampStep();
+              var parsed = JSON.parse(val);
+              f.data.sessionId   = parsed.id;
+              f.data.sessionName = parsed.name;
+              f.step++; _runJuniorStep();
             });
           })
           .catch(function() {
-            _mbrInlineButtons([
-              { label: "5–9 years  (9:30–11:30am)",  value: "Summer Camp 2026 — 5–9 years  (9:30–11:30am)  |  July 20–24" },
-              { label: "10 years+  (12:00–2:00pm)", value: "Summer Camp 2026 — 10 years+  (12:00–2:00pm)  |  July 20–24" }
-            ], function(val) {
-              f.data.campWeek = val; f.step++; _runCampStep();
-            });
+            addMsg("Sorry, I couldn't load session availability. Please try again.", "bot");
+            _juniorFlow = null;
           });
         break;
       case 2:
         addMsg("What's your name (parent or guardian)?", "bot");
         _mbrInlineInput("Your full name *", function(val) {
-          f.data.parentName = val.trim(); f.step++; _runCampStep();
+          f.data.parentName = val.trim(); f.step++; _runJuniorStep();
         });
         break;
       case 3:
         addMsg("What's your email address?", "bot");
         _mbrInlineInput("Your email *", function(val) {
-          if (!val.includes("@")) { addMsg("Please enter a valid email address.", "bot"); _runCampStep(); return; }
-          f.data.parentEmail = val.trim(); f.step++; _runCampStep();
+          if (!val.includes("@")) { addMsg("Please enter a valid email address.", "bot"); _runJuniorStep(); return; }
+          f.data.parentEmail = val.trim(); f.step++; _runJuniorStep();
         });
         break;
       case 4:
         addMsg("And your phone number?", "bot");
         _mbrInlineInput("Phone number *", function(val) {
-          f.data.parentPhone = val.trim(); f.step++; _runCampStep();
+          f.data.parentPhone = val.trim(); f.step++; _runJuniorStep();
         });
         break;
       case 5:
         addMsg("What is " + child + "'s date of birth?", "bot");
         _mbrInlineInput("DD/MM/YYYY", function(val) {
-          f.data.childDob = val.trim(); f.step++; _runCampStep();
+          f.data.childDob = val.trim(); f.step++; _runJuniorStep();
         });
-        break;
-      case 6:
-        f.step++; _runCampStep();
-        break;
-      case 7:
-        addMsg("Please share any relevant medical information — inhalers, allergies, disabilities, or any additional support needed from coaches:", "bot");
-        _mbrInlineInput("Medical info *", function(val) {
-          f.data.medicalInfo = val.trim(); f.step++; _runCampStep();
-        });
-        break;
-      case 8:
-        addMsg("Do you consent to your child's health information being shared with coaches solely for the purpose of their safe participation in camp?", "bot");
-        setTimeout(function() {
-          _mbrInlineButtons([{ label: "I consent" }, { label: "I do not consent" }], function(val) {
-            if (val === "I do not consent") {
-              addMsg("This consent is required to process the booking. Please contact the club directly if you have concerns.", "bot");
-              _campFlow = null; return;
-            }
-            f.data.dataSharingConsent = true; f.step++; _runCampStep();
-          });
-        }, 300);
-        break;
-      case 9:
-        addMsg("Do you permit the club to contact you using the details provided above?", "bot");
-        setTimeout(function() {
-          _mbrInlineButtons([{ label: "Yes, I permit this" }, { label: "No" }], function(val) {
-            f.data.contactConsent = (val === "Yes, I permit this"); f.step++; _runCampStep();
-          });
-        }, 300);
-        break;
-      case 10:
-        addMsg("Additional contact name (e.g. other parent or guardian)?", "bot");
-        _mbrInlineInput("Additional contact name *", function(val) {
-          f.data.additionalContactName = val.trim(); f.step++; _runCampStep();
-        });
-        break;
-      case 11:
-        addMsg("Additional contact phone number?", "bot");
-        _mbrInlineInput("Additional contact phone *", function(val) {
-          f.data.additionalContactPhone = val.trim(); f.step++; _runCampStep();
-        });
-        break;
-      case 12:
-        addMsg("Do you consent to photographs or film of " + child + " being taken during camp and used in club reporting or promotion?", "bot");
-        setTimeout(function() {
-          _mbrInlineButtons([{ label: "Yes, I consent" }, { label: "No, please exclude them" }], function(val) {
-            f.data.photoConsent = (val === "Yes, I consent"); f.step++; _runCampStep();
-          });
-        }, 300);
-        break;
-      case 13:
-        addMsg("Finally — do you agree to the club's Code of Conduct for Juniors and Parents/Guardians?", "bot");
-        setTimeout(function() {
-          _mbrInlineButtons([{ label: "I agree" }, { label: "Cancel" }], function(val) {
-            if (val === "Cancel") {
-              addMsg("No problem — your booking has not been submitted.", "bot");
-              _campFlow = null; return;
-            }
-            f.data.codeOfConductConsent = true; f.step++; _runCampStep();
-          });
-        }, 300);
-        break;
-      case 14:
-        _submitCampFlow();
         break;
     }
   }
 
-  function _submitCampFlow() {
-    var f = _campFlow;
+  function _runJuniorBlock(block, onDone) {
+    var f    = _juniorFlow;
+    var type = block.type;
+    var key  = block.key;
+
+    if (type === "text") {
+      addMsg(block.description || block.label, "bot");
+      _mbrInlineInput(block.label + " *", function(val) {
+        f.data.answers = f.data.answers || {};
+        f.data.answers[key] = val.trim();
+        onDone();
+      });
+    } else if (type === "boolean") {
+      addMsg(block.description || block.label, "bot");
+      setTimeout(function() {
+        _mbrInlineButtons([{ label: "Yes" }, { label: "No" }], function(val) {
+          f.data.answers = f.data.answers || {};
+          f.data.answers[key] = (val === "Yes");
+          onDone();
+        });
+      }, 300);
+    } else if (type === "acknowledge") {
+      addMsg((block.description || block.label) + " — do you agree?", "bot");
+      setTimeout(function() {
+        _mbrInlineButtons([{ label: "I agree" }, { label: "Cancel" }], function(val) {
+          if (val === "Cancel") {
+            addMsg("No problem — your booking has not been submitted.", "bot");
+            _juniorFlow = null; return;
+          }
+          f.data.answers = f.data.answers || {};
+          f.data.answers[key] = true;
+          onDone();
+        });
+      }, 300);
+    } else if (type === "contact") {
+      addMsg(block.description || block.label + " — name?", "bot");
+      _mbrInlineInput("Contact name *", function(nameVal) {
+        addMsg("And their phone number?", "bot");
+        _mbrInlineInput("Contact phone *", function(phoneVal) {
+          f.data.answers = f.data.answers || {};
+          f.data.answers[key] = { name: nameVal.trim(), phone: phoneVal.trim() };
+          onDone();
+        });
+      });
+    } else {
+      // Unknown block type — skip
+      onDone();
+    }
+  }
+
+  function _submitJuniorFlow() {
+    var f = _juniorFlow;
     if (!f) return;
     addMsg("Submitting your booking…", "bot");
-    fetch(BACKEND + "/api/camp-booking", {
+    fetch(BACKEND + "/api/junior-booking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        tenantId:                clubId,
-        childName:               f.data.childName,
-        childDob:                f.data.childDob,
-        campWeek:                f.data.campWeek,
-        isMember:                f.data.isMember,
-        membershipNumber:        f.data.membershipNumber || null,
-        price:                   f.data.price,
-        parentName:              f.data.parentName,
-        parentEmail:             f.data.parentEmail,
-        parentPhone:             f.data.parentPhone,
-        medicalInfo:             f.data.medicalInfo || null,
-        additionalContactName:   f.data.additionalContactName,
-        additionalContactPhone:  f.data.additionalContactPhone,
-        photoConsent:            f.data.photoConsent,
-        dataSharingConsent:      f.data.dataSharingConsent,
-        contactConsent:          f.data.contactConsent,
-        codeOfConductConsent:    f.data.codeOfConductConsent,
-        termsAccepted:           true,
-        returnUrl:               (window.top || window).location.href.split('?')[0]
+        tenantId:    clubId,
+        eventId:     f.event.id,
+        sessionId:   f.data.sessionId,
+        childName:   f.data.childName,
+        childDob:    f.data.childDob,
+        isMember:    f.data.isMember,
+        price:       f.data.price,
+        parentName:  f.data.parentName,
+        parentEmail: f.data.parentEmail,
+        parentPhone: f.data.parentPhone,
+        answers:     f.data.answers || {},
+        returnUrl:   (window.top || window).location.href.split("?")[0]
       })
     }).then(function(r) {
       return r.json().then(function(d) { return { status: r.status, data: d }; });
@@ -1752,17 +1787,17 @@
       var d = res.data;
       if (res.status === 409) {
         addMsg("⚠️ " + (d.error || "This session is now full.") + " Please contact the club directly.", "bot");
-        _campFlow = null; return;
+        _juniorFlow = null; return;
       }
       if (d.error) { addMsg("Sorry, something went wrong: " + d.error + ". Please try again.", "bot"); return; }
-      _campFlow = null;
+      _juniorFlow = null;
       addMsg("Details saved ✅ Redirecting you to secure payment…", "bot");
       setTimeout(function() { window.top.location.href = d.url; }, 800);
     }).catch(function() {
       addMsg("Sorry, something went wrong. Please try again or contact the club directly.", "bot");
     });
   }
-  // ── End summer camp flow ───────────────────────────────────────────────────
+  // ── End junior event flow ──────────────────────────────────────────────────
 
   // Persists across day-switches so selections accumulate across dates
   var agentSelectedSlots = [];

@@ -8574,6 +8574,427 @@ app.post("/api/ebo/check-junior-member", async (req, res) => {
   }
 });
 
+// ── Junior Event Booking — configurable multi-tenant event system ─────────────
+
+const QUESTION_BLOCK_DEFS = [
+  { key: "medical_info",       type: "text",        label: "Medical information",          description: "Inhalers, allergies, disabilities, support needed" },
+  { key: "photo_consent",      type: "boolean",     label: "Photo & video consent",        description: "Permission to photograph or film the child" },
+  { key: "additional_contact", type: "contact",     label: "Additional emergency contact", description: "Secondary contact name and phone number" },
+  { key: "code_of_conduct",    type: "acknowledge", label: "Code of Conduct",              description: "Agreement to the club Code of Conduct" },
+  { key: "dietary_info",       type: "text",        label: "Dietary requirements",         description: "Food allergies or special dietary needs" },
+  { key: "contact_permission", type: "boolean",     label: "Contact permission",           description: "Permission to contact using provided details" },
+];
+
+// Portal: list events with sessions + booking counts
+app.get("/api/portal/junior-events", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { data: events, error } = await supabase
+    .from("junior_events")
+    .select("*, junior_event_sessions(*)")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Count paid bookings per session_id
+  const { data: bookings } = await supabase
+    .from("camp_bookings")
+    .select("session_id")
+    .eq("tenant_id", tenantId)
+    .eq("status", "paid")
+    .not("session_id", "is", null);
+
+  const bookedBySession = {};
+  (bookings || []).forEach(b => {
+    bookedBySession[b.session_id] = (bookedBySession[b.session_id] || 0) + 1;
+  });
+
+  const enriched = (events || []).map(ev => ({
+    ...ev,
+    junior_event_sessions: (ev.junior_event_sessions || []).map(s => ({
+      ...s,
+      booked: bookedBySession[s.id] || 0,
+    }))
+  }));
+
+  res.json({ events: enriched, question_block_defs: QUESTION_BLOCK_DEFS });
+});
+
+// Portal: create event
+app.post("/api/portal/junior-events", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { name, date_range, member_price, non_member_price, question_blocks, active } = req.body || {};
+  if (!name) return res.status(400).json({ error: "name is required" });
+  const { data, error } = await supabase.from("junior_events").insert({
+    tenant_id: tenantId,
+    name,
+    date_range: date_range || null,
+    member_price:     member_price     ?? 0,
+    non_member_price: non_member_price ?? 0,
+    question_blocks:  question_blocks  || [],
+    active: active !== false
+  }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ event: data });
+});
+
+// Portal: update event
+app.put("/api/portal/junior-events/:id", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { name, date_range, member_price, non_member_price, question_blocks, active } = req.body || {};
+  const updates = {};
+  if (name              !== undefined) updates.name              = name;
+  if (date_range        !== undefined) updates.date_range        = date_range;
+  if (member_price      !== undefined) updates.member_price      = member_price;
+  if (non_member_price  !== undefined) updates.non_member_price  = non_member_price;
+  if (question_blocks   !== undefined) updates.question_blocks   = question_blocks;
+  if (active            !== undefined) updates.active            = active;
+  const { data, error } = await supabase.from("junior_events")
+    .update(updates)
+    .eq("id", req.params.id)
+    .eq("tenant_id", tenantId)
+    .select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ event: data });
+});
+
+// Portal: delete event
+app.delete("/api/portal/junior-events/:id", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { error } = await supabase.from("junior_events")
+    .delete()
+    .eq("id", req.params.id)
+    .eq("tenant_id", tenantId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// Portal: add session to event
+app.post("/api/portal/junior-events/:id/sessions", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { session_name, capacity, sort_order } = req.body || {};
+  if (!session_name) return res.status(400).json({ error: "session_name is required" });
+  const { data, error } = await supabase.from("junior_event_sessions").insert({
+    event_id:     req.params.id,
+    tenant_id:    tenantId,
+    session_name,
+    capacity:     capacity   || 20,
+    sort_order:   sort_order || 0
+  }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ session: data });
+});
+
+// Portal: delete session from event
+app.delete("/api/portal/junior-events/:eventId/sessions/:sessionId", requireTenant, async (req, res) => {
+  const tenantId = req.tenant.tenantId;
+  const { error } = await supabase.from("junior_event_sessions")
+    .delete()
+    .eq("id", req.params.sessionId)
+    .eq("event_id", req.params.eventId)
+    .eq("tenant_id", tenantId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// Public: active events with sessions + availability
+app.get("/api/junior-events", async (req, res) => {
+  const { tenantId } = req.query;
+  if (!tenantId) return res.status(400).json({ error: "Missing tenantId" });
+
+  const { data: events, error } = await supabase
+    .from("junior_events")
+    .select("*, junior_event_sessions(*)")
+    .eq("tenant_id", tenantId)
+    .eq("active", true)
+    .order("created_at", { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+
+  if (!events?.length) return res.json({ events: [] });
+
+  // Count paid bookings per session_id
+  const { data: bookings } = await supabase
+    .from("camp_bookings")
+    .select("session_id")
+    .eq("tenant_id", tenantId)
+    .eq("status", "paid")
+    .not("session_id", "is", null);
+
+  const bookedBySession = {};
+  (bookings || []).forEach(b => {
+    bookedBySession[b.session_id] = (bookedBySession[b.session_id] || 0) + 1;
+  });
+
+  const enriched = events.map(ev => ({
+    ...ev,
+    junior_event_sessions: (ev.junior_event_sessions || [])
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      .map(s => ({
+        ...s,
+        booked:    bookedBySession[s.id] || 0,
+        available: s.capacity - (bookedBySession[s.id] || 0)
+      }))
+  }));
+
+  res.json({ events: enriched });
+});
+
+// Public: create junior booking + Stripe Checkout
+app.post("/api/junior-booking", async (req, res) => {
+  const {
+    tenantId, eventId, sessionId, childName, childDob,
+    isMember, price, parentName, parentEmail, parentPhone,
+    answers, returnUrl
+  } = req.body || {};
+
+  if (!tenantId || !eventId || !sessionId || !childName || !parentName || !parentEmail) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  // Load event + session info
+  const { data: event } = await supabase.from("junior_events")
+    .select("*").eq("id", eventId).eq("tenant_id", tenantId).maybeSingle();
+  if (!event) return res.status(404).json({ error: "Event not found" });
+
+  const { data: session } = await supabase.from("junior_event_sessions")
+    .select("*").eq("id", sessionId).eq("event_id", eventId).maybeSingle();
+  if (!session) return res.status(404).json({ error: "Session not found" });
+
+  // Capacity check
+  const { count: bookedCount } = await supabase
+    .from("camp_bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("session_id", sessionId)
+    .eq("status", "paid");
+
+  if ((bookedCount || 0) >= session.capacity) {
+    return res.status(409).json({ error: "This session is now full. Please contact the club directly." });
+  }
+
+  // Save pending booking
+  const campWeekLabel = `${event.name} — ${session.session_name}`;
+  const { data: booking, error: dbErr } = await supabase.from("camp_bookings").insert({
+    tenant_id:    tenantId,
+    event_id:     eventId,
+    session_id:   sessionId,
+    child_name:   childName,
+    child_dob:    childDob     || null,
+    camp_week:    campWeekLabel,
+    is_member:    !!isMember,
+    price:        price        || null,
+    parent_name:  parentName,
+    parent_email: parentEmail,
+    parent_phone: parentPhone  || null,
+    answers:      answers      || {},
+    status:       "pending"
+  }).select("id").single();
+
+  if (dbErr) { console.error("[junior-booking]", dbErr.message); return res.status(500).json({ error: dbErr.message }); }
+
+  // Load tenant's live Stripe key
+  let stripeKey = null;
+  try {
+    const { data: intg } = await supabase.from("tenant_integrations")
+      .select("config, is_active").eq("tenant_id", tenantId).eq("provider", "stripe").maybeSingle();
+    if (intg?.is_active && intg.config) {
+      const cfg = decryptIntgConfig(intg.config);
+      stripeKey = cfg.secret_key || null;
+    }
+  } catch (e) { console.error("[junior-booking] Stripe key load:", e.message); }
+
+  if (!stripeKey) return res.status(500).json({ error: "Stripe not configured for this club" });
+
+  const amountCents = Math.round((price || 0) * 100);
+  const baseUrl     = "https://app.sprimal.com";
+  const safeReturn  = returnUrl && returnUrl.startsWith("http") ? returnUrl : null;
+  const returnParam = safeReturn ? "&return=" + encodeURIComponent(safeReturn) : "";
+  const successUrl  = `${baseUrl}/junior-booking/success?booking_id=${booking.id}&session_id={CHECKOUT_SESSION_ID}${returnParam}`;
+  const cancelUrl   = safeReturn ? safeReturn : `${baseUrl}/camp-booking/cancel`;
+
+  const params = new URLSearchParams();
+  params.append("payment_method_types[]", "card");
+  params.append("line_items[0][price_data][currency]", "eur");
+  params.append("line_items[0][price_data][product_data][name]", campWeekLabel);
+  params.append("line_items[0][price_data][product_data][description]",
+    `Booking for ${childName} — ${isMember ? "Member" : "Non-member"} rate`);
+  params.append("line_items[0][price_data][unit_amount]", String(amountCents));
+  params.append("line_items[0][quantity]", "1");
+  params.append("mode", "payment");
+  params.append("customer_email", parentEmail);
+  params.append("success_url", successUrl);
+  params.append("cancel_url", cancelUrl);
+  params.append("metadata[booking_id]", booking.id);
+  params.append("metadata[tenant_id]", tenantId);
+  params.append("metadata[child_name]", childName || "");
+  params.append("metadata[parent_name]", parentName || "");
+  params.append("metadata[event_id]", eventId);
+  params.append("metadata[session_id]", sessionId);
+  params.append("metadata[is_member]", isMember ? "yes" : "no");
+  params.append("metadata[booking_type]", "junior_event");
+  params.append("payment_intent_data[description]",
+    `${event.name} — ${session.session_name} — ${childName} (${isMember ? "Member" : "Non-member"})`);
+  params.append("payment_intent_data[metadata][booking_id]", booking.id);
+  params.append("payment_intent_data[metadata][tenant_id]", tenantId);
+  params.append("payment_intent_data[metadata][booking_type]", "junior_event");
+
+  const stripeResp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${stripeKey}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString()
+  });
+
+  if (!stripeResp.ok) {
+    const err = await stripeResp.json();
+    console.error("[junior-booking] Stripe error:", err);
+    return res.status(500).json({ error: "Failed to create payment session" });
+  }
+
+  const stripeSession = await stripeResp.json();
+  res.json({ url: stripeSession.url });
+});
+
+// Junior booking: payment success
+app.get("/junior-booking/success", async (req, res) => {
+  const { booking_id, session_id } = req.query;
+  if (!booking_id || !session_id) return res.status(400).send("Invalid request");
+
+  const { data: booking } = await supabase.from("camp_bookings").select("*").eq("id", booking_id).maybeSingle();
+  if (!booking) return res.status(404).send("Booking not found");
+
+  // Load Stripe key for this tenant
+  let stripeKey = null;
+  try {
+    const { data: intg } = await supabase.from("tenant_integrations")
+      .select("config, is_active").eq("tenant_id", booking.tenant_id).eq("provider", "stripe").maybeSingle();
+    if (intg?.is_active && intg.config) {
+      const cfg = decryptIntgConfig(intg.config);
+      stripeKey = cfg.secret_key || null;
+    }
+  } catch (e) {}
+
+  // Verify payment with Stripe
+  let paid = false;
+  if (stripeKey) {
+    try {
+      const sessResp = await fetch(`https://api.stripe.com/v1/checkout/sessions/${session_id}`, {
+        headers: { Authorization: `Bearer ${stripeKey}` }
+      });
+      const sess = await sessResp.json();
+      paid = sess.payment_status === "paid";
+    } catch (e) { console.error("[junior-success] Stripe verify:", e.message); }
+  }
+
+  if (!paid) {
+    return res.send(`<!DOCTYPE html><html><head><title>Payment not confirmed</title>
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <style>body{font-family:sans-serif;text-align:center;padding:60px 24px;color:#374151;}
+      h1{color:#dc2626;}</style></head><body>
+      <h1>Payment not confirmed</h1>
+      <p>We couldn't verify your payment. If you believe this is an error please contact the club directly.</p>
+      </body></html>`);
+  }
+
+  // Mark paid (idempotent)
+  if (booking.status !== "paid") {
+    await supabase.from("camp_bookings")
+      .update({ status: "paid", stripe_session_id: session_id })
+      .eq("id", booking_id);
+
+    // Build answers summary HTML
+    const answersObj = booking.answers || {};
+    let answersHtml = "";
+    Object.entries(answersObj).forEach(([k, v]) => {
+      const label = k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const val   = typeof v === "object" ? JSON.stringify(v) : String(v);
+      answersHtml += `<tr><td style="padding:8px 0;color:#6b7280;width:180px;">${label}</td><td style="padding:8px 0;">${val}</td></tr>`;
+    });
+
+    if (process.env.RESEND_API_KEY) {
+      const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", booking.tenant_id).maybeSingle();
+      const clubName    = tenant?.name  || "The club";
+      const adminEmail  = tenant?.email || null;
+      const memberBadge = booking.is_member ? `Member (€${booking.price})` : `Non-member (€${booking.price})`;
+
+      const sendEmail = (to, subject, html) =>
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: "Sprimal <hello@sprimal.com>", to, subject, html })
+        }).catch(e => console.error("[junior-success email]", e.message));
+
+      if (adminEmail) {
+        await sendEmail(adminEmail, `Junior event booking paid — ${booking.child_name}`,
+          `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
+            <h2 style="font-size:20px;color:#16a34a;margin-bottom:4px;">Junior Event Booking — Payment Received</h2>
+            <p style="font-size:14px;color:#6b7280;margin-top:0;">${clubName}</p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;">
+              <tr><td style="padding:8px 0;color:#6b7280;width:180px;">Child</td><td style="padding:8px 0;font-weight:600;">${booking.child_name}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Date of birth</td><td style="padding:8px 0;">${booking.child_dob || "—"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Session</td><td style="padding:8px 0;">${booking.camp_week || "—"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Membership</td><td style="padding:8px 0;">${memberBadge}</td></tr>
+              <tr style="border-top:1px solid #e5e7eb;"><td style="padding:12px 0 8px;color:#6b7280;">Parent/Guardian</td><td style="padding:12px 0 8px;font-weight:600;">${booking.parent_name}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;"><a href="mailto:${booking.parent_email}">${booking.parent_email}</a></td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;">${booking.parent_phone || "—"}</td></tr>
+              ${answersHtml}
+            </table>
+            <p style="font-size:12px;color:#9ca3af;margin-top:24px;">Paid via Sprimal — Stripe session ${session_id}</p>
+          </div>`
+        );
+      }
+
+      await sendEmail(booking.parent_email, `Booking confirmed — ${booking.child_name}`,
+        `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+          <h2 style="font-size:20px;color:#111827;">Booking confirmed</h2>
+          <p style="font-size:15px;color:#374151;">Hi ${booking.parent_name},</p>
+          <p style="font-size:15px;color:#374151;">Your payment of <strong>€${booking.price}</strong> has been received and your place is confirmed.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;margin:20px 0;background:#f9fafb;border-radius:8px;padding:16px;">
+            <tr><td style="padding:6px 12px;color:#6b7280;">Child</td><td style="padding:6px 12px;font-weight:600;">${booking.child_name}</td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280;">Session</td><td style="padding:6px 12px;">${booking.camp_week || "—"}</td></tr>
+            <tr><td style="padding:6px 12px;color:#6b7280;">Amount paid</td><td style="padding:6px 12px;">€${booking.price}</td></tr>
+          </table>
+          <p style="font-size:14px;color:#374151;">We look forward to seeing ${booking.child_name}!</p>
+          <p style="font-size:14px;color:#6b7280;margin-top:24px;">— ${clubName}</p>
+        </div>`
+      );
+    }
+  }
+
+  const { data: tenant } = await supabase.from("tenants").select("name, website").eq("id", booking.tenant_id).maybeSingle();
+  const clubName = tenant?.name    || "The club";
+  const backUrl  = req.query.return && req.query.return.startsWith("http")
+    ? req.query.return
+    : (tenant?.website || null);
+
+  res.send(`<!DOCTYPE html><html><head><title>Booking Confirmed</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0;}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+      .card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:480px;width:100%;padding:40px 36px;text-align:center;}
+      .icon{font-size:48px;margin-bottom:16px;}
+      h1{font-size:24px;color:#111827;margin-bottom:8px;}
+      p{font-size:15px;color:#6b7280;line-height:1.6;margin-bottom:8px;}
+      .detail{background:#f0fdf4;border-radius:8px;padding:16px;margin:20px 0;text-align:left;font-size:14px;color:#374151;}
+      .detail div{padding:4px 0;}
+      .btn{display:inline-block;margin-top:24px;padding:12px 28px;background:#111827;color:#fff;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;}
+    </style></head><body>
+    <div class="card">
+      <div class="icon">🎉</div>
+      <h1>You're booked in!</h1>
+      <p>Payment confirmed for <strong>${booking.child_name}</strong>.</p>
+      <div class="detail">
+        <div><strong>Session:</strong> ${booking.camp_week || "—"}</div>
+        <div><strong>Amount paid:</strong> €${booking.price}</div>
+        <div><strong>Confirmation sent to:</strong> ${booking.parent_email}</div>
+      </div>
+      <p>A confirmation email has been sent to you.</p>
+      ${backUrl ? `<a class="btn" href="${backUrl}">← Back to ${clubName}</a>` : ""}
+    </div>
+  </body></html>`);
+});
+
+// ── END Junior Event Booking ───────────────────────────────────────────────────
+
 // GET /api/camp-sessions — returns sessions with live availability
 app.get("/api/camp-sessions", async (req, res) => {
   const { tenantId } = req.query;

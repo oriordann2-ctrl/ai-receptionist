@@ -1443,6 +1443,23 @@
     </div>
   </div>
 
+  <!-- Junior Events Manager Overlay -->
+  <div id="juniorEventsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1100;overflow-y:auto;padding:20px;">
+    <div style="background:#fff;max-width:720px;margin:0 auto;border-radius:16px;padding:32px;position:relative;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <div style="font-size:20px;font-weight:700;color:#111827;">Junior Event Booking</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:2px;">Create and manage bookable junior events</div>
+        </div>
+        <button onclick="closeJuniorEvents()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#9ca3af;line-height:1;">&times;</button>
+      </div>
+      <div id="juniorEventsBody"></div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f3f4f6;">
+        <button onclick="showNewEventForm()" style="padding:10px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">+ New Event</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Agent Leads Panel (hidden) -->
   <div id="agentLeadsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:32px;max-width:700px;width:96%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
@@ -4066,6 +4083,10 @@
     var configValues = {};
 
     window.openAgentConfig = function(tenantAgentId, agentId) {
+      if (agentId === 'junior_event_booking_agent') {
+        openJuniorEvents();
+        return;
+      }
       activeTenantAgentId = tenantAgentId;
       var overlay = document.getElementById("agentConfigOverlay");
 
@@ -4285,6 +4306,9 @@
     document.getElementById("agentLeadsOverlay").addEventListener("click", function(e) {
       if (e.target === this) closeAgentLeads();
     });
+    document.getElementById("juniorEventsOverlay").addEventListener("click", function(e) {
+      if (e.target === this) closeJuniorEvents();
+    });
 
     // Open trigger
     details.addEventListener("toggle", function() {
@@ -4292,6 +4316,275 @@
     });
 
     window._reloadAgents = loadAgents; // expose for external refresh
+  })();
+
+  // ── Junior Events Manager ─────────────────────────────────────────────────
+  (function () {
+    var _juniorQBlockDefs = [];
+    var _juniorEvents     = [];
+
+    function jEsc(s) {
+      return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    function loadJuniorEvents() {
+      fetch("/api/portal/junior-events")
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+          _juniorQBlockDefs = d.question_block_defs || [];
+          _juniorEvents     = d.events || [];
+          renderJuniorEvents();
+        })
+        .catch(function() {
+          document.getElementById("juniorEventsBody").innerHTML =
+            '<p style="color:#dc2626;font-size:14px;">Failed to load events.</p>';
+        });
+    }
+
+    function renderJuniorEvents() {
+      var body = document.getElementById("juniorEventsBody");
+      if (!_juniorEvents.length) {
+        body.innerHTML = '<p style="color:#6b7280;font-size:14px;">No events yet. Click "+ New Event" to create one.</p>';
+        return;
+      }
+      var html = "";
+      _juniorEvents.forEach(function(ev) {
+        var sessions = ev.junior_event_sessions || [];
+        var totalBooked   = sessions.reduce(function(s,x){ return s + (x.booked||0); }, 0);
+        var totalCapacity = sessions.reduce(function(s,x){ return s + (x.capacity||0); }, 0);
+        html += '<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:20px;margin-bottom:16px;">';
+        html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">';
+        html += '<div style="flex:1;">';
+        html += '<div style="font-size:16px;font-weight:700;color:#111827;">' + jEsc(ev.name) + '</div>';
+        if (ev.date_range) html += '<div style="font-size:13px;color:#6b7280;margin-top:2px;">' + jEsc(ev.date_range) + '</div>';
+        html += '<div style="font-size:13px;color:#374151;margin-top:6px;">Member €' + jEsc(ev.member_price) + ' &nbsp;|&nbsp; Non-member €' + jEsc(ev.non_member_price) + '</div>';
+        html += '<div style="font-size:12px;color:#6b7280;margin-top:2px;">Booked: ' + totalBooked + ' / ' + totalCapacity + '</div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">';
+        html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#6b7280;cursor:pointer;">'
+          + '<input type="checkbox" onchange="toggleJuniorEvent(\'' + jEsc(ev.id) + '\', this.checked)" '
+          + (ev.active ? 'checked' : '') + ' style="width:16px;height:16px;cursor:pointer;"> Active</label>';
+        html += '<button onclick="editJuniorEvent(\'' + jEsc(ev.id) + '\')" style="padding:6px 14px;border-radius:7px;border:1.5px solid #e2e8f0;background:#fff;font-size:13px;cursor:pointer;color:#374151;">Edit</button>';
+        html += '<button onclick="deleteJuniorEvent(\'' + jEsc(ev.id) + '\')" style="padding:6px 14px;border-radius:7px;border:none;background:#fee2e2;color:#dc2626;font-size:13px;cursor:pointer;">Delete</button>';
+        html += '</div></div>';
+
+        // Sessions list
+        html += '<div style="margin-top:14px;">';
+        if (sessions.length) {
+          html += '<div style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Sessions</div>';
+          sessions.forEach(function(s) {
+            html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f9fafb;border-radius:8px;margin-bottom:6px;font-size:13px;">';
+            html += '<span>' + jEsc(s.session_name) + ' &nbsp;<span style="color:#6b7280;">(' + (s.booked||0) + '/' + s.capacity + ' booked)</span></span>';
+            html += '<button onclick="deleteJuniorSession(\'' + jEsc(ev.id) + '\',\'' + jEsc(s.id) + '\')" style="padding:3px 10px;border-radius:6px;border:none;background:#fee2e2;color:#dc2626;font-size:12px;cursor:pointer;">Remove</button>';
+            html += '</div>';
+          });
+        }
+        // Add session form
+        html += '<div style="display:flex;gap:8px;margin-top:8px;align-items:center;">';
+        html += '<input id="sName_' + jEsc(ev.id) + '" type="text" placeholder="Session name" style="flex:2;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;">';
+        html += '<input id="sCap_' + jEsc(ev.id) + '" type="number" placeholder="Capacity" min="1" style="flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;">';
+        html += '<button onclick="addJuniorSession(\'' + jEsc(ev.id) + '\')" style="padding:7px 14px;border-radius:7px;border:none;background:#2563eb;color:#fff;font-size:13px;cursor:pointer;">Add Session</button>';
+        html += '</div>';
+        html += '</div></div>';
+      });
+      body.innerHTML = html;
+    }
+
+    window.openJuniorEvents = function() {
+      document.getElementById("juniorEventsOverlay").style.display = "block";
+      loadJuniorEvents();
+    };
+
+    window.closeJuniorEvents = function() {
+      document.getElementById("juniorEventsOverlay").style.display = "none";
+    };
+
+    window.showNewEventForm = function() {
+      var body = document.getElementById("juniorEventsBody");
+      var blocksHtml = _juniorQBlockDefs.map(function(b) {
+        return '<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;cursor:pointer;">'
+          + '<input type="checkbox" name="qblock" value="' + jEsc(b.key) + '" data-type="' + jEsc(b.type) + '" data-label="' + jEsc(b.label) + '" data-desc="' + jEsc(b.description) + '" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;">'
+          + '<span><span style="font-size:14px;font-weight:600;color:#111827;">' + jEsc(b.label) + '</span>'
+          + '<br><span style="font-size:12px;color:#6b7280;">' + jEsc(b.description) + '</span></span>'
+          + '</label>';
+      }).join("");
+
+      body.innerHTML = '<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:20px;">'
+        + '<div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:16px;">New Event</div>'
+        + '<div style="display:grid;gap:14px;">'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Event Name *</label>'
+        + '<input id="jeNewName" type="text" placeholder="e.g. Summer Camp 2026" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Date Range</label>'
+        + '<input id="jeNewDate" type="text" placeholder="e.g. July 20–24, 2026" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Member Price (€)</label>'
+        + '<input id="jeNewMPrice" type="number" min="0" step="0.01" placeholder="0" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Non-member Price (€)</label>'
+        + '<input id="jeNewNMPrice" type="number" min="0" step="0.01" placeholder="0" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
+        + '</div>'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Question Blocks</label>'
+        + blocksHtml
+        + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:10px;margin-top:20px;">'
+        + '<button onclick="saveNewJuniorEvent()" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Create Event</button>'
+        + '<button onclick="openJuniorEvents()" style="padding:9px 18px;border-radius:9px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;cursor:pointer;color:#374151;">Cancel</button>'
+        + '</div></div>';
+    };
+
+    window.saveNewJuniorEvent = function() {
+      var name     = (document.getElementById("jeNewName").value || "").trim();
+      var dateRange = (document.getElementById("jeNewDate").value || "").trim();
+      var mPrice   = parseFloat(document.getElementById("jeNewMPrice").value) || 0;
+      var nmPrice  = parseFloat(document.getElementById("jeNewNMPrice").value) || 0;
+      if (!name) { alert("Event name is required."); return; }
+
+      var checked = document.querySelectorAll('input[name="qblock"]:checked');
+      var blocks  = [];
+      checked.forEach(function(cb) {
+        blocks.push({
+          key:         cb.value,
+          type:        cb.dataset.type,
+          label:       cb.dataset.label,
+          description: cb.dataset.desc,
+          required:    true,
+          prompt:      cb.dataset.desc
+        });
+      });
+
+      fetch("/api/portal/junior-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name:             name,
+          date_range:       dateRange || null,
+          member_price:     mPrice,
+          non_member_price: nmPrice,
+          question_blocks:  blocks,
+          active:           true
+        })
+      }).then(function(r){ return r.json(); }).then(function(d) {
+        if (d.error) { alert("Error: " + d.error); return; }
+        openJuniorEvents();
+      }).catch(function() { alert("Something went wrong."); });
+    };
+
+    window.toggleJuniorEvent = function(eventId, active) {
+      fetch("/api/portal/junior-events/" + eventId, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: active })
+      }).then(function(r){ return r.json(); }).then(function(d) {
+        if (d.error) { alert("Error: " + d.error); loadJuniorEvents(); }
+      }).catch(function() { alert("Something went wrong."); });
+    };
+
+    window.deleteJuniorEvent = function(eventId) {
+      if (!confirm("Delete this event? This cannot be undone.")) return;
+      fetch("/api/portal/junior-events/" + eventId, { method: "DELETE" })
+        .then(function(r){ return r.json(); }).then(function(d) {
+          if (d.error) { alert("Error: " + d.error); return; }
+          loadJuniorEvents();
+        }).catch(function() { alert("Something went wrong."); });
+    };
+
+    window.editJuniorEvent = function(eventId) {
+      var ev = _juniorEvents.find(function(e){ return e.id === eventId; });
+      if (!ev) return;
+      var body = document.getElementById("juniorEventsBody");
+      var blocksHtml = _juniorQBlockDefs.map(function(b) {
+        var isChecked = (ev.question_blocks || []).some(function(q){ return q.key === b.key; });
+        return '<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;cursor:pointer;">'
+          + '<input type="checkbox" name="qblockEdit" value="' + jEsc(b.key) + '" data-type="' + jEsc(b.type) + '" data-label="' + jEsc(b.label) + '" data-desc="' + jEsc(b.description) + '" '
+          + (isChecked ? 'checked' : '') + ' style="margin-top:2px;width:16px;height:16px;flex-shrink:0;">'
+          + '<span><span style="font-size:14px;font-weight:600;color:#111827;">' + jEsc(b.label) + '</span>'
+          + '<br><span style="font-size:12px;color:#6b7280;">' + jEsc(b.description) + '</span></span>'
+          + '</label>';
+      }).join("");
+
+      body.innerHTML = '<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:20px;">'
+        + '<div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:16px;">Edit Event</div>'
+        + '<div style="display:grid;gap:14px;">'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Event Name *</label>'
+        + '<input id="jeEditName" type="text" value="' + jEsc(ev.name) + '" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Date Range</label>'
+        + '<input id="jeEditDate" type="text" value="' + jEsc(ev.date_range || "") + '" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Member Price (€)</label>'
+        + '<input id="jeEditMPrice" type="number" min="0" step="0.01" value="' + jEsc(ev.member_price) + '" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Non-member Price (€)</label>'
+        + '<input id="jeEditNMPrice" type="number" min="0" step="0.01" value="' + jEsc(ev.non_member_price) + '" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
+        + '</div>'
+        + '<div><label style="display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Question Blocks</label>'
+        + blocksHtml
+        + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:10px;margin-top:20px;">'
+        + '<button onclick="saveEditJuniorEvent(\'' + jEsc(ev.id) + '\')" style="padding:9px 22px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Save Changes</button>'
+        + '<button onclick="openJuniorEvents()" style="padding:9px 18px;border-radius:9px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;cursor:pointer;color:#374151;">Cancel</button>'
+        + '</div></div>';
+    };
+
+    window.saveEditJuniorEvent = function(eventId) {
+      var name     = (document.getElementById("jeEditName").value || "").trim();
+      var dateRange = (document.getElementById("jeEditDate").value || "").trim();
+      var mPrice   = parseFloat(document.getElementById("jeEditMPrice").value) || 0;
+      var nmPrice  = parseFloat(document.getElementById("jeEditNMPrice").value) || 0;
+      if (!name) { alert("Event name is required."); return; }
+
+      var checked = document.querySelectorAll('input[name="qblockEdit"]:checked');
+      var blocks  = [];
+      checked.forEach(function(cb) {
+        blocks.push({
+          key:         cb.value,
+          type:        cb.dataset.type,
+          label:       cb.dataset.label,
+          description: cb.dataset.desc,
+          required:    true,
+          prompt:      cb.dataset.desc
+        });
+      });
+
+      fetch("/api/portal/junior-events/" + eventId, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name:             name,
+          date_range:       dateRange || null,
+          member_price:     mPrice,
+          non_member_price: nmPrice,
+          question_blocks:  blocks
+        })
+      }).then(function(r){ return r.json(); }).then(function(d) {
+        if (d.error) { alert("Error: " + d.error); return; }
+        openJuniorEvents();
+      }).catch(function() { alert("Something went wrong."); });
+    };
+
+    window.addJuniorSession = function(eventId) {
+      var nameEl = document.getElementById("sName_" + eventId);
+      var capEl  = document.getElementById("sCap_"  + eventId);
+      var name   = (nameEl ? nameEl.value : "").trim();
+      var cap    = parseInt(capEl ? capEl.value : "20") || 20;
+      if (!name) { alert("Please enter a session name."); return; }
+      fetch("/api/portal/junior-events/" + eventId + "/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_name: name, capacity: cap })
+      }).then(function(r){ return r.json(); }).then(function(d) {
+        if (d.error) { alert("Error: " + d.error); return; }
+        loadJuniorEvents();
+      }).catch(function() { alert("Something went wrong."); });
+    };
+
+    window.deleteJuniorSession = function(eventId, sessionId) {
+      if (!confirm("Remove this session?")) return;
+      fetch("/api/portal/junior-events/" + eventId + "/sessions/" + sessionId, { method: "DELETE" })
+        .then(function(r){ return r.json(); }).then(function(d) {
+          if (d.error) { alert("Error: " + d.error); return; }
+          loadJuniorEvents();
+        }).catch(function() { alert("Something went wrong."); });
+    };
   })();
 
   // ── Integrations ──────────────────────────────────────────────────────────

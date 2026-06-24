@@ -20553,6 +20553,31 @@ app.listen(PORT, async () => {
     }
   } catch (e) { console.error("[migration] lead_capture phone:", e.message); }
 
+  // Add consent step to membership_application_agent if not already present
+  try {
+    const { data: memDef } = await supabase.from("agent_definitions").select("steps, config_schema").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef && !memDef.steps.find(s => s.id === "consent")) {
+      // Insert consent step between seconder and notify
+      const newSteps = memDef.steps.map(s =>
+        s.id === "seconder" ? { ...s, next: "consent" } : s
+      );
+      newSteps.splice(
+        newSteps.findIndex(s => s.id === "notify"), 0,
+        {
+          id: "consent",
+          type: "collect",
+          prompt: "Finally, by typing 'I agree' you confirm that you have read and agree to be bound by the club's Codes of Conduct.",
+          collect_field: "consent",
+          required: true,
+          next: "notify"
+        }
+      );
+      const { error: csErr } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
+      if (csErr) console.error("[migration] consent step:", csErr.message);
+      else console.log("[migration] Added consent step to membership_application_agent");
+    }
+  } catch (e) { console.error("[migration] consent step:", e.message); }
+
   // Tag tennis-specific agents with business_types so they only show for racket sport clubs
   try {
     const TENNIS_TYPES = ["tennis_club", "squash_club", "badminton_club"];

@@ -13111,6 +13111,11 @@ async function runCurrentStep(convo, userInput) {
 
     // Validate and store
     const trimmed = userInput.trim();
+    // Allow "Back to main menu" to exit agent from any collect step
+    if (trimmed.toLowerCase() === "back to main menu") {
+      convo.agentState = null;
+      return { reply: "No problem! You can start again any time.", choices: [] };
+    }
     const isSkip  = trimmed.toLowerCase() === "skip";
     if (!trimmed || isSkip) {
       if (step.required === false) {
@@ -13140,7 +13145,10 @@ async function runCurrentStep(convo, userInput) {
           });
           console.log(`[EBO validate] match=${!!match} for "${trimmed}"`);
           if (!match) {
-            return { reply: `We couldn't find "${trimmed}" as a current member of the club. Please check the spelling and try again.`, choices: [] };
+            return {
+              reply: `We couldn't find "${trimmed}" as a current member of the club.\n\n${step.prompt}`,
+              choices: ["Back to main menu"]
+            };
           }
         } else {
           console.warn(`[EBO validate] No EBO config for ${tenantId} — skipping member check`);

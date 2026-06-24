@@ -68,7 +68,7 @@ INSERT INTO skill_definitions (id, name, description, version, config_schema, in
     "fields": [
       {"key": "name",  "label": "your name",            "prompt": "What''s your name?",                                              "required": true,  "validation": null},
       {"key": "email", "label": "your email address",   "prompt": "And your email address?",                                         "required": true,  "validation": "email"},
-      {"key": "phone", "label": "your phone number",    "prompt": "Finally, your phone number (or type ''skip'' to leave this out)", "required": false, "validation": null}
+      {"key": "phone", "label": "your phone number",    "prompt": "And your phone number?", "required": true, "validation": null}
     ]
   }',
   'Ask one question at a time. Validate email format. Allow "skip" for optional fields. Be friendly and conversational.'

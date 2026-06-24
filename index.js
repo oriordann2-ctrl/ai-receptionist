@@ -20540,14 +20540,14 @@ app.listen(PORT, async () => {
     }
   } catch (e) { console.error("[migration] game_focus step:", e.message); }
 
-  // Make phone required in lead_capture skill (court booking and others)
+  // Make phone required in lead_capture skill (was wrongly targeting agent_definitions before)
   try {
-    const { data: lcDef } = await supabase.from("agent_definitions").select("config_schema").eq("id", "lead_capture").maybeSingle();
+    const { data: lcDef } = await supabase.from("skill_definitions").select("config_schema").eq("id", "lead_capture").maybeSingle();
     if (lcDef?.config_schema?.fields) {
       const fields = lcDef.config_schema.fields.map(f =>
         f.key === "phone" ? { ...f, required: true, prompt: "And your phone number?" } : f
       );
-      const { error: lcErr } = await supabase.from("agent_definitions").update({ config_schema: { ...lcDef.config_schema, fields } }).eq("id", "lead_capture");
+      const { error: lcErr } = await supabase.from("skill_definitions").update({ config_schema: { ...lcDef.config_schema, fields } }).eq("id", "lead_capture");
       if (lcErr) console.error("[migration] lead_capture phone required:", lcErr.message);
       else console.log("[migration] lead_capture phone set to required");
     }

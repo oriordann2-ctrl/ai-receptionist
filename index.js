@@ -13188,7 +13188,7 @@ async function runCurrentStep(convo, userInput) {
         if (EBO_CONFIG[tenantId]) {
           const members = await getAllEboMembers(tenantId);
           console.log(`[EBO validate] ${members.length} members loaded`);
-          const normalize = s => String(s || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+          const normalize = s => String(s || "").toLowerCase().replace(/['‘’]/g, " ").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
           const input = normalize(trimmed);
           const match = members.find(m => {
             const full  = normalize(`${m.first_name} ${m.last_name}`);

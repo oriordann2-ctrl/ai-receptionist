@@ -12727,10 +12727,17 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
   const memberEmail = collected.email || collected.email_address;
   const memberName  = collected.name  || collected.full_name || "there";
   if (memberEmail && process.env.RESEND_API_KEY) {
-    const memberSubject = `Your enquiry — ${clubName}`;
+    const memberSubject = `Your application — ${clubName}`;
+    const confirmationText = agentConfig.confirmation_message
+      ? fillTemplate(agentConfig.confirmation_message, { ...collected, reply_time: replyTime })
+      : `We've received your application and the team will be in touch${replyTime && replyTime !== "soon" ? " within " + replyTime : " soon"}.`;
+    const confirmationHtml = confirmationText
+      .split(/\n+/)
+      .map(line => `<p style="font-size:15px;color:#374151;line-height:1.6;">${line}</p>`)
+      .join("");
     const memberHtml = `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
       <h2 style="font-size:20px;color:#111827;">Thanks, ${memberName}!</h2>
-      <p style="font-size:15px;color:#374151;">We've received your enquiry and ${coachName ? coachName : "the team"} will be in touch${replyTime && replyTime !== "soon" ? " within " + replyTime : " soon"}.</p>
+      ${confirmationHtml}
       ${emailFooter}
     </div>`;
     fetch("https://api.resend.com/emails", {

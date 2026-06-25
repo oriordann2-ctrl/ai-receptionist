@@ -12740,6 +12740,49 @@ async function runNotifyAndConfirmSkill(tenantId, agentId, tenantAgentInstanceId
     }).catch(err => console.error("[coaching-member-email]", err.message));
   }
 
+  // ── Proposer / seconder notification emails ─────────────────────────────────
+  // Sent when application includes proposer/seconder with emails captured from EBO
+  if (process.env.RESEND_API_KEY && agentConfig.notification_email) {
+    const applicantName = collected.name || collected.full_name || "the applicant";
+    for (const role of ["proposer", "seconder"]) {
+      const memberName  = collected[role];
+      const memberEmail = collected[role + "_email"];
+      if (!memberName || !memberEmail) continue;
+      const firstName = memberName.split(" ")[0];
+      const subject   = `Membership Proposal Request — ${applicantName} | ${clubName}`;
+      const html = `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+        <h2 style="font-size:20px;color:#111827;">Hi ${firstName},</h2>
+        <p style="font-size:15px;color:#374151;line-height:1.6;">
+          <strong>${applicantName}</strong> has submitted a membership application for <strong>${clubName}</strong>
+          and has named you as their <strong>${role}</strong>.
+        </p>
+        <p style="font-size:15px;color:#374151;line-height:1.6;">
+          Could you please reply to this email to:
+        </p>
+        <ul style="font-size:15px;color:#374151;line-height:1.8;padding-left:20px;">
+          <li>Confirm you are happy to act as ${role} for this application</li>
+          <li>Briefly explain why you wish to support ${applicantName}'s membership</li>
+        </ul>
+        <p style="font-size:15px;color:#374151;line-height:1.6;">
+          Your response will be forwarded to the club committee for consideration.
+        </p>
+        ${emailFooter}
+      </div>`;
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from:     `${assistantName} <maeve@sprimal.com>`,
+          to:       memberEmail,
+          reply_to: agentConfig.notification_email,
+          subject,
+          html
+        })
+      }).catch(err => console.error(`[${role}-email]`, err.message));
+      console.log(`[${role}-email] Sent to ${memberEmail} for applicant ${applicantName}`);
+    }
+  }
+
   // Store lead in skill_leads — keyed by tenant_agent instance UUID so leads panel can filter
   await supabase.from("skill_leads").insert({
     tenant_id: tenantId,
@@ -13160,7 +13203,8 @@ async function runCurrentStep(convo, userInput) {
               choices: ["Try a different name", "Back to main menu"]
             };
           }
-          // Member found — store, advance, and prepend confirmation to next step reply
+          // Member found — store email for later notification, advance with confirmation
+          if (match.email) state.collected[step.collect_field + "_email"] = match.email;
           state.collected[step.collect_field] = trimmed;
           state.stepId     = step.next;
           state.skillState = null;

@@ -20605,7 +20605,8 @@ app.listen(PORT, async () => {
           { id: "children_details", type: "collect",  prompt: "Please provide the name and date of birth of each child.", collect_field: "children_details", required: true,  next: "lead_capture" },
           { id: "dob",              type: "collect",  prompt: "Please provide their date of birth.",                      collect_field: "date_of_birth",    required: true,  next: "lead_capture" },
           { id: "lead_capture",     type: "skill",    skill_id: "lead_capture", next: "address" },
-          { id: "address",          type: "collect",  prompt: "What's your home address? Your Eircode is required.", collect_field: "address",          required: true,  next: "other_club" },
+          { id: "address",          type: "collect",  prompt: "What's your home address?",  collect_field: "address",  required: true,  next: "eircode" },
+          { id: "eircode",          type: "collect",  prompt: "And your Eircode?",           collect_field: "eircode",  required: true,  next: "other_club" },
           { id: "other_club",       type: "collect",  prompt: "Are you a member of another tennis club? (Type the club name, or 'skip')", collect_field: "other_club", required: false, next: "proposer" },
           { id: "proposer",         type: "collect",  prompt: "Your proposer's name — they must be an existing club member.", collect_field: "proposer",    required: true,  next: "seconder" },
           { id: "seconder",         type: "collect",  prompt: "And your seconder's name — also an existing club member.", collect_field: "seconder",        required: true,  next: "notify" },
@@ -20713,21 +20714,22 @@ app.listen(PORT, async () => {
     }
   } catch (e) { console.error("[migration] consent step:", e.message); }
 
-  // Update address step prompt to require Eircode
+  // Split address into separate address + eircode steps
   try {
     const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
-    if (memDef) {
-      const addressStep = memDef.steps.find(s => s.id === "address");
-      if (addressStep && !addressStep.prompt.includes("Eircode")) {
-        const newSteps = memDef.steps.map(s =>
-          s.id === "address" ? { ...s, prompt: "What's your home address? Your Eircode is required." } : s
-        );
-        const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
-        if (error) console.error("[migration] address eircode prompt:", error.message);
-        else console.log("[migration] Updated address step to require Eircode");
-      }
+    if (memDef && !memDef.steps.find(s => s.id === "eircode")) {
+      const newSteps = memDef.steps.map(s =>
+        s.id === "address" ? { ...s, prompt: "What's your home address?", next: "eircode" } : s
+      );
+      newSteps.splice(
+        newSteps.findIndex(s => s.id === "other_club"), 0,
+        { id: "eircode", type: "collect", prompt: "And your Eircode?", collect_field: "eircode", required: true, next: "other_club" }
+      );
+      const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
+      if (error) console.error("[migration] eircode step:", error.message);
+      else console.log("[migration] Added separate eircode step to membership_application_agent");
     }
-  } catch (e) { console.error("[migration] address eircode prompt:", e.message); }
+  } catch (e) { console.error("[migration] eircode step:", e.message); }
 
   // Tag tennis-specific agents with business_types so they only show for racket sport clubs
   try {

@@ -1362,6 +1362,35 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
+## 🔍 Garda Vetting Integration — Membership Background Checks
+
+**The idea:** As part of the membership application process, automatically trigger a background / child protection check on the applicant using their name and address.
+
+**The problem in Ireland:**
+- **Garda eVetting** (vetting.garda.ie) is the official system but has no public API — it's a manual process where the applicant applies themselves via the portal
+- **Commercial providers** (Checkr, Sterling, Veriff, Yoti) offer background check APIs but Irish Garda records are not accessible programmatically
+- No real-time automated vetting exists in Ireland currently
+
+**Realistic near-term option:**
+At the end of the membership application, Sprimal automatically sends the applicant an email explaining they must complete Garda eVetting before their membership is approved, with a direct link to the vetting portal. The club secretary is notified that the vetting request was triggered.
+
+**Longer-term potential:**
+Sports governing bodies (GAA, FAI, Tennis Ireland) act as "relevant organisations" for Garda eVetting for their member clubs. If any of them expose an API or structured workflow, Sprimal could integrate directly.
+
+**Action — contacts to reach out to:**
+- **Tennis Ireland:** info@tennisireland.ie — ask if they act as relevant organisation for vetting and whether any API/integration exists
+- **GAA:** Club Development team via gaa.ie/contact — same question
+- **FAI:** safeguarding@fai.ie — dedicated safeguarding team, most likely to have a structured answer
+
+**Key question to ask each:**
+> *"Do you act as a relevant organisation for Garda eVetting for your clubs, and is there any way to trigger or track vetting requests programmatically?"*
+
+**Shortcut:** Ask Billy Cotter (Passage West GAA) and Monkstown Tennis contacts — they'll know the current process firsthand.
+
+**Status:** Idea. No vetting integration exists yet. Research governing body APIs before building anything.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

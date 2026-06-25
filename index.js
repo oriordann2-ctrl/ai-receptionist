@@ -13117,10 +13117,14 @@ async function runCurrentStep(convo, userInput) {
 
     // Validate and store
     const trimmed = userInput.trim();
-    // Allow "Back to main menu" to exit agent from any collect step
+    // Allow "Back to main menu" or "Try a different name" as special inputs
     if (trimmed.toLowerCase() === "back to main menu") {
       convo.agentState = null;
       return { reply: "No problem! You can start again any time.", choices: [] };
+    }
+    if (trimmed.toLowerCase() === "try a different name") {
+      const reprompt = fillTemplate(step.prompt || "", state.tenantConfig);
+      return { reply: reprompt, choices: ["Back to main menu"] };
     }
     const isSkip  = trimmed.toLowerCase() === "skip";
     if (!trimmed || isSkip) {
@@ -13152,10 +13156,17 @@ async function runCurrentStep(convo, userInput) {
           console.log(`[EBO validate] match=${!!match} for "${trimmed}"`);
           if (!match) {
             return {
-              reply: `We couldn't find "${trimmed}" as a current member of the club.\n\n${step.prompt}`,
-              choices: ["Back to main menu"]
+              reply: `We couldn't find "${trimmed}" as a current member of the club. Please try a different name.`,
+              choices: ["Try a different name", "Back to main menu"]
             };
           }
+          // Member found — store, advance, and prepend confirmation to next step reply
+          state.collected[step.collect_field] = trimmed;
+          state.stepId     = step.next;
+          state.skillState = null;
+          const nextResult = await runCurrentStep(convo, null);
+          nextResult.reply = `✅ ${trimmed} confirmed as a current member.\n\n${nextResult.reply || ""}`;
+          return nextResult;
         } else {
           console.warn(`[EBO validate] No EBO config for ${tenantId} — skipping member check`);
         }

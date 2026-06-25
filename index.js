@@ -20713,6 +20713,22 @@ app.listen(PORT, async () => {
     }
   } catch (e) { console.error("[migration] consent step:", e.message); }
 
+  // Update address step prompt to require Eircode
+  try {
+    const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef) {
+      const addressStep = memDef.steps.find(s => s.id === "address");
+      if (addressStep && !addressStep.prompt.includes("Eircode")) {
+        const newSteps = memDef.steps.map(s =>
+          s.id === "address" ? { ...s, prompt: "What's your home address? Your Eircode is required." } : s
+        );
+        const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
+        if (error) console.error("[migration] address eircode prompt:", error.message);
+        else console.log("[migration] Updated address step to require Eircode");
+      }
+    }
+  } catch (e) { console.error("[migration] address eircode prompt:", e.message); }
+
   // Tag tennis-specific agents with business_types so they only show for racket sport clubs
   try {
     const TENNIS_TYPES = ["tennis_club", "squash_club", "badminton_club"];

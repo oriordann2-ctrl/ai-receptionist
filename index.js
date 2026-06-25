@@ -20608,8 +20608,8 @@ app.listen(PORT, async () => {
           { id: "address",          type: "collect",  prompt: "What's your home address?",  collect_field: "address",  required: true,  next: "eircode" },
           { id: "eircode",          type: "collect",  prompt: "And your Eircode?",           collect_field: "eircode",  required: true,  next: "other_club" },
           { id: "other_club",       type: "collect",  prompt: "Are you a member of another tennis club? (Type the club name, or 'skip')", collect_field: "other_club", required: false, next: "proposer" },
-          { id: "proposer",         type: "collect",  prompt: "Your proposer's name — they must be an existing club member.", collect_field: "proposer",    required: true,  next: "seconder" },
-          { id: "seconder",         type: "collect",  prompt: "And your seconder's name — also an existing club member.", collect_field: "seconder",        required: true,  next: "notify" },
+          { id: "proposer",         type: "collect",  prompt: "Your proposer's name — they must be an existing club member. Please note we will likely contact them regarding this application.", collect_field: "proposer",    required: true,  next: "seconder" },
+          { id: "seconder",         type: "collect",  prompt: "And your seconder's name — also an existing club member. Please note we will likely contact them regarding this application.", collect_field: "seconder",        required: true,  next: "notify" },
           { id: "notify",           type: "skill",    skill_id: "notify_and_confirm", next: null }
         ],
         instructions: "Guide the applicant warmly through the form one question at a time. Make it clear their application will be reviewed by the club committee."
@@ -20730,6 +20730,25 @@ app.listen(PORT, async () => {
       else console.log("[migration] Added separate eircode step to membership_application_agent");
     }
   } catch (e) { console.error("[migration] eircode step:", e.message); }
+
+  // Add contact notice to proposer/seconder prompts
+  try {
+    const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef) {
+      const notice = " Please note we will likely contact them regarding this application.";
+      const needsUpdate = memDef.steps.some(s => (s.id === "proposer" || s.id === "seconder") && !s.prompt.includes("contact them"));
+      if (needsUpdate) {
+        const newSteps = memDef.steps.map(s =>
+          (s.id === "proposer" || s.id === "seconder") && !s.prompt.includes("contact them")
+            ? { ...s, prompt: s.prompt + notice }
+            : s
+        );
+        const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
+        if (error) console.error("[migration] proposer/seconder contact notice:", error.message);
+        else console.log("[migration] Added contact notice to proposer/seconder prompts");
+      }
+    }
+  } catch (e) { console.error("[migration] proposer/seconder contact notice:", e.message); }
 
   // Tag tennis-specific agents with business_types so they only show for racket sport clubs
   try {

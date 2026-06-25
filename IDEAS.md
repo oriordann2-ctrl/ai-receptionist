@@ -1341,6 +1341,27 @@ Cloudflare, Helmet.js, rate limiting (30 chat/IP/min, 5 signups/IP/hour), OTP fo
 
 ---
 
+## 💾 Agent State Persistence — Survive Server Restarts
+
+**The problem:** Agent state (mid-flow membership application, coaching enquiry etc.) is stored in-memory on the server. When Render deploys a new version, the server restarts and all in-memory sessions are wiped. If a user is mid-flow when a deploy happens, their next message finds no agent state and falls through to the generic GPT handler — they get an off-topic response instead of the next question in their flow.
+
+**Root cause confirmed:** User was mid-way through a membership application (proposer step), server restarted due to a deploy, next message ("Noel O Riordan") was treated as a general query.
+
+**The fix:** Persist agent state to Supabase after each response, restore it on the next request.
+
+**Implementation sketch:**
+- Create an `agent_sessions` table: `(user_id TEXT PRIMARY KEY, agent_state JSONB, updated_at TIMESTAMPTZ)`
+- Strip `agentDef`/`skillMap` from the stored state (large, re-fetchable from DB) — store only `{ stepId, collected, skillState, tenantId, agentId, tenantAgentInstanceId }`
+- After every agent response: `upsert agent_sessions` with the current stripped state (fire-and-forget, don't await)
+- On each chat request: if `conversations[userId]` has no `agentState`, check `agent_sessions` and restore (re-fetching `agentDef`/`skillMap` from DB)
+- Clear the `agent_sessions` row when `agentState` is set to null (flow complete or cancelled)
+
+**Priority:** Low — deploys are infrequent and users can restart the flow. Not worth delaying other work for.
+
+**Status:** Idea. Not built. Low priority.
+
+---
+
 ## 💡 Future / Raw Ideas
 
 - **Multi-location businesses** — single tenant, multiple branch locations, routing based on user's location

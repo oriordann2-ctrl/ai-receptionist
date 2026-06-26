@@ -8585,9 +8585,12 @@ app.post("/api/camp/contact-secretary", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
   try {
-    const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", tenantId).maybeSingle();
-    const clubName   = tenant?.name  || "The club";
-    const adminEmail = tenant?.email || null;
+    const [{ data: tenant }, { data: campCfg }] = await Promise.all([
+      supabase.from("tenants").select("name, email").eq("id", tenantId).maybeSingle(),
+      supabase.from("tenant_integrations").select("config").eq("tenant_id", tenantId).eq("provider", "camp_config").maybeSingle()
+    ]);
+    const clubName   = tenant?.name || "The club";
+    const adminEmail = campCfg?.config?.junior_secretary_email || tenant?.email || null;
 
     if (adminEmail && process.env.RESEND_API_KEY) {
       await fetch("https://api.resend.com/emails", {
@@ -20901,6 +20904,16 @@ app.listen(PORT, async () => {
       else console.log("[migration] Added student_email + student_verify steps to membership_application_agent");
     }
   } catch (e) { console.error("[migration] student email_verify patch:", e.message); }
+
+  // Set Monkstown junior secretary email in camp_config integration
+  try {
+    await supabase.from("tenant_integrations").upsert({
+      tenant_id: "monkstown-lawn-tennis-club",
+      provider:  "camp_config",
+      is_active: true,
+      config:    { junior_secretary_email: "juniors@monkstowntennisclub.com" }
+    }, { onConflict: "tenant_id,provider" });
+  } catch (e) { console.error("[migration] camp_config:", e.message); }
 
   // Add partner_name step to family branch (after children_details)
   try {

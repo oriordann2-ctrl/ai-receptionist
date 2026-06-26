@@ -13297,6 +13297,20 @@ async function runCurrentStep(convo, userInput) {
         state.stepId = step.next;
         return runCurrentStep(convo, null);
       }
+
+      // Reject consumer email providers — must be an institutional address
+      const consumerDomains = ["gmail.com","googlemail.com","yahoo.com","yahoo.ie","yahoo.co.uk","hotmail.com","hotmail.ie","hotmail.co.uk","outlook.com","outlook.ie","live.com","live.ie","icloud.com","me.com","mac.com","aol.com","protonmail.com","proton.me","fastmail.com","ymail.com"];
+      const emailDomain = (targetEmail.split("@")[1] || "").toLowerCase();
+      if (consumerDomains.includes(emailDomain)) {
+        delete state.collected[emailField];
+        // Find the collect step for this field and go back to it
+        const emailCollectStep = state.agentDef.steps.find(s => s.collect_field === emailField);
+        if (emailCollectStep) {
+          state.stepId = emailCollectStep.id;
+          return { reply: `That looks like a personal email address. Please use your **college or university email** (e.g. yourname@ucc.ie) so we can verify your student status.`, choices: [] };
+        }
+      }
+
       const code = String(Math.floor(1000 + Math.random() * 9000));
       state.collected._verify_code     = code;
       state.collected._verify_attempts = 0;

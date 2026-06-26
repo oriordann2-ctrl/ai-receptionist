@@ -1619,16 +1619,42 @@
           addMsg("We couldn't find " + childName + " as a junior member. The non-member rate of €" + f.data.price + " applies.", "bot");
         }
         setTimeout(function() {
-          _mbrInlineButtons([
-            { label: "Continue booking" },
-            { label: "That's not right" }
-          ], function(choice) {
+          var buttons = isMember
+            ? [{ label: "Continue booking" }, { label: "That's not right" }]
+            : [{ label: "Continue booking" }, { label: "That's not right" }, { label: "Join as a Member" }];
+          _mbrInlineButtons(buttons, function(choice) {
             if (choice === "That's not right") {
               addMsg("No problem — what's the correct name?", "bot");
               _mbrInlineInput("Child's first and last name *", function(val) {
                 f.data.childName = val.trim();
                 _juniorCheckMember(val.trim());
               });
+            } else if (choice === "Join as a Member") {
+              _juniorFlow = null;
+              addMsg("Happy to help with a membership application! Let's get started.", "bot");
+              setTimeout(function() {
+                showTyping();
+                fetch(BACKEND + "/chat", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ userId: userId, conversationId: conversationId, message: "", clubId: clubId, agentTrigger: "membership_application_agent" })
+                })
+                  .then(function(r) { return r.json(); })
+                  .then(function(data) {
+                    hideTyping();
+                    if (data.reply) addMsg(data.reply, "bot");
+                    if (data.agentChoices && data.agentChoices.length) {
+                      showAgentChoices(data.agentChoices, { multiSelect: data.multiSelect, maxSelect: data.maxSelect });
+                    } else {
+                      enableTextInput();
+                    }
+                  })
+                  .catch(function() {
+                    hideTyping();
+                    addMsg("Sorry, I couldn't start the membership form right now. Please try again.", "bot");
+                    enableTextInput();
+                  });
+              }, 400);
             } else {
               f.step = 1;
               _runJuniorStep();

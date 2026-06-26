@@ -13282,6 +13282,66 @@ async function runCurrentStep(convo, userInput) {
     return runCurrentStep(convo, null);
   }
 
+  // ── Email verification step ───────────────────────────────────────────────
+  // Sends a 4-digit code to the collected email, waits for the user to enter it.
+  // Used for student membership to verify an institutional email address.
+  if (step.type === "email_verify") {
+    const emailField = step.email_field || "student_email";
+    const targetEmail = state.collected[emailField];
+
+    // First visit — send the code
+    if (userInput === null) {
+      if (!targetEmail) {
+        // No email collected yet — skip verification
+        state.collected.student_email_verified = false;
+        state.stepId = step.next;
+        return runCurrentStep(convo, null);
+      }
+      const code = String(Math.floor(1000 + Math.random() * 9000));
+      state.collected._verify_code     = code;
+      state.collected._verify_attempts = 0;
+
+      if (process.env.RESEND_API_KEY) {
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from:    "Maeve <maeve@sprimal.com>",
+            to:      targetEmail,
+            subject: "Your student verification code",
+            html:    `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;"><h2 style="font-size:20px;color:#111827;">Student verification</h2><p style="font-size:15px;color:#374151;">Your verification code is:</p><p style="font-size:36px;font-weight:700;letter-spacing:8px;color:#1e3a8a;">${code}</p><p style="font-size:13px;color:#6b7280;">Enter this code in the chat to continue your membership application. It expires when your session ends.</p></div>`
+          })
+        }).catch(err => console.error("[email_verify] send error:", err.message));
+      }
+
+      return { reply: `We've sent a 4-digit verification code to **${targetEmail}**. Please enter the code to continue.`, choices: [] };
+    }
+
+    // Subsequent visit — validate code
+    const entered  = (userInput || "").trim();
+    const attempts = (state.collected._verify_attempts || 0) + 1;
+    state.collected._verify_attempts = attempts;
+
+    if (entered === state.collected._verify_code) {
+      state.collected.student_email_verified = true;
+      delete state.collected._verify_code;
+      delete state.collected._verify_attempts;
+      state.stepId = step.next;
+      return runCurrentStep(convo, null);
+    }
+
+    if (attempts >= 3) {
+      // Allow through but flag as unverified so committee can see
+      state.collected.student_email_verified = false;
+      delete state.collected._verify_code;
+      delete state.collected._verify_attempts;
+      state.stepId = step.next;
+      return runCurrentStep(convo, null);
+    }
+
+    return { reply: `That code doesn't match — ${3 - attempts} attempt${3 - attempts === 1 ? "" : "s"} remaining. Please try again.`, choices: [] };
+  }
+
   // ── Availability check step ───────────────────────────────────────────────
   // Fetches live court slots from EBO, shows them as choices, stores selection.
   if (step.type === "availability_check") {
@@ -20617,7 +20677,9 @@ app.listen(PORT, async () => {
           { id: "dob",              type: "collect",  prompt: "Please provide the child's date of birth (DD/MM/YYYY).", collect_field: "date_of_birth", required: true, next: "child_name" },
           { id: "child_name",       type: "collect",  prompt: "What is the child's full name?", collect_field: "name", required: true, next: "lead_capture" },
           { id: "student_college",  type: "collect",  prompt: "Which college or university are you attending?", collect_field: "student_college", required: true,  next: "student_id" },
-          { id: "student_id",       type: "collect",  prompt: "What is your student ID number?", collect_field: "student_id", required: true, next: "lead_capture" },
+          { id: "student_id",       type: "collect",  prompt: "What is your student ID number?", collect_field: "student_id", required: true, next: "student_email" },
+          { id: "student_email",    type: "collect",  prompt: "Please enter your college or university email address so we can verify your student status.", collect_field: "student_email", required: true, next: "student_verify" },
+          { id: "student_verify",   type: "email_verify", email_field: "student_email", next: "lead_capture" },
           { id: "lead_capture",     type: "skill",    skill_id: "lead_capture", next: "address" },
           { id: "address",          type: "collect",  prompt: "What's your home address?",  collect_field: "address",  required: true,  next: "eircode" },
           { id: "eircode",          type: "collect",  prompt: "And your Eircode?",           collect_field: "eircode",  required: true,  next: "other_club" },
@@ -20745,12 +20807,14 @@ app.listen(PORT, async () => {
     }
   } catch (e) { console.error("[migration] eircode step:", e.message); }
 
-  // Add student_college + student_id steps and update greeting branch for student membership
+  // Add student_college + student_id + student_email + student_verify steps and update greeting branch
   try {
     const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
     if (memDef && !memDef.steps.find(s => s.id === "student_college")) {
-      const studentCollegeStep = { id: "student_college", type: "collect", prompt: "Which college or university are you attending?", collect_field: "student_college", required: true, next: "student_id" };
-      const studentIdStep     = { id: "student_id",      type: "collect", prompt: "What is your student ID number?",                collect_field: "student_id",      required: true, next: "lead_capture" };
+      const studentCollegeStep = { id: "student_college", type: "collect",      prompt: "Which college or university are you attending?",                                                              collect_field: "student_college", required: true, next: "student_id" };
+      const studentIdStep      = { id: "student_id",      type: "collect",      prompt: "What is your student ID number?",                                                                            collect_field: "student_id",      required: true, next: "student_email" };
+      const studentEmailStep   = { id: "student_email",   type: "collect",      prompt: "Please enter your college or university email address so we can verify your student status.",               collect_field: "student_email",   required: true, next: "student_verify" };
+      const studentVerifyStep  = { id: "student_verify",  type: "email_verify", email_field: "student_email", next: "lead_capture" };
       const newSteps = memDef.steps.map(s => {
         if (s.id === "greeting") {
           const branches = [...(s.branches || []).filter(b => !b.if_value_contains?.includes("student")), { if_value_contains: "student", next: "student_college" }];
@@ -20759,12 +20823,30 @@ app.listen(PORT, async () => {
         return s;
       });
       const lcIdx = newSteps.findIndex(s => s.id === "lead_capture");
-      newSteps.splice(lcIdx, 0, studentCollegeStep, studentIdStep);
+      newSteps.splice(lcIdx, 0, studentCollegeStep, studentIdStep, studentEmailStep, studentVerifyStep);
       const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
       if (error) console.error("[migration] student steps:", error.message);
-      else console.log("[migration] Added student_college + student_id steps to membership_application_agent");
+      else console.log("[migration] Added student verification steps to membership_application_agent");
     }
   } catch (e) { console.error("[migration] student steps:", e.message); }
+
+  // Patch existing student_id step to point to student_email (if student_college already exists but email_verify not yet)
+  try {
+    const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef && memDef.steps.find(s => s.id === "student_college") && !memDef.steps.find(s => s.id === "student_verify")) {
+      const studentEmailStep  = { id: "student_email",  type: "collect",      prompt: "Please enter your college or university email address so we can verify your student status.", collect_field: "student_email", required: true, next: "student_verify" };
+      const studentVerifyStep = { id: "student_verify", type: "email_verify", email_field: "student_email", next: "lead_capture" };
+      const newSteps = memDef.steps.map(s => {
+        if (s.id === "student_id") return { ...s, next: "student_email" };
+        return s;
+      });
+      const lcIdx = newSteps.findIndex(s => s.id === "lead_capture");
+      newSteps.splice(lcIdx, 0, studentEmailStep, studentVerifyStep);
+      const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
+      if (error) console.error("[migration] student email_verify patch:", error.message);
+      else console.log("[migration] Added student_email + student_verify steps to membership_application_agent");
+    }
+  } catch (e) { console.error("[migration] student email_verify patch:", e.message); }
 
   // Add partner_name step to family branch (after children_details)
   try {

@@ -20764,7 +20764,7 @@ app.listen(PORT, async () => {
     const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
     if (memDef) {
       const cdStep = memDef.steps.find(s => s.id === "children_details");
-      if (cdStep && !cdStep.prompt.includes("Example:")) {
+      if (cdStep && cdStep.prompt.includes("one per line")) {
         const newSteps = memDef.steps.map(s =>
           s.id === "children_details"
             ? { ...s, prompt: "Please provide the name and date of birth of each child. Separate multiple children with a semicolon.\n\nExample: Saoirse Murphy 12/03/2015; Conor Murphy 05/09/2018" }

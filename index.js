@@ -20611,11 +20611,13 @@ app.listen(PORT, async () => {
           ]
         },
         steps: [
-          { id: "greeting",         type: "greeting", message_key: "intro_message", prompt: "What type of membership are you applying for?", choices_key: "membership_types", collect_field: "membership_type", branches: [{ if_value_contains: "family", next: "children_details" }, { if_value_contains: "junior", next: "dob" }], default_next: "lead_capture" },
+          { id: "greeting",         type: "greeting", message_key: "intro_message", prompt: "What type of membership are you applying for?", choices_key: "membership_types", collect_field: "membership_type", branches: [{ if_value_contains: "family", next: "children_details" }, { if_value_contains: "junior", next: "dob" }, { if_value_contains: "student", next: "student_college" }], default_next: "lead_capture" },
           { id: "children_details", type: "collect",  prompt: "Please provide the name and date of birth of each child. Separate multiple children with a semicolon.\n\nExample: Saoirse Murphy 12/03/2015; Conor Murphy 05/09/2018", collect_field: "children_details", required: true,  next: "partner_name" },
           { id: "partner_name",     type: "collect",  prompt: "What is your spouse or partner's full name?", collect_field: "partner_name", required: false, next: "lead_capture" },
           { id: "dob",              type: "collect",  prompt: "Please provide the child's date of birth (DD/MM/YYYY).", collect_field: "date_of_birth", required: true, next: "child_name" },
           { id: "child_name",       type: "collect",  prompt: "What is the child's full name?", collect_field: "name", required: true, next: "lead_capture" },
+          { id: "student_college",  type: "collect",  prompt: "Which college or university are you attending?", collect_field: "student_college", required: true,  next: "student_id" },
+          { id: "student_id",       type: "collect",  prompt: "What is your student ID number?", collect_field: "student_id", required: true, next: "lead_capture" },
           { id: "lead_capture",     type: "skill",    skill_id: "lead_capture", next: "address" },
           { id: "address",          type: "collect",  prompt: "What's your home address?",  collect_field: "address",  required: true,  next: "eircode" },
           { id: "eircode",          type: "collect",  prompt: "And your Eircode?",           collect_field: "eircode",  required: true,  next: "other_club" },
@@ -20742,6 +20744,27 @@ app.listen(PORT, async () => {
       else console.log("[migration] Added separate eircode step to membership_application_agent");
     }
   } catch (e) { console.error("[migration] eircode step:", e.message); }
+
+  // Add student_college + student_id steps and update greeting branch for student membership
+  try {
+    const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef && !memDef.steps.find(s => s.id === "student_college")) {
+      const studentCollegeStep = { id: "student_college", type: "collect", prompt: "Which college or university are you attending?", collect_field: "student_college", required: true, next: "student_id" };
+      const studentIdStep     = { id: "student_id",      type: "collect", prompt: "What is your student ID number?",                collect_field: "student_id",      required: true, next: "lead_capture" };
+      const newSteps = memDef.steps.map(s => {
+        if (s.id === "greeting") {
+          const branches = [...(s.branches || []).filter(b => !b.if_value_contains?.includes("student")), { if_value_contains: "student", next: "student_college" }];
+          return { ...s, branches };
+        }
+        return s;
+      });
+      const lcIdx = newSteps.findIndex(s => s.id === "lead_capture");
+      newSteps.splice(lcIdx, 0, studentCollegeStep, studentIdStep);
+      const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
+      if (error) console.error("[migration] student steps:", error.message);
+      else console.log("[migration] Added student_college + student_id steps to membership_application_agent");
+    }
+  } catch (e) { console.error("[migration] student steps:", e.message); }
 
   // Add partner_name step to family branch (after children_details)
   try {

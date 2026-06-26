@@ -20612,7 +20612,7 @@ app.listen(PORT, async () => {
         },
         steps: [
           { id: "greeting",         type: "greeting", message_key: "intro_message", prompt: "What type of membership are you applying for?", choices_key: "membership_types", collect_field: "membership_type", branches: [{ if_value_contains: "family", next: "children_details" }, { if_value_contains: "junior", next: "dob" }], default_next: "lead_capture" },
-          { id: "children_details", type: "collect",  prompt: "Please provide the name and date of birth of each child (one per line).\n\nExample:\nSaoirse Murphy, 12/03/2015\nConor Murphy, 05/09/2018", collect_field: "children_details", required: true,  next: "partner_name" },
+          { id: "children_details", type: "collect",  prompt: "Please provide the name and date of birth of each child. Separate multiple children with a semicolon.\n\nExample: Saoirse Murphy 12/03/2015; Conor Murphy 05/09/2018", collect_field: "children_details", required: true,  next: "partner_name" },
           { id: "partner_name",     type: "collect",  prompt: "What is your spouse or partner's full name?", collect_field: "partner_name", required: false, next: "lead_capture" },
           { id: "dob",              type: "collect",  prompt: "Please provide the child's date of birth (DD/MM/YYYY).", collect_field: "date_of_birth", required: true, next: "child_name" },
           { id: "child_name",       type: "collect",  prompt: "What is the child's full name?", collect_field: "name", required: true, next: "lead_capture" },
@@ -20767,7 +20767,7 @@ app.listen(PORT, async () => {
       if (cdStep && !cdStep.prompt.includes("Example:")) {
         const newSteps = memDef.steps.map(s =>
           s.id === "children_details"
-            ? { ...s, prompt: "Please provide the name and date of birth of each child (one per line).\n\nExample:\nSaoirse Murphy, 12/03/2015\nConor Murphy, 05/09/2018" }
+            ? { ...s, prompt: "Please provide the name and date of birth of each child. Separate multiple children with a semicolon.\n\nExample: Saoirse Murphy 12/03/2015; Conor Murphy 05/09/2018" }
             : s
         );
         const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");

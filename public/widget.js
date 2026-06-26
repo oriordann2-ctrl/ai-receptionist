@@ -1621,13 +1621,46 @@
         setTimeout(function() {
           var buttons = isMember
             ? [{ label: "Continue booking" }, { label: "That's not right" }]
-            : [{ label: "Continue booking" }, { label: "That's not right" }, { label: "Join as a Member" }];
+            : [{ label: "Continue booking" }, { label: "That's not right" }, { label: "Contact Junior Secretary" }, { label: "Join as a Member" }];
           _mbrInlineButtons(buttons, function(choice) {
             if (choice === "That's not right") {
               addMsg("No problem — what's the correct name?", "bot");
               _mbrInlineInput("Child's first and last name *", function(val) {
                 f.data.childName = val.trim();
                 _juniorCheckMember(val.trim());
+              });
+            } else if (choice === "Contact Junior Secretary") {
+              addMsg("No problem — we'll flag this to the Junior Secretary to check the membership records. What's your name?", "bot");
+              _mbrInlineInput("Your name *", function(parentName) {
+                parentName = parentName.trim();
+                addMsg("And your email address?", "bot");
+                _mbrInlineInput("Your email *", function(parentEmail) {
+                  parentEmail = parentEmail.trim();
+                  addMsg("And your phone number? (optional — press Enter to skip)", "bot");
+                  _mbrInlineInput("Phone (optional)", function(parentPhone) {
+                    parentPhone = parentPhone.trim();
+                    fetch(BACKEND + "/api/camp/contact-secretary", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tenantId: clubId, childName: f.data.childName, parentName: parentName, parentEmail: parentEmail, parentPhone: parentPhone || null })
+                    })
+                      .then(function(r) { return r.json(); })
+                      .then(function() {
+                        addMsg("Done — the Junior Secretary has been notified and will follow up with you directly. In the meantime, would you like to continue the booking at the non-member rate?", "bot");
+                        setTimeout(function() {
+                          _mbrInlineButtons([{ label: "Continue booking" }, { label: "No thanks" }], function(c) {
+                            if (c === "Continue booking") { f.step = 1; _runJuniorStep(); }
+                            else { _juniorFlow = null; addMsg("No problem — feel free to come back anytime.", "bot"); enableTextInput(); }
+                          });
+                        }, 300);
+                      })
+                      .catch(function() {
+                        addMsg("Sorry, I couldn't send that message right now. Please contact the club directly.", "bot");
+                        enableTextInput();
+                        _juniorFlow = null;
+                      });
+                  });
+                });
               });
             } else if (choice === "Join as a Member") {
               _juniorFlow = null;

@@ -8578,6 +8578,46 @@ app.post("/api/ebo/check-junior-member", async (req, res) => {
   }
 });
 
+// ── Junior membership dispute — parent contacts the Junior Secretary ──────────
+app.post("/api/camp/contact-secretary", async (req, res) => {
+  const { tenantId, childName, parentName, parentEmail, parentPhone } = req.body || {};
+  if (!tenantId || !childName || !parentName || !parentEmail) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+  try {
+    const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", tenantId).maybeSingle();
+    const clubName   = tenant?.name  || "The club";
+    const adminEmail = tenant?.email || null;
+
+    if (adminEmail && process.env.RESEND_API_KEY) {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from:    `${clubName} <noreply@sprimal.com>`,
+          to:      adminEmail,
+          subject: `Membership query — ${childName} (parent: ${parentName})`,
+          html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;">
+            <h2 style="font-size:18px;color:#111827;">Junior Membership Query</h2>
+            <p style="font-size:14px;color:#374151;">A parent has flagged a possible error with their child's membership status in the system. They believe their child <strong>${childName}</strong> is a member but the widget did not find them.</p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;margin:20px 0;background:#f9fafb;border-radius:8px;padding:16px;">
+              <tr><td style="padding:6px 12px;color:#6b7280;width:140px;">Child's name</td><td style="padding:6px 12px;font-weight:600;">${childName}</td></tr>
+              <tr><td style="padding:6px 12px;color:#6b7280;">Parent/Guardian</td><td style="padding:6px 12px;">${parentName}</td></tr>
+              <tr><td style="padding:6px 12px;color:#6b7280;">Email</td><td style="padding:6px 12px;"><a href="mailto:${parentEmail}">${parentEmail}</a></td></tr>
+              ${parentPhone ? `<tr><td style="padding:6px 12px;color:#6b7280;">Phone</td><td style="padding:6px 12px;">${parentPhone}</td></tr>` : ""}
+            </table>
+            <p style="font-size:13px;color:#6b7280;">Please check the membership database and follow up with the parent directly.</p>
+          </div>`
+        })
+      });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[contact-secretary]", err.message);
+    return res.status(500).json({ error: "Failed to send" });
+  }
+});
+
 // ── Junior Event Booking — configurable multi-tenant event system ─────────────
 
 const QUESTION_BLOCK_DEFS = [

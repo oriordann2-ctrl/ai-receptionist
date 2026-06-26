@@ -12465,8 +12465,11 @@ function isValidEmail(str) {
 
 function startLeadCaptureSkill(agentState, skillDef) {
   const fields = skillDef.config_schema.fields || [];
-  agentState.skillState = { fieldIndex: 0, fields, data: {} };
-  const first = fields[0];
+  // Skip fields whose key is already in collected (e.g. name pre-collected for junior)
+  const pending = fields.filter(f => !agentState.collected[f.key]);
+  if (!pending.length) return { reply: null, choices: [], done: true, data: {} };
+  agentState.skillState = { fieldIndex: 0, fields: pending, data: {} };
+  const first = pending[0];
   return { reply: first.prompt, choices: [], done: false };
 }
 
@@ -20610,7 +20613,8 @@ app.listen(PORT, async () => {
         steps: [
           { id: "greeting",         type: "greeting", message_key: "intro_message", prompt: "What type of membership are you applying for?", choices_key: "membership_types", collect_field: "membership_type", branches: [{ if_value_contains: "family", next: "children_details" }, { if_value_contains: "junior", next: "dob" }], default_next: "lead_capture" },
           { id: "children_details", type: "collect",  prompt: "Please provide the name and date of birth of each child.", collect_field: "children_details", required: true,  next: "lead_capture" },
-          { id: "dob",              type: "collect",  prompt: "Please provide their date of birth.",                      collect_field: "date_of_birth",    required: true,  next: "lead_capture" },
+          { id: "dob",              type: "collect",  prompt: "Please provide the child's date of birth (DD/MM/YYYY).", collect_field: "date_of_birth", required: true, next: "child_name" },
+          { id: "child_name",       type: "collect",  prompt: "What is the child's full name?", collect_field: "name", required: true, next: "lead_capture" },
           { id: "lead_capture",     type: "skill",    skill_id: "lead_capture", next: "address" },
           { id: "address",          type: "collect",  prompt: "What's your home address?",  collect_field: "address",  required: true,  next: "eircode" },
           { id: "eircode",          type: "collect",  prompt: "And your Eircode?",           collect_field: "eircode",  required: true,  next: "other_club" },
@@ -20737,6 +20741,23 @@ app.listen(PORT, async () => {
       else console.log("[migration] Added separate eircode step to membership_application_agent");
     }
   } catch (e) { console.error("[migration] eircode step:", e.message); }
+
+  // Add child_name step for junior branch + fix dob prompt
+  try {
+    const { data: memDef } = await supabase.from("agent_definitions").select("steps").eq("id", "membership_application_agent").maybeSingle();
+    if (memDef && !memDef.steps.find(s => s.id === "child_name")) {
+      const childNameStep = { id: "child_name", type: "collect", prompt: "What is the child's full name?", collect_field: "name", required: true, next: "lead_capture" };
+      let newSteps = memDef.steps.map(s => {
+        if (s.id === "dob") return { ...s, prompt: "Please provide the child's date of birth (DD/MM/YYYY).", next: "child_name" };
+        return s;
+      });
+      const lcIdx = newSteps.findIndex(s => s.id === "lead_capture");
+      newSteps.splice(lcIdx, 0, childNameStep);
+      const { error } = await supabase.from("agent_definitions").update({ steps: newSteps }).eq("id", "membership_application_agent");
+      if (error) console.error("[migration] child_name step:", error.message);
+      else console.log("[migration] Added child_name step and updated dob prompt for junior branch");
+    }
+  } catch (e) { console.error("[migration] child_name step:", e.message); }
 
   // Add contact notice to proposer/seconder prompts
   try {

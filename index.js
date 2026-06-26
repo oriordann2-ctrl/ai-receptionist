@@ -8585,12 +8585,12 @@ app.post("/api/camp/contact-secretary", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
   try {
-    const [{ data: tenant }, { data: campCfg }] = await Promise.all([
+    const [{ data: tenant }, { data: tenantAgent }] = await Promise.all([
       supabase.from("tenants").select("name, email").eq("id", tenantId).maybeSingle(),
-      supabase.from("tenant_integrations").select("config").eq("tenant_id", tenantId).eq("provider", "camp_config").maybeSingle()
+      supabase.from("tenant_agents").select("config").eq("tenant_id", tenantId).eq("agent_id", "membership_application_agent").maybeSingle()
     ]);
     const clubName   = tenant?.name || "The club";
-    const adminEmail = campCfg?.config?.junior_secretary_email || tenant?.email || null;
+    const adminEmail = tenantAgent?.config?.junior_secretary_email || tenant?.email || null;
 
     if (adminEmail && process.env.RESEND_API_KEY) {
       await fetch("https://api.resend.com/emails", {
@@ -20787,13 +20787,16 @@ app.listen(PORT, async () => {
   } catch (e) { console.error("[migration] lead_capture phone:", e.message); }
 
   // Remove reply_time from membership_application_agent config (not relevant for membership)
-  // Add codes_of_conduct_url field and update consent step prompt to include the URL
+  // Add codes_of_conduct_url + junior_secretary_email fields
   try {
     const { data: memDef } = await supabase.from("agent_definitions").select("config_schema, steps").eq("id", "membership_application_agent").maybeSingle();
     if (memDef) {
       let fields = memDef.config_schema.fields.filter(f => f.key !== "reply_time");
       if (!fields.find(f => f.key === "codes_of_conduct_url")) {
         fields.push({ key: "codes_of_conduct_url", label: "Codes of Conduct URL", type: "text", required: false, placeholder: "https://yourclub.com/codes-of-conduct", hint: "Shown to applicants in the consent step." });
+      }
+      if (!fields.find(f => f.key === "junior_secretary_email")) {
+        fields.push({ key: "junior_secretary_email", label: "Junior Secretary Email", type: "text", required: false, placeholder: "juniors@yourclub.com", hint: "Membership dispute emails are sent here when a child can't be found in the system." });
       }
       const steps = memDef.steps.map(s =>
         s.id === "consent"
@@ -20905,15 +20908,13 @@ app.listen(PORT, async () => {
     }
   } catch (e) { console.error("[migration] student email_verify patch:", e.message); }
 
-  // Set Monkstown junior secretary email in camp_config integration
+  // Set Monkstown junior secretary email in membership_application_agent config
   try {
-    await supabase.from("tenant_integrations").upsert({
-      tenant_id: "monkstown-lawn-tennis-club",
-      provider:  "camp_config",
-      is_active: true,
-      config:    { junior_secretary_email: "juniors@monkstowntennisclub.com" }
-    }, { onConflict: "tenant_id,provider" });
-  } catch (e) { console.error("[migration] camp_config:", e.message); }
+    const { data: ta } = await supabase.from("tenant_agents").select("id, config").eq("tenant_id", "monkstown-lawn-tennis-club").eq("agent_id", "membership_application_agent").maybeSingle();
+    if (ta && !ta.config?.junior_secretary_email) {
+      await supabase.from("tenant_agents").update({ config: { ...(ta.config || {}), junior_secretary_email: "juniors@monkstowntennisclub.com" } }).eq("id", ta.id);
+    }
+  } catch (e) { console.error("[migration] junior_secretary_email:", e.message); }
 
   // Add partner_name step to family branch (after children_details)
   try {

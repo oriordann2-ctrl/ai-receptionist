@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const dotenv = require("dotenv");
 const sizeOf = require("image-size");
 const path = require("path");
@@ -4760,17 +4760,20 @@ app.post("/voice-process", async (req, res) => {
 // Uses the alphanumeric sender "Sprimal" once approved; falls back to the
 // tenant's voice number (stored in tenant_integrations as voice_from).
 async function sendVoiceSms(toNumber, tenantId) {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken  = process.env.TWILIO_AUTH_TOKEN;
-  if (!accountSid || !authToken) {
-    console.warn("[voice/sms] TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not set");
+  // Load tenant's Twilio credentials from DB (same ones used for WhatsApp)
+  await loadTwilioConfigFromDb(tenantId);
+  const cfg = TWILIO_CONFIG[tenantId];
+  if (!cfg) {
+    console.warn(`[voice/sms] No Twilio config for tenant ${tenantId}`);
     return false;
   }
 
-  // Prefer alphanumeric sender "Sprimal" (pending approval); fall back to voice number
-  const fromSender = process.env.TWILIO_VOICE_FROM || process.env.TWILIO_SMS_FROM;
+  // Prefer alphanumeric sender "Sprimal" once approved; fall back to tenant's number
+  const fromSender = process.env.TWILIO_ALPHANUMERIC_SENDER
+    || process.env.TWILIO_VOICE_FROM
+    || cfg.from.replace(/^whatsapp:/, "");
   if (!fromSender) {
-    console.warn("[voice/sms] No from number configured (TWILIO_VOICE_FROM)");
+    console.warn("[voice/sms] No from sender configured");
     return false;
   }
 
@@ -4778,7 +4781,7 @@ async function sendVoiceSms(toNumber, tenantId) {
   const body = `Hi, this is Sprimal. Continue your enquiry here: ${widgetUrl}`;
 
   try {
-    const twilio = require("twilio")(accountSid, authToken);
+    const twilio = require("twilio")(cfg.accountSid, cfg.authToken);
     await twilio.messages.create({ to: toNumber, from: fromSender, body });
     console.log(`[voice/sms] Sent to ${toNumber} for tenant ${tenantId}`);
     return true;
@@ -4958,7 +4961,7 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
 
     // Append SMS offer when topic is complex and we have the caller's number
     let smsOffer = "";
-    if (isComplexTopic && callerFrom && process.env.TWILIO_VOICE_FROM) {
+    if (isComplexTopic && callerFrom && TWILIO_CONFIG[tenantId]) {
       smsOffer = " Would you like me to send you a link to continue this on your phone?";
     }
 

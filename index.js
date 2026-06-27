@@ -4871,13 +4871,33 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
 
   try {
     const chatBaseUrl = `http://localhost:${process.env.PORT || 3000}`;
-    const chatResp = await fetch(`${chatBaseUrl}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
-      body: JSON.stringify({ userId: callId, conversationId: callId, message: speech, clubId: tenantId, voiceMode: true })
-    });
+    const controller  = new AbortController();
+    const timeout     = setTimeout(() => controller.abort(), 10000);
+    let data;
+    try {
+      const chatResp = await fetch(`${chatBaseUrl}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
+        body: JSON.stringify({ userId: callId, conversationId: callId, message: speech, clubId: tenantId, voiceMode: true }),
+        signal: controller.signal
+      });
+      data = await chatResp.json();
+    } catch (fetchErr) {
+      // Timeout or network error — give a graceful voice response
+      console.error("[voice/gather] chat fetch failed:", fetchErr.message);
+      data = { reply: "I'm sorry, I wasn't able to look that up right now. For court availability, please visit the club website or contact us directly. Is there anything else I can help you with?" };
+    } finally {
+      clearTimeout(timeout);
+    }
 
-    const data    = await chatResp.json();
+    // Court availability can't be done over phone — redirect to website/contact
+    const isAvailabilityCheck = data.voiceRedirect === "availability" ||
+      /checking.*availability|available.*slots|book.*court/i.test(data.reply || "");
+    if (isAvailabilityCheck) {
+      data.reply = "For court availability and booking, please visit the club website or use the online booking system. Is there anything else I can help you with?";
+      data.agentChoices = [];
+    }
+
     const choices = Array.isArray(data.agentChoices) ? data.agentChoices.map(c => typeof c === "string" ? c : c.label || c.value || "").filter(Boolean) : [];
     const baseReply = cleanVoiceText(data.reply || "Sorry, I'm not sure about that. Is there anything else I can help you with?");
     const reply = choices.length

@@ -4809,7 +4809,7 @@ app.post("/api/twilio/voice/gdpr", (req, res) => {
     res.type("text/xml");
     return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="5" speechModel="phone_call">
+  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="auto" speechModel="phone_call" enhanced="true">
     ${niamhSay("Great, thanks. How can I help you today?")}
   </Gather>
   <Hangup/>
@@ -4835,7 +4835,7 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
     res.type("text/xml");
     return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="5" speechModel="phone_call">
+  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="auto" speechModel="phone_call" enhanced="true">
     ${niamhSay("Sorry, I didn't catch that. Could you say that again?")}
   </Gather>
   <Hangup/>
@@ -4865,7 +4865,7 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
     res.type("text/xml");
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="5" speechModel="phone_call">
+  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="auto" speechModel="phone_call" enhanced="true">
     ${niamhSay(reply)}
   </Gather>
   ${niamhSay("I didn't catch that. Is there anything else I can help with?")}

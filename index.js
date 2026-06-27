@@ -4757,7 +4757,7 @@ app.post("/voice-process", async (req, res) => {
 // ── Multi-tenant Twilio Voice (Polly Niamh) ───────────────────────────────────
 
 function niamhSay(text) {
-  const ssml = `<prosody volume="x-loud">${escapeXml(text)}</prosody>`;
+  const ssml = `<prosody volume="+10dB">${escapeXml(text)}</prosody>`;
   return `<Say voice="Polly.Niamh-Neural">${ssml}</Say>`;
 }
 

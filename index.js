@@ -4849,8 +4849,12 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
       body: JSON.stringify({ userId: callId, conversationId: callId, message: speech, clubId: tenantId, voiceMode: true })
     });
 
-    const data  = await chatResp.json();
-    const reply = cleanVoiceText(data.reply || "Sorry, I'm not sure about that. Is there anything else I can help you with?");
+    const data    = await chatResp.json();
+    const choices = Array.isArray(data.agentChoices) ? data.agentChoices.map(c => typeof c === "string" ? c : c.label || c.value || "").filter(Boolean) : [];
+    const baseReply = cleanVoiceText(data.reply || "Sorry, I'm not sure about that. Is there anything else I can help you with?");
+    const reply = choices.length
+      ? baseReply + " You can say: " + choices.join(", ") + "."
+      : baseReply;
 
     const updatedConvo = ensureConversation(callId);
     if (updatedConvo.completed) {

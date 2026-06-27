@@ -4870,7 +4870,8 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
   }
 
   try {
-    const chatResp = await fetch(`${req.protocol}://${req.get("host")}/chat`, {
+    const chatBaseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+    const chatResp = await fetch(`${chatBaseUrl}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: callId, conversationId: callId, message: speech, clubId: tenantId, voiceMode: true })
@@ -4903,11 +4904,14 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
   <Hangup/>
 </Response>`);
   } catch (err) {
-    console.error("[voice/gather]", err.message);
+    console.error("[voice/gather] error:", err.message, err.stack);
     res.type("text/xml");
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Sorry, something went wrong. Please try calling back.</Say>
+  ${niamhSay("Sorry, I had a problem with that. Please try again.")}
+  <Gather input="speech" action="${voiceGatherUrl(req, "voice/gather")}" method="POST" speechTimeout="auto" speechModel="phone_call" enhanced="true">
+    ${niamhSay("Is there anything else I can help you with?")}
+  </Gather>
   <Hangup/>
 </Response>`);
   }

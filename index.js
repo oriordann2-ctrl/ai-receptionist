@@ -4756,6 +4756,41 @@ app.post("/voice-process", async (req, res) => {
 
 // ── Multi-tenant Twilio Voice (Polly Niamh) ───────────────────────────────────
 
+// Send an SMS to a caller with a link to the widget.
+// Uses the alphanumeric sender "Sprimal" once approved; falls back to the
+// tenant's voice number (stored in tenant_integrations as voice_from).
+async function sendVoiceSms(toNumber, tenantId) {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+  if (!accountSid || !authToken) {
+    console.warn("[voice/sms] TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not set");
+    return false;
+  }
+
+  // Prefer alphanumeric sender "Sprimal" (pending approval); fall back to voice number
+  const fromSender = process.env.TWILIO_VOICE_FROM || process.env.TWILIO_SMS_FROM;
+  if (!fromSender) {
+    console.warn("[voice/sms] No from number configured (TWILIO_VOICE_FROM)");
+    return false;
+  }
+
+  const widgetUrl = `https://app.sprimal.com/?clubId=${encodeURIComponent(tenantId)}`;
+  const body = `Hi, this is Sprimal. Continue your enquiry here: ${widgetUrl}`;
+
+  try {
+    const twilio = require("twilio")(accountSid, authToken);
+    await twilio.messages.create({ to: toNumber, from: fromSender, body });
+    console.log(`[voice/sms] Sent to ${toNumber} for tenant ${tenantId}`);
+    return true;
+  } catch (err) {
+    console.error("[voice/sms] Send failed:", err.message);
+    return false;
+  }
+}
+
+// Topics that are better handled via the widget than over voice
+const VOICE_SMS_TOPICS = /\b(member(ship)?|join|register|applicat|book(ing)?|court|availab|enrol|sign.?up|payment|fee|renewal)\b/i;
+
 function niamhSay(text) {
   const ssml = `<prosody volume="+10dB">${escapeXml(text)}</prosody>`;
   return `<Say voice="Polly.Niamh-Neural">${ssml}</Say>`;
@@ -4898,11 +4933,42 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
       data.agentChoices = [];
     }
 
+    // Detect when caller is asking about something better handled via the widget
+    // (membership, joining, bookings, payments). Offer to text them a link.
+    const callerFrom = req.body.From || "";
+    const isComplexTopic = VOICE_SMS_TOPICS.test(speech) && !isAvailabilityCheck;
+    const wantsSmsSent = /\b(yes|yeah|please|sure|ok|go ahead|send|text me)\b/i.test(speech);
+    const isReplyingToSmsOffer = /would you like me to send/i.test(
+      // check if previous reply in this call offered an SMS
+      (() => { const c = ensureConversation(callId); return c._lastVoiceReply || ""; })()
+    );
+
+    if (isReplyingToSmsOffer && wantsSmsSent && callerFrom) {
+      // They said yes to the SMS offer — redirect to the SMS handler
+      const smsUrl = `/api/twilio/voice/sms?tenantId=${encodeURIComponent(tenantId)}`;
+      res.type("text/xml");
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Redirect method="POST">${smsUrl}</Redirect>
+</Response>`);
+    }
+
     const choices = Array.isArray(data.agentChoices) ? data.agentChoices.map(c => typeof c === "string" ? c : c.label || c.value || "").filter(Boolean) : [];
     const baseReply = cleanVoiceText(data.reply || "Sorry, I'm not sure about that. Is there anything else I can help you with?");
+
+    // Append SMS offer when topic is complex and we have the caller's number
+    let smsOffer = "";
+    if (isComplexTopic && callerFrom && process.env.TWILIO_VOICE_FROM) {
+      smsOffer = " Would you like me to send you a link to continue this on your phone?";
+    }
+
     const reply = choices.length
-      ? baseReply + " You can say: " + choices.join(", ") + "."
-      : baseReply;
+      ? baseReply + " You can say: " + choices.join(", ") + "." + smsOffer
+      : baseReply + smsOffer;
+
+    // Store last reply so next turn can detect SMS offer acceptance
+    const convoState = ensureConversation(callId);
+    convoState._lastVoiceReply = reply;
 
     const updatedConvo = ensureConversation(callId);
     if (updatedConvo.completed) {
@@ -4935,6 +5001,32 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
   <Hangup/>
 </Response>`);
   }
+});
+
+// Caller said "yes" to receiving an SMS link
+app.post("/api/twilio/voice/sms", async (req, res) => {
+  const tenantId = voiceTenantId(req);
+  const from     = req.body.From || "";          // caller's number
+  const gatherUrl = voiceGatherUrl(req, "voice/gather");
+
+  let voiceReply;
+  if (from) {
+    const sent = await sendVoiceSms(from, tenantId);
+    voiceReply = sent
+      ? "I've sent a link to your phone. You can use it to continue at any time. Is there anything else I can help you with?"
+      : "Sorry, I wasn't able to send a text right now. You can visit the website directly. Is there anything else I can help you with?";
+  } else {
+    voiceReply = "I'm sorry, I couldn't get your number to send a text. You can visit the website directly. Is there anything else I can help with?";
+  }
+
+  res.type("text/xml");
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="auto" speechModel="phone_call" enhanced="true">
+    ${niamhSay(voiceReply)}
+  </Gather>
+  <Hangup/>
+</Response>`);
 });
 
 function cleanVoiceText(text) {

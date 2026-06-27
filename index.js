@@ -4796,30 +4796,56 @@ app.post("/api/twilio/voice", async (req, res) => {
 });
 
 // GDPR consent step
-app.post("/api/twilio/voice/gdpr", (req, res) => {
-  const callId    = voiceCallId(req);
-  const input     = `${req.body.SpeechResult || ""} ${req.body.Digits || ""}`.toLowerCase();
-  const convo     = ensureConversation(callId);
+app.post("/api/twilio/voice/gdpr", async (req, res) => {
+  const callId   = voiceCallId(req);
+  const tenantId = voiceTenantId(req);
+  const input    = `${req.body.SpeechResult || ""} ${req.body.Digits || ""}`.toLowerCase();
+  const convo    = ensureConversation(callId);
   const gatherUrl = voiceGatherUrl(req, "voice/gather");
 
   const consented = /yes|yeah|ok|sure|alright|go ahead|continue/.test(input) || input.includes("1");
 
-  if (consented) {
-    convo.voiceConsent = true;
+  if (!consented) {
     res.type("text/xml");
     return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="auto" speechModel="phone_call" enhanced="true">
-    ${niamhSay("Great, thanks. How can I help you today?")}
-  </Gather>
+  ${niamhSay("No problem at all. I hope you have a great day. Goodbye.")}
   <Hangup/>
 </Response>`);
+  }
+
+  convo.voiceConsent = true;
+
+  // Fetch the active workflow to read out the top-level menu
+  let menuText = "";
+  try {
+    const { data: flows } = await supabase
+      .from("chat_workflows")
+      .select("is_active, workflow_steps(step_order, bot_message, workflow_choices(choice_order, label))")
+      .eq("club_id", tenantId)
+      .order("created_at", { ascending: true });
+
+    const rootFlow = (flows || []).find(f => f.is_active);
+    if (rootFlow?.workflow_steps?.length) {
+      const firstStep = [...rootFlow.workflow_steps].sort((a, b) => a.step_order - b.step_order)[0];
+      const choices   = [...(firstStep.workflow_choices || [])].sort((a, b) => a.choice_order - b.choice_order).map(c => c.label).filter(Boolean);
+      if (choices.length) {
+        // Cap at 6 options so it's not overwhelming on the phone
+        const spoken = choices.slice(0, 6);
+        menuText = " You can say: " + spoken.slice(0, -1).join(", ") + (spoken.length > 1 ? ", or " : "") + spoken[spoken.length - 1] + ".";
+      }
+    }
+  } catch (e) {
+    console.error("[voice/gdpr] workflow fetch:", e.message);
   }
 
   res.type("text/xml");
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  ${niamhSay("No problem at all. I hope you have a great day. Goodbye.")}
+  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="auto" speechModel="phone_call" enhanced="true">
+    ${niamhSay("Great, thanks. How can I help you today?" + menuText)}
+  </Gather>
+  ${niamhSay("I didn't catch that. Please call back and I'll be happy to help.")}
   <Hangup/>
 </Response>`);
 });

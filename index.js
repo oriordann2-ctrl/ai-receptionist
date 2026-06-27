@@ -4758,7 +4758,7 @@ app.post("/voice-process", async (req, res) => {
 
 function niamhSay(text) {
   const ssml = `<prosody volume="x-loud">${escapeXml(text)}</prosody>`;
-  return `<Say voice="Polly.Amy-Neural">${ssml}</Say>`;
+  return `<Say voice="Polly.Niamh-Neural">${ssml}</Say>`;
 }
 
 function voiceTenantId(req) {

@@ -4754,6 +4754,134 @@ app.post("/voice-process", async (req, res) => {
   }
 });
 
+// ── Multi-tenant Twilio Voice (Polly Niamh) ───────────────────────────────────
+
+function niamhSay(text) {
+  return `<Say voice="Polly.Niamh-Neural">${escapeXml(text)}</Say>`;
+}
+
+function voiceTenantId(req) {
+  return req.query.tenantId || req.body.tenantId || "";
+}
+
+function voiceCallId(req) {
+  return "voice-" + (req.body.CallSid || "unknown");
+}
+
+function voiceGatherUrl(req, path) {
+  return `/api/twilio/${path}?tenantId=${encodeURIComponent(voiceTenantId(req))}`;
+}
+
+// Entry point — Twilio calls this when the phone rings
+app.post("/api/twilio/voice", async (req, res) => {
+  const tenantId = voiceTenantId(req);
+  const callId   = voiceCallId(req);
+  resetConversation(callId);
+
+  let clubName = "the club";
+  try {
+    const { data: tenant } = await supabase.from("tenants").select("name").eq("id", tenantId).maybeSingle();
+    if (tenant?.name) clubName = tenant.name;
+  } catch (_) {}
+
+  const gdprUrl = voiceGatherUrl(req, "voice/gdpr");
+  res.type("text/xml");
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech dtmf" numDigits="1" action="${gdprUrl}" method="POST" speechTimeout="3">
+    ${niamhSay(`Hi, you've reached ${clubName}. I'm Maeve, your AI assistant. Before we continue, I need your consent to process your personal data to assist with your enquiry. Say yes or press 1 to continue, or say no or press 2 to end the call.`)}
+  </Gather>
+  <Hangup/>
+</Response>`);
+});
+
+// GDPR consent step
+app.post("/api/twilio/voice/gdpr", (req, res) => {
+  const callId    = voiceCallId(req);
+  const input     = `${req.body.SpeechResult || ""} ${req.body.Digits || ""}`.toLowerCase();
+  const convo     = ensureConversation(callId);
+  const gatherUrl = voiceGatherUrl(req, "voice/gather");
+
+  const consented = /yes|yeah|ok|sure|alright|go ahead|continue/.test(input) || input.includes("1");
+
+  if (consented) {
+    convo.voiceConsent = true;
+    res.type("text/xml");
+    return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="5" speechModel="phone_call">
+    ${niamhSay("Great, thanks. How can I help you today?")}
+  </Gather>
+  <Hangup/>
+</Response>`);
+  }
+
+  res.type("text/xml");
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  ${niamhSay("No problem at all. I hope you have a great day. Goodbye.")}
+  <Hangup/>
+</Response>`);
+});
+
+// Main conversation loop
+app.post("/api/twilio/voice/gather", async (req, res) => {
+  const callId    = voiceCallId(req);
+  const tenantId  = voiceTenantId(req);
+  const speech    = (req.body.SpeechResult || "").trim();
+  const gatherUrl = voiceGatherUrl(req, "voice/gather");
+
+  if (!speech) {
+    res.type("text/xml");
+    return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="5" speechModel="phone_call">
+    ${niamhSay("Sorry, I didn't catch that. Could you say that again?")}
+  </Gather>
+  <Hangup/>
+</Response>`);
+  }
+
+  try {
+    const chatResp = await fetch(`${req.protocol}://${req.get("host")}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: callId, conversationId: callId, message: speech, clubId: tenantId, voiceMode: true })
+    });
+
+    const data  = await chatResp.json();
+    const reply = cleanVoiceText(data.reply || "Sorry, I'm not sure about that. Is there anything else I can help you with?");
+
+    const updatedConvo = ensureConversation(callId);
+    if (updatedConvo.completed) {
+      res.type("text/xml");
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  ${niamhSay(reply)}
+  <Hangup/>
+</Response>`);
+    }
+
+    res.type("text/xml");
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${gatherUrl}" method="POST" speechTimeout="5" speechModel="phone_call">
+    ${niamhSay(reply)}
+  </Gather>
+  ${niamhSay("I didn't catch that. Is there anything else I can help with?")}
+  <Hangup/>
+</Response>`);
+  } catch (err) {
+    console.error("[voice/gather]", err.message);
+    res.type("text/xml");
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Sorry, something went wrong. Please try calling back.</Say>
+  <Hangup/>
+</Response>`);
+  }
+});
+
 function cleanVoiceText(text) {
   return String(text || "")
     .replace(/€/g, " euro ")

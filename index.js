@@ -4829,7 +4829,7 @@ app.post("/api/twilio/voice/gdpr", async (req, res) => {
     const rootFlow = (flows || []).find(f => f.is_active);
     if (rootFlow?.workflow_steps?.length) {
       const firstStep = [...rootFlow.workflow_steps].sort((a, b) => a.step_order - b.step_order)[0];
-      const choices   = [...(firstStep.workflow_choices || [])].sort((a, b) => a.choice_order - b.choice_order).map(c => c.label).filter(Boolean);
+      const choices   = [...(firstStep.workflow_choices || [])].sort((a, b) => a.choice_order - b.choice_order).map(c => cleanVoiceText(c.label)).filter(Boolean);
       if (choices.length) {
         // Cap at 6 options so it's not overwhelming on the phone
         const spoken = choices.slice(0, 6);
@@ -4915,8 +4915,11 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
 
 function cleanVoiceText(text) {
   return String(text || "")
+    .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{2300}-\u{23FF}]|[\u{2B00}-\u{2BFF}]|[\u{FE00}-\u{FE0F}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]/gu, "")
     .replace(/€/g, " euro ")
     .replace(/&/g, " and ")
+    .replace(/\*+/g, "")
+    .replace(/#/g, "")
     .replace(/\n/g, " ")
     .replace(/\s+/g, " ")
     .trim();

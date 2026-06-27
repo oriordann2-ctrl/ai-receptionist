@@ -4870,10 +4870,10 @@ app.post("/api/twilio/voice/gather", async (req, res) => {
   }
 
   try {
-    const chatBaseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+    const chatBaseUrl = `http://localhost:${process.env.PORT || 3000}`;
     const chatResp = await fetch(`${chatBaseUrl}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
       body: JSON.stringify({ userId: callId, conversationId: callId, message: speech, clubId: tenantId, voiceMode: true })
     });
 

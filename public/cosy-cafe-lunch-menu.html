@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lunch Menu — Cosy Café Kinsale</title>
+<meta name="description" content="Cosy Café Kinsale lunch menu — soups, salads, burgers, bagels and wraps, plus Kinsale craft beers and wine. Church Square, Kinsale, Co Cork." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cream:#F5EEE4; --green:#1C3A2A; --ink:#1C2B20; --muted:#6B5744;
+    --gold:#E8D5B7; --price:#C4622D; --card:#EDE2D4; --line:rgba(60,40,20,0.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Lato',sans-serif;color:var(--ink);background:var(--cream);line-height:1.6}
+  .mnav{display:flex;align-items:center;justify-content:space-between;gap:16px;background:var(--green);padding:14px 24px;flex-wrap:wrap}
+  .mnav-name{font-family:'Cormorant Garamond',serif;color:var(--gold);font-size:1.3rem;font-weight:600;text-decoration:none}
+  .mnav-links{display:flex;gap:20px}
+  .mnav-links a{color:rgba(245,238,228,0.82);text-decoration:none;font-size:.85rem;font-weight:700;letter-spacing:.03em}
+  .mnav-links a:hover,.mnav-links a.active{color:var(--gold)}
+  .mwrap{max-width:1000px;margin:0 auto;padding:56px 24px 72px}
+  .mhead{text-align:center;margin-bottom:48px}
+  .mlabel{display:inline-block;color:var(--price);font-size:.8rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700;margin-bottom:12px}
+  .mhead h1{font-family:'Cormorant Garamond',serif;font-size:clamp(2.6rem,6vw,3.6rem);color:var(--green);font-weight:700;line-height:1.05}
+  .mhead p{color:var(--muted);font-weight:300;margin-top:10px}
+  .mcols{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+  .msection{margin-bottom:38px;break-inside:avoid}
+  .msection h2{font-family:'Cormorant Garamond',serif;font-size:1.9rem;color:var(--green);font-weight:600;border-bottom:2px solid var(--gold);padding-bottom:8px;margin-bottom:6px}
+  .msection .snote{font-size:.8rem;color:var(--muted);font-style:italic;font-weight:300;margin-bottom:14px}
+  .mitem{padding:12px 0;border-bottom:1px solid var(--line)}
+  .mitem:last-child{border-bottom:none}
+  .mitem-top{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+  .mitem-name{font-weight:700;color:var(--green);font-size:1rem}
+  .mitem-name .tag{font-size:.7rem;color:var(--price);font-weight:700;margin-left:6px;letter-spacing:.05em}
+  .mitem-price{color:var(--price);font-weight:700;white-space:nowrap}
+  .mitem-desc{font-size:.85rem;color:var(--muted);font-weight:300;margin-top:3px}
+  .mitem-alg{font-size:.72rem;color:#9A7A68;font-weight:300}
+  .drinkrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:.92rem;color:var(--ink)}
+  .drinkrow:last-child{border-bottom:none}
+  .drinkrow .p{color:var(--price);font-weight:700}
+  .allergens{background:var(--card);border-radius:8px;padding:22px 26px;margin-top:8px}
+  .allergens h3{font-family:'Cormorant Garamond',serif;color:var(--green);font-size:1.2rem;font-weight:600;margin-bottom:6px}
+  .allergens p{font-size:.78rem;color:var(--muted);margin-bottom:10px;font-weight:300}
+  .alg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 18px;font-size:.78rem;color:var(--ink)}
+  .legend{text-align:center;font-size:.78rem;color:var(--muted);margin-top:26px;font-weight:300}
+  .mfoot{text-align:center;margin-top:44px;color:var(--muted);font-size:.85rem;font-weight:300}
+  .mfoot a{color:var(--price);text-decoration:none}
+  .confirm{background:#FBE9D9;border:1px solid var(--price);border-radius:8px;padding:14px 18px;font-size:.82rem;color:#8a3d18;margin-bottom:30px}
+  @media(max-width:768px){
+    .mwrap{padding:40px 18px 56px}
+    .mcols{grid-template-columns:1fr;gap:0}
+  }
+</style>
+</head>
+<body>
+  <nav class="mnav">
+    <a href="cosy-cafe.html" class="mnav-name">Cosy Café</a>
+    <div class="mnav-links">
+      <a href="cosy-cafe.html">Home</a>
+      <a href="cosy-cafe-breakfast-menu.html">Breakfast</a>
+      <a href="cosy-cafe-lunch-menu.html" class="active">Lunch</a>
+    </div>
+  </nav>
+  <div class="mwrap">
+    <div class="mhead">
+      <span class="mlabel">Cosy Café · Kinsale</span>
+      <h1>Lunch Menu</h1>
+      <p>Summer 2026 · Served Tuesday to Saturday</p>
+    </div>
+
+    <div class="mcols">
+      <div>
+        <div class="msection">
+          <h2>Lunch</h2>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Soup of the Day <span class="tag">V·H·GF*</span></span><span class="mitem-price">€5.40</span></div><div class="mitem-desc">Served with our homemade soda bread. (*GF on request)</div><div class="mitem-alg">1a,7,9</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Today’s Special</span><span class="mitem-price">Ask in café</span></div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Chowder</span><span class="mitem-price">€8.30</span></div><div class="mitem-desc">Locally caught mix of fresh fish in a light, creamy sauce, served with our own soda bread.</div><div class="mitem-alg">1a,2,4,7,9</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Honey Glazed Goats Cheese Salad <span class="tag">V·H·GF</span></span><span class="mitem-price">€10.40</span></div><div class="mitem-desc">Ardsallagh goats cheese over seasonal leaves, sundried tomato, walnuts and pesto baby potatoes, balsamic reduction.</div><div class="mitem-alg">7,8,10,12</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Southern Fried Chicken Burger</span><span class="mitem-price">€13.20</span></div><div class="mitem-desc">Spice-dusted chicken breast in a Waterford Blaa with chilli mayo, baby gem and tomato, organic leaves and hand-cut skinny fries. Add bacon +€1.50</div><div class="mitem-alg">1a,3,7,9,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Cosy Café Fish &amp; Chips</span><span class="mitem-price">€13.90</span></div><div class="mitem-desc">Breaded fillet of locally caught fresh fish with house coleslaw and sweet chilli mayo.</div><div class="mitem-alg">1,3,4,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Beef Burger</span><span class="mitem-price">€13.90</span></div><div class="mitem-desc">Homemade burger in a Waterford Blaa with streaky bacon, cheddar and Ballymaloe relish, organic leaves, house dressing and hand-cut skinny fries.</div><div class="mitem-alg">1a,3,7,9,10</div></div>
+        </div>
+
+        <div class="msection">
+          <h2>Sides</h2>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Side Salad</span><span class="mitem-price">€3.20</span></div><div class="mitem-alg">9,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Skinny Fries</span><span class="mitem-price">€3.40</span></div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Garlic Bread</span><span class="mitem-price">€3.20</span></div><div class="mitem-alg">1a,7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Cakes &amp; Seasonal Desserts</span><span class="mitem-price">In display fridge</span></div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="msection">
+          <h2>Bagels &amp; Wraps</h2>
+          <p class="snote">Plain or wholemeal. Served with our homemade potato crisps and organic leaves. GF (+€0.70) &amp; vegan options on request.</p>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">The Classic Bagel</span><span class="mitem-price">€9.80</span></div><div class="mitem-desc">Irish smoked salmon, baby spinach, red onion, chive &amp; Philadelphia cream cheese.</div><div class="mitem-alg">1a,4,7,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Coronation Chicken <span class="tag">Wrap +€1</span></span><span class="mitem-price">€8.90</span></div><div class="mitem-desc">Chicken in a lightly curried mayo with mango chutney.</div><div class="mitem-alg">1,3,7,9,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Vegetarian <span class="tag">V·H · Wrap +€1</span></span><span class="mitem-price">€8.90</span></div><div class="mitem-desc">Ardsallagh goats cheese, roasted vegetables and baby spinach with red pepper pesto.</div><div class="mitem-alg">1a,7,8,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">BLT Bagel</span><span class="mitem-price">€8.90</span></div><div class="mitem-desc">Crispy streaky bacon, baby gem and tomato with light mayo dressing.</div><div class="mitem-alg">1a,7,9,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Spicy Chicken <span class="tag">Wrap +€1</span></span><span class="mitem-price">€8.90</span></div><div class="mitem-desc">Cajun chicken with mixed peppers and red onion, melted cheese and herb mayo.</div><div class="mitem-alg">1a,3,7,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">West Cork Bagel</span><span class="mitem-price">€8.90</span></div><div class="mitem-desc">Clonakilty black pudding, Durrus cheese, butcher’s sausages and Ballymaloe relish.</div><div class="mitem-alg">1a,3,7,9,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Fresh Breaded Fish Goujon Wrap</span><span class="mitem-price">€9.90</span></div><div class="mitem-desc">Catch of the day golden-fried with pickled cucumber, aioli and crispy lettuce.</div><div class="mitem-alg">1a,3,4,7,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Grilled Chicken &amp; Bacon <span class="tag">Wrap +€1</span></span><span class="mitem-price">€8.90</span></div><div class="mitem-desc">With baby gem, parmesan and garlic mayo.</div><div class="mitem-alg">1a,3,7,10</div></div>
+        </div>
+
+        <div class="msection">
+          <h2>Beer &amp; Wine</h2>
+          <div class="drinkrow"><span>Luis Felipe Edwards Sauvignon Blanc (Chile) · White</span><span class="p">€21 bottle / €6 ¼ bottle</span></div>
+          <div class="drinkrow"><span>Jacob’s Creek Semillon Chardonnay (Australia) · White</span><span class="p">€21 bottle / €6 ¼ bottle</span></div>
+          <div class="drinkrow"><span>Condor Vale Merlot (Chile) · Red</span><span class="p">€21 bottle / €6 ¼ bottle</span></div>
+          <div class="drinkrow"><span>Luis Felipe Edwards Cabernet Sauvignon (Chile) · Red</span><span class="p">€21 bottle / €6 ¼ bottle</span></div>
+          <div class="drinkrow"><span>Sacchetto Prosecco (Italy) 20cl</span><span class="p">€6.50</span></div>
+          <div class="drinkrow"><span>Kinsale Pale Ale</span><span class="p">€6.00</span></div>
+          <div class="drinkrow"><span>Kinsale Tropical IPA</span><span class="p">€6.00</span></div>
+          <div class="drinkrow"><span>Citrus Chiller Hoppy Lager</span><span class="p">€6.00</span></div>
+          <div class="drinkrow"><span>Mac Ivors Medium Cider</span><span class="p">€6.50</span></div>
+          <div class="drinkrow"><span>Erdinger (non-alcoholic)</span><span class="p">€5.00</span></div>
+          <div class="drinkrow"><span>Birra Moretti (draught)</span><span class="p">Pint €6 / Glass €3.50</span></div>
+        </div>
+
+        <div class="msection">
+          <h2>Hot Drinks</h2>
+          <p class="snote">Alternative milk available +€0.70 · coffee flavour +€0.50.</p>
+          <div class="drinkrow"><span>Black Coffee / Americano</span><span class="p">€3.00</span></div>
+          <div class="drinkrow"><span>Flat White</span><span class="p">€3.10</span></div>
+          <div class="drinkrow"><span>White Coffee</span><span class="p">€3.60</span></div>
+          <div class="drinkrow"><span>Latte</span><span class="p">€3.60</span></div>
+          <div class="drinkrow"><span>Cappuccino</span><span class="p">€3.60</span></div>
+          <div class="drinkrow"><span>Macchiato</span><span class="p">€2.80</span></div>
+          <div class="drinkrow"><span>Single Espresso</span><span class="p">€2.40</span></div>
+          <div class="drinkrow"><span>Double Espresso</span><span class="p">€2.60</span></div>
+          <div class="drinkrow"><span>Mocha</span><span class="p">€3.80</span></div>
+          <div class="drinkrow"><span>Chai Latte (Vanilla / Spiced)</span><span class="p">€3.80</span></div>
+          <div class="drinkrow"><span>Hot Chocolate</span><span class="p">€3.60</span></div>
+          <div class="drinkrow"><span>Mini Hot Chocolate</span><span class="p">€2.80</span></div>
+          <div class="drinkrow"><span>Iced Coffee</span><span class="p">€4.00</span></div>
+        </div>
+
+        <div class="msection">
+          <h2>Tea</h2>
+          <div class="drinkrow"><span>Black / Regular Tea</span><span class="p">€2.80</span></div>
+          <div class="drinkrow"><span>Herbal Tea — Peppermint, Green, Earl Grey, Camomile, Fruit</span><span class="p">€3.00</span></div>
+          <div class="drinkrow"><span>Decaf Tea</span><span class="p">€2.80</span></div>
+        </div>
+
+        <div class="msection">
+          <h2>Cold Drinks</h2>
+          <div class="drinkrow"><span>Glass of Milk (Cold / Warm)</span><span class="p">€2.00</span></div>
+          <div class="drinkrow"><span>Minerals</span><span class="p">€3.00</span></div>
+          <div class="drinkrow"><span>Still / Sparkling Water (250ml)</span><span class="p">€2.40</span></div>
+          <div class="drinkrow"><span>Still / Sparkling Water (750ml)</span><span class="p">€5.80</span></div>
+          <div class="drinkrow"><span>Freshly Squeezed Orange Juice</span><span class="p">€4.00</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="allergens">
+      <h3>Allergens</h3>
+      <p>In case of severe allergy, please advise your server.</p>
+      <div class="alg-grid">
+        <span>1 — Cereals (Gluten)</span><span>2 — Crustaceans</span><span>3 — Eggs</span>
+        <span>4 — Fish</span><span>5 — Peanuts</span><span>6 — Soybeans</span>
+        <span>7 — Dairy</span><span>8 — Nuts</span><span>9 — Celery</span>
+        <span>10 — Mustard</span><span>11 — Sesame Seeds</span><span>12 — Sulphur Dioxide</span>
+        <span>13 — Lupin</span><span>14 — Molluscs</span>
+      </div>
+    </div>
+
+    <p class="legend">GF — Gluten Free · V — Vegetarian · H — Healthy · VF — Vegan Friendly</p>
+
+    <div class="mfoot">
+      Church Square, Kinsale, Co Cork · Tel: <a href="tel:+353214700685">(021) 470 0685</a><br />
+      <a href="https://cosycafe.ie">cosycafe.ie</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Breakfast Menu — Cosy Café Kinsale</title>
+<meta name="description" content="Cosy Café Kinsale breakfast menu — full Irish, eggs benedict & royale, pancakes, French toast, granola, porridge and morning bagels. Church Square, Kinsale, Co Cork." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cream:#F5EEE4; --green:#1C3A2A; --ink:#1C2B20; --muted:#6B5744;
+    --gold:#E8D5B7; --price:#C4622D; --card:#EDE2D4; --line:rgba(60,40,20,0.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Lato',sans-serif;color:var(--ink);background:var(--cream);line-height:1.6}
+  .mnav{display:flex;align-items:center;justify-content:space-between;gap:16px;background:var(--green);padding:14px 24px;flex-wrap:wrap}
+  .mnav-name{font-family:'Cormorant Garamond',serif;color:var(--gold);font-size:1.3rem;font-weight:600;text-decoration:none}
+  .mnav-links{display:flex;gap:20px}
+  .mnav-links a{color:rgba(245,238,228,0.82);text-decoration:none;font-size:.85rem;font-weight:700;letter-spacing:.03em}
+  .mnav-links a:hover,.mnav-links a.active{color:var(--gold)}
+  .mwrap{max-width:1000px;margin:0 auto;padding:56px 24px 72px}
+  .mhead{text-align:center;margin-bottom:48px}
+  .mlabel{display:inline-block;color:var(--price);font-size:.8rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700;margin-bottom:12px}
+  .mhead h1{font-family:'Cormorant Garamond',serif;font-size:clamp(2.6rem,6vw,3.6rem);color:var(--green);font-weight:700;line-height:1.05}
+  .mhead p{color:var(--muted);font-weight:300;margin-top:10px}
+  .mcols{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+  .msection{margin-bottom:38px;break-inside:avoid}
+  .msection h2{font-family:'Cormorant Garamond',serif;font-size:1.9rem;color:var(--green);font-weight:600;border-bottom:2px solid var(--gold);padding-bottom:8px;margin-bottom:6px}
+  .msection .snote{font-size:.8rem;color:var(--muted);font-style:italic;font-weight:300;margin-bottom:14px}
+  .mitem{padding:12px 0;border-bottom:1px solid var(--line)}
+  .mitem:last-child{border-bottom:none}
+  .mitem-top{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+  .mitem-name{font-weight:700;color:var(--green);font-size:1rem}
+  .mitem-name .tag{font-size:.7rem;color:var(--price);font-weight:700;margin-left:6px;letter-spacing:.05em}
+  .mitem-price{color:var(--price);font-weight:700;white-space:nowrap}
+  .mitem-desc{font-size:.85rem;color:var(--muted);font-weight:300;margin-top:3px}
+  .mitem-alg{font-size:.72rem;color:#9A7A68;font-weight:300}
+  .drinkrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:.92rem;color:var(--ink)}
+  .drinkrow:last-child{border-bottom:none}
+  .drinkrow .p{color:var(--price);font-weight:700}
+  .allergens{background:var(--card);border-radius:8px;padding:22px 26px;margin-top:8px}
+  .allergens h3{font-family:'Cormorant Garamond',serif;color:var(--green);font-size:1.2rem;font-weight:600;margin-bottom:6px}
+  .allergens p{font-size:.78rem;color:var(--muted);margin-bottom:10px;font-weight:300}
+  .alg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 18px;font-size:.78rem;color:var(--ink)}
+  .legend{text-align:center;font-size:.78rem;color:var(--muted);margin-top:26px;font-weight:300}
+  .mfoot{text-align:center;margin-top:44px;color:var(--muted);font-size:.85rem;font-weight:300}
+  .mfoot a{color:var(--price);text-decoration:none}
+  @media(max-width:768px){
+    .mwrap{padding:40px 18px 56px}
+    .mcols{grid-template-columns:1fr;gap:0}
+  }
+</style>
+</head>
+<body>
+  <nav class="mnav">
+    <a href="cosy-cafe.html" class="mnav-name">Cosy Café</a>
+    <div class="mnav-links">
+      <a href="cosy-cafe.html">Home</a>
+      <a href="cosy-cafe-breakfast-menu.html" class="active">Breakfast</a>
+      <a href="cosy-cafe-lunch-menu.html">Lunch</a>
+    </div>
+  </nav>
+  <div class="mwrap">
+    <div class="mhead">
+      <span class="mlabel">Cosy Café · Kinsale</span>
+      <h1>Breakfast Menu</h1>
+      <p>Served all morning, Tuesday to Saturday</p>
+    </div>
+
+    <div class="mcols">
+      <div>
+        <div class="msection">
+          <h2>Breakfast</h2>
+          <p class="snote">Gluten free (+€0.50) &amp; vegan available on request.</p>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Cosy Café Scone <span class="tag">V</span></span><span class="mitem-price">€3.20</span></div><div class="mitem-desc">Served with our own raspberry jam, butter and whipped cream.</div><div class="mitem-alg">1a,3,7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Daily Baked Pastry / Danish / Croissant <span class="tag">V</span></span><span class="mitem-price">€3.10</span></div><div class="mitem-desc">See counter.</div><div class="mitem-alg">1a,3,7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Portion of Toast <span class="tag">V</span></span><span class="mitem-price">€2.80</span></div><div class="mitem-desc">Served with our own marmalade / jam or Nutella and butter.</div><div class="mitem-alg">1a,7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Homemade Granola <span class="tag">V·H·GF</span></span><span class="mitem-price">€6.80</span></div><div class="mitem-desc">Served with fresh fruit, yoghurt and local honey. (Mixed seed +€1)</div><div class="mitem-alg">7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Wholemeal Porridge <span class="tag">V·H·Vegan*</span></span><span class="mitem-price">€7.20</span></div><div class="mitem-desc">Served with fresh fruit and local honey. (Mixed seed +€1 · *vegan on request)</div><div class="mitem-alg">1a,7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Mini Breakfast</span><span class="mitem-price">€7.70</span></div><div class="mitem-desc">Four items to choose from: fried egg, smoked bacon, butcher sausages, mushrooms, grilled tomatoes, Clonakilty pudding, roasted baby potatoes or beans. Served with toast and butter.</div><div class="mitem-alg">1a,3,6,7,8,9,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Free Range Scrambled Eggs <span class="tag">V</span></span><span class="mitem-price">€7.60</span></div><div class="mitem-desc">Three eggs lightly scrambled, served with toast and butter.</div><div class="mitem-alg">1a,3,7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Pancakes <span class="tag">V</span></span><span class="mitem-price">€8.90</span></div><div class="mitem-desc">Two American-style pancakes — plain, raspberry, banana or blueberry. Served with pure Canadian maple syrup or Nutella.</div><div class="mitem-alg">1a,3,7,8e</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="msection">
+          <h2>From the Pan</h2>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">French Toast and Bacon</span><span class="mitem-price">€8.90</span></div><div class="mitem-desc">Dusted with cinnamon sugar and served with pure Canadian maple syrup.</div><div class="mitem-alg">1a,3,6,7,9,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Eggs Benedict</span><span class="mitem-price">€9.10</span></div><div class="mitem-desc">Two free-range poached eggs over smoked rasher, glazed with hollandaise. Served on white or brown toast.</div><div class="mitem-alg">1a,3,6,7,9,10</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Eggs Royale</span><span class="mitem-price">€10.20</span></div><div class="mitem-desc">Two free-range poached eggs over Irish smoked salmon, glazed with hollandaise. Served on white or brown toast.</div><div class="mitem-alg">1a,3,4,7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Cosy Café Full Irish</span><span class="mitem-price">€10.60</span></div><div class="mitem-desc">Two free-range fried eggs, smoked rasher, butcher sausages, Clonakilty black &amp; white pudding, roasted tomato, sautéed mushrooms, roasted baby potatoes and baked beans. Served with toast and butter.</div><div class="mitem-alg">1a,3,6,7,8d,9,10,12</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Cosy Café Veggie Breakfast <span class="tag">V·Vegan*</span></span><span class="mitem-price">€9.60</span></div><div class="mitem-desc">Two free-range fried eggs, sautéed mushrooms, roasted tomatoes, baked beans and roasted baby potatoes. Served with toast and butter. (*vegan on request)</div><div class="mitem-alg">1a,3,7,8d,12</div></div>
+        </div>
+
+        <div class="msection">
+          <h2>Morning Bagels</h2>
+          <p class="snote">Plain or wholemeal.</p>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Toasted Bagel with Nutella</span><span class="mitem-price">€3.80</span></div><div class="mitem-alg">1a,8e</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Toasted Bagel with Philadelphia Cream Cheese</span><span class="mitem-price">€3.80</span></div><div class="mitem-alg">1a,7</div></div>
+          <div class="mitem"><div class="mitem-top"><span class="mitem-name">Breakfast Bagel</span><span class="mitem-price">€6.80</span></div><div class="mitem-desc">Smoked rasher, butcher sausages and Ballymaloe relish in a toasted bagel. Add an egg +€1.</div><div class="mitem-alg">1a,3,6,7,9,10</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mcols">
+      <div>
+        <div class="msection">
+          <h2>Hot Drinks</h2>
+          <p class="snote">Alternative milk available +€0.70 · coffee flavour +€0.50.</p>
+          <div class="drinkrow"><span>Black Coffee / Americano</span><span class="p">€3.00</span></div>
+          <div class="drinkrow"><span>Flat White</span><span class="p">€3.10</span></div>
+          <div class="drinkrow"><span>White Coffee</span><span class="p">€3.60</span></div>
+          <div class="drinkrow"><span>Latte</span><span class="p">€3.60</span></div>
+          <div class="drinkrow"><span>Cappuccino</span><span class="p">€3.60</span></div>
+          <div class="drinkrow"><span>Macchiato</span><span class="p">€2.80</span></div>
+          <div class="drinkrow"><span>Single Espresso</span><span class="p">€2.40</span></div>
+          <div class="drinkrow"><span>Double Espresso</span><span class="p">€2.60</span></div>
+          <div class="drinkrow"><span>Mocha</span><span class="p">€3.80</span></div>
+          <div class="drinkrow"><span>Chai Latte (Vanilla / Spiced)</span><span class="p">€3.80</span></div>
+          <div class="drinkrow"><span>Hot Chocolate</span><span class="p">€3.60</span></div>
+          <div class="drinkrow"><span>Mini Hot Chocolate</span><span class="p">€2.80</span></div>
+          <div class="drinkrow"><span>Iced Coffee</span><span class="p">€4.00</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="msection">
+          <h2>Tea</h2>
+          <div class="drinkrow"><span>Black / Regular Tea</span><span class="p">€2.80</span></div>
+          <div class="drinkrow"><span>Herbal Tea — Peppermint, Green, Earl Grey, Camomile, Fruit</span><span class="p">€3.00</span></div>
+          <div class="drinkrow"><span>Decaf Tea</span><span class="p">€2.80</span></div>
+        </div>
+        <div class="msection">
+          <h2>Cold Drinks</h2>
+          <div class="drinkrow"><span>Glass of Milk (Cold / Warm)</span><span class="p">€2.00</span></div>
+          <div class="drinkrow"><span>Minerals</span><span class="p">€2.80</span></div>
+          <div class="drinkrow"><span>Still / Sparkling Water (250ml)</span><span class="p">€2.40</span></div>
+          <div class="drinkrow"><span>Still / Sparkling Water (750ml)</span><span class="p">€5.80</span></div>
+          <div class="drinkrow"><span>Freshly Squeezed Orange Juice</span><span class="p">€4.00</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="allergens">
+      <h3>Allergens</h3>
+      <p>In case of severe allergy, please advise your server.</p>
+      <div class="alg-grid">
+        <span>1 — Cereals (Gluten)</span><span>2 — Crustaceans</span><span>3 — Eggs</span>
+        <span>4 — Fish</span><span>5 — Peanuts</span><span>6 — Soybeans</span>
+        <span>7 — Dairy</span><span>8 — Nuts</span><span>9 — Celery</span>
+        <span>10 — Mustard</span><span>11 — Sesame Seeds</span><span>12 — Sulphur Dioxide</span>
+        <span>13 — Lupin</span><span>14 — Molluscs</span>
+      </div>
+    </div>
+
+    <p class="legend">GF — Gluten Free · V — Vegetarian · H — Healthy · VF — Vegan Friendly</p>
+
+    <div class="mfoot">
+      Church Square, Kinsale, Co Cork · Tel: <a href="tel:+353214700685">(021) 470 0685</a><br />
+      <a href="https://cosycafe.ie">cosycafe.ie</a>
+    </div>
+  </div>
+</body>
+</html>

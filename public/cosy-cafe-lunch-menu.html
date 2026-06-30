@@ -63,8 +63,10 @@
   @media(max-width:768px){
     .mwrap{padding:40px 18px 56px}
     .mcols{grid-template-columns:1fr;gap:0}
-    .snav { height: auto; padding: 12px 20px; flex-wrap: wrap; gap: 10px 16px; }
-    .snav-links { gap: 16px; }
+    .snav { height: auto; padding: 12px 20px; flex-wrap: wrap; row-gap: 10px; }
+    .snav-logo { order: 1; }
+    .snav-cta { order: 2; }
+    .snav-links { order: 3; flex-basis: 100%; justify-content: center; gap: 18px; }
     .sfooter { flex-direction: column; padding: 32px 20px; text-align: center; }
   }
 </style>

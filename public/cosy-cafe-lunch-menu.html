@@ -15,11 +15,6 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Lato',sans-serif;color:var(--ink);background:var(--cream);line-height:1.6}
-  .mnav{display:flex;align-items:center;justify-content:space-between;gap:16px;background:var(--green);padding:14px 24px;flex-wrap:wrap}
-  .mnav-name{font-family:'Cormorant Garamond',serif;color:var(--gold);font-size:1.3rem;font-weight:600;text-decoration:none}
-  .mnav-links{display:flex;gap:20px}
-  .mnav-links a{color:rgba(245,238,228,0.82);text-decoration:none;font-size:.85rem;font-weight:700;letter-spacing:.03em}
-  .mnav-links a:hover,.mnav-links a.active{color:var(--gold)}
   .mwrap{max-width:1000px;margin:0 auto;padding:56px 24px 72px}
   .mhead{text-align:center;margin-bottom:48px}
   .mlabel{display:inline-block;color:var(--price);font-size:.8rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700;margin-bottom:12px}
@@ -45,23 +40,47 @@
   .allergens p{font-size:.78rem;color:var(--muted);margin-bottom:10px;font-weight:300}
   .alg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 18px;font-size:.78rem;color:var(--ink)}
   .legend{text-align:center;font-size:.78rem;color:var(--muted);margin-top:26px;font-weight:300}
-  .mfoot{text-align:center;margin-top:44px;color:var(--muted);font-size:.85rem;font-weight:300}
-  .mfoot a{color:var(--price);text-decoration:none}
   .confirm{background:#FBE9D9;border:1px solid var(--price);border-radius:8px;padding:14px 18px;font-size:.82rem;color:#8a3d18;margin-bottom:30px}
+  /* Unified site header & footer (match homepage) */
+  .snav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 48px; height: 68px; background: #1C3A2A; }
+  .snav-logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+  .snav-logo img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+  .snav-logo-name { color: #E8D5B7; font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 600; }
+  .snav-links { display: flex; gap: 28px; list-style: none; }
+  .snav-links a { text-decoration: none; font-size: 0.82rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: rgba(232,213,183,0.8); transition: opacity 0.2s; }
+  .snav-links a:hover { opacity: 0.6; }
+  .snav-links a.active { color: #E8D5B7; opacity: 1; }
+  .snav-cta { padding: 10px 24px; border-radius: 3px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; background: #C4622D; color: #fff; transition: all 0.2s; }
+  .snav-cta:hover { background: #a34e24; }
+  .sfooter { padding: 48px 64px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; background: #111D15; }
+  .sfooter-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; color: #E8D5B7; font-weight: 600; }
+  .sfooter-contact { font-size: 0.85rem; color: rgba(232,213,183,0.6); }
+  .sfooter-contact a { color: rgba(232,213,183,0.6); text-decoration: none; }
+  .sfooter-contact a:hover { color: #E8D5B7; }
+  .sfooter-links { display: flex; gap: 20px; }
+  .sfooter-links a { font-size: 0.85rem; text-decoration: none; color: rgba(232,213,183,0.5); transition: opacity 0.2s; }
+  .sfooter-links a:hover { opacity: 1; color: #E8D5B7; }
   @media(max-width:768px){
     .mwrap{padding:40px 18px 56px}
     .mcols{grid-template-columns:1fr;gap:0}
+    .snav { height: auto; padding: 12px 20px; flex-wrap: wrap; gap: 10px 16px; }
+    .snav-links { gap: 16px; }
+    .sfooter { flex-direction: column; padding: 32px 20px; text-align: center; }
   }
 </style>
 </head>
 <body>
-  <nav class="mnav">
-    <a href="cosy-cafe.html" class="mnav-name">Cosy Café</a>
-    <div class="mnav-links">
-      <a href="cosy-cafe.html">Home</a>
-      <a href="cosy-cafe-breakfast-menu.html">Breakfast</a>
-      <a href="cosy-cafe-lunch-menu.html" class="active">Lunch</a>
-    </div>
+  <nav class="snav">
+    <a href="cosy-cafe.html" class="snav-logo">
+      <img src="https://cdn.prod.website-files.com/6244a9bdaac2d1ede5eb3e3f/6278fd4ad64756188f608e81_Webp.net-resizeimage.jpg" alt="Cosy Café" />
+      <span class="snav-logo-name">Cosy Café</span>
+    </a>
+    <ul class="snav-links">
+      <li><a href="cosy-cafe.html">Home</a></li>
+      <li><a href="cosy-cafe-breakfast-menu.html">Breakfast</a></li>
+      <li><a href="cosy-cafe-lunch-menu.html" class="active">Lunch</a></li>
+    </ul>
+    <a href="tel:0214700685" class="snav-cta">Book a table</a>
   </nav>
   <div class="mwrap">
     <div class="mhead">
@@ -171,10 +190,43 @@
 
     <p class="legend">GF — Gluten Free · V — Vegetarian · H — Healthy · VF — Vegan Friendly</p>
 
-    <div class="mfoot">
-      Church Square, Kinsale, Co Cork · Tel: <a href="tel:+353214700685">(021) 470 0685</a><br />
-      <a href="https://cosycafe.ie">cosycafe.ie</a>
-    </div>
   </div>
+
+  <footer class="sfooter">
+    <span class="sfooter-name">Cosy Café · Kinsale</span>
+    <div class="sfooter-contact">Church Square, Kinsale, Co Cork · <a href="tel:+353214700685">(021) 470 0685</a> · <a href="https://cosycafe.ie">cosycafe.ie</a></div>
+    <div class="sfooter-links">
+      <a href="https://www.facebook.com/cosycafekinsale/" target="_blank">Facebook</a>
+      <a href="https://www.instagram.com/cosycafekinsale" target="_blank">Instagram</a>
+      <a href="https://www.tiktok.com/@cosycafekinsale" target="_blank">TikTok</a>
+      <a href="mailto:cosycafekinsale@outlook.com">Contact</a>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      var s = document.createElement('script');
+      s.src = 'https://app.sprimal.com/widget.js';
+      s.setAttribute('data-club-id', 'cosy-cafe');
+      s.setAttribute('data-club-name', 'Cosy Café');
+      s.setAttribute('data-bot-name', 'Maeve');
+      s.defer = true;
+      document.head.appendChild(s);
+    })();
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var el = document.createElement('style');
+      el.textContent = [
+        '#sprimal-header{background:#1C3A2A!important;}',
+        '#sprimal-send{background:#C4622D!important;}',
+        '#sprimal-send:hover{background:#C4622D;filter:brightness(0.88)!important;}',
+        '.sprimal-user{background:#C4622D!important;}',
+        '.sprimal-choice{border-color:#C4622D!important;color:#C4622D!important;}',
+        '.sprimal-choice:hover{background:#C4622D!important;color:#fff!important;}',
+        '#sprimal-input:focus{border-color:#C4622D!important;}',
+      ].join('');
+      document.head.appendChild(el);
+    });
+  </script>
 </body>
 </html>

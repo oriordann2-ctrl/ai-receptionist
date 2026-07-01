@@ -713,11 +713,9 @@
         + '<div style="display:flex;flex-direction:column;gap:12px;">'
         + socialField('fbUrl', 'url', '🔵 Facebook', 'https://facebook.com/yourpage', d.facebook_url)
         + socialField('igHandle', 'text', '📸 Instagram', 'handle without @', d.instagram_handle)
-        + socialField('twHandle', 'text', '🐦 Twitter / X', 'handle without @', d.twitter_handle)
         + socialField('tiktokHandle', 'text', '🎵 TikTok', 'handle without @', d.tiktok_handle)
         + socialField('googleReviewUrl', 'url', '⭐ Google Reviews', 'link from Google Maps → Get more reviews', d.google_review_url)
         + socialField('tripadvisorUrl', 'url', '🦉 TripAdvisor', 'write-a-review URL', d.tripadvisor_url)
-        + socialField('yelpUrl', 'url', '🍽️ Yelp', 'page URL', d.yelp_url)
         + '</div>'
         + '<div style="display:flex;align-items:center;gap:10px;margin-top:10px;">'
         + '<button onclick="saveSocialHandles()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save</button>'
@@ -862,7 +860,7 @@
     fetch("/api/portal/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ facebook_url: fb, instagram_handle: ig, twitter_handle: tw, tiktok_handle: tiktok, google_review_url: googleReview, tripadvisor_url: tripadvisor, yelp_url: yelp })
+      body: JSON.stringify({ facebook_url: fb, instagram_handle: ig, tiktok_handle: tiktok, google_review_url: googleReview, tripadvisor_url: tripadvisor })
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {

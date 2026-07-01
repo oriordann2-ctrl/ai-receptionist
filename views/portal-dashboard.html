@@ -4996,6 +4996,26 @@
         var trialEnd = data.trial_ends_at ? new Date(data.trial_ends_at) : null;
         var daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - Date.now()) / 86400000)) : null;
 
+        // Trial expired wall — show full-page overlay blocking the dashboard
+        if (status === 'trialing' && trialEnd && trialEnd < new Date()) {
+          var btnBase = 'border-radius:8px;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid;text-align:center;';
+          var wall = document.createElement('div');
+          wall.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+          wall.innerHTML = '<div style="background:white;border-radius:16px;max-width:520px;width:100%;padding:40px;text-align:center;">'
+            + '<div style="width:56px;height:56px;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:24px;">⏰</div>'
+            + '<h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 10px;">Your free trial has ended</h2>'
+            + '<p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 28px;">Choose a plan to keep your AI assistant running. Your settings and knowledge base are saved.</p>'
+            + '<div style="display:flex;gap:10px;margin-bottom:24px;">'
+            + '<button onclick="startCheckout(\'starter\')" style="flex:1;background:#f8fafc;color:#374151;' + btnBase + ' #e2e8f0;">Starter<br><strong style="font-size:18px;">€29</strong><span style="font-size:12px;">/mo</span><br><span style="font-size:11px;color:#6b7280;">500 conversations</span></button>'
+            + '<button onclick="startCheckout(\'growth\')"  style="flex:1;background:#0f172a;color:white;'  + btnBase + ' #0f172a;">Growth<br><strong style="font-size:18px;">€49</strong><span style="font-size:12px;">/mo</span><br><span style="font-size:11px;color:#94a3b8;">1,200 conversations</span></button>'
+            + '<button onclick="startCheckout(\'pro\')"     style="flex:1;background:#4f46e5;color:white;'  + btnBase + ' #4f46e5;">Pro<br><strong style="font-size:18px;">€79</strong><span style="font-size:12px;">/mo</span><br><span style="font-size:11px;color:#c7d2fe;">2,000 + Voice</span></button>'
+            + '</div>'
+            + '<p style="color:#9ca3af;font-size:12px;margin:0;">Questions? <a href="mailto:hello@sprimal.com" style="color:#6b7280;">hello@sprimal.com</a></p>'
+            + '</div>';
+          document.body.appendChild(wall);
+          return;
+        }
+
         var TIER_INFO = {
           starter: { label: 'Starter', price: '€29/month', limit: 500 },
           growth:  { label: 'Growth',  price: '€49/month', limit: 1200 },

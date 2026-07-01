@@ -7535,11 +7535,16 @@ app.post("/verify-email/:token", async (req, res) => {
   if (password !== confirmPassword) return pwError("Passwords don't match.");
   if (COMMON_PASSWORDS.includes(password.toLowerCase())) return pwError("That password is too common — please choose something more unique.");
 
-  // Mark verified, store password
+  // Mark verified, store password, start 14-day trial
+  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
   await supabase.from("tenants").update({
-    email_verified: true,
+    email_verified:           true,
     email_verification_token: null,
-    portal_password: password
+    portal_password:          password,
+    subscription_status:      "trialing",
+    trial_ends_at:            trialEndsAt,
+    plan_tier:                "starter",
+    monthly_chat_limit:       500
   }).eq("id", tenant.id);
 
   // Auto-login cookie
@@ -14544,7 +14549,7 @@ app.post("/chat", chatLimiter, async (req, res) => {
     try {
       const { data: _tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name, monthly_chat_limit, facebook_url, instagram_handle, twitter_handle, tiktok_handle, google_review_url, tripadvisor_url, yelp_url, business_type")
+        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name, monthly_chat_limit, subscription_status, trial_ends_at, facebook_url, instagram_handle, twitter_handle, tiktok_handle, google_review_url, tripadvisor_url, yelp_url, business_type")
         .eq("id", tenantId)
         .maybeSingle();
       tenantData = _tenantData;
@@ -14558,6 +14563,12 @@ app.post("/chat", chatLimiter, async (req, res) => {
       // Respect AI Receptionist on/off toggle (null/undefined = enabled by default)
       if (tenantData?.ai_enabled === false) {
         return res.json({ reply: "The AI assistant is currently unavailable. Please contact us directly." });
+      }
+      // Block widget if trial expired and no active subscription
+      const subStatus = tenantData?.subscription_status;
+      const trialEnd  = tenantData?.trial_ends_at ? new Date(tenantData.trial_ends_at) : null;
+      if (subStatus === "trialing" && trialEnd && trialEnd < new Date()) {
+        return res.json({ reply: "This assistant is currently unavailable. Please ask the business to renew their Sprimal subscription." });
       }
     } catch {}
 
@@ -21024,6 +21035,97 @@ app.post("/api/portal/checkins/manual", requireTenant, async (req, res) => {
     res.status(500).json({ error: "Failed to record check-in" });
   }
 });
+
+// ── Trial reminder emails ─────────────────────────────────────────────────────
+async function sendTrialReminderEmails() {
+  if (!process.env.RESEND_API_KEY) return;
+  try {
+    const now = Date.now();
+    // Fetch all trialing tenants with a trial_ends_at set
+    const { data: tenants } = await supabase
+      .from("tenants")
+      .select("id, name, email, trial_ends_at")
+      .eq("subscription_status", "trialing")
+      .not("trial_ends_at", "is", null)
+      .not("email", "is", null);
+
+    for (const t of (tenants || [])) {
+      const endsAt   = new Date(t.trial_ends_at).getTime();
+      const daysLeft = (endsAt - now) / (24 * 60 * 60 * 1000);
+
+      // 7-day reminder: fire when between 6.5 and 7.5 days remain
+      // 1-day reminder: fire when between 0.5 and 1.5 days remain
+      let subject, html;
+      if (daysLeft > 6.5 && daysLeft <= 7.5) {
+        subject = "Your Sprimal free trial — 7 days left";
+        html = buildTrialReminderEmail(t.name, 7);
+      } else if (daysLeft > 0.5 && daysLeft <= 1.5) {
+        subject = "Your Sprimal free trial ends tomorrow";
+        html = buildTrialReminderEmail(t.name, 1);
+      } else {
+        continue;
+      }
+
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "Sprimal <hello@sprimal.com>", to: t.email, subject, html })
+      }).catch(err => console.error(`[trial-reminder] Email failed for ${t.id}:`, err.message));
+
+      console.log(`[trial-reminder] Sent ${daysLeft > 1 ? "7-day" : "1-day"} reminder to ${t.id}`);
+    }
+  } catch (err) {
+    console.error("[trial-reminder] Error:", err.message);
+  }
+}
+
+function buildTrialReminderEmail(name, daysLeft) {
+  const urgency = daysLeft === 1
+    ? "Your free trial ends <strong>tomorrow</strong>."
+    : "You have <strong>7 days left</strong> on your free trial.";
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
+<table width="520" cellpadding="0" cellspacing="0" style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+  <tr><td style="background:#0f172a;padding:28px 40px;">
+    <span style="color:white;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Sprimal</span>
+  </td></tr>
+  <tr><td style="padding:40px;">
+    <p style="color:#0f172a;font-size:16px;font-weight:600;margin:0 0 12px;">Hi ${name},</p>
+    <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;">${urgency} To keep your AI assistant running, choose a plan that works for you.</p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
+      <tr>
+        <td style="padding:12px;border:1px solid #e2e8f0;border-radius:8px;text-align:center;width:33%;">
+          <p style="margin:0;font-weight:700;color:#0f172a;">Starter</p>
+          <p style="margin:4px 0 0;font-size:20px;font-weight:800;color:#0f172a;">€29<span style="font-size:13px;font-weight:500;">/mo</span></p>
+          <p style="margin:4px 0 0;font-size:12px;color:#6b7280;">500 conversations</p>
+        </td>
+        <td style="width:8px;"></td>
+        <td style="padding:12px;border:2px solid #0f172a;border-radius:8px;text-align:center;width:33%;background:#0f172a;">
+          <p style="margin:0;font-weight:700;color:white;">Growth</p>
+          <p style="margin:4px 0 0;font-size:20px;font-weight:800;color:white;">€49<span style="font-size:13px;font-weight:500;">/mo</span></p>
+          <p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">1,200 conversations</p>
+        </td>
+        <td style="width:8px;"></td>
+        <td style="padding:12px;border:1px solid #e2e8f0;border-radius:8px;text-align:center;width:33%;">
+          <p style="margin:0;font-weight:700;color:#0f172a;">Pro</p>
+          <p style="margin:4px 0 0;font-size:20px;font-weight:800;color:#0f172a;">€79<span style="font-size:13px;font-weight:500;">/mo</span></p>
+          <p style="margin:4px 0 0;font-size:12px;color:#6b7280;">2,000 + Voice</p>
+        </td>
+      </tr>
+    </table>
+    <p style="text-align:center;margin:0 0 32px;">
+      <a href="https://app.sprimal.com/portal/dashboard" style="background:#0f172a;color:white;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:700;display:inline-block;">Choose my plan →</a>
+    </p>
+    <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0;">Questions? Reply to this email — we're happy to help.</p>
+  </td></tr>
+  <tr><td style="padding:20px 40px;border-top:1px solid #f1f5f9;text-align:center;">
+    <p style="color:#9ca3af;font-size:12px;margin:0;">Sprimal · hello@sprimal.com · <a href="https://sprimal.com" style="color:#9ca3af;">sprimal.com</a></p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+}
+
+// Run trial reminder check once daily
+setInterval(sendTrialReminderEmails, 24 * 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {

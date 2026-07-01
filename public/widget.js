@@ -361,11 +361,8 @@
         if (config.widget_hero_image) {
           var header = document.getElementById("sprimal-header");
           if (header) {
-            header.style.backgroundImage = "url(" + config.widget_hero_image + ")";
-            header.style.backgroundSize  = "cover";
-            header.style.backgroundPosition = "center";
-            // Dark overlay so text stays readable
-            header.style.boxShadow = "inset 0 0 0 9999px rgba(0,0,0,0.55)";
+            // Use gradient overlay + image so text stays readable
+            header.style.background = "linear-gradient(rgba(0,0,0,0.55),rgba(0,0,0,0.55)), url(" + config.widget_hero_image + ") center/cover no-repeat";
           }
         }
       })

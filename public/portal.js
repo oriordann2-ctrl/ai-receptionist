@@ -710,14 +710,14 @@
           '<div style="margin-top:24px;padding-top:20px;border-top:1px solid #f3f4f6;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">'
         + '<div class="toggle-label" style="margin-bottom:4px;">Social Media</div>'
         + '<div class="toggle-sub" style="margin-bottom:12px;">Shown on your Sprimal website. Handles without the @ symbol.</div>'
-        + '<div style="display:flex;flex-direction:column;gap:8px;">'
-        + '<input id="fbUrl" type="url" placeholder="Facebook Page URL (https://facebook.com/...)" value="' + (d.facebook_url || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
-        + '<input id="igHandle" type="text" placeholder="Instagram handle — e.g. cosycafekinsale" value="' + (d.instagram_handle || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
-        + '<input id="twHandle" type="text" placeholder="Twitter / X handle — e.g. cosycafekinsale" value="' + (d.twitter_handle || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
-        + '<input id="tiktokHandle" type="text" placeholder="TikTok handle — e.g. cosycafekinsale" value="' + (d.tiktok_handle || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
-        + '<input id="googleReviewUrl" type="url" placeholder="Google Review link — from Google Maps \'Get more reviews\'" value="' + (d.google_review_url || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
-        + '<input id="tripadvisorUrl" type="url" placeholder="TripAdvisor write-a-review URL" value="' + (d.tripadvisor_url || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
-        + '<input id="yelpUrl" type="url" placeholder="Yelp page URL" value="' + (d.yelp_url || '') + '" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">'
+        + '<div style="display:flex;flex-direction:column;gap:12px;">'
+        + socialField('fbUrl', 'url', '🔵 Facebook', 'https://facebook.com/yourpage', d.facebook_url)
+        + socialField('igHandle', 'text', '📸 Instagram', 'handle without @', d.instagram_handle)
+        + socialField('twHandle', 'text', '🐦 Twitter / X', 'handle without @', d.twitter_handle)
+        + socialField('tiktokHandle', 'text', '🎵 TikTok', 'handle without @', d.tiktok_handle)
+        + socialField('googleReviewUrl', 'url', '⭐ Google Reviews', 'link from Google Maps → Get more reviews', d.google_review_url)
+        + socialField('tripadvisorUrl', 'url', '🦉 TripAdvisor', 'write-a-review URL', d.tripadvisor_url)
+        + socialField('yelpUrl', 'url', '🍽️ Yelp', 'page URL', d.yelp_url)
         + '</div>'
         + '<div style="display:flex;align-items:center;gap:10px;margin-top:10px;">'
         + '<button onclick="saveSocialHandles()" style="background:#111827;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save</button>'
@@ -792,6 +792,14 @@
         alert("Could not save setting: " + err.message);
       });
   };
+
+  function socialField(id, type, label, placeholder, value) {
+    var inputStyle = 'width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+    return '<div>'
+      + '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">' + label + '</div>'
+      + '<input id="' + id + '" type="' + type + '" placeholder="' + placeholder + '" value="' + (value || '') + '" style="' + inputStyle + '">'
+      + '</div>';
+  }
 
   function renderPhotoGrid(images, currentHero) {
     // Strip logo fallback — it's the club crest, not a club photo

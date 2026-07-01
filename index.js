@@ -12643,17 +12643,23 @@ app.post("/api/billing/checkout", requireTenant, async (req, res) => {
     };
     const priceId = TIER_PRICES[tier] || TIER_PRICES.starter;
     if (!priceId) return res.status(500).json({ error: "Pricing not configured for this tier" });
-    const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", req.tenant.tenantId).maybeSingle();
+    const { data: tenant } = await supabase.from("tenants").select("name, email, trial_ends_at, subscription_status").eq("id", req.tenant.tenantId).maybeSingle();
     const email      = req.tenant.email || tenant?.email || "";
     const customerId = await getOrCreateSprimalCustomer(req.tenant.tenantId, tenant?.name || req.tenant.tenantId, email);
+
+    // Only offer a trial if the tenant hasn't already used one
+    const trialAlreadyUsed = tenant?.trial_ends_at && new Date(tenant.trial_ends_at) < new Date();
+    const subscriptionData = trialAlreadyUsed ? {} : { trial_period_days: 14 };
+    const paymentCollection = trialAlreadyUsed ? "always" : "if_required";
+
     const stripe     = sprimalStripe();
     const session    = await stripe.checkout.sessions.create({
       customer:                  customerId,
       payment_method_types:      ["card"],
-      payment_method_collection: "if_required",
+      payment_method_collection: paymentCollection,
       line_items:                [{ price: priceId, quantity: 1 }],
       mode:                      "subscription",
-      subscription_data:         { trial_period_days: 14 },
+      subscription_data:         subscriptionData,
       success_url:               `https://app.sprimal.com/portal/dashboard?billing=success`,
       cancel_url:                `https://app.sprimal.com/portal/dashboard`,
       metadata:                  { tenant_id: req.tenant.tenantId }

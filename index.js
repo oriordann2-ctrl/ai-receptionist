@@ -7723,7 +7723,7 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
     : `Your assistant is set up and ready. Start by uploading documents or importing your website from the portal.`;
 
   const trialEndDate = new Date();
-  trialEndDate.setDate(trialEndDate.getDate() + 30);
+  trialEndDate.setDate(trialEndDate.getDate() + 14);
   const trialEnd = trialEndDate.toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" });
 
   const feature = (emoji, title, desc) =>
@@ -7764,7 +7764,7 @@ function buildWelcomeEmailHtml({ name, email, portalPassword, website, imported,
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
           <tr><td bgcolor="#eff6ff" style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 18px;">
             <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1e40af;margin:0;line-height:1.5;">
-              &#127381; <strong>You&#39;re on a free 30-day trial</strong> — no credit card required, no obligation. Your trial runs until <strong>${trialEnd}</strong>. We&#39;ll be in touch before then with pricing options.
+              &#127381; <strong>You&#39;re on a free 14-day trial</strong> — no credit card required, no obligation. Your trial runs until <strong>${trialEnd}</strong>. We&#39;ll be in touch before then with pricing options.
             </p>
           </td></tr>
         </table>

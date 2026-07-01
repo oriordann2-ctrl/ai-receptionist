@@ -807,7 +807,7 @@
         : '';
       var heroBtn = isHero
         ? '<button onclick="setHeroImage(null)" title="Remove as widget hero" style="position:absolute;bottom:4px;left:4px;right:4px;background:rgba(22,163,74,0.9);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;padding:3px 6px;cursor:pointer;">✓ Set as hero — click to remove</button>'
-        : '<button onclick="setHeroImage(\'' + escaped + '\')" title="Use as widget background" style="position:absolute;bottom:4px;left:4px;right:4px;background:rgba(0,0,0,0.65);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;padding:3px 6px;cursor:pointer;opacity:0;" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'0\'">Set as widget hero</button>';
+        : '<button onclick="setHeroImage(\'' + escaped + '\')" title="Use as widget background" style="position:absolute;bottom:4px;left:4px;right:4px;background:rgba(0,0,0,0.65);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;padding:3px 6px;cursor:pointer;">Set as widget hero</button>';
       return '<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f3f4f6;">'
         + '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.opacity=\'0.2\'">'
         + heroBadge

@@ -12245,7 +12245,7 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled, checkin_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name, founded_year, phone")
+    .select("ai_enabled, train_staff_enabled, checkin_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name, founded_year, phone, google_review_url, tripadvisor_url")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
@@ -12267,7 +12267,9 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
     logo_url:              data?.logo_url             ?? null,
     assistant_name:        data?.assistant_name       ?? "Maeve",
     founded_year:          data?.founded_year         ?? null,
-    phone:                 data?.phone                ?? ""
+    phone:                 data?.phone                ?? "",
+    google_review_url:     data?.google_review_url    ?? "",
+    tripadvisor_url:       data?.tripadvisor_url      ?? ""
   });
 });
 
@@ -12310,6 +12312,8 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   if (req.body.phone === null) updates.phone = null;
   if (typeof req.body.founded_year === "number" && req.body.founded_year >= 1800 && req.body.founded_year <= new Date().getFullYear()) updates.founded_year = req.body.founded_year;
   if (req.body.founded_year === null) updates.founded_year = null;
+  if (typeof req.body.google_review_url === "string") updates.google_review_url = req.body.google_review_url.trim().slice(0, 500) || null;
+  if (typeof req.body.tripadvisor_url   === "string") updates.tripadvisor_url   = req.body.tripadvisor_url.trim().slice(0, 500) || null;
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 
   const tenantId   = req.tenant.tenantId;
@@ -14507,7 +14511,7 @@ app.post("/chat", chatLimiter, async (req, res) => {
     try {
       const { data: _tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name, monthly_chat_limit")
+        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name, monthly_chat_limit, facebook_url, instagram_handle, twitter_handle, google_review_url, tripadvisor_url, business_type")
         .eq("id", tenantId)
         .maybeSingle();
       tenantData = _tenantData;
@@ -15291,13 +15295,29 @@ Use plain numbers where possible.
         try {
           const _org     = tenantDisplayName || "this organisation";
           const _descBit = tenantBusinessDesc ? ", " + tenantBusinessDesc : "";
+
+          // Build social/review context so Maeve can answer "are you on Instagram?" etc.
+          const socialFacts = [];
+          if (tenantData?.instagram_handle) socialFacts.push(`Instagram: @${tenantData.instagram_handle} (https://instagram.com/${tenantData.instagram_handle})`);
+          if (tenantData?.facebook_url)     socialFacts.push(`Facebook: ${tenantData.facebook_url}`);
+          if (tenantData?.twitter_handle)   socialFacts.push(`Twitter/X: @${tenantData.twitter_handle}`);
+          if (tenantData?.google_review_url) socialFacts.push(`Google Reviews: ${tenantData.google_review_url}`);
+          if (tenantData?.tripadvisor_url)   socialFacts.push(`TripAdvisor: ${tenantData.tripadvisor_url}`);
+          const _socialBit = socialFacts.length
+            ? " SOCIAL MEDIA & REVIEWS for " + _org + ": " + socialFacts.join(", ") + ". When asked about social media, reviews, or where to leave a review, share these links directly."
+            : "";
+
+          // Proactive review offer — append to positive closing messages for cafe tenants
+          const _reviewUrl = tenantData?.google_review_url || tenantData?.tripadvisor_url || null;
+          const _isCafe = tenantData?.business_type === "cafe";
+          const _isPositiveClose = _reviewUrl && _isCafe && /\b(thank(s| you)|great|perfect|lovely|brilliant|cheers|no problem|welcome|enjoy|see you)\b/i.test(trimmedMessage);
           const _offTopic = "Assume every question is about " + _org + " unless it is clearly about an entirely different topic (e.g. world news, another organisation). " +
             "IMPORTANT DISTINCTION: if a question is genuinely about " + _org + " but the answer is not in the provided context, do NOT treat it as off-topic — instead say: ‘I don\\’t have that information — please check the website or contact " + _org + " directly.’ " +
             "Only use the out-of-scope reply for questions that have nothing to do with " + _org + ": ‘I\\’m only able to help with questions about " + _org + ". Is there something about us I can help you with?’";
           const _name = tenantAssistantName;
           const sysPrompt = eboContext
-            ? "You are " + _name + ", a helpful AI assistant for " + _org + _descBit + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE or WHAT THE ASSISTANT JUST SHOWED THE USER. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly. " + _offTopic
-            : "You are " + _name + ", a helpful AI assistant for " + _org + _descBit + ". Answer using the provided context — prioritise WHAT THE ASSISTANT JUST SHOWED THE USER for follow-up questions, then the KNOWLEDGE BASE. When the context contains the answer, state it directly and confidently — do not open with phrases like 'I don't have specific information' or 'I'm not sure, but'. Only say you don't have information when it is genuinely absent from the context. If truly absent, say: 'I don't have that information — please check the website or contact " + _org + " directly.' Never invent, guess, or use placeholder text. Critical rule: never invent specific facts such as a person's name, phone number, date, price, or address — if it is not explicitly stated in the context, say you don't have it. Keep answers friendly and concise. " + _offTopic;
+            ? "You are " + _name + ", a helpful AI assistant for " + _org + _descBit + ". For court availability or booking questions, use the LIVE COURT BOOKINGS data to give accurate, up-to-date information. For all other questions use the KNOWLEDGE BASE or WHAT THE ASSISTANT JUST SHOWED THE USER. Keep answers friendly and concise. Never invent or guess information not present in the data — if you don't have it, say so clearly. " + _offTopic + _socialBit
+            : "You are " + _name + ", a helpful AI assistant for " + _org + _descBit + ". Answer using the provided context — prioritise WHAT THE ASSISTANT JUST SHOWED THE USER for follow-up questions, then the KNOWLEDGE BASE. When the context contains the answer, state it directly and confidently — do not open with phrases like 'I don't have specific information' or 'I'm not sure, but'. Only say you don't have information when it is genuinely absent from the context. If truly absent, say: 'I don't have that information — please check the website or contact " + _org + " directly.' Never invent, guess, or use placeholder text. Critical rule: never invent specific facts such as a person's name, phone number, date, price, or address — if it is not explicitly stated in the context, say you don't have it. Keep answers friendly and concise. " + _offTopic + _socialBit;
 
           const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -15319,6 +15339,12 @@ Use plain numbers where possible.
             const genericReply = await generateGenericReply(trimmedMessage, tenantDisplayName, tenantBusinessDesc);
             result.reply = genericReply || "I'm not sure about that — please contact us directly for more information.";
             result.answerSource = "generic";
+          }
+
+          // Proactively offer review link at end of positive café conversations
+          if (_isPositiveClose && result.reply && !/review|tripadvisor|google/i.test(result.reply)) {
+            const reviewPlatform = tenantData.google_review_url ? "Google" : "TripAdvisor";
+            result.reply += `\n\nIf you enjoyed your visit, we'd love a review! ⭐ [Leave us a ${reviewPlatform} review](${_reviewUrl})`;
           }
         } catch (err) {
           console.error("Knowledge base OpenAI error (general mode):", err.message);

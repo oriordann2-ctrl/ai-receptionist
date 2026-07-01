@@ -18650,7 +18650,8 @@ function buildTenantSiteHtml(tenant) {
   // Prefer JPG/WEBP for hero — PNGs tend to be graphics/logos not action photos
   // Never use logo_fallback (club crest) as hero background — it's a graphic, not a photo
   const isHeroCandidate = (u) => /\.(jpe?g|webp)(\?|$)/i.test(u) && !/logo_fallback/i.test(u);
-  const heroImg = bgImages.find(isHeroCandidate) || bgImages.find(u => !/logo_fallback/i.test(u)) || "";
+  // Use tenant's chosen hero photo if set, otherwise auto-pick best crawled image
+  const heroImg = tenant.widget_hero_image || bgImages.find(isHeroCandidate) || bgImages.find(u => !/logo_fallback/i.test(u)) || "";
   const bgImg1  = bgImages.find(u => u !== heroImg && /\.(jpe?g|webp)(\?|$)/i.test(u)) || bgImages[1] || "";
   const bgImg2  = bgImages.find(u => u !== heroImg && u !== bgImg1) || bgImages[2] || "";
   const emailBtn = email ? `<a href="mailto:${email}" style="display:inline-flex;align-items:center;gap:6px;background:white;color:${primary};border:2px solid ${primary};text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;margin:5px;">✉️ ${email}</a>` : "";
@@ -19371,7 +19372,7 @@ app.get("/sites/:tenantId", async (req, res) => {
     }
     const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
-      .select("id, name, email, website, logo_url, business_description, business_type, brand_color, facebook_url, instagram_handle, twitter_handle, social_images")
+      .select("id, name, email, website, logo_url, business_description, business_type, brand_color, facebook_url, instagram_handle, twitter_handle, social_images, widget_hero_image")
       .eq("id", tenantId)
       .maybeSingle();
     if (tenantErr) console.error("[sites] Supabase error:", tenantErr.message, "for", tenantId);

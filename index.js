@@ -18923,13 +18923,20 @@ ${widgetScript}</body></html>`;
   </div>
 </div>
 
-<section style="background:linear-gradient(160deg,${primary} 0%,${primaryDark} 100%);color:white;padding:72px 24px 60px;text-align:center;">
-  ${logoImg}
-  <h1 style="font-size:40px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
-  <p style="font-size:18px;opacity:0.85;margin-bottom:20px;">${desc || "Great food, great coffee."}</p>
-  <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-    <a href="${chatUrl}" class="cta-primary">📋 View menu</a>
-    <a href="${chatUrl}" class="cta-secondary">🪑 Book a table</a>
+<section style="position:relative;color:white;padding:72px 24px 60px;text-align:center;overflow:hidden;min-height:360px;display:flex;align-items:center;justify-content:center;">
+  ${heroImg
+    ? `<div style="position:absolute;inset:0;background-image:url(${heroImg});background-size:cover;background-position:center;"></div>
+       <div style="position:absolute;inset:0;background:rgba(0,0,0,0.45);"></div>`
+    : `<div style="position:absolute;inset:0;background:linear-gradient(160deg,${primary} 0%,${primaryDark} 100%);"></div>`
+  }
+  <div style="position:relative;z-index:1;width:100%;">
+    ${logoImg}
+    <h1 style="font-size:40px;font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;">${name}</h1>
+    <p style="font-size:18px;opacity:0.85;margin-bottom:20px;">${desc || "Great food, great coffee."}</p>
+    <div class="hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a href="${chatUrl}" class="cta-primary">📋 View menu</a>
+      <a href="${chatUrl}" class="cta-secondary">🪑 Book a table</a>
+    </div>
   </div>
 </section>
 

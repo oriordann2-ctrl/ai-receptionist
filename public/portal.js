@@ -679,8 +679,8 @@
         + '<span class="toggle-track"></span></label>'
         + '</div>'
       ) : '')
-      // Train Staff toggle — not shown for tennis clubs
-      + (d.business_type !== 'tennis_club' ? (
+      // Train Staff toggle — not shown for tennis clubs or cafes
+      + (d.business_type !== 'tennis_club' && d.business_type !== 'cafe' ? (
           '<div class="toggle-row">'
         + '<div class="toggle-info"><div class="toggle-label">Train Staff on Knowledge Base</div>'
         + '<div class="toggle-sub">Lets you add staff members who can log in and query the knowledge base for training. Unlocks Flagged &amp; Approved Answers.</div></div>'

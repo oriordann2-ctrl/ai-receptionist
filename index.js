@@ -12245,7 +12245,7 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled, checkin_enabled, business_description, facebook_url, instagram_handle, twitter_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name, founded_year, phone, google_review_url, tripadvisor_url")
+    .select("ai_enabled, train_staff_enabled, checkin_enabled, business_description, facebook_url, instagram_handle, twitter_handle, tiktok_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name, founded_year, phone, google_review_url, tripadvisor_url, yelp_url")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
@@ -12269,7 +12269,9 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
     founded_year:          data?.founded_year         ?? null,
     phone:                 data?.phone                ?? "",
     google_review_url:     data?.google_review_url    ?? "",
-    tripadvisor_url:       data?.tripadvisor_url      ?? ""
+    tripadvisor_url:       data?.tripadvisor_url      ?? "",
+    yelp_url:              data?.yelp_url             ?? "",
+    tiktok_handle:         data?.tiktok_handle        ?? ""
   });
 });
 
@@ -12314,6 +12316,13 @@ app.post("/api/portal/settings", requireSeniorTenant, async (req, res) => {
   if (req.body.founded_year === null) updates.founded_year = null;
   if (typeof req.body.google_review_url === "string") updates.google_review_url = req.body.google_review_url.trim().slice(0, 500) || null;
   if (typeof req.body.tripadvisor_url   === "string") updates.tripadvisor_url   = req.body.tripadvisor_url.trim().slice(0, 500) || null;
+  if (typeof req.body.yelp_url          === "string") updates.yelp_url          = req.body.yelp_url.trim().slice(0, 500) || null;
+  if (typeof req.body.tiktok_handle     === "string") {
+    let tkVal = req.body.tiktok_handle.trim();
+    const tkUrlMatch = tkVal.match(/tiktok\.com\/@?([A-Za-z0-9_.]+)/);
+    if (tkUrlMatch) tkVal = tkUrlMatch[1];
+    updates.tiktok_handle = tkVal.replace(/^@/, "").slice(0, 100) || null;
+  }
   if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields provided" });
 
   const tenantId   = req.tenant.tenantId;
@@ -14511,7 +14520,7 @@ app.post("/chat", chatLimiter, async (req, res) => {
     try {
       const { data: _tenantData } = await supabase
         .from("tenants")
-        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name, monthly_chat_limit, facebook_url, instagram_handle, twitter_handle, google_review_url, tripadvisor_url, business_type")
+        .select("business_mode, name, email, ai_enabled, business_description, phone, assistant_name, monthly_chat_limit, facebook_url, instagram_handle, twitter_handle, tiktok_handle, google_review_url, tripadvisor_url, yelp_url, business_type")
         .eq("id", tenantId)
         .maybeSingle();
       tenantData = _tenantData;
@@ -15301,8 +15310,10 @@ Use plain numbers where possible.
           if (tenantData?.instagram_handle) socialFacts.push(`Instagram: @${tenantData.instagram_handle} (https://instagram.com/${tenantData.instagram_handle})`);
           if (tenantData?.facebook_url)     socialFacts.push(`Facebook: ${tenantData.facebook_url}`);
           if (tenantData?.twitter_handle)   socialFacts.push(`Twitter/X: @${tenantData.twitter_handle}`);
+          if (tenantData?.tiktok_handle)    socialFacts.push(`TikTok: @${tenantData.tiktok_handle} (https://tiktok.com/@${tenantData.tiktok_handle})`);
           if (tenantData?.google_review_url) socialFacts.push(`Google Reviews: ${tenantData.google_review_url}`);
           if (tenantData?.tripadvisor_url)   socialFacts.push(`TripAdvisor: ${tenantData.tripadvisor_url}`);
+          if (tenantData?.yelp_url)          socialFacts.push(`Yelp: ${tenantData.yelp_url}`);
           const _socialBit = socialFacts.length
             ? " SOCIAL MEDIA & REVIEWS for " + _org + ": " + socialFacts.join(", ") + ". When asked about social media, reviews, or where to leave a review, share these links directly."
             : "";

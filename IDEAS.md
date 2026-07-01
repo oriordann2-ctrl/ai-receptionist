@@ -62,6 +62,20 @@
 
 ---
 
+## 💡 Widget Background Photo Picker (Café Tenants)
+
+**The problem:** The photo grid in Settings is display-only — tenants can see their crawled photos but can't do anything with them. There's no way for a tenant to choose which photo appears as their widget hero image without developer intervention.
+
+**The solution:** Add a "Set as widget background" button to each photo in the Settings photo grid. Clicking it saves that URL to a new `widget_hero_image` field on the tenant, and the widget uses it as the hero/header image.
+
+**Why it matters:** As more café clients onboard, they'll want control over their own imagery. Currently that requires you to intervene each time.
+
+**Effort:** Small — new DB column, one button per photo in portal.js, one line in widget.js to use the field.
+
+**Status:** Idea. Parked — Cosy Café hero image is already good from the crawl.
+
+---
+
 ## 🟢 Cosy Café Kinsale — Active Client Onboarding
 
 Deal closed 2026-06-10 with Sebastien Perey. €300 on go-live + €49/month recurring.

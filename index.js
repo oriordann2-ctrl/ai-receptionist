@@ -32,6 +32,16 @@ const helmet = require("helmet");
 
 const app = express();
 
+// Maps a Stripe price ID to the Sprimal plan tier and monthly chat limit
+function priceToTier(priceId) {
+  if (priceId === process.env.STRIPE_PRICE_PRO)     return { tier: "pro",     limit: 2000 };
+  if (priceId === process.env.STRIPE_PRICE_GROWTH)  return { tier: "growth",  limit: 1200 };
+  if (priceId === process.env.STRIPE_PRICE_STARTER) return { tier: "starter", limit: 500  };
+  // Legacy price IDs (annual plan, pre-tier system)
+  if (priceId === process.env.STRIPE_PRICE_ANNUAL)  return { tier: "growth",  limit: 1200 };
+  return { tier: "starter", limit: 500 };
+}
+
 // ── Stripe webhook — raw body required for signature verification ─────────────
 // MUST be registered before express.json() middleware
 app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
@@ -56,12 +66,14 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
   if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
     const priceId = obj.items?.data?.[0]?.price?.id;
-    const plan    = priceId === process.env.STRIPE_PRICE_ANNUAL ? "annual" : "monthly";
+    const { tier, limit } = priceToTier(priceId);
     await supabase.from("tenants").update({
       subscription_status: obj.status,
       subscription_id:     obj.id,
       stripe_customer_id:  customerId,
-      subscription_plan:   plan
+      subscription_plan:   "monthly",
+      plan_tier:           tier,
+      monthly_chat_limit:  limit
     }).eq("stripe_customer_id", customerId);
     console.log(`[billing] Subscription ${event.type} for customer ${customerId}: ${obj.status}`);
   }
@@ -1388,6 +1400,7 @@ const INTEGRATION_CATALOG = [
     logo_html:      '<img src="/images/ebooking_logo.png" alt="ebookingonline.net" style="width:80px;height:56px;object-fit:contain;margin:0 auto;display:block;" onerror="this.outerHTML=\'<div style=&quot;width:56px;height:56px;border-radius:12px;background:#0066cc;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:15px;font-family:sans-serif;margin:0 auto;&quot;>EBO</div>\'" />',
     description:    "Court booking & member management",
     business_types: ["tennis_club", "squash_club", "badminton_club"],
+    plan_tiers:     ["growth", "pro"],
     coming_soon:    false,
     fields: [
       { key: "club_id",      label: "Club ID",              type: "text",     placeholder: "e.g. 100",        required: true,  hint: "Found in your EBO admin URL — e.g. ebookingonline.net/admin/100/..." },
@@ -1404,6 +1417,7 @@ const INTEGRATION_CATALOG = [
     logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#F22F46;display:flex;align-items:center;justify-content:center;margin:0 auto;"><svg viewBox="0 0 24 24" style="width:32px;height:32px;fill:white;"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2.571c5.196 0 9.429 4.233 9.429 9.429S17.196 21.429 12 21.429 2.571 17.196 2.571 12 6.804 2.571 12 2.571zm-2.571 5.143a2.571 2.571 0 1 0 0 5.143 2.571 2.571 0 0 0 0-5.143zm5.142 0a2.571 2.571 0 1 0 0 5.143 2.571 2.571 0 0 0 0-5.143zm-5.142 5.715a2.571 2.571 0 1 0 0 5.142 2.571 2.571 0 0 0 0-5.142zm5.142 0a2.571 2.571 0 1 0 0 5.142 2.571 2.571 0 0 0 0-5.142z"/></svg></div>',
     description:    "Send WhatsApp messages to coaches and staff",
     business_types: ["tennis_club", "squash_club", "badminton_club", "fitness_studio", "golf_club", "racket_sports_club", "yoga_studio", "swim_club", "gaa_club", "team_sports_club", "other"],
+    plan_tiers:     ["growth", "pro"],
     coming_soon:    false,
     fields: [
       { key: "account_sid",  label: "Account SID",          type: "text",     placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", required: true,  hint: "From twilio.com/console — starts with AC" },
@@ -12604,9 +12618,9 @@ app.delete("/api/portal/flagged-answers/:id", requireSeniorTenant, async (req, r
 app.get("/api/billing/status", requireTenant, async (req, res) => {
   try {
     const { data } = await supabase.from("tenants")
-      .select("subscription_status, subscription_plan, trial_ends_at, stripe_customer_id")
+      .select("subscription_status, subscription_plan, plan_tier, monthly_chat_limit, trial_ends_at, stripe_customer_id")
       .eq("id", req.tenant.tenantId).maybeSingle();
-    res.json(data || { subscription_status: "trialing" });
+    res.json(data || { subscription_status: "trialing", plan_tier: "starter", monthly_chat_limit: 500 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -12616,20 +12630,28 @@ app.get("/api/billing/status", requireTenant, async (req, res) => {
 app.post("/api/billing/checkout", requireTenant, async (req, res) => {
   if (!process.env.SPRIMAL_STRIPE_KEY) return res.status(500).json({ error: "Billing not configured" });
   try {
-    const { plan = "monthly" } = req.body;
-    const priceId = plan === "annual" ? process.env.STRIPE_PRICE_ANNUAL : process.env.STRIPE_PRICE_MONTHLY;
+    const { tier = "starter" } = req.body;
+    const TIER_PRICES = {
+      starter: process.env.STRIPE_PRICE_STARTER || process.env.STRIPE_PRICE_MONTHLY,
+      growth:  process.env.STRIPE_PRICE_GROWTH,
+      pro:     process.env.STRIPE_PRICE_PRO,
+    };
+    const priceId = TIER_PRICES[tier] || TIER_PRICES.starter;
+    if (!priceId) return res.status(500).json({ error: "Pricing not configured for this tier" });
     const { data: tenant } = await supabase.from("tenants").select("name, email").eq("id", req.tenant.tenantId).maybeSingle();
     const email      = req.tenant.email || tenant?.email || "";
     const customerId = await getOrCreateSprimalCustomer(req.tenant.tenantId, tenant?.name || req.tenant.tenantId, email);
     const stripe     = sprimalStripe();
     const session    = await stripe.checkout.sessions.create({
-      customer:             customerId,
-      payment_method_types: ["card"],
-      line_items:           [{ price: priceId, quantity: 1 }],
-      mode:                 "subscription",
-      success_url:          `https://app.sprimal.com/portal/dashboard?billing=success`,
-      cancel_url:           `https://app.sprimal.com/portal/dashboard`,
-      metadata:             { tenant_id: req.tenant.tenantId }
+      customer:                  customerId,
+      payment_method_types:      ["card"],
+      payment_method_collection: "if_required",
+      line_items:                [{ price: priceId, quantity: 1 }],
+      mode:                      "subscription",
+      subscription_data:         { trial_period_days: 14 },
+      success_url:               `https://app.sprimal.com/portal/dashboard?billing=success`,
+      cancel_url:                `https://app.sprimal.com/portal/dashboard`,
+      metadata:                  { tenant_id: req.tenant.tenantId }
     });
     res.json({ url: session.url });
   } catch (err) {
@@ -13902,15 +13924,17 @@ app.get("/api/portal/integrations", requireTenant, async (req, res) => {
   const tenantId = req.tenant.tenantId;
   try {
     const [{ data: tenant }, { data: connected }] = await Promise.all([
-      supabase.from("tenants").select("business_type").eq("id", tenantId).maybeSingle(),
+      supabase.from("tenants").select("business_type, plan_tier").eq("id", tenantId).maybeSingle(),
       supabase.from("tenant_integrations").select("provider, config, is_active, updated_at").eq("tenant_id", tenantId)
     ]);
     const bizType  = tenant?.business_type || "other";
+    const planTier = tenant?.plan_tier || "starter";
     const connMap  = {};
     (connected || []).forEach(c => { connMap[c.provider] = c; });
 
 const result = INTEGRATION_CATALOG
       .filter(i => !i.business_types || i.business_types.includes(bizType))
+      .filter(i => !i.plan_tiers || i.plan_tiers.includes(planTier))
       .map(i => {
         // Decrypt config and strip sensitive fields before sending to browser
         const rawConfig  = connMap[i.provider]?.config || {};

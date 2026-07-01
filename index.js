@@ -7876,8 +7876,8 @@ function setSessionCookie(res, token) {
   res.cookie("tenant_session", token, {
     httpOnly: true,
     secure:   true,
-    sameSite: "lax"
-    // No maxAge — session cookie, cleared when browser closes
+    sameSite: "lax",
+    maxAge:   24 * 60 * 60 * 1000  // 24 hours
   });
 }
 

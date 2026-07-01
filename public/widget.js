@@ -357,17 +357,6 @@
           brandColor = config.brand_color;
           applyBrandColor(config.brand_color);
         }
-        // Apply hero background photo if set — injected as a stylesheet rule with !important
-        // because applyBrandColor also uses !important, which beats inline styles
-        if (config.widget_hero_image) {
-          var heroStyle = document.getElementById("sprimal-hero-style");
-          if (!heroStyle) {
-            heroStyle = document.createElement("style");
-            heroStyle.id = "sprimal-hero-style";
-            document.head.appendChild(heroStyle);
-          }
-          heroStyle.textContent = "#sprimal-header{background:linear-gradient(rgba(0,0,0,0.55),rgba(0,0,0,0.55)),url(" + config.widget_hero_image + ") center/cover no-repeat!important;}";
-        }
       })
       .catch(function () { /* silently keep defaults */ });
   }

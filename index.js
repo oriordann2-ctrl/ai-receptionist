@@ -1403,7 +1403,7 @@ const INTEGRATION_CATALOG = [
     name:           "Twilio WhatsApp",
     logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#F22F46;display:flex;align-items:center;justify-content:center;margin:0 auto;"><svg viewBox="0 0 24 24" style="width:32px;height:32px;fill:white;"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2.571c5.196 0 9.429 4.233 9.429 9.429S17.196 21.429 12 21.429 2.571 17.196 2.571 12 6.804 2.571 12 2.571zm-2.571 5.143a2.571 2.571 0 1 0 0 5.143 2.571 2.571 0 0 0 0-5.143zm5.142 0a2.571 2.571 0 1 0 0 5.143 2.571 2.571 0 0 0 0-5.143zm-5.142 5.715a2.571 2.571 0 1 0 0 5.142 2.571 2.571 0 0 0 0-5.142zm5.142 0a2.571 2.571 0 1 0 0 5.142 2.571 2.571 0 0 0 0-5.142z"/></svg></div>',
     description:    "Send WhatsApp messages to coaches and staff",
-    business_types: null,
+    business_types: ["tennis_club", "squash_club", "badminton_club", "fitness_studio", "golf_club", "racket_sports_club", "yoga_studio", "swim_club", "gaa_club", "team_sports_club", "other"],
     coming_soon:    false,
     fields: [
       { key: "account_sid",  label: "Account SID",          type: "text",     placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", required: true,  hint: "From twilio.com/console — starts with AC" },
@@ -1416,7 +1416,7 @@ const INTEGRATION_CATALOG = [
     name:           "Stripe",
     logo_html:      '<div style="width:56px;height:56px;border-radius:12px;background:#635BFF;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:28px;font-family:sans-serif;margin:0 auto;">S</div>',
     description:    "Accept payments and manage member subscriptions",
-    business_types: null,
+    business_types: ["tennis_club", "squash_club", "badminton_club", "fitness_studio", "golf_club", "racket_sports_club", "yoga_studio", "swim_club", "gaa_club", "team_sports_club", "other"],
     coming_soon:    false,
     fields: [
       { key: "secret_key", label: "Secret Key", type: "password", placeholder: "sk_test_... or sk_live_...", required: true, hint: "From your Stripe Dashboard → Developers → API keys. Use sk_test_... for testing, sk_live_... for live." }

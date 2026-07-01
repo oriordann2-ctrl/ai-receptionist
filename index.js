@@ -12264,7 +12264,7 @@ app.post("/api/portal/seed-flows", requireTenant, async (req, res) => {
 app.get("/api/portal/settings", requireTenant, async (req, res) => {
   const { data, error } = await supabase
     .from("tenants")
-    .select("ai_enabled, train_staff_enabled, checkin_enabled, business_description, facebook_url, instagram_handle, twitter_handle, tiktok_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name, founded_year, phone, google_review_url, tripadvisor_url, yelp_url")
+    .select("ai_enabled, train_staff_enabled, checkin_enabled, business_description, facebook_url, instagram_handle, twitter_handle, tiktok_handle, social_images, business_type, checkin_lat, checkin_lng, checkin_radius_meters, logo_url, assistant_name, founded_year, phone, google_review_url, tripadvisor_url, yelp_url, widget_hero_image")
     .eq("id", req.tenant.tenantId)
     .maybeSingle();
   if (error) return res.status(500).json({ error: "Failed to fetch settings" });
@@ -12290,7 +12290,8 @@ app.get("/api/portal/settings", requireTenant, async (req, res) => {
     google_review_url:     data?.google_review_url    ?? "",
     tripadvisor_url:       data?.tripadvisor_url      ?? "",
     yelp_url:              data?.yelp_url             ?? "",
-    tiktok_handle:         data?.tiktok_handle        ?? ""
+    tiktok_handle:         data?.tiktok_handle        ?? "",
+    widget_hero_image:     data?.widget_hero_image    ?? null
   });
 });
 
@@ -12614,6 +12615,17 @@ app.delete("/api/portal/flagged-answers/:id", requireSeniorTenant, async (req, r
   res.json({ success: true });
 });
 
+// POST /api/portal/hero-image — set or clear the widget hero background photo
+app.post("/api/portal/hero-image", requireTenant, async (req, res) => {
+  const { url } = req.body; // null to clear, string URL to set
+  const value = url ? String(url).slice(0, 1000) : null;
+  const { error } = await supabase.from("tenants")
+    .update({ widget_hero_image: value })
+    .eq("id", req.tenant.tenantId);
+  if (error) return res.status(500).json({ error: "Failed to save hero image" });
+  res.json({ success: true, widget_hero_image: value });
+});
+
 // ── Portal: approved answers — see full CRUD below (line ~12640) ──────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -12714,15 +12726,15 @@ app.get("/api/tenant-config/:tenantId", async (req, res) => {
 
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name, logo_url, website, brand_color, assistant_name")
+    .select("id, name, logo_url, website, brand_color, assistant_name, widget_hero_image")
     .eq("id", tenantId)
     .maybeSingle();
 
   if (error || !data) {
-    return res.json({ id: tenantId, name: null, logo_url: null, brand_color: null, assistant_name: null });
+    return res.json({ id: tenantId, name: null, logo_url: null, brand_color: null, assistant_name: null, widget_hero_image: null });
   }
 
-  res.json({ id: data.id, name: data.name, logo_url: data.logo_url || null, brand_color: data.brand_color || null, assistant_name: data.assistant_name || null });
+  res.json({ id: data.id, name: data.name, logo_url: data.logo_url || null, brand_color: data.brand_color || null, assistant_name: data.assistant_name || null, widget_hero_image: data.widget_hero_image || null });
 });
 
 // ── Favicon proxy — serves tenant logo through our own domain ─────────────────

@@ -62,7 +62,7 @@
 
 ---
 
-## 💡 Widget Background Photo Picker (Café Tenants)
+## 🚨 URGENT — Widget Background Photo Picker (All Tenants)
 
 **The problem:** The photo grid in Settings is display-only — tenants can see their crawled photos but can't do anything with them. There's no way for a tenant to choose which photo appears as their widget hero image without developer intervention.
 
@@ -72,7 +72,7 @@
 
 **Effort:** Small — new DB column, one button per photo in portal.js, one line in widget.js to use the field.
 
-**Status:** Idea. Parked — Cosy Café hero image is already good from the crawl.
+**Status:** 🚨 URGENT — build next. Every new signup gets no hero image. This is a first-impression problem at scale.
 
 ---
 

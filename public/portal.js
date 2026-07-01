@@ -2,9 +2,10 @@
 (function() {
   "use strict";
 
-  var isNewSignup = false;
-  var pollTimer   = null;
-  var pollCount   = 0;
+  var isNewSignup      = false;
+  var pollTimer        = null;
+  var pollCount        = 0;
+  var currentHeroImage = null; // tracks the active widget hero photo
 
   function init() {
     isNewSignup = new URLSearchParams(location.search).get("new") === "1";
@@ -589,6 +590,7 @@
       .then(function(r) { return r.json(); })
       .then(function(d) {
         _settings = d;
+        currentHeroImage = d.widget_hero_image || null;
         renderSettings(d);
         applyTrainStaffVisibility(d.train_staff_enabled);
       })
@@ -726,7 +728,7 @@
         + '<div class="toggle-label" style="margin-bottom:4px;">Club Photos</div>'
         + '<div class="toggle-sub" style="margin-bottom:12px;">Photos shown on your club website. Upload from your device, paste a URL, or re-fetch from Instagram.</div>'
         + '<div id="photoGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'
-        + renderPhotoGrid(d.social_images || [])
+        + renderPhotoGrid(d.social_images || [], d.widget_hero_image || null)
         + '</div>'
         + '<div id="photoUrlPreview" style="margin-bottom:8px;"></div>'
         + '<div style="margin-bottom:8px;">'
@@ -791,7 +793,7 @@
       });
   };
 
-  function renderPhotoGrid(images) {
+  function renderPhotoGrid(images, currentHero) {
     // Strip logo fallback — it's the club crest, not a club photo
     images = (images || []).filter(function(u) { return !/logo_fallback/i.test(u); });
     if (!images.length) {
@@ -799,13 +801,45 @@
     }
     return images.map(function(url) {
       var escaped = url.replace(/'/g, "\\'");
+      var isHero  = currentHero && currentHero === url;
+      var heroBadge = isHero
+        ? '<div style="position:absolute;top:4px;left:4px;background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">★ Widget hero</div>'
+        : '';
+      var heroBtn = isHero
+        ? '<button onclick="setHeroImage(null)" title="Remove as widget hero" style="position:absolute;bottom:4px;left:4px;right:4px;background:rgba(22,163,74,0.9);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;padding:3px 6px;cursor:pointer;">✓ Set as hero — click to remove</button>'
+        : '<button onclick="setHeroImage(\'' + escaped + '\')" title="Use as widget background" style="position:absolute;bottom:4px;left:4px;right:4px;background:rgba(0,0,0,0.65);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;padding:3px 6px;cursor:pointer;opacity:0;" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'0\'">Set as widget hero</button>';
       return '<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f3f4f6;">'
         + '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.opacity=\'0.2\'">'
+        + heroBadge
+        + heroBtn
         + '<button onclick="removePhoto(\'' + escaped + '\')" title="Remove" '
         + 'style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>'
         + '</div>';
     }).join('');
   }
+
+  window.setHeroImage = function(url) {
+    fetch('/api/portal/hero-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        currentHeroImage = data.widget_hero_image;
+        var grid = document.getElementById('photoGrid');
+        if (grid) {
+          var imgs = [];
+          grid.querySelectorAll('img').forEach(function(i) { imgs.push(i.src); });
+          grid.innerHTML = renderPhotoGrid(imgs, currentHeroImage);
+        }
+      } else {
+        alert(data.error || 'Failed to set hero image');
+      }
+    })
+    .catch(function() { alert('Failed to set hero image'); });
+  };
 
   window.saveSocialHandles = function() {
     var status = document.getElementById("socialStatus");
@@ -872,7 +906,7 @@
       var preview = document.getElementById("photoUrlPreview");
       if (preview) preview.innerHTML = "";
       var grid = document.getElementById("photoGrid");
-      if (grid) grid.innerHTML = renderPhotoGrid(d.images);
+      if (grid) grid.innerHTML = renderPhotoGrid(d.images, currentHeroImage);
       if (status) { status.textContent = "Added ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
     })
     .catch(function(err) {
@@ -891,7 +925,7 @@
     .then(function(d) {
       if (!d.ok) throw new Error(d.error || "upload failed");
       var grid = document.getElementById("photoGrid");
-      if (grid) grid.innerHTML = renderPhotoGrid(d.images);
+      if (grid) grid.innerHTML = renderPhotoGrid(d.images, currentHeroImage);
       var input = document.getElementById("photoFileInput");
       if (input) input.value = "";
       if (status) { status.textContent = "Uploaded " + d.added.length + " photo" + (d.added.length !== 1 ? "s" : "") + " ✓"; setTimeout(function() { status.textContent = ""; }, 3000); }
@@ -913,7 +947,7 @@
     .then(function(d) {
       if (!d.ok) throw new Error(d.error || "failed");
       var grid = document.getElementById("photoGrid");
-      if (grid) grid.innerHTML = renderPhotoGrid(d.images);
+      if (grid) grid.innerHTML = renderPhotoGrid(d.images, currentHeroImage);
       if (status) { status.textContent = "Removed ✓"; setTimeout(function() { status.textContent = ""; }, 2500); }
     })
     .catch(function(err) {
